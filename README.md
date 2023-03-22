@@ -2,9 +2,9 @@
 
 This codebase allows for the learning of constraint matrices for arbitrary lifting functions.
 
-To implement your own lifting function, inherit from the `StateLifter` class, following the examples in `custom_lifters.py`.
+To implement your own lifting function, inherit from the `StateLifter` class, following the examples in [lifters/custom_lifters.py](lifters/custom_lifters.py).
 
-Visualizations of the example lifting functions and an explanation of the method can be found in `_notebooks/ConstraintsLearning.ipynb`. 
+Visualizations of the example lifting functions and an explanation of the method can be found in [_notebooks/ConstraintsLearning.ipynb](_notebooks/ConstraintsLearning.ipynb). 
 
 ## Installation
 
