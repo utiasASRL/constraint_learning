@@ -285,10 +285,15 @@ class Stereo2DLifter(StateLifter):
             x_data += list(u)
 
             if self.level == 1:
-                higher_data += list(u**2)
+                # this doesn't work
+                #higher_data += list(r * u)
+                #higher_data += list(u**2)
+                higher_data += list(np.outer(u, r)[:, 0])
             elif self.level == 2:
+                # this doesn't work
                 higher_data += list(np.outer(u, u).flatten())
             elif self.level == 3:
+                # this works
                 higher_data += list(np.outer(u, r).flatten())
         x_data += higher_data
         return np.array(x_data)
