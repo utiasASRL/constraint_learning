@@ -47,7 +47,6 @@ class StateLifter(object):
         Y = np.empty((n_seeds, dim_Y))
         self.generate_random_setup()
         for seed in range(n_seeds):
-
             np.random.seed(seed)
             self.generate_random_unknowns()
             theta = self.get_theta()

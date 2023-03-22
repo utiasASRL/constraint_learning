@@ -3,10 +3,12 @@ import numpy as np
 from utils import get_T, get_rot_matrix
 from lifters.state_lifter import StateLifter
 
+
 def change_dimensions(a, y, x):
     p_w = np.concatenate([a, np.ones((a.shape[0], 1))], axis=1)
     y_mat = np.c_[[*y]]  # N x 2
     return p_w[:, :, None], y_mat[:, :, None], x[:, None]
+
 
 class Stereo2DLifter(StateLifter):
     def __init__(self, n_landmarks, level=0):
@@ -56,8 +58,8 @@ class Stereo2DLifter(StateLifter):
 
             if self.level == 1:
                 # this doesn't work
-                #higher_data += list(r * u)
-                #higher_data += list(u**2)
+                # higher_data += list(r * u)
+                # higher_data += list(u**2)
                 higher_data += list(np.outer(u, r)[:, 0])
             elif self.level == 2:
                 # this doesn't work
@@ -76,7 +78,7 @@ class Stereo2DLifter(StateLifter):
             var_dict.update({f"y{i}": 2 for i in range(self.n_landmarks)})
         elif self.level > 2:
             var_dict.update({f"y{i}": 4 for i in range(self.n_landmarks)})
-        
+
         return var_dict
 
     def get_Q(self, noise: float = 1e-3) -> tuple:

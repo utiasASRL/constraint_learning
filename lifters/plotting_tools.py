@@ -2,6 +2,7 @@ import os
 
 import matplotlib.pylab as plt
 
+
 def add_colorbar(fig, ax, im, title=None):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
@@ -11,6 +12,7 @@ def add_colorbar(fig, ax, im, title=None):
     if title is not None:
         cax.set_ylabel(title)
     return cax
+
 
 def make_dirs_safe(path):
     """Make directory of input path, if it does not exist yet."""
@@ -39,8 +41,10 @@ def plot_matrices(A_list, n_matrices=15, start_idx=0, colorbar=True):
         ax.set_title(f"$A_{{{i+1}}}$", y=1.0)
         if colorbar:
             add_colorbar(fig, ax, im)
-    [ax.axis('off') for ax in axs[i:]]
-    fig.suptitle(f"{start_idx}:{start_idx+num_plots} of {len(A_list)} constraints", y=0.9)
+    [ax.axis("off") for ax in axs[i:]]
+    fig.suptitle(
+        f"{start_idx}:{start_idx+num_plots} of {len(A_list)} constraints", y=0.9
+    )
     return fig, axs
 
 

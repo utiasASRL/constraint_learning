@@ -2,6 +2,7 @@ import numpy as np
 
 from lifters.state_lifter import StateLifter
 
+
 class Stereo1DLifter(StateLifter):
     def __init__(self, n_landmarks):
         self.n_landmarks = n_landmarks

@@ -1,8 +1,8 @@
-
 import numpy as np
 
 from lifters.state_lifter import StateLifter
 from utils import get_rot_matrix
+
 
 class PoseLandmarkLifter(StateLifter):
     def __init__(self, n_landmarks, n_poses, d):
