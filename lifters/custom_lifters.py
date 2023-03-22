@@ -244,8 +244,10 @@ class Stereo2DLifter(StateLifter):
         self.n_landmarks = n_landmarks
         self.d = 2
         M = self.n_landmarks * self.d
-        if level > 0:
+        if level == 1:
             M += self.n_landmarks * self.d
+        elif level > 2:
+            M += self.n_landmarks * self.d**2
         super().__init__(theta_shape=(6,), M=M)
 
     def generate_random_setup(self):
@@ -282,9 +284,12 @@ class Stereo2DLifter(StateLifter):
             u = 1 / zj * np.r_[C[0, :] @ pj + r[0], 1]
             x_data += list(u)
 
-            if self.level > 0:
+            if self.level == 1:
                 higher_data += list(u**2)
-
+            elif self.level == 2:
+                higher_data += list(np.outer(u, u).flatten())
+            elif self.level == 3:
+                higher_data += list(np.outer(u, r).flatten())
         x_data += higher_data
         return np.array(x_data)
 
@@ -292,13 +297,16 @@ class Stereo2DLifter(StateLifter):
         var_dict = {"l": 1}
         var_dict["x"] = 6
         var_dict.update({f"z{i}": 2 for i in range(self.n_landmarks)})
-        if self.level > 0:
+        if self.level == 1:
             var_dict.update({f"y{i}": 2 for i in range(self.n_landmarks)})
+        elif self.level > 2:
+            var_dict.update({f"y{i}": 4 for i in range(self.n_landmarks)})
+        
         return var_dict
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
         from poly_matrix.poly_matrix import PolyMatrix
-        from stereo2d_problem import M as M_mat
+        from lifters.stereo2d_problem import M as M_mat
 
         T = get_T(self.get_theta())
 
@@ -330,7 +338,7 @@ class Stereo2DLifter(StateLifter):
 
     @staticmethod
     def get_cost(a, y, x):
-        from stereo2d_problem import _cost
+        from lifters.stereo2d_problem import _cost
 
         p_w, y, phi = change_dimensions(a, y, x)
         cost = _cost(p_w=p_w, y=y, phi=phi, W=None)[0, 0]
@@ -338,7 +346,7 @@ class Stereo2DLifter(StateLifter):
 
     @staticmethod
     def local_solver(a, y, x_init, verbose=False):
-        from stereo2d_problem import local_solver
+        from lifters.stereo2d_problem import local_solver
 
         p_w, y, init_phi = change_dimensions(a, y, x_init)
         success, phi_hat, cost = local_solver(
