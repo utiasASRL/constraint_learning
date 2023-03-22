@@ -1,8 +1,9 @@
 import numpy as np
 
 from lifters.custom_lifters import Poly4Lifter, Poly6Lifter, RangeOnlyLifter
-from lifters.custom_lifters import PoseLandmarkLifter
-from lifters.custom_lifters import Stereo1DLifter, Stereo2DLifter
+from lifters.landmark_lifter import PoseLandmarkLifter
+from lifters.stereo1d_lifter import Stereo1DLifter
+from lifters.stereo2d_lifter import Stereo2DLifter
 
 n_landmarks = 3
 n_poses = 2
