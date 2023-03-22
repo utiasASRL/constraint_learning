@@ -1,7 +1,9 @@
+from thesis.solvers import local_solver
+
 import numpy as np
 
+from utils import get_T, get_rot_matrix
 from lifters.stereo_lifter import StereoLifter
-from utils import get_T
 
 
 def change_dimensions(a, y, x):
@@ -10,15 +12,14 @@ def change_dimensions(a, y, x):
     return p_w[:, :, None], y_mat[:, :, None], x[:, None]
 
 
-class Stereo2DLifter(StereoLifter):
+class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level=0):
-        super().__init__(n_landmarks=n_landmarks, d=2, level=level)
+        super().__init__(n_landmarks=n_landmarks, level=level, d=3)
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
-        assert self.d == 2
-
         from poly_matrix.poly_matrix import PolyMatrix
-        from lifters.stereo2d_problem import M as M_mat
+
+        # from lifters.stereo2d_problem import M as M_mat
 
         T = get_T(self.get_theta())
 
@@ -49,18 +50,18 @@ class Stereo2DLifter(StereoLifter):
         ]
 
     @staticmethod
-    def get_cost(a, y, t):
+    def get_cost(a, y, x):
         from lifters.stereo2d_problem import _cost
 
-        p_w, y, phi = change_dimensions(a, y, t)
+        p_w, y, phi = change_dimensions(a, y, x)
         cost = _cost(p_w=p_w, y=y, phi=phi, W=None)[0, 0]
         return cost
 
     @staticmethod
-    def local_solver(a, y, t_init, verbose=False):
+    def local_solver(a, y, x_init, verbose=False):
         from lifters.stereo2d_problem import local_solver
 
-        p_w, y, init_phi = change_dimensions(a, y, t_init)
+        p_w, y, init_phi = change_dimensions(a, y, x_init)
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=None, init_phi=init_phi, log=verbose
         )

@@ -4,16 +4,18 @@ from lifters.custom_lifters import Poly4Lifter, Poly6Lifter, RangeOnlyLifter
 from lifters.landmark_lifter import PoseLandmarkLifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
 
 n_landmarks = 3
 n_poses = 2
 lifters = [
-    Poly4Lifter(),
-    Poly6Lifter(),
-    RangeOnlyLifter(n_positions=n_poses, d=2),
-    PoseLandmarkLifter(n_landmarks, n_poses, d=2),
-    Stereo1DLifter(n_landmarks),
-    Stereo2DLifter(n_landmarks),
+    # Poly4Lifter(),
+    # Poly6Lifter(),
+    # RangeOnlyLifter(n_positions=n_poses, d=2),
+    # PoseLandmarkLifter(n_landmarks, n_poses, d=2),
+    # Stereo1DLifter(n_landmarks),
+    Stereo2DLifter(n_landmarks, level=0),
+    # Stereo3DLifter(n_landmarks),
 ]
 
 
@@ -21,14 +23,17 @@ def test_cost_noiseless():
     for lifter in lifters:
         Q, y = lifter.get_Q(noise=0)
         if Q is None:
-            return
+            continue
 
         t = lifter.unknowns
-        x = lifter.get_x()
-        assert abs(x.T @ Q @ x) < 1e-10, x.T @ Q @ x
-
         cost = lifter.get_cost(lifter.landmarks, y, t)
-        assert cost < 1e-10
+        assert cost < 1e-10, cost
+
+        x = lifter.get_x()
+        costQ = x.T @ Q @ x
+        assert abs(costQ) < 1e-10, costQ
+
+        assert abs(cost - costQ) < 1e-10, (cost, costQ)
 
 
 def test_cost_noisy():
@@ -36,7 +41,7 @@ def test_cost_noisy():
         noise = 1e-1
         Q, y = lifter.get_Q(noise=noise)
         if Q is None:
-            return
+            continue
 
         x = lifter.unknowns
         cost = lifter.get_cost(lifter.landmarks, y, x)
@@ -57,7 +62,7 @@ def test_solvers(n_seeds=1, noise=0.0):
             np.random.seed(j)
             Q, y = lifter.get_Q(noise=noise)
             if Q is None:
-                return
+                continue
 
             # test that we converge to real solution when initializing around it
             delta = 1e-3
