@@ -19,27 +19,20 @@ lifters = [
 ]
 
 
-def test_cost_noiseless():
-    for lifter in lifters:
-        Q, y = lifter.get_Q(noise=0)
-        if Q is None:
-            continue
-
-        t = lifter.unknowns
-        cost = lifter.get_cost(lifter.landmarks, y, t)
-        assert cost < 1e-10, cost
-
-        x = lifter.get_x()
-        costQ = x.T @ Q @ x
-        assert abs(costQ) < 1e-10, costQ
-
-        assert abs(cost - costQ) < 1e-10, (cost, costQ)
-
-
 def test_cost_noisy():
+    test_cost(noise=0.1)
+
+
+def test_cost(noise=0.0):
     for lifter in lifters:
         noise = 1e-1
+
+        # np.random.seed(1)
         Q, y = lifter.get_Q(noise=noise)
+        # np.random.seed(1)
+        # Qold, yold = lifter.get_Q_old(noise=noise)
+        # np.testing.assert_allclose(Q, Qold)
+        # np.testing.assert_allclose(y, yold)
         if Q is None:
             continue
 
@@ -49,7 +42,10 @@ def test_cost_noisy():
         x = lifter.get_x()
         costQ = x.T @ Q @ x
         assert abs(cost - costQ) < 1e-10
-        print("passed noise test 2")
+
+        if noise == 0:
+            assert cost < 1e-10, cost
+            assert costQ < 1e-10, costQ
 
 
 def test_solvers_noisy(n_seeds=3, noise=1e-1):
@@ -99,7 +95,14 @@ def test_constraints():
 
 
 if __name__ == "__main__":
-    import pytest
+    test_cost()
+    test_cost_noisy()
 
-    print("testing", lifters)
-    pytest.main([__file__, "-s"])
+    test_solvers()
+    test_solvers_noisy
+
+    test_constraints()
+
+    # import pytest
+    # print("testing", lifters)
+    # pytest.main([__file__, "-s"])

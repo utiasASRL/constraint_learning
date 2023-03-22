@@ -1,7 +1,7 @@
 import numpy as np
 
 from lifters.state_lifter import StateLifter
-from utils import get_rot_matrix, get_T
+from utils import get_rot_matrix
 
 
 class StereoLifter(StateLifter):
@@ -27,6 +27,13 @@ class StereoLifter(StateLifter):
             np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi
         ]
 
+    def get_C_r_from_theta(self, theta=None):
+        if theta is None:
+            theta = self.get_theta()
+        C = theta[: self.d**2].reshape((self.d, self.d)).T
+        r = theta[-self.d :]
+        return C, r
+
     def get_theta_from_unknowns(self, unknowns=None):
         if unknowns is None:
             unknowns = self.unknowns
@@ -50,10 +57,9 @@ class StereoLifter(StateLifter):
         elif len(theta) < self.theta_shape[0]:
             theta = self.get_theta_from_unknowns(unknowns=theta)
 
-        C = theta[: self.d**2].reshape((self.d, self.d)).T
+        C, r = self.get_C_r_from_theta(theta)
         if Ctest is not None:
             np.testing.assert_allclose(Ctest, C)
-        r = theta[-self.d:]
         x_data = [1] + list(theta)
 
         higher_data = []
@@ -87,3 +93,11 @@ class StereoLifter(StateLifter):
         elif self.level > 2:
             var_dict.update({f"y{i}": self.d**2 for i in range(self.n_landmarks)})
         return var_dict
+
+    def get_T(self):
+        C, r = self.get_C_r_from_theta()
+        T = np.zeros((self.d + 1, self.d + 1))
+        T[: self.d, : self.d] = C
+        T[: self.d, self.d] = r
+        T[-1, -1] = 1.0
+        return T

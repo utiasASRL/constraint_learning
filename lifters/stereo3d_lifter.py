@@ -2,7 +2,7 @@ from thesis.solvers import local_solver
 
 import numpy as np
 
-from utils import get_T, get_rot_matrix
+from utils import get_rot_matrix
 from lifters.stereo_lifter import StereoLifter
 
 
@@ -19,9 +19,10 @@ class Stereo3DLifter(StereoLifter):
     def get_Q(self, noise: float = 1e-3) -> tuple:
         from poly_matrix.poly_matrix import PolyMatrix
 
-        # from lifters.stereo2d_problem import M as M_mat
+        from lifters.stereo2d_problem import M as M_mat
+        from lifters.stereo3d_problem import M as M_mat
 
-        T = get_T(self.get_theta())
+        T = self.get_T()
 
         y = []
         for j in range(self.n_landmarks):
