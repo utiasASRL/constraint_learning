@@ -1,11 +1,11 @@
-from custom_lifters import PoseLandmarkLifter
+from lifters.custom_lifters import PoseLandmarkLifter
 
 if __name__ == "__main__":
     import itertools
     import pandas as pd
     from progressbar import ProgressBar
 
-    # fname = f"_results/redundant_test.pkl"
+    # fname = f"../_results/redundant_test.pkl"
     fname = ""
 
     d_list = [2]
@@ -29,7 +29,7 @@ if __name__ == "__main__":
         A_list = lifter.generate_matrices(basis)
 
         if plot:
-            from plotting_tools import *
+            from lifters.plotting_tools import *
 
             plot_singular_values(S)
             plot_matrices(A_list, colorbar=False)
