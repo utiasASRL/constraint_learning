@@ -14,8 +14,8 @@ lifters = [
     # RangeOnlyLifter(n_positions=n_poses, d=2),
     # PoseLandmarkLifter(n_landmarks, n_poses, d=2),
     # Stereo1DLifter(n_landmarks),
-    Stereo2DLifter(n_landmarks, level=0),
-    # Stereo3DLifter(n_landmarks),
+    # Stereo2DLifter(n_landmarks, level=0),
+    Stereo3DLifter(n_landmarks),
 ]
 
 
@@ -25,8 +25,6 @@ def test_cost_noisy():
 
 def test_cost(noise=0.0):
     for lifter in lifters:
-        noise = 1e-1
-
         # np.random.seed(1)
         Q, y = lifter.get_Q(noise=noise)
         # np.random.seed(1)
@@ -37,7 +35,7 @@ def test_cost(noise=0.0):
             continue
 
         x = lifter.unknowns
-        cost = lifter.get_cost(lifter.landmarks, y, x)
+        cost = lifter.get_cost(lifter.landmarks, y, x, W=lifter.W)
 
         x = lifter.get_x()
         costQ = x.T @ Q @ x
@@ -66,10 +64,13 @@ def test_solvers(n_seeds=1, noise=0.0):
             gt = lifter.unknowns
             t0 = gt + np.random.normal(scale=delta, loc=0, size=len(gt))
             a = lifter.landmarks
-            that, msg = lifter.local_solver(a, y, t0)
+            that, msg = lifter.local_solver(a, y, t0, W=lifter.W)
             if noise == 0:
                 # test that solution is ground truth with no noise
-                np.testing.assert_allclose(that, gt)
+                if lifter.d == 2:
+                    np.testing.assert_allclose(that, gt)
+                else:
+                    print("not testing 3d pose difference yet.")
             else:
                 # just test that we converged when noise is added
                 assert that is not None

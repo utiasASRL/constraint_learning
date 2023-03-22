@@ -4,6 +4,7 @@ import numpy as np
 
 from utils import get_rot_matrix
 from lifters.stereo_lifter import StereoLifter
+from lifters.stereo3d_problem import M as M_mat
 
 
 def change_dimensions(a, y, x):
@@ -14,59 +15,52 @@ def change_dimensions(a, y, x):
 
 class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level=0):
+        self.W = np.eye(4)
         super().__init__(n_landmarks=n_landmarks, level=level, d=3)
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
-        from poly_matrix.poly_matrix import PolyMatrix
-
-        from lifters.stereo2d_problem import M as M_mat
-        from lifters.stereo3d_problem import M as M_mat
-
-        T = self.get_T()
-
-        y = []
-        for j in range(self.n_landmarks):
-            y_gt = T @ np.r_[self.landmarks[j, :], 1.0]
-            y_gt /= y_gt[1]
-            y_gt = M_mat @ y_gt
-            y.append(y_gt + np.random.normal(loc=0, scale=noise))
-
-        M_tilde = M_mat[:, [0, 2]]
-
-        Q = PolyMatrix()
-        M_tilde_sq = M_tilde.T @ M_tilde
-        for j in range(len(y)):
-            Q["l", "l"] += np.linalg.norm(y[j] - M_mat[:, 1]) ** 2
-            Q[f"z{j}", "l"] += -(y[j] - M_mat[:, 1]).T @ M_tilde
-            Q[f"z{j}", f"z{j}"] += M_tilde_sq
-            # Q[f"y{j}", "l"] = 0.5 * np.diag(M_tilde_sq)
-        return Q.toarray(self.get_var_dict()), y
+        return self._get_Q(noise=noise, M=M_mat)
 
     @staticmethod
     def get_inits(n_inits):
-        return np.c_[
-            np.random.rand(n_inits),
-            np.random.rand(n_inits),
-            2 * np.pi * np.random.rand(n_inits),
-        ]
+        return np.c_[np.random.rand(n_inits, 3), 2 * np.pi * np.random.rand(n_inits, 3)]
 
     @staticmethod
-    def get_cost(a, y, x):
-        from lifters.stereo2d_problem import _cost
+    def get_cost(a, y, t, W):
+        from lifters.stereo_lifter import get_T, get_theta_from_unknowns
+        from lifters.stereo3d_problem import M as M_mat
+        from thesis.solvers.local_solver import projection_error
 
-        p_w, y, phi = change_dimensions(a, y, x)
-        cost = _cost(p_w=p_w, y=y, phi=phi, W=None)[0, 0]
+        p_w, y, __ = change_dimensions(a, y, t)
+
+        theta = get_theta_from_unknowns(t, 3)
+        T = get_T(theta, 3)
+        cost = projection_error(p_w=p_w, y=y, T=T, M=M_mat, W=W)
         return cost
 
     @staticmethod
-    def local_solver(a, y, x_init, verbose=False):
-        from lifters.stereo2d_problem import local_solver
+    def local_solver(a, y, t_init, W, verbose=False):
+        from lifters.stereo_lifter import get_T, get_theta_from_unknowns
+        from lifters.stereo3d_problem import M as M_mat
+        from thesis.solvers.local_solver import _stereo_localization_gauss_newton
 
-        p_w, y, init_phi = change_dimensions(a, y, x_init)
-        success, phi_hat, cost = local_solver(
-            p_w=p_w, y=y, W=None, init_phi=init_phi, log=verbose
+        p_w, y, __ = change_dimensions(a, y, t_init)
+        theta_init = get_theta_from_unknowns(t_init, 3)
+        T_init = get_T(theta_init, 3)
+
+        solution = _stereo_localization_gauss_newton(
+            T_init=T_init, y=y, p_w=p_w, W=W, M=M_mat, log=verbose
         )
+        success = solution.solved
+        T_hat = solution.T_cw
+        # cost = solution.cost
+
+        # should have the same dimension as self.unknowns
+        from pylgmath.se3.operations import tran2vec
+
+        t_hat = tran2vec(T_hat)
+
         if success:
-            return phi_hat.flatten(), "converged"
+            return t_hat.flatten(), "converged"
         else:
             return None, "didn't converge"
