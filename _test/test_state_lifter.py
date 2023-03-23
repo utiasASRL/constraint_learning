@@ -9,12 +9,12 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 n_landmarks = 3
 n_poses = 2
 lifters = [
-    # Poly4Lifter(),
-    # Poly6Lifter(),
-    # RangeOnlyLifter(n_positions=n_poses, d=2),
-    # PoseLandmarkLifter(n_landmarks, n_poses, d=2),
-    # Stereo1DLifter(n_landmarks),
-    # Stereo2DLifter(n_landmarks, level=0),
+    Poly4Lifter(),
+    Poly6Lifter(),
+    RangeOnlyLifter(n_positions=n_poses, d=2),
+    PoseLandmarkLifter(n_landmarks, n_poses, d=2),
+    Stereo1DLifter(n_landmarks),
+    Stereo2DLifter(n_landmarks, level=0),
     Stereo3DLifter(n_landmarks),
 ]
 

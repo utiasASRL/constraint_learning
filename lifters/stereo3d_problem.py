@@ -45,7 +45,7 @@ def _du(x: np.array, M: np.array):
 
 def _odot_exp(e: np.array):
     """
-    Computes e^{\odot}. See section 8.1.8 of State Estimation for Robotics (Barfoot 2022)
+    Computes e^{\\odot}. See section 8.1.8 of State Estimation for Robotics (Barfoot 2022)
     Args:
         e (np.array): (N, 4, 1)
     Returns:
