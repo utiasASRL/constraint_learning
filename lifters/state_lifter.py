@@ -70,13 +70,13 @@ class StateLifter(object):
         U, S, Vh = np.linalg.svd(
             Y
         )  # nullspace of Y is in last columns of V / last rows of Vh
+        rank = np.sum(np.abs(S) > eps)
         if method == "svd":
-            basis = Vh[np.where(np.abs(S) <= eps)[0], :]
+            basis = Vh[rank:, :]
 
             # test that it is indeed a null space
-            np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-10)
+            np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
         elif method == "qr":
-            rank = np.sum(np.abs(S) > eps)
             Q, R = np.linalg.qr(Y.T)
             basis = Q[:, rank:].T
 

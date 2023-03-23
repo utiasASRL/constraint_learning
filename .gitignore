@@ -1,7 +1,8 @@
 _results/
+_plots/
+
 __pycache__
 *.ipynb_checkpoints/
 venv/
-
 *.egg-info/
 *.vscode
