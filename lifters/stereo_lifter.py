@@ -28,6 +28,13 @@ def get_theta_from_unknowns(unknowns, d):
     return theta
 
 
+def get_theta_from_T(T):
+    # T is either 4x4 or 3x3 matrix.
+    C = T[:-1, :-1]
+    r = T[:-1, -1]
+    return np.r_[C.flatten("F"), r]
+
+
 class StereoLifter(StateLifter):
     def __init__(self, n_landmarks, d, level=0):
         self.d = d
@@ -37,7 +44,7 @@ class StereoLifter(StateLifter):
         M = self.n_landmarks * self.d
         if level == 1:
             M += self.n_landmarks * self.d
-        elif level > 2:
+        elif level >= 2:
             M += self.n_landmarks * self.d**2
 
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M)
@@ -110,7 +117,7 @@ class StereoLifter(StateLifter):
         var_dict.update({f"z{i}": self.d for i in range(self.n_landmarks)})
         if self.level == 1:
             var_dict.update({f"y{i}": self.d for i in range(self.n_landmarks)})
-        elif self.level > 2:
+        elif self.level >= 2:
             var_dict.update({f"y{i}": self.d**2 for i in range(self.n_landmarks)})
         return var_dict
 

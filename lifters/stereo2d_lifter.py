@@ -1,7 +1,7 @@
 import numpy as np
 
 from lifters.stereo_lifter import StereoLifter
-from lifters.stereo2d_problem import M as M_mat
+from lifters.stereo2d_problem import M
 
 
 def change_dimensions(a, y, x):
@@ -26,22 +26,31 @@ class Stereo2DLifter(StereoLifter):
         for j in range(self.n_landmarks):
             y_gt = T @ np.r_[self.landmarks[j, :], 1.0]
             y_gt /= y_gt[1]
-            y_gt = M_mat @ y_gt
+            y_gt = M @ y_gt
             y.append(y_gt + np.random.normal(loc=0, scale=noise))
 
-        M_tilde = M_mat[:, [0, 2]]
+        M_tilde = M[:, [0, 2]]
 
         Q = PolyMatrix()
         M_tilde_sq = M_tilde.T @ M_tilde
         for j in range(len(y)):
-            Q["l", "l"] += np.linalg.norm(y[j] - M_mat[:, 1]) ** 2
-            Q[f"z{j}", "l"] += -(y[j] - M_mat[:, 1]).T @ M_tilde
+            Q["l", "l"] += np.linalg.norm(y[j] - M[:, 1]) ** 2
+            Q[f"z{j}", "l"] += -(y[j] - M[:, 1]).T @ M_tilde
             Q[f"z{j}", f"z{j}"] += M_tilde_sq
             # Q[f"y{j}", "l"] = 0.5 * np.diag(M_tilde_sq)
         return Q.toarray(self.get_var_dict()), y
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
-        return self._get_Q(noise=noise, M=M_mat)
+        return self._get_Q(noise=noise, M=M)
+
+    def get_vec_around_gt(self, delta):
+        """
+        param delta_gt:
+        - float: sample from gt + std(delta_gt) (set to 0 to start from gt.)
+        """
+        t_gt = self.unknowns
+        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
+        return t_0
 
     @staticmethod
     def get_inits(n_inits):
@@ -68,6 +77,6 @@ class Stereo2DLifter(StereoLifter):
             p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose
         )
         if success:
-            return phi_hat.flatten(), "converged"
+            return phi_hat.flatten(), "converged", cost
         else:
-            return None, "didn't converge"
+            return None, "didn't converge", cost

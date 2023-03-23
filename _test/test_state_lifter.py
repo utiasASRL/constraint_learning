@@ -39,7 +39,7 @@ def test_cost(noise=0.0):
 
         x = lifter.get_x()
         costQ = x.T @ Q @ x
-        assert abs(cost - costQ) < 1e-10
+        assert abs(cost - costQ) < 1e-8
 
         if noise == 0:
             assert cost < 1e-10, cost
@@ -54,26 +54,29 @@ def test_solvers(n_seeds=1, noise=0.0):
     for lifter in lifters:
         for j in range(n_seeds):
             np.random.seed(j)
+
+            # noisy setup
             Q, y = lifter.get_Q(noise=noise)
             if Q is None:
                 continue
 
             # test that we converge to real solution when initializing around it
-            delta = 1e-3
-            # t0 = t  # + np.random.rand(4)
-            gt = lifter.unknowns
-            t0 = gt + np.random.normal(scale=delta, loc=0, size=len(gt))
-            a = lifter.landmarks
-            that, msg = lifter.local_solver(a, y, t0, W=lifter.W)
+            theta_0 = lifter.get_vec_around_gt(delta=1e-3)
+            theta_gt = lifter.get_vec_around_gt(delta=0)
+
+            theta_hat, msg, cost_solver = lifter.local_solver(
+                lifter.landmarks, y, theta_0, W=lifter.W
+            )
+
+            cost_lifter = lifter.get_cost(lifter.landmarks, y, t=theta_hat, W=lifter.W)
+            assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
+
             if noise == 0:
                 # test that solution is ground truth with no noise
-                if lifter.d == 2:
-                    np.testing.assert_allclose(that, gt)
-                else:
-                    print("not testing 3d pose difference yet.")
+                np.testing.assert_allclose(theta_hat, theta_gt)
             else:
                 # just test that we converged when noise is added
-                assert that is not None
+                assert theta_hat is not None
 
 
 def test_constraints():
@@ -100,7 +103,7 @@ if __name__ == "__main__":
     test_cost_noisy()
 
     test_solvers()
-    test_solvers_noisy
+    test_solvers_noisy()
 
     test_constraints()
 

@@ -6,6 +6,7 @@ from lifters.state_lifter import StateLifter
 class Stereo1DLifter(StateLifter):
     def __init__(self, n_landmarks):
         self.n_landmarks = n_landmarks
+        self.W = 1.0
         super().__init__(theta_shape=(1,), M=n_landmarks)
 
     def generate_random_setup(self):
@@ -67,13 +68,22 @@ class Stereo1DLifter(StateLifter):
             A_known.append(A.toarray(variables=var_dict))
         return A_known
 
-    @staticmethod
-    def get_cost(a, y, x):
-        return np.sum((y - (1 / (x - a))) ** 2)
+    def get_vec_around_gt(self, delta):
+        """
+        param delta_gt:
+        - float: sample from gt + std(delta_gt) (set to 0 to start from gt.)
+        """
+        t_gt = self.unknowns
+        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
+        return t_0
 
     @staticmethod
-    def local_solver(a, y, x_init, num_iters=100, eps=1e-5, verbose=False):
-        x_op = x_init
+    def get_cost(a, y, t, W=None):
+        return np.sum((y - (1 / (t - a))) ** 2)
+
+    @staticmethod
+    def local_solver(a, y, t_init, num_iters=100, eps=1e-5, W=None, verbose=False):
+        x_op = t_init
         for i in range(num_iters):
             u = y - (1 / (x_op - a))
             if verbose:
@@ -84,7 +94,7 @@ class Stereo1DLifter(StateLifter):
                 x_op = x_op + dx
                 if np.abs(dx) < eps:
                     msg = f"converged dx after {i} it"
-                    return x_op, msg
+                    return x_op, msg, Stereo1DLifter.get_cost(a, y, x_op)
             else:
                 msg = f"converged in du after {i} it"
                 return x_op, msg
