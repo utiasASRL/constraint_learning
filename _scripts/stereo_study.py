@@ -2,7 +2,7 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.plotting_tools import *
 
-from .utils import get_fname
+from utils import get_fname
 
 METHOD = "qr"
 

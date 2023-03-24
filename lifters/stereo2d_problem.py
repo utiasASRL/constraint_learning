@@ -22,9 +22,11 @@ def forward_noisy(T, p_w, sigma):
 
 def _T(phi):
     # phi: 3, 1
-    x = phi[0, 0]
-    y = phi[1, 0]
-    theta = phi[2, 0]
+    if np.ndim(phi) == 2:
+        phi_flat = phi[:, 0]
+    else:
+        phi_flat = phi
+    x, y, theta = phi_flat
     return np.array(
         [
             [np.cos(theta), -np.sin(theta), x],
@@ -177,8 +179,8 @@ def _svdsolve(A: np.array, b: np.array):
         x (np.array): shape = (M, 1)
     """
     u, s, v = np.linalg.svd(A)
-    if np.any(s <= 1e-10):
-        print("rank defficient or negative A!", s)
+    # if np.any(s <= 1e-10):
+    #    print("rank defficient or negative A!", s)
     c = np.dot(u.T, b)
     w = np.linalg.lstsq(np.diag(s), c, rcond=None)[0]
     x = np.dot(v.T, w)
@@ -243,7 +245,19 @@ def _cost(p_w, y, phi, W=None):
 
 
 def local_solver(
-    p_w, y, init_phi, W=None, max_iters=100, min_update_norm=1e-10, log=False
+    p_w, y, init_phi, W=None, max_iters=500, min_update_norm=1e-10, log=False
+):
+    from scipy.optimize import minimize
+
+    def fun(x, *args):
+        return _cost(*args, x)[0, 0]
+
+    res = minimize(fun, x0=init_phi, args=(p_w, y))
+    return res.success, res.x, res.fun
+
+
+def local_solver_old(
+    p_w, y, init_phi, W=None, max_iters=500, min_update_norm=1e-10, log=False
 ):
     """
     :param y:   the N x 2 x 1 measurements vector
@@ -265,16 +279,29 @@ def local_solver(
     i = 0
     perturb_mag = np.inf
     solved = True
+    alpha = 1.0
     while (perturb_mag > min_update_norm) and (i < max_iters):
+        current_cost = _cost(p_w=p_w, W=W, y=y, phi=phi)
         if log:
-            print(f"Current cost: {_cost(p_w=p_w, W=W, y=y, phi=phi)}")
+            print(f"Current cost: {current_cost}")
         du_dphi = _du_dphi(p_w, phi)  # (N, 1, 3)
         # (3, 1)
         u = _un(y, p_w, phi)  # (N, M.shape[0], 1)
         b = -np.sum(u.transpose((0, 2, 1)) @ W @ du_dphi, axis=0)  # (1, 3)
         A = np.sum(du_dphi.transpose((0, 2, 1)) @ W @ du_dphi, axis=0)  # (3, 3)
         dphi = _svdsolve(A.T, b.T)  # (3 , 1)
-        phi += dphi
+        next_cost = _cost(p_w=p_w, W=W, y=y, phi=phi + alpha * dphi)
+        if next_cost > current_cost:
+            alpha *= 0.5
+            print(f"reduced alpha to {alpha}")
+            if alpha < 1e-5:
+                print("stagnated")
+                solved = False
+                break
+            continue
+        phi += alpha * dphi
+
+        alpha = 1.0
         perturb_mag = np.linalg.norm(dphi)
         i += 1
         if i == max_iters:

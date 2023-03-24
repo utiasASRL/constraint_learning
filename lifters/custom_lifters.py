@@ -27,6 +27,9 @@ class RangeOnlyLifter(StateLifter):
         assert len(x) == self.N + self.M + 1
         return x
 
+    def __repr__(self):
+        return "rangeonly"
+
 
 class Poly4Lifter(StateLifter):
     def __init__(self):
@@ -43,6 +46,9 @@ class Poly4Lifter(StateLifter):
             theta = self.get_theta()
         return np.r_[1, theta, theta**2]
 
+    def __repr__(self):
+        return "poly4"
+
 
 class Poly6Lifter(StateLifter):
     def __init__(self):
@@ -58,3 +64,6 @@ class Poly6Lifter(StateLifter):
         if theta is None:
             theta = self.get_theta()
         return np.r_[1, theta, theta**2, theta**3]
+
+    def __repr__(self):
+        return "poly6"

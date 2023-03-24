@@ -97,5 +97,8 @@ class Stereo1DLifter(StateLifter):
                     return x_op, msg, Stereo1DLifter.get_cost(a, y, x_op)
             else:
                 msg = f"converged in du after {i} it"
-                return x_op, msg
-        return None, "didn't converge"
+                return x_op, msg, Stereo1DLifter.get_cost(a, y, x_op)
+        return None, "didn't converge", None
+
+    def __repr__(self):
+        return "stereo1d"
