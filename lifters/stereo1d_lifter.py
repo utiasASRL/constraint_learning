@@ -6,6 +6,7 @@ from lifters.state_lifter import StateLifter
 class Stereo1DLifter(StateLifter):
     def __init__(self, n_landmarks):
         self.n_landmarks = n_landmarks
+        self.d = 1
         self.W = 1.0
         super().__init__(theta_shape=(1,), M=n_landmarks)
 
@@ -13,7 +14,7 @@ class Stereo1DLifter(StateLifter):
         # important!! we can only resample x, the landmarks have to stay the same
         self.landmarks = np.random.rand(self.n_landmarks)
 
-    def generate_random_unknowns(self):
+    def generate_random_unknowns(self, replace=True):
         x_try = np.random.rand(1)
         counter = 0
         while np.min(np.abs(x_try - self.landmarks)) <= 1e-10:
@@ -21,7 +22,9 @@ class Stereo1DLifter(StateLifter):
             if counter >= 1000:
                 print("Warning: couldn't find valid setup")
                 return
-        self.unknowns = x_try
+        if replace:
+            self.unknowns = x_try
+        return x_try
 
     def get_theta(self):
         return np.r_[self.unknowns]

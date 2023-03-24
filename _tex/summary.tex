@@ -1,0 +1,278 @@
+\documentclass[11pt]{article}
+
+%\input{pandoc-preamble.tex}
+
+\usepackage{parskip} % Stop auto-indenting (to mimic markdown behaviour)
+
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{geometry}
+\usepackage{amsmath} 
+\usepackage{amssymb} 
+\usepackage{xcolor} 
+\usepackage{enumerate} 
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\usepackage{placeins} % for Flaotbarrier
+
+\title{Constraints Learning}
+
+% Setup hyperref package
+\hypersetup{
+  breaklinks=true,  % so long urls are correctly broken across lines
+  colorlinks=true,
+  urlcolor=urlcolor,
+  linkcolor=linkcolor,
+  citecolor=citecolor,
+  }
+% Slightly bigger margins than the latex defaults
+
+\geometry{verbose,tmargin=1in,bmargin=1in,lmargin=1in,rmargin=1in}
+  
+  
+
+\begin{document}
+  
+\maketitle
+  
+\section{Constraints Learning}\label{constraints-learning}
+
+Assume you have an optimization problem written in terms of
+\(\mathbf{\theta}\):
+
+\(\min_{\mathbf{\theta}} f(\mathbf{\theta})\)
+
+where \(f\) maybe be for instance a polynomial or a rationial function,
+and \(\theta \in \mathbb{R}^N\) may be multidimensional. We assume that
+you can write the above problem in an quivalent QCQP form by using a
+``lifting function'' \(\mathbf{l}(\theta) \in \mathbb{R}^M\) and
+defining the hihger-dimensional lifted state vector
+
+\(\mathbf{x}(\theta) = \begin{bmatrix}1 \\ \theta \\ z_1 \\ \vdots \\ z_M \end{bmatrix} = \begin{bmatrix}1 \\ \theta \\ \mathbf{l}(\theta) \end{bmatrix} \in \mathbb{R}^{1+N+M}\)
+
+Now we assume that each of the added constraints can itself be written
+as a quadratic function:
+
+\(l_m(\theta) - z_m = \mathbf{x}(\theta)^\top \mathbf{A}_m \mathbf{x}(\theta) = 0\)
+
+where \(\mathbf{A}_m\) (\(m=1\ldots M\)) are the constraints matrices.
+Sometimes, there may also exist redundant constraints, meaning some
+other matrices such that
+
+\(\mathbf{x}(\theta)^\top \mathbf{B}_m \mathbf{x}(\theta) = 0\).
+
+The goal of this not is to, for a given lifting function
+\(\mathbf{l}(\theta)\), find the form of the redundant vs.~primal
+constraints.
+
+\textbf{note that currently we just find all constraints and don't
+distinguish between primal (moment) constraints and redundant
+constraints}
+
+\subsection{Learning constraints matrices}
+
+The idea is to learn the nullspace of the matrix composed of many
+randomly generated feasible and lifted points:\\
+Call \(\mathbf{x}_{i}\) the \(i\)-th randomly generated setup, then we
+know that
+
+\(\forall i, m: \quad \text{trace}(\mathbf{x}_{i}{\mathbf{x}_{i}}^\top\mathbf{A}_m) = 0\)
+
+\(\iff\)
+
+\(\forall i, m: \quad \underbrace{\text{vec}(\mathbf{X}_{i})^\top}_{\mathbf{y}_{i}^\top} \underbrace{\text{vec}(\mathbf{A}_m)}_{\mathbf{a}_m} = 0\)
+
+\(\iff\)
+
+\(\mathbf{a}_m \in \mathcal{N}(\mathbf{Y}), \quad \mathbf{Y} = \begin{bmatrix} \mathbf{y}_1^{\top} \\ \vdots \\ \mathbf{y}_L^{\top}\end{bmatrix}\)
+
+where \(L\) is the number of samples. Note that we can reduce the search
+to the upper triangular part of \(\mathbf{A}_m\) since we know that
+resulting matrix needs to be symmetric, but for simplicity we write
+everything in terms of the full matrix below. We find an orthonormal
+basis of the nullspace using SVD or QR decomposition, and then construct
+\(\mathbf{A}_m\) by undoing the (half-)vec operation.
+
+We call \(N_0\) the dimension of the nullspace, or the number of basis
+vectors found.
+
+\subsection{Solve dual problem}
+
+Using the learned matrices, we solve the dual problem
+
+\begin{align} 
+d_n^* = &\max_{\rho, \mathbf{\lambda}} -\rho \\
+&\text{s.t. } \mathbf{Q} + \sum_{m=1}^n \lambda_m \mathbf{A}_m + \rho \mathbf{A}_0 \succeq 0
+\end{align}
+
+where \(n \leq N_0\) denotes the number of constraints we are adding and
+compare the obtained cost to the cost of the (hopefully globally
+optimal) solution obtain by solving the original problem with a simple
+local solver:
+
+\begin{align}
+q^* &= \min_{\mathbf{\theta}} f(\mathbf{\theta})
+\end{align}
+
+
+\section{Lifting functions}
+
+Currently implemented setups:
+
+Poly4Lifter:
+
+\begin{itemize}
+\tightlist
+\item univariate quartic polynomial
+\item \(\mathbf{x}^\top = [1, t, \underbrace{t^2}_{z}]\)
+\item no redundant constraints
+\end{itemize}
+
+Poly6Lifter:
+\begin{itemize}
+\tightlist
+\item univariate sectic polynomial
+\item \(\mathbf{x}^\top = [1, t, \underbrace{t^2}_{z_1}, \underbrace{t^3}_{z_2}]\)
+\item leads to one redundant constraints
+\end{itemize}
+
+RangeOnlyLifter:
+
+\begin{itemize}
+\tightlist
+\item \(N\) positions in \(d\) dimensions
+\item \(\mathbf{x}^\top = [1, \mathbf{x}_1, \mathbf{x}_2, \cdots , \underbrace{||\mathbf{x}_1||^2}_{z_1}, \underbrace{||\mathbf{x}_2||^2}_{z_2}, \cdots]\)
+\item \(N\) moment constraints, no redundant constraints
+\end{itemize}
+
+PoseLandmarkLifter:
+
+\begin{itemize}
+\tightlist
+\item \(K\) landmarks \(\mathbf{y}_k\), \(N\) poses in \(d\) dimensions
+\item \(\mathbf{x}^\top = [1, \mathbf{x}_1, \text{vec}(\mathbf{C}_1), \mathbf{y}_1, \cdots , \underbrace{\mathbf{C}_1\mathbf{y_1}}_{\mathbf{z}_1}, \underbrace{\mathbf{C}_2\mathbf{y_1}}_{\mathbf{z}_2}, \cdots]\)
+\item \(KNd + Nd^2\) moment constraints, many redundant constraints
+\end{itemize}
+
+Stereo1DLifter:
+
+\begin{itemize}
+\tightlist
+\item \(K\) landmarks \(y_k\), 1 position in 1 dimensions (\(\theta=x\))
+\item \(\mathbf{x}^\top = [1, x, \underbrace{\frac{1}{x-y_1}}_{z_1}, \cdots, \underbrace{\frac{1}{x-y_K}}_{z_K}]\) 
+\item \(K\) moment constraints, \(K(K-1)/2\) redundant constraints
+\end{itemize}
+
+Stereo2DLifter:
+
+\begin{itemize}
+\tightlist
+\item \(K\) landmarks \(\mathbf{y}_k\), 1 pose in 2 dimensions (\(\mathbf{\theta}=(x, y, \alpha)\), or equivalently transform matrix \(\mathbf{T}=\begin{bmatrix} \mathbf{c}_1(\alpha) & \mathbf{c}_2(\alpha) & \begin{bmatrix} x \\ y \end{bmatrix} \\ 0 & 0 & 1 \end{bmatrix}\))
+\item \(\mathbf{x}^\top = \begin{bmatrix} 1, \mathbf{c}_1, \mathbf{c}_2, x, y, \underbrace{\frac{1}{\mathbf{e}_y^\top\mathbf{T}{y}_1}\mathbf{T}\mathbf{y}_1}_{z_1}, \cdots, \underbrace{\frac{1}{\mathbf{e}_y^\top\mathbf{T}{y}_K}\mathbf{T}\mathbf{y}_K}_{z_K}\end{bmatrix}\)
+\end{itemize}
+
+with \(\mathbf{e}_y\) the second vector of the 3d identity matrix.
+
+\newpage
+\FloatBarrier
+\section{Analysis}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_1d.png}
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_lasserre_1d.png} \\
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_2d.png}
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_lasserre_2d.png} \\
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_3d.png}
+  \includegraphics[width=.4\linewidth]{../_plots/stereo_study_lasserre_3d.png}
+  \label{fig:noise}
+\end{figure}
+
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{../_plots/stereo_study_noise_1d_0level.png}
+  \includegraphics[width=\linewidth]{../_plots/stereo_study_noise_2d_0level.png}
+  \includegraphics[width=\linewidth]{../_plots/stereo_study_noise_2d_3level.png}
+  \includegraphics[width=\linewidth]{../_plots/stereo_study_noise_3d_0level.png}
+  \includegraphics[width=\linewidth]{../_plots/stereo_study_noise_3d_3level.png}
+  \label{fig:noise}
+\end{figure}
+
+\clearpage
+\FloatBarrier
+\section{All plots}
+
+\begin{figure}[h!]
+  \centering
+  \textbf{\large{Stereo1D Lasserre}} \\
+  \vspace{2em}
+  \includegraphics[height=3cm]{../_plots/svd_stereo1d.png}
+  \includegraphics[height=3cm]{../_plots/Q_stereo1d.png}
+  \includegraphics[width=.7\linewidth]{../_plots/A0_stereo1d.png}
+  %\includegraphics[width=.9\linewidth]{../_plots/A1_stereo1d.png}
+  %\includegraphics[width=.9\linewidth]{../_plots/A2_stereo1d.png}
+  %\includegraphics[width=.9\linewidth]{../_plots/A3_stereo1d.png}
+  \includegraphics[width=.6\linewidth]{../_plots/tightness_stereo1d.png}
+  \label{fig:noise}
+\end{figure}
+
+
+\begin{figure}[h!]
+  \centering
+  \textbf{\large{Stereo2D no Lasserre}} \\
+  \vspace{2em}
+  \includegraphics[height=3cm]{../_plots/svd_stereo2d_level0.png}
+  \includegraphics[height=3cm]{../_plots/Q_stereo2d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A0_stereo2d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A1_stereo2d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A2_stereo2d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A3_stereo2d_level0.png}
+  \includegraphics[width=.6\linewidth]{../_plots/tightness_stereo2d_level0.png}
+
+  \label{fig:noise}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \textbf{\large{Stereo3D no Lasserre}} \\
+  \vspace{2em}
+  \includegraphics[height=3cm]{../_plots/svd_stereo3d_level0.png}
+  \includegraphics[height=3cm]{../_plots/Q_stereo3d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A0_stereo3d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A1_stereo3d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A2_stereo3d_level0.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A3_stereo3d_level0.png}
+  \includegraphics[width=.6\linewidth]{../_plots/tightness_stereo3d_level0.png}
+  \label{fig:noise}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \textbf{\large{Stereo2D with Lasserre}} \\
+  \vspace{2em}
+  \includegraphics[height=3cm]{../_plots/svd_stereo2d_level3.png}
+  \includegraphics[height=3cm]{../_plots/Q_stereo2d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A0_stereo2d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A1_stereo2d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A2_stereo2d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A3_stereo2d_level3.png}
+  \includegraphics[width=.6\linewidth]{../_plots/tightness_stereo2d_level3.png}
+  \label{fig:noise}
+\end{figure}
+
+\begin{figure}[h]
+  \centering
+  \textbf{\large{Stereo3D with Lasserre}} \\
+  \vspace{2em}
+  \includegraphics[height=3cm]{../_plots/svd_stereo3d_level3.png}
+  \includegraphics[height=3cm]{../_plots/Q_stereo3d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A0_stereo3d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A1_stereo3d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A2_stereo3d_level3.png}
+  \includegraphics[width=.9\linewidth]{../_plots/A3_stereo3d_level3.png}
+  \includegraphics[width=.6\linewidth]{../_plots/tightness_stereo3d_level3.png}
+  \label{fig:noise}
+\end{figure}
+
+\end{document}

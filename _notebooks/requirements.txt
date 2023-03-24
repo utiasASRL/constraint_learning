@@ -1,0 +1,3 @@
+papermill>=2.4.0
+nbconvert>=7.2.10
+nbconvert[webpdf]

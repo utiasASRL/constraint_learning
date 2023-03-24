@@ -20,8 +20,6 @@ def run_noise_study(
     import pandas as pd
 
     data = []
-    # seeds = [0, 1, 2]
-    # n_shuffles = 5
 
     seeds = range(n_seeds)
     a = lifter.landmarks
@@ -51,7 +49,16 @@ def run_noise_study(
                 pass
 
             p = ProgressBar(max_value=len(A_shuffle))
-            for i in range(1, len(A_shuffle))[-200:]:
+
+            if len(A_shuffle) > 200:
+                indices = list(
+                    range(1, len(A_shuffle))[-200:-50:10]
+                )  # ca. 20 datapoints
+                indices += list(range(1, len(A_shuffle))[-50:])  # 50 datapoints
+            else:
+                indices = range(1, len(A_shuffle))[-200:]
+
+            for i in indices:
                 # print(f"adding {i}/{len(A_shuffle)}")
                 # solve dual
                 dual_cost, H, status = solve_dual(
@@ -92,7 +99,8 @@ if __name__ == "__main__":
 
     noises = NOISE_DICT.keys()
     level_list = [0, 3]
-    d_list = [1, 2]
+    # d_list = [1, 2]
+    d_list = [3]
 
     # fixed
     n_landmarks = 3

@@ -1,3 +1,4 @@
+from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.plotting_tools import *
@@ -15,7 +16,7 @@ def run_dimension_study(level, eps, fname, plot=False):
     if fname != "":
         print(f"saving to {fname}")
 
-    d_list = [2, 3]
+    d_list = [1, 2, 3]
     K_list = range(1, 6)
 
     data = []
@@ -26,10 +27,17 @@ def run_dimension_study(level, eps, fname, plot=False):
         p.update(i)
         i += 1
 
-        if d == 2:
+        if d == 1:
+            if level > 0:
+                print("Not running Lasserre for 1d")
+                continue
+            lifter = Stereo1DLifter(n_landmarks=K)
+        elif d == 2:
             lifter = Stereo2DLifter(n_landmarks=K, level=level)
-        else:
+        elif d == 3:
             lifter = Stereo3DLifter(n_landmarks=K, level=level)
+        else:
+            raise ValueError(d)
 
         Y = lifter.generate_Y(factor=5)
         basis, S = lifter.get_basis(Y, eps=eps, method=METHOD)

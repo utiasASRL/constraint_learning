@@ -4,13 +4,13 @@ from lifters.state_lifter import StateLifter
 
 
 class RangeOnlyLifter(StateLifter):
-    def __init__(self, n_positions, d):
-        self.n_positions = n_positions
+    def __init__(self, n_landmarks, d):
+        self.n_landmarks = n_landmarks
         self.d = d
-        super().__init__(theta_shape=(self.n_positions, d), M=n_positions)
+        super().__init__(theta_shape=(self.n_landmarks, d), M=n_landmarks)
 
     def generate_random_unknowns(self):
-        self.unknowns = np.random.rand(self.n_positions, self.d)
+        self.unknowns = np.random.rand(self.n_landmarks, self.d)
 
     def get_theta(self):
         return self.unknowns

@@ -62,9 +62,7 @@ def plot_matrices(
             add_colorbar(fig, ax, im)
     add_colorbar(fig, ax, im, nticks=nticks)
     [ax.axis("off") for ax in axs[i:]]
-    fig.suptitle(
-        f"{start_idx}:{start_idx+num_plots} of {len(A_list)} constraints", y=0.9
-    )
+    fig.suptitle(f"{start_idx}:{i} of {len(A_list)} constraints", y=0.9)
     return fig, axs
 
 
