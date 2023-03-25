@@ -1,7 +1,50 @@
 import os
 
 import matplotlib.pylab as plt
+import numpy as np
 import seaborn as sns
+
+
+def get_dirname():
+    dirname = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "_plots"))
+    return dirname
+
+
+def partial_plot_and_save(lifter, Q, A_list, save=True):
+    if save:
+        dirname = get_dirname()
+
+    # plot resulting matrices
+    from lifters.plotting_tools import plot_matrices
+    from math import ceil
+
+    n = 10
+    chunks = min(ceil(len(A_list) / n), 10)
+    vmin = np.min([np.min(A) for A in A_list])
+    vmax = np.max([np.max(A) for A in A_list])
+    plot_count = 0
+    for k in np.arange(chunks):
+        fig, axs = plot_matrices(
+            A_list,
+            n_matrices=n,
+            start_idx=k * n,
+            colorbar=False,
+            nticks=3,
+            vmin=vmin,
+            vmax=vmax,
+            lines=[1 + lifter.N, 1 + lifter.N + lifter.M],
+        )
+        if k in [0, 1, chunks - 2, chunks - 1]:
+            if save:
+                savefig(fig, f"{dirname}/A{plot_count}_{lifter}.png")
+            plot_count += 1
+
+    fig, ax = plt.subplots()
+    fig.set_size_inches(3, 3)
+    ax.matshow(np.abs(Q) > 1e-10)
+    ax.set_title("Q mask")
+    if save:
+        savefig(fig, f"{dirname}/Q_{lifter}.png")
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None):
@@ -37,14 +80,20 @@ def make_dirs_safe(path):
 
 def savefig(fig, name, verbose=True):
     make_dirs_safe(name)
-    ext = name.split(".")[-1]
     fig.savefig(name, bbox_inches="tight", pad_inches=0, dpi=200)
     if verbose:
         print(f"saved plot as {name}")
 
 
 def plot_matrices(
-    A_list, n_matrices=15, start_idx=0, colorbar=True, vmin=None, vmax=None, nticks=None
+    A_list,
+    n_matrices=15,
+    start_idx=0,
+    colorbar=True,
+    vmin=None,
+    vmax=None,
+    nticks=None,
+    lines=[],
 ):
     import matplotlib
 
@@ -60,9 +109,20 @@ def plot_matrices(
         ax.set_title(f"$A_{{{i+1}}}$", y=1.0)
         if colorbar:
             add_colorbar(fig, ax, im)
-    add_colorbar(fig, ax, im, nticks=nticks)
-    [ax.axis("off") for ax in axs[i:]]
-    fig.suptitle(f"{start_idx}:{i} of {len(A_list)} constraints", y=0.9)
+
+    try:
+        for n in lines:
+            for ax in axs[: i + 1]:
+                ax.plot([-0.5, n - 0.5], [n - 0.5, n - 0.5], color="red")
+                ax.plot([n - 0.5, n - 0.5], [-0.5, n - 0.5], color="red")
+
+        add_colorbar(fig, ax, im, nticks=nticks)
+        [ax.axis("off") for ax in axs[i:]]
+        fig.suptitle(
+            f"{start_idx+1}:{start_idx+i+1} of {len(A_list)} constraints", y=0.9
+        )
+    except:
+        pass
     return fig, axs
 
 
@@ -121,7 +181,12 @@ if __name__ == "__main__":
     vmin = -1
     vmax = 1
     A_list = np.random.rand(4, 4, 3)
-    plot_matrices(A_list, colorbar=False, vmin=vmin, vmax=vmax, nticks=4)
+    fig, axs = plot_matrices(A_list, colorbar=False, vmin=vmin, vmax=vmax, nticks=4)
+
+    dim_X = 2
+    for ax in axs:
+        ax.plot([-0.5, dim_X + 0.5], [dim_X + 0.5, dim_X + 0.5], color="red")
+        ax.plot([dim_X + 0.5, dim_X + 0.5], [-0.5, dim_X + 0.5], color="red")
     plt.show()
 
     print("done")

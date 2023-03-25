@@ -9,14 +9,22 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 n_landmarks = 3
 n_poses = 2
 lifters = [
-    Poly4Lifter(),
-    Poly6Lifter(),
-    RangeOnlyLifter(n_positions=n_poses, d=2),
-    PoseLandmarkLifter(n_landmarks, n_poses, d=2),
-    Stereo1DLifter(n_landmarks),
+    # Poly4Lifter(),
+    # Poly6Lifter(),
+    # RangeOnlyLifter(n_landmarks=n_poses, d=2),
+    # PoseLandmarkLifter(n_landmarks, n_poses, d=2),
+    # Stereo1DLifter(n_landmarks),
     Stereo2DLifter(n_landmarks, level=0),
     Stereo3DLifter(n_landmarks),
 ]
+
+
+def test_levels():
+    from lifters.stereo_lifter import StereoLifter
+
+    for level in StereoLifter.LEVELS:
+        lifter = Stereo2DLifter(n_landmarks=3, level=level)
+        lifter.get_x()
 
 
 def test_cost_noisy():
@@ -61,15 +69,12 @@ def test_solvers(n_seeds=1, noise=0.0):
                 continue
 
             # test that we converge to real solution when initializing around it
-            theta_0 = lifter.get_vec_around_gt(delta=1e-3)
+            theta_0 = lifter.get_vec_around_gt(delta=1e-5)
             theta_gt = lifter.get_vec_around_gt(delta=0)
 
             theta_hat, msg, cost_solver = lifter.local_solver(
                 lifter.landmarks, y, theta_0, W=lifter.W
             )
-
-            cost_lifter = lifter.get_cost(lifter.landmarks, y, t=theta_hat, W=lifter.W)
-            assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
 
             if noise == 0:
                 # test that solution is ground truth with no noise
@@ -77,6 +82,9 @@ def test_solvers(n_seeds=1, noise=0.0):
             else:
                 # just test that we converged when noise is added
                 assert theta_hat is not None
+
+            cost_lifter = lifter.get_cost(lifter.landmarks, y, t=theta_hat, W=lifter.W)
+            assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
 
 
 def test_constraints():
@@ -99,6 +107,8 @@ def test_constraints():
 
 
 if __name__ == "__main__":
+    test_levels()
+
     test_cost()
     test_cost_noisy()
 

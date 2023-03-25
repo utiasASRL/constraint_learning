@@ -8,7 +8,7 @@ from utils import get_fname
 import numpy as np
 
 METHOD = "qr"
-NOISE_DICT = dict(zip(range(5), np.logspace(-3, 3, 5)))
+NOISE_DICT = dict(zip(range(5), np.logspace(-3, 1, 5)))
 
 
 def run_noise_study(
@@ -36,7 +36,12 @@ def run_noise_study(
         if xhat is None:
             print("Warning: local didn't solve!!")
             continue
+
+        # try to make the SDP only as hard as it has to be. Given the primal cost
+        # we know roughly what accuracy we need to see if we are tight.
+        # we clip that to [1e-9, 1e-4] to make sure we're reasonable.
         tol = min(max(1e-9, local_cost / 10), 1e-4)
+        # tol = 1e-5
 
         A_shuffle = deepcopy(A_list)
         for shuffle in range(n_shuffles + 1):
@@ -98,9 +103,8 @@ if __name__ == "__main__":
     import itertools
 
     noises = NOISE_DICT.keys()
-    level_list = [0, 3]
-    # d_list = [1, 2]
-    d_list = [3]
+    level_list = ["no", "urT"]
+    d_list = [1, 2, 3]
 
     # fixed
     n_landmarks = 3
@@ -111,12 +115,15 @@ if __name__ == "__main__":
     for d, level in itertools.product(d_list, level_list):
         if d == 1:
             lifter = Stereo1DLifter(n_landmarks=n_landmarks)
-            if level == 3:
-                print("skipping level 3 for 1D")
+            if level == "urT":
+                print("skipping Lasserre for 1D")
                 continue
         elif d == 2:
             lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
         elif d == 3:
+            if level == "urT":
+                print("skipping Lasserre for 3D cause too slow")
+                continue
             lifter = Stereo3DLifter(n_landmarks=n_landmarks, level=level)
         else:
             raise ValueError(d)

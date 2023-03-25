@@ -3,9 +3,9 @@ import numpy as np
 import os.path
 
 
-def get_fname(name):
+def get_fname(name, extension="pkl"):
     return os.path.abspath(
-        os.path.join(os.path.dirname(__file__), "..", "_results", f"{name}.pkl")
+        os.path.join(os.path.dirname(__file__), "..", "_results", f"{name}.{extension}")
     )
 
 

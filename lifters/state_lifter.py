@@ -4,13 +4,14 @@ import numpy as np
 
 
 class StateLifter(object):
-    def __init__(self, theta_shape, M):
+    def __init__(self, theta_shape, M, L=0):
         self.theta_shape = theta_shape
         if len(theta_shape) > 1:
             self.N = np.multiply(*theta_shape)
         else:
             self.N = theta_shape[0]
         self.M = M
+        self.L = L
         self.setup = None
 
         # fixing seed for testing purposes
@@ -90,7 +91,7 @@ class StateLifter(object):
         return basis, S
 
     def dim_X(self):
-        return 1 + self.N + self.M
+        return 1 + self.N + self.M + self.L
 
     def generate_matrices(self, basis, normalize=True):
         """

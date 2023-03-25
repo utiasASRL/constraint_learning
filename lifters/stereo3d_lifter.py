@@ -78,6 +78,3 @@ class Stereo3DLifter(StereoLifter):
             return x_hat, "converged", cost
         else:
             return None, "didn't converge", cost
-
-    def __repr__(self):
-        return f"stereo3d_level{self.level}"

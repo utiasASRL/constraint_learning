@@ -252,7 +252,7 @@ def local_solver(
     def fun(x, *args):
         return _cost(*args, x)[0, 0]
 
-    res = minimize(fun, x0=init_phi, args=(p_w, y))
+    res = minimize(fun, x0=init_phi, args=(p_w, y), method="Nelder-Mead", tol=1e-10)
     return res.success, res.x, res.fun
 
 

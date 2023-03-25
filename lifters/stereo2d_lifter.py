@@ -80,6 +80,3 @@ class Stereo2DLifter(StereoLifter):
             return phi_hat.flatten(), "converged", cost
         else:
             return None, "didn't converge", cost
-
-    def __repr__(self):
-        return f"stereo2d_level{self.level}"
