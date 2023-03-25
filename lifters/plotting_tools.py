@@ -39,12 +39,13 @@ def partial_plot_and_save(lifter, Q, A_list, save=True):
                 savefig(fig, f"{dirname}/A{plot_count}_{lifter}.png")
             plot_count += 1
 
-    fig, ax = plt.subplots()
-    fig.set_size_inches(3, 3)
-    ax.matshow(np.abs(Q) > 1e-10)
-    ax.set_title("Q mask")
-    if save:
-        savefig(fig, f"{dirname}/Q_{lifter}.png")
+    if Q is not None:
+        fig, ax = plt.subplots()
+        fig.set_size_inches(3, 3)
+        ax.matshow(np.abs(Q) > 1e-10)
+        ax.set_title("Q mask")
+        if save:
+            savefig(fig, f"{dirname}/Q_{lifter}.png")
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None):

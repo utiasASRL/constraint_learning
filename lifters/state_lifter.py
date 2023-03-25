@@ -25,7 +25,7 @@ class StateLifter(object):
     def generate_random_unknowns(self):
         raise NotImplementedError()
 
-    def get_Q(self, noise):
+    def get_Q(self, noise=1e-3):
         print("Warning: get_Q not implemented")
         return None, None
 

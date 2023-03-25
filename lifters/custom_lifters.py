@@ -9,8 +9,11 @@ class RangeOnlyLifter(StateLifter):
         self.d = d
         super().__init__(theta_shape=(self.n_landmarks, d), M=n_landmarks)
 
-    def generate_random_unknowns(self):
-        self.unknowns = np.random.rand(self.n_landmarks, self.d)
+    def generate_random_unknowns(self, replace=True):
+        unknowns = np.random.rand(self.n_landmarks, self.d)
+        if replace:
+            self.unknowns = unknowns
+        return unknowns
 
     def get_theta(self):
         return self.unknowns
@@ -35,8 +38,11 @@ class Poly4Lifter(StateLifter):
     def __init__(self):
         super().__init__(theta_shape=(1,), M=1)
 
-    def generate_random_unknowns(self):
-        self.unknowns = np.random.rand(1)
+    def generate_random_unknowns(self, replace=True):
+        unknowns = np.random.rand(1)
+        if replace:
+            self.unknowns = unknowns
+        return unknowns
 
     def get_theta(self):
         return np.r_[self.unknowns]
@@ -54,8 +60,11 @@ class Poly6Lifter(StateLifter):
     def __init__(self):
         super().__init__(theta_shape=(1,), M=2)
 
-    def generate_random_unknowns(self):
-        self.unknowns = np.random.rand(1)
+    def generate_random_unknowns(self, replace=True):
+        unknowns = np.random.rand(1)
+        if replace:
+            self.unknowns = unknowns
+        return unknowns
 
     def get_theta(self):
         return np.r_[self.unknowns]
