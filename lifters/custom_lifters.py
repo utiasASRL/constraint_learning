@@ -24,14 +24,14 @@ class RangeOnlyLifter(StateLifter):
 
         norms = np.linalg.norm(theta, axis=1) ** 2
         t = theta.flatten("C")  # generates t1, t2, ... with t1=[x1,y1]
-        np.testing.assert_allclose(t[:2], theta[0, :])
+        np.testing.assert_allclose(t[:self.d], theta[0, :])
 
         x = np.r_[1, t, norms]
         assert len(x) == self.N + self.M + 1
         return x
 
     def __repr__(self):
-        return "rangeonly"
+        return f"rangeonly{self.d}d"
 
 
 class Poly4Lifter(StateLifter):
