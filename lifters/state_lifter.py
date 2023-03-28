@@ -39,6 +39,9 @@ class StateLifter(object):
     def get_vec(self, mat):
         return mat[np.triu_indices(n=self.dim_X())].flatten()
 
+    def get_vec_around_gt(self, delta=0):
+        return self.unknowns + np.random.normal(size=self.unknowns.shape, scale=delta)
+
     def generate_Y(self, factor=3, ax=None):
         dim_X = self.dim_X()
         dim_Y = int(dim_X * (dim_X + 1) / 2)

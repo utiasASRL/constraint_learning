@@ -1,6 +1,7 @@
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.stereo_lifter import StereoLifter
 
 from lifters.plotting_tools import make_dirs_safe
 from utils import get_fname
@@ -22,17 +23,13 @@ def run_noise_study(
     data = []
 
     seeds = range(n_seeds)
-    a = lifter.landmarks
-
     for j, seed in enumerate(seeds):
         # generate random measurements
         np.random.seed(seed)
         Q, y = lifter.get_Q(noise=noise)
 
         # find global optimum
-        xhat, local_cost = find_local_minimum(
-            lifter, a=deepcopy(a), y=deepcopy(y), delta=noise, verbose=verbose
-        )
+        xhat, local_cost = find_local_minimum(lifter, y, delta=noise, verbose=verbose)
         if xhat is None:
             print("Warning: local didn't solve!!")
             continue
@@ -59,9 +56,9 @@ def run_noise_study(
                 indices = list(
                     range(1, len(A_shuffle))[-200:-50:10]
                 )  # ca. 20 datapoints
-                indices += list(range(1, len(A_shuffle))[-50:])  # 50 datapoints
+                indices += list(range(1, len(A_shuffle) + 1)[-50:])  # 50 datapoints
             else:
-                indices = range(1, len(A_shuffle))[-200:]
+                indices = range(1, len(A_shuffle) + 1)[-200:]
 
             for i in indices:
                 # print(f"adding {i}/{len(A_shuffle)}")
@@ -100,6 +97,32 @@ def run_noise_study(
 
 
 if __name__ == "__main__":
+    import itertools
+
+    eps = 1e-4
+    method = "qr"
+    noise = 0.0
+
+    from lifters.custom_lifters import Poly4Lifter, Poly6Lifter
+
+    lifters = [Poly4Lifter(), Poly6Lifter()]
+    for lifter in lifters:
+        Y = lifter.generate_Y(factor=3)
+        basis, S = lifter.get_basis(Y, eps=eps, method=method)
+        A_list = lifter.generate_matrices(basis)
+
+        params = dict(
+            lifter=lifter,
+            A_list=A_list,
+            noise=noise,
+            n_seeds=1,
+            n_shuffles=0,
+            fname="",
+        )
+        run_noise_study(**params, verbose=False)
+
+
+elif False:  # __name__ == "__main__":
     import itertools
 
     noises = NOISE_DICT.keys()

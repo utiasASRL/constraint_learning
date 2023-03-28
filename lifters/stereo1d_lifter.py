@@ -43,7 +43,7 @@ class Stereo1DLifter(StateLifter):
         vars = ["l", "x"] + [f"z{i}" for i in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
-    def get_Q(self, noise=1e-3) -> np.ndarray:
+    def get_Q(self, noise=1e-3) -> tuple:
         from poly_matrix.poly_matrix import PolyMatrix
 
         x = self.unknowns
@@ -80,12 +80,12 @@ class Stereo1DLifter(StateLifter):
         t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
         return t_0
 
-    @staticmethod
-    def get_cost(a, y, t, W=None):
+    def get_cost(self, t, a, y, W=None):
+        a = self.landmarks
         return np.sum((y - (1 / (t - a))) ** 2)
 
-    @staticmethod
-    def local_solver(a, y, t_init, num_iters=100, eps=1e-5, W=None, verbose=False):
+    def local_solver(self, t_init, y, num_iters=100, eps=1e-5, W=None, verbose=False):
+        a = self.landmarks
         x_op = t_init
         for i in range(num_iters):
             u = y - (1 / (x_op - a))

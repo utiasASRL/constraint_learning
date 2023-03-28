@@ -48,19 +48,17 @@ def solve_dual(Q, A_list, tol=1e-6, solver="CVXOPT", verbose=True):
         return None, None, prob.status
 
 
-def find_local_minimum(lifter, a, y, delta=1e-3, verbose=False):
+def find_local_minimum(lifter, y, delta=1e-3, verbose=False):
     local_solutions = []
     costs = []
 
     inits = [lifter.get_vec_around_gt(delta=0)]  # initialize at gt
     inits += [lifter.get_vec_around_gt(delta=delta) for i in range(10)]  # around gt
     for t_init in inits:
-        t_local, msg, cost_solver = lifter.local_solver(
-            a=a, y=y, t_init=t_init, W=lifter.W, verbose=verbose
-        )
+        t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
         # print(msg)
         if t_local is not None:
-            cost_lifter = lifter.get_cost(a=a, y=y, t=t_local, W=lifter.W)
+            cost_lifter = lifter.get_cost(t_local, y=y)
             costs.append(cost_lifter)
             local_solutions.append(t_local)
     local_solutions = np.array(local_solutions)

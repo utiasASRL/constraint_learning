@@ -28,8 +28,7 @@ class Stereo3DLifter(StereoLifter):
     def get_inits(n_inits):
         return np.c_[np.random.rand(n_inits, 3), 2 * np.pi * np.random.rand(n_inits, 3)]
 
-    @staticmethod
-    def get_cost(a, y, t, W):
+    def get_cost(self, t, y, W):
         """
         :param t: can be either
         - x, y, z, yaw, pitch roll: vector of unknowns, or
@@ -38,6 +37,7 @@ class Stereo3DLifter(StereoLifter):
         from lifters.stereo_lifter import get_T, get_theta_from_unknowns
         from lifters.stereo3d_problem import projection_error
 
+        a = self.landmarks
         p_w, y = change_dimensions(a, y)
 
         if len(t) == 6:
@@ -49,8 +49,7 @@ class Stereo3DLifter(StereoLifter):
         cost = projection_error(p_w=p_w, y=y, T=T, M=M, W=W)
         return cost
 
-    @staticmethod
-    def local_solver(a, y, t_init, W, verbose=False):
+    def local_solver(self, t_init, y, W, verbose=False):
         """
         :param t_init: same options  asfor t in cost.
         """
@@ -62,6 +61,7 @@ class Stereo3DLifter(StereoLifter):
             get_theta_from_T,
         )
 
+        a = self.landmarks
         p_w, y = change_dimensions(a, y)
         if len(t_init) == 6:
             theta_init = get_theta_from_unknowns(t_init, 3)

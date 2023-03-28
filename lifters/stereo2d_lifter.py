@@ -60,17 +60,19 @@ class Stereo2DLifter(StereoLifter):
             2 * np.pi * np.random.rand(n_inits),
         ]
 
-    @staticmethod
-    def get_cost(a, y, t, W):
+    def get_cost(self, t, y, W):
         from lifters.stereo2d_problem import _cost
+
+        a = self.landmarks
 
         p_w, y, phi = change_dimensions(a, y, t)
         cost = _cost(p_w=p_w, y=y, phi=phi, W=W)[0, 0]
         return cost
 
-    @staticmethod
-    def local_solver(a, y, t_init, W, verbose=False):
+    def local_solver(self, t_init, y, W, verbose=False):
         from lifters.stereo2d_problem import local_solver
+
+        a = self.landmarks
 
         p_w, y, init_phi = change_dimensions(a, y, t_init)
         success, phi_hat, cost = local_solver(
