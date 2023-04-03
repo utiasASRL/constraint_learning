@@ -7,4 +7,3 @@ progressbar2>=4.2.0
 pytest>=7.2.2
 jupyter>=1.0.0
 black>=23.1.0
-asrl-pylgmath>=1.0.3
