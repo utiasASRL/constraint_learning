@@ -71,16 +71,8 @@ class Stereo1DLifter(StateLifter):
             A_known.append(A.toarray(variables=var_dict))
         return A_known
 
-    def get_vec_around_gt(self, delta):
-        """
-        param delta_gt:
-        - float: sample from gt + std(delta_gt) (set to 0 to start from gt.)
-        """
-        t_gt = self.unknowns
-        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
-        return t_0
-
-    def get_cost(self, t, a, y, W=None):
+    def get_cost(self, t, y):
+        W = self.W
         a = self.landmarks
         return np.sum((y - (1 / (t - a))) ** 2)
 

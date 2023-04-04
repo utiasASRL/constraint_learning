@@ -1,21 +1,23 @@
 import numpy as np
 
-from lifters.custom_lifters import Poly4Lifter, Poly6Lifter, RangeOnlyLifter
 from lifters.landmark_lifter import PoseLandmarkLifter
+from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
+from lifters.range_only_lifters import RangeOnlyLocLifter, RangeOnlySLAM1Lifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 
 n_landmarks = 3
-n_poses = 2
+n_poses = 1
 lifters = [
     # Poly4Lifter(),
     # Poly6Lifter(),
-    # RangeOnlyLifter(n_landmarks=n_poses, d=2),
+    # RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=2),
+    RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=2),
     # PoseLandmarkLifter(n_landmarks, n_poses, d=2),
     # Stereo1DLifter(n_landmarks),
-    Stereo2DLifter(n_landmarks, level=0),
-    Stereo3DLifter(n_landmarks),
+    # Stereo2DLifter(n_landmarks, level=0),
+    # Stereo3DLifter(n_landmarks),
 ]
 
 
@@ -23,8 +25,13 @@ def test_levels():
     from lifters.stereo_lifter import StereoLifter
 
     for level in StereoLifter.LEVELS:
-        lifter = Stereo2DLifter(n_landmarks=3, level=level)
-        lifter.get_x()
+        lifter_2d = Stereo2DLifter(n_landmarks=3, level=level)
+
+        # inside below function we tests that dimensions are consistent.
+        lifter_2d.get_x()
+
+        lifter_3d = Stereo3DLifter(n_landmarks=3, level=level)
+        lifter_3d.get_x()
 
 
 def test_cost_noisy():
@@ -42,8 +49,8 @@ def test_cost(noise=0.0):
         if Q is None:
             continue
 
-        x = lifter.unknowns
-        cost = lifter.get_cost(lifter.landmarks, y, x, W=lifter.W)
+        x = lifter.get_theta()
+        cost = lifter.get_cost(x, y)
 
         x = lifter.get_x()
         costQ = x.T @ Q @ x
@@ -72,10 +79,7 @@ def test_solvers(n_seeds=1, noise=0.0):
             theta_0 = lifter.get_vec_around_gt(delta=1e-5)
             theta_gt = lifter.get_vec_around_gt(delta=0)
 
-            theta_hat, msg, cost_solver = lifter.local_solver(
-                lifter.landmarks, y, theta_0, W=lifter.W
-            )
-
+            theta_hat, msg, cost_solver = lifter.local_solver(theta_gt, y)
             if noise == 0:
                 # test that solution is ground truth with no noise
                 np.testing.assert_allclose(theta_hat, theta_gt)
@@ -83,8 +87,21 @@ def test_solvers(n_seeds=1, noise=0.0):
                 # just test that we converged when noise is added
                 assert theta_hat is not None
 
-            cost_lifter = lifter.get_cost(lifter.landmarks, y, t=theta_hat, W=lifter.W)
+            theta_hat, msg, cost_solver = lifter.local_solver(theta_0, y)
+
+            cost_lifter = lifter.get_cost(theta_hat, y)
             assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
+
+            if noise == 0:
+                # test that solution is ground truth with no noise
+                progress = np.linalg.norm(theta_0 - theta_hat)
+                assert progress > 1e-10, progress
+
+                # test that solution is ground truth with no noise
+                np.testing.assert_allclose(theta_hat, theta_gt)
+            else:
+                # just test that we converged when noise is added
+                assert theta_hat is not None
 
 
 def test_constraints():

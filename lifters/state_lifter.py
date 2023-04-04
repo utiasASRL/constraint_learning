@@ -40,7 +40,16 @@ class StateLifter(object):
         return mat[np.triu_indices(n=self.dim_X())].flatten()
 
     def get_vec_around_gt(self, delta=0):
-        return self.unknowns + np.random.normal(size=self.unknowns.shape, scale=delta)
+        if type(self.unknowns) == np.ndarray:
+            return self.unknowns + np.random.normal(
+                size=self.unknowns.shape, scale=delta
+            )
+        elif type(self.unknowns) == tuple:
+            vec = np.concatenate([*self.unknowns])
+            return vec + np.random.normal(size=vec.shape, scale=delta)
+            # return tuple(
+            #    u + np.random.normal(size=u.shape, scale=delta) for u in self.unknowns
+            # )
 
     def generate_Y(self, factor=3, ax=None):
         dim_X = self.dim_X()
