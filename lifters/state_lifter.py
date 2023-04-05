@@ -113,8 +113,6 @@ class StateLifter(object):
         triu = np.triu_indices(n=dim_X)
 
         A_list = []
-        vmax = -np.inf
-        vmin = np.inf
         for i in range(basis.shape[0]):
             Ai = np.zeros((self.dim_X(), self.dim_X()))
             Ai[triu] = basis[i, :]
@@ -123,8 +121,5 @@ class StateLifter(object):
 
             if normalize:
                 Ai /= np.max(Ai)
-
-            vmax = max(vmax, np.max(Ai))
-            vmin = min(vmin, np.min(Ai))
             A_list.append(Ai)
         return A_list

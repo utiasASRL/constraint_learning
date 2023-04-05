@@ -1,9 +1,8 @@
+from lifters.plotting_tools import *
+from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, RangeOnlyLifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.custom_lifters import RangeOnlyLifter, Poly4Lifter, Poly6Lifter
-from lifters.plotting_tools import *
-
 from utils import get_fname
 
 METHOD = "qr"

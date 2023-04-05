@@ -1,7 +1,8 @@
-from lifters.custom_lifters import PoseLandmarkLifter
+from lifters.poly_lifters import PoseLandmarkLifter
 
 if __name__ == "__main__":
     import itertools
+
     import pandas as pd
     from progressbar import ProgressBar
 

@@ -1,12 +1,11 @@
+import numpy as np
+
+from lifters.plotting_tools import make_dirs_safe
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.stereo_lifter import StereoLifter
-
-from lifters.plotting_tools import make_dirs_safe
 from utils import get_fname
-
-import numpy as np
 
 METHOD = "qr"
 NOISE_DICT = dict(zip(range(5), np.logspace(-3, 1, 5)))
@@ -15,10 +14,12 @@ NOISE_DICT = dict(zip(range(5), np.logspace(-3, 1, 5)))
 def run_noise_study(
     lifter, A_list, noise=1e-3, n_shuffles=0, n_seeds=1, fname="", verbose=False
 ):
-    from solvers.common import solve_dual, find_local_minimum
-    from progressbar import ProgressBar
     from copy import deepcopy
+
     import pandas as pd
+    from progressbar import ProgressBar
+
+    from solvers.common import find_local_minimum, solve_dual
 
     data = []
 
@@ -103,7 +104,7 @@ if __name__ == "__main__":
     method = "qr"
     noise = 0.0
 
-    from lifters.custom_lifters import Poly4Lifter, Poly6Lifter
+    from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
 
     lifters = [Poly4Lifter(), Poly6Lifter()]
     for lifter in lifters:
