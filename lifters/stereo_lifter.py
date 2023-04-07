@@ -141,7 +141,7 @@ class StereoLifter(StateLifter):
                 # this works
                 higher_data += list(np.outer(u, r).flatten())
         x_data += higher_data
-        assert len(x_data) == self.dim_X()
+        assert len(x_data) == self.dim_x
         return np.array(x_data)
 
     def get_var_dict(self):

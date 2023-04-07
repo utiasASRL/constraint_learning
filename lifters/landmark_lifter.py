@@ -56,5 +56,5 @@ class PoseLandmarkLifter(StateLifter):
             w = matrices[p].T @ self.landmarks[l]
             x_data += list(w)
         x = np.array(x_data)
-        assert len(x) == self.dim_X()
+        assert len(x) == self.dim_x
         return x

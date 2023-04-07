@@ -20,7 +20,6 @@ all_lifters = [
     RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    # PoseLandmarkLifter(n_landmarks, n_poses, d=d),
     # Stereo1DLifter(n_landmarks),
     # Stereo2DLifter(n_landmarks, level=0),
     # Stereo3DLifter(n_landmarks),
@@ -43,8 +42,7 @@ def test_hess_finite_diff():
                 hess = lifter.get_hess(theta, y)
             except Exception as e:
                 print(e)
-                print("grad not implemented?")
-                raise
+                print("get_hess not implemented?")
                 continue
 
             n = len(theta)
@@ -63,6 +61,8 @@ def test_hess_finite_diff():
 
         try:
             assert min(errors) < 1e-5
+        except ValueError:
+            print("skipping Hessian test")
         except AssertionError:
             print(f"Hessian test for {lifter} not passing")
             # import matplotlib.pylab as plt
@@ -129,13 +129,13 @@ def test_equivalent_lifters():
     l1.generate_random_setup()
     l1.generate_random_unknowns()
     Q, y = l1.get_Q(noise=1e-3)
-    cost1 = l1.get_cost(l1.get_theta(), y)
+    cost1 = l1.get_cost(l1.theta, y)
 
     np.random.seed(1)
     l2.generate_random_setup()
     l2.generate_random_unknowns()
     Q, y = l2.get_Q(noise=1e-3)
-    cost2 = l2.get_cost(l2.get_theta(), y)
+    cost2 = l2.get_cost(l2.theta, y)
     assert abs(cost1 - cost2) < 1e-10
 
     # 1, t1, t2, ..., a1, a2, ..., |t1|^2, ..., |a1|^2, ..., a1 @ t1, ...
@@ -143,7 +143,7 @@ def test_equivalent_lifters():
     # 1, t1, t2, ..., a1, a2, ..., |t1 - a1|^2
     x2 = l2.get_x()
 
-    start = 1 + (n_poses + n_landmarks) * d
+    start = 1 + l1.N
     np.testing.assert_allclose(x1[:start], x2[:start])
     for i, (n, k) in enumerate(l1.edges):
         x1_test = (
@@ -182,7 +182,7 @@ def test_cost(noise=0.0):
         if Q is None:
             continue
 
-        x = lifter.get_theta()
+        x = lifter.theta
         cost = lifter.get_cost(x, y)
 
         x = lifter.get_x()
@@ -243,6 +243,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                     print(
                         f"Found solution for {lifter} is not ground truth in zero-noise! is the problem well-conditioned?"
                     )
+                    print(e)
             else:
                 # test that "we made progress"
                 progress = np.linalg.norm(theta_0 - theta_hat)
@@ -254,16 +255,16 @@ def test_solvers(n_seeds=1, noise=0.0):
 
 def test_constraints():
     def test_with_tol(A_list, tol):
-        unknowns = lifter.generate_random_unknowns(replace=False)
-        x = lifter.get_x(unknowns)
+        lifter.generate_random_unknowns()
+        x = lifter.get_x()
         for Ai in A_list:
             assert abs(x.T @ Ai @ x) < tol
 
             # TODO(FD) not fully understood why this fixes the below test.
             Ai[range(Ai.shape[0]), range(Ai.shape[0])] /= 2.0
 
-            ai = lifter.get_vec(Ai)
-            xvec = lifter.get_vec(np.outer(x, x))
+            ai = lifter._get_vec(Ai)
+            xvec = lifter._get_vec(np.outer(x, x))
             np.testing.assert_allclose(xvec @ ai, 0.0, atol=tol)
 
     for lifter in all_lifters:

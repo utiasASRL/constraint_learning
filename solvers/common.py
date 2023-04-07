@@ -20,18 +20,19 @@ def solve_dual(Q, A_list, tol=1e-6, solver="CVXOPT", verbose=True):
         print("running with solver options", solver_options[solver])
     rho = cp.Variable()
 
-    A_0 = np.zeros(Q.shape)
-    A_0[0, 0] = 1.0
+    import scipy.sparse as sp
 
-    H = cp.Parameter(Q.shape)
+    A_0 = sp.csr_array(([1.0], ([0], [0])), shape=Q.shape)
 
-    H.value = Q
-    H += A_0 * rho
+    H = Q
+    # cp.Parameter(Q.shape)
+    # H.value = Q
+    H += rho * A_0
 
     cp_variables = {}
     for i, Ai in enumerate(A_list):
         cp_variables[f"l{i}"] = cp.Variable()
-        H += Ai * cp_variables[f"l{i}"]
+        H += cp_variables[f"l{i}"] * Ai
 
     constraints = [H >> 0]
 
@@ -47,18 +48,20 @@ def solve_dual(Q, A_list, tol=1e-6, solver="CVXOPT", verbose=True):
         return None, None, prob.status
 
 
-def find_local_minimum(lifter, y, delta=1e-3, verbose=False):
+def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10):
     local_solutions = []
     costs = []
 
     inits = [lifter.get_vec_around_gt(delta=0)]  # initialize at gt
-    inits += [lifter.get_vec_around_gt(delta=delta) for i in range(10)]  # around gt
+    inits += [
+        lifter.get_vec_around_gt(delta=delta) for i in range(n_inits - 1)
+    ]  # around gt
     for t_init in inits:
         t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
         # print(msg)
         if t_local is not None:
-            cost_lifter = lifter.get_cost(t_local, y=y)
-            costs.append(cost_lifter)
+            # cost_lifter = lifter.get_cost(t_local, y=y)
+            costs.append(cost_solver)
             local_solutions.append(t_local)
     local_solutions = np.array(local_solutions)
 

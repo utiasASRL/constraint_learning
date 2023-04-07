@@ -1,16 +1,20 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import numpy as np
 
+EPS = 1e-10  # threshold for nullspace (eigenvalues)
+METHOD = "qr"  # basis pursuit method
+NORMALIZE = True  # normalize learned Ai or not
 
-class StateLifter(object):
+
+class StateLifter(ABC):
     def __init__(self, theta_shape, M, L=0):
         self.theta_shape = theta_shape
         if len(theta_shape) > 1:
-            self.N = np.multiply(*theta_shape)
+            self.N_ = np.multiply(*theta_shape)
         else:
-            self.N = theta_shape[0]
-        self.M = M
+            self.N_ = theta_shape[0]
+        self.M_ = M
         self.L = L
         self.setup = None
 
@@ -19,41 +23,69 @@ class StateLifter(object):
         self.generate_random_setup()
         self.generate_random_unknowns()
 
-    def generate_random_setup(self):
-        print("Warning: nothing to setup")
+    # the property decorator creates by default read-only attributes.
+    # can create a @dim_x.setter function to make it also writeable.
+    @property
+    def dim_x(self):
+        return 1 + self.N + self.M + self.L
 
-    def generate_random_unknowns(self):
-        raise NotImplementedError()
+    @property
+    def d(self):
+        return self.d_
+
+    @d.setter
+    def d(self, var):
+        assert var in [2, 3]
+        self.d_ = var
+
+    @property
+    def N(self):
+        return self.N_
+
+    @N.setter
+    def N(self, var):
+        self.N_ = var
+
+    @property
+    def M(self):
+        return self.M_
 
     def get_Q(self, noise=1e-3):
         print("Warning: get_Q not implemented")
         return None, None
 
     @abstractmethod
-    def get_x(self, theta):
-        raise NotImplementedError()
+    def generate_random_setup(self):
+        return
 
-    def get_A_known(self):
+    @abstractmethod
+    def generate_random_unknowns(self):
+        return
+
+    @abstractmethod
+    def get_x(self, theta) -> np.ndarray:
+        return
+
+    def get_A_known(self) -> list:
         return []
 
-    def get_vec(self, mat):
-        return mat[np.triu_indices(n=self.dim_X())].flatten()
+    def get_A_learned(self) -> list:
+        Y = self.generate_Y()
+        basis, _ = self.get_basis(Y, eps=EPS, method=METHOD)
+        return self.generate_matrices(basis, normalize=NORMALIZE)
 
     def get_vec_around_gt(self, delta=0):
-        if type(self.unknowns) == np.ndarray:
-            return self.unknowns + np.random.normal(
-                size=self.unknowns.shape, scale=delta
-            )
-        elif type(self.unknowns) == tuple:
-            vec = np.concatenate([*self.unknowns])
-            return vec + np.random.normal(size=vec.shape, scale=delta)
-            # return tuple(
-            #    u + np.random.normal(size=u.shape, scale=delta) for u in self.unknowns
-            # )
+        return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
+
+    def dim_X(self):
+        print("Warning in state_lifter: use obj.dim_x instead of obj.dim_X()")
+        return self.dim_x
+
+    def _get_vec(self, mat):
+        return mat[np.triu_indices(n=self.dim_x)].flatten()
 
     def generate_Y(self, factor=3, ax=None):
-        dim_X = self.dim_X()
-        dim_Y = int(dim_X * (dim_X + 1) / 2)
+        dim_Y = int(self.dim_x * (self.dim_x + 1) / 2)
 
         # need at least dim_Y different random setups
         n_seeds = dim_Y * factor
@@ -62,21 +94,19 @@ class StateLifter(object):
         for seed in range(n_seeds):
             np.random.seed(seed)
             self.generate_random_unknowns()
-            theta = self.get_theta()
             if seed < 10 and ax is not None:
-                if np.ndim(theta) == 1:
-                    ax.scatter(np.arange(len(theta)), theta)
+                if np.ndim(self.theta) == 1:
+                    ax.scatter(np.arange(len(self.theta)), self.theta)
                 else:
-                    ax.scatter(*theta[:, :2].T)
+                    ax.scatter(*self.theta[:, :2].T)
 
-            x = self.get_x(theta)
+            x = self.get_x(self.theta)
             X = np.outer(x, x)
 
-            Y[seed, :] = self.get_vec(X)
-
+            Y[seed, :] = self._get_vec(X)
         return Y
 
-    def get_basis(self, Y, eps=1e-10, method="qr"):
+    def get_basis(self, Y, eps=EPS, method=METHOD):
         """
         generate basis from lifted state matrix Y
         """
@@ -102,19 +132,15 @@ class StateLifter(object):
         np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
-    def dim_X(self):
-        return 1 + self.N + self.M + self.L
-
-    def generate_matrices(self, basis, normalize=True):
+    def generate_matrices(self, basis, normalize=NORMALIZE):
         """
         generate matrices from vectors
         """
-        dim_X = self.dim_X()
-        triu = np.triu_indices(n=dim_X)
+        triu = np.triu_indices(n=self.dim_x)
 
         A_list = []
         for i in range(basis.shape[0]):
-            Ai = np.zeros((self.dim_X(), self.dim_X()))
+            Ai = np.zeros((self.dim_x, self.dim_x))
             Ai[triu] = basis[i, :]
             Ai += Ai.T
             Ai /= 2
@@ -123,3 +149,54 @@ class StateLifter(object):
                 Ai /= np.max(Ai)
             A_list.append(Ai)
         return A_list
+
+    def run(self):
+        """Convenience function to quickly test and debug lifter"""
+        import matplotlib.pylab as plt
+
+        from lifters.plotting_tools import plot_matrices, plot_singular_values
+
+        Y = self.generate_Y()
+        basis, S = self.get_basis(Y, eps=EPS)
+        A_list = self.generate_matrices(basis)
+
+        plot_singular_values(S, eps=EPS)
+
+        # check that learned constraints meat tolerance
+        tol = 1e-5
+        for A in A_list:
+            self.generate_random_unknowns()
+            x = self.get_x()
+
+            constraint_violation = x.T @ A @ x
+            if constraint_violation > tol:
+                print("Warning: big violation")
+
+        plot_matrices(A_list, n_matrices=5, start_idx=0)
+        plt.show()
+
+        from solvers.common import find_local_minimum, solve_dual
+
+        noise = 1e-3
+        Q, y = self.get_Q(noise=noise)
+
+        print("solve dual problems...")
+        dual_costs = []
+        n = min(10, len(A_list))
+        n_constraints = range(len(A_list) - n, len(A_list))
+        for i in n_constraints:
+            cost, H, status = solve_dual(Q, A_list[:i])
+            dual_costs.append(cost)
+            print(f"{i+1}/{len(A_list)}")
+
+        print("find local minimum...")
+        xhat, local_cost = find_local_minimum(self, y, delta=noise, n_inits=1)
+
+        plt.figure()
+        plt.axhline(local_cost, label=f"QCQP cost {local_cost:.2e}")
+        plt.scatter(n_constraints, dual_costs, label="dual costs")
+        plt.xlabel("added constraints")
+        plt.ylabel("cost")
+        plt.legend()
+        plt.show()
+        plt.pause(1)
