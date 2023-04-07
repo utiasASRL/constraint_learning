@@ -1,7 +1,8 @@
 from abc import abstractmethod
 
 import numpy as np
-
+import scipy.linalg as la
+import scipy.sparse as sp
 
 class StateLifter(object):
     def __init__(self, theta_shape, M, L=0):
@@ -80,32 +81,39 @@ class StateLifter(object):
         """
         generate basis from lifted state matrix Y
         """
-        U, S, Vh = np.linalg.svd(
-            Y
-        )  # nullspace of Y is in last columns of V / last rows of Vh
-        rank = np.sum(np.abs(S) > eps)
         if method == "svd":
+            U, S, Vh = np.linalg.svd(Y)  # nullspace of Y is in last columns of V / last rows of Vh
+            rank = np.sum(np.abs(S) > eps)
             basis = Vh[rank:, :]
-
             # test that it is indeed a null space
             np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
         elif method == "qr":
             Q, R = np.linalg.qr(Y.T)
+            S = np.diag(R)
+            rank = np.sum(np.abs(S) > eps)
             basis = Q[:, rank:].T
-
+        elif method == "qrp":
+            Q,R,p = la.qr(Y,pivoting=True)
+            S = np.diag(R)
+            rank = np.sum(np.abs(S) > eps)
+            R1, R2 = R[:rank,:rank],R[:rank,rank:]
+            N = np.vstack([la.solve_triangular(R1,R2), -np.eye(R2.shape[1])])
+            basis = np.zeros(N.T.shape)
+            basis[:,p] = N.T
+                        
             # TODO(FD) below is pretty high. figure out if that's a problem
             # print("max QR basis error:", np.max(np.abs(Y @ basis.T)))
         else:
             raise ValueError(method)
 
         # test that all columns are orthonormal
-        np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
+        # np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
     def dim_X(self):
         return 1 + self.N + self.M + self.L
 
-    def generate_matrices(self, basis, normalize=True):
+    def generate_matrices(self, basis, normalize=True, sparse=True, trunc_tol=1e-10):
         """
         generate matrices from vectors
         """
@@ -120,11 +128,20 @@ class StateLifter(object):
             Ai[triu] = basis[i, :]
             Ai += Ai.T
             Ai /= 2
-
+            # Normalize the matrix
             if normalize:
-                Ai /= np.max(Ai)
-
+                Ai /= np.max(np.abs(Ai))
+            # Truncate
+            Ai = np.round(Ai,decimals=trunc_tol)
+            # Sparsify
+            if sparse:
+                A_list.append(sp.csr_array(Ai))
+            else:
+                A_list.append(Ai)
+            
+            
             vmax = max(vmax, np.max(Ai))
             vmin = min(vmin, np.min(Ai))
-            A_list.append(Ai)
+            
+            
         return A_list
