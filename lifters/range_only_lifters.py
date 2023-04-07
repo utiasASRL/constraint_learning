@@ -31,7 +31,7 @@ class RangeOnlyLifter(StateLifter):
     - generate_random_positions:
         return randomly generated positions (motion model to be implemented)
 
-    - generate_random_unknowns:
+    - sample_feasible:
         - for localization problem, this can regenerate both landmarks and positions
         - for SLAM problem, regenerate only positions (to be tested)
 
@@ -199,7 +199,7 @@ class RangeOnlyLifter(StateLifter):
         return that, msg, cost
 
     @abstractmethod
-    def generate_random_unknowns(self):
+    def sample_feasible(self):
         pass
 
     @abstractmethod
@@ -311,7 +311,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
     def generate_random_setup(self):
         self.generate_random_landmarks()
 
-    def generate_random_unknowns(self):
+    def sample_feasible(self):
         self.generate_random_positions()
 
     def get_Q_from_y(self, y):
@@ -336,7 +336,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             cost += np.linalg.norm(self.landmarks[0]) ** 2
         return cost
 
-    def generate_random_unknowns(self):
+    def sample_feasible(self):
         self.generate_random_positions()
 
     def fill_depending_on_k(self, J_lifting, counter, k, vec):
@@ -535,7 +535,7 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
             hessians.append(hessian)
         return hessians
 
-    def generate_random_unknowns(self):
+    def sample_feasible(self):
         self.generate_random_positions()
         self.generate_random_landmarks()
 

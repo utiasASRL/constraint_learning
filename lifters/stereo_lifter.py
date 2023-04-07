@@ -81,7 +81,7 @@ class StereoLifter(StateLifter):
         n_angles = int(self.d * (self.d - 1) / 2)
         return np.c_[np.random.rand(n, self.d), np.random.rand(n, n_angles) * 2 * np.pi]
 
-    def generate_random_unknowns(self, replace=True):
+    def sample_feasible(self, replace=True):
         unknowns = self.generate_random_theta(n=1).flatten()
         if replace:
             self.unknowns = unknowns

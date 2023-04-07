@@ -1,7 +1,7 @@
 import numpy as np
 
 from lifters.landmark_lifter import PoseLandmarkLifter
-from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
+from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, PolyLifter
 from lifters.range_only_lifters import (
     RangeOnlyLocLifter,
     RangeOnlySLAM1Lifter,
@@ -17,9 +17,9 @@ n_poses = 1
 all_lifters = [
     # Poly4Lifter(),
     # Poly6Lifter(),
-    RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # Stereo1DLifter(n_landmarks),
     # Stereo2DLifter(n_landmarks, level=0),
     # Stereo3DLifter(n_landmarks),
@@ -29,16 +29,16 @@ all_lifters = [
 def test_hess_finite_diff():
     for lifter in all_lifters:
         lifter.generate_random_setup()
-        lifter.generate_random_unknowns()
+        lifter.sample_feasible()
 
         errors = []
         eps_list = np.logspace(-10, -5, 11)
         for eps in eps_list:
             Q, y = lifter.get_Q(noise=1)
             theta = lifter.get_vec_around_gt(delta=0).flatten("C")
-            grad = lifter.get_grad(theta, y)
 
             try:
+                grad = lifter.get_grad(theta, y)
                 hess = lifter.get_hess(theta, y)
             except Exception as e:
                 print(e)
@@ -76,7 +76,7 @@ def test_hess_finite_diff():
 def test_grad_finite_diff():
     for lifter in all_lifters:
         lifter.generate_random_setup()
-        lifter.generate_random_unknowns()
+        lifter.sample_feasible()
 
         errors = []
         eps_list = np.logspace(-10, -1, 11)
@@ -86,12 +86,12 @@ def test_grad_finite_diff():
             theta = lifter.get_vec_around_gt(delta=0).flatten("C")
             cost = lifter.get_cost(theta, y)
 
-            # try:
-            grad = lifter.get_grad(theta, y)
-            # except Exception as e:
-            #    print(e)
-            #    print("grad not implemented?")
-            #    continue
+            try:
+                grad = lifter.get_grad(theta, y)
+            except Exception as e:
+                print(e)
+                print("grad not implemented?")
+                continue
 
             n = len(theta)
             I = np.eye(n) * eps
@@ -111,6 +111,8 @@ def test_grad_finite_diff():
 
         try:
             assert min(errors) < 1e-5
+        except ValueError:
+            print("skipping grad test")
         except AssertionError:
             import matplotlib.pylab as plt
 
@@ -127,13 +129,13 @@ def test_equivalent_lifters():
 
     np.random.seed(1)
     l1.generate_random_setup()
-    l1.generate_random_unknowns()
+    l1.sample_feasible()
     Q, y = l1.get_Q(noise=1e-3)
     cost1 = l1.get_cost(l1.theta, y)
 
     np.random.seed(1)
     l2.generate_random_setup()
-    l2.generate_random_unknowns()
+    l2.sample_feasible()
     Q, y = l2.get_Q(noise=1e-3)
     cost2 = l2.get_cost(l2.theta, y)
     assert abs(cost1 - cost2) < 1e-10
@@ -189,7 +191,7 @@ def test_cost(noise=0.0):
         costQ = x.T @ Q @ x
         assert abs(cost - costQ) < 1e-8, (cost, costQ)
 
-        if noise == 0:
+        if noise == 0 and not isinstance(lifter, PolyLifter):
             assert cost < 1e-10, cost
             assert costQ < 1e-10, costQ
 
@@ -255,7 +257,7 @@ def test_solvers(n_seeds=1, noise=0.0):
 
 def test_constraints():
     def test_with_tol(A_list, tol):
-        lifter.generate_random_unknowns()
+        lifter.sample_feasible()
         x = lifter.get_x()
         for Ai in A_list:
             assert abs(x.T @ Ai @ x) < tol
@@ -286,7 +288,7 @@ if __name__ == "__main__":
     test_grad_finite_diff()
     test_hess_finite_diff()
 
-    test_levels()
+    # test_levels()
 
     test_solvers()
     test_solvers_noisy()

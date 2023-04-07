@@ -21,7 +21,6 @@ class StateLifter(ABC):
         # fixing seed for testing purposes
         np.random.seed(1)
         self.generate_random_setup()
-        self.generate_random_unknowns()
 
     # the property decorator creates by default read-only attributes.
     # can create a @dim_x.setter function to make it also writeable.
@@ -59,7 +58,7 @@ class StateLifter(ABC):
         return
 
     @abstractmethod
-    def generate_random_unknowns(self):
+    def sample_feasible(self):
         return
 
     @abstractmethod
@@ -93,14 +92,15 @@ class StateLifter(ABC):
         self.generate_random_setup()
         for seed in range(n_seeds):
             np.random.seed(seed)
-            self.generate_random_unknowns()
+
+            theta = self.sample_feasible()
             if seed < 10 and ax is not None:
                 if np.ndim(self.theta) == 1:
-                    ax.scatter(np.arange(len(self.theta)), self.theta)
+                    ax.scatter(np.arange(len(theta)), theta)
                 else:
-                    ax.scatter(*self.theta[:, :2].T)
+                    ax.scatter(*theta[:, :2].T)
 
-            x = self.get_x(self.theta)
+            x = self.get_x(theta)
             X = np.outer(x, x)
 
             Y[seed, :] = self._get_vec(X)
@@ -165,7 +165,7 @@ class StateLifter(ABC):
         # check that learned constraints meat tolerance
         tol = 1e-5
         for A in A_list:
-            self.generate_random_unknowns()
+            self.sample_feasible()
             x = self.get_x()
 
             constraint_violation = x.T @ A @ x

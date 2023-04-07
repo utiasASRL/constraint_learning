@@ -1,4 +1,4 @@
-from lifters.poly_lifters import PoseLandmarkLifter
+from lifters.landmark_lifter import PoseLandmarkLifter
 
 if __name__ == "__main__":
     import itertools

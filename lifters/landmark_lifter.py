@@ -23,7 +23,7 @@ class PoseLandmarkLifter(StateLifter):
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
 
-    def generate_random_unknowns(self, ax=None):
+    def sample_feasible(self, ax=None):
         positions = np.random.rand(self.n_poses, self.d)
         angles = np.random.rand(self.n_poses, self.n_rot)
         matrices = [get_rot_matrix(angle) for angle in angles]

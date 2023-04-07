@@ -14,7 +14,7 @@ class Stereo1DLifter(StateLifter):
         # important!! we can only resample x, the landmarks have to stay the same
         self.landmarks = np.random.rand(self.n_landmarks)
 
-    def generate_random_unknowns(self, replace=True):
+    def sample_feasible(self, replace=True):
         x_try = np.random.rand(1)
         counter = 0
         while np.min(np.abs(x_try - self.landmarks)) <= 1e-10:

@@ -1,48 +1,42 @@
+from abc import abstractmethod
+
 import numpy as np
 
 from lifters.state_lifter import StateLifter
 
 
-def get_x_poly4(t):
-    return np.r_[1, t, t**2]
+class PolyLifter(StateLifter):
+    def __init__(self, degree):
+        self.degree = degree
+        super().__init__(theta_shape=(1,), M=self.M)
 
+    @property
+    def M(self):
+        return self.degree // 2 - 1
 
-def get_Q_poly4():
-    Q = np.r_[np.c_[2, 1, 0], np.c_[1, -1 / 2, -1 / 3], np.c_[0, -1 / 3, 1 / 4]]
-    return Q
+    @property
+    def theta(self):
+        return self.theta_
 
+    @abstractmethod
+    def get_Q_mat(self):
+        return
 
-class Poly4Lifter(StateLifter):
-    def __init__(self):
-        super().__init__(theta_shape=(1,), M=1)
+    def sample_feasible(self):
+        return np.random.rand(1)
 
-    def generate_random_unknowns(self, replace=True):
-        unknowns = np.random.rand(1)
-        if replace:
-            self.unknowns = unknowns
-        return unknowns
+    def get_x(self, t=None):
+        if t is None:
+            t = self.theta
+        return np.array([t**i for i in range(self.degree // 2 + 1)])
 
-    def get_theta(self):
-        return np.r_[self.unknowns]
-
-    def get_x(self, theta=None):
-        if theta is None:
-            theta = self.get_theta()
-        return get_x_poly4(theta)
-
-    def get_Q(self, noise=None):
-        Q = get_Q_poly4()
-        y = None
-        return Q, y
-
-    def get_x(self, theta=None):
-        if theta is None:
-            theta = self.get_theta()
-        return get_x_poly4(theta)
+    def get_Q(self, noise=1e-3):
+        Q = self.get_Q_mat()
+        return Q, None
 
     def get_cost(self, t, *args, **kwargs):
-        Q = get_Q_poly4()
-        x = get_x_poly4(t)
+        Q = self.get_Q_mat()
+        x = self.get_x(t)
         return x.T @ Q @ x
 
     def local_solver(self, t0, *args, **kwargs):
@@ -52,59 +46,36 @@ class Poly4Lifter(StateLifter):
         return sol.x[0], sol.success, sol.fun
 
     def __repr__(self):
-        return "poly4"
+        return f"poly{self.degree}"
 
 
-def get_x_poly6(t):
-    return np.r_[1, t, t**2, t**3]
-
-
-def get_Q_poly6():
-    Q = (
-        np.r_[
-            np.c_[25, 12, 0, 0],
-            np.c_[12, -13, -5 / 2, 0],
-            np.c_[0, -5 / 2, 25 / 4, -9 / 10],
-            np.c_[0, 0, -9 / 10, 1 / 6],
-        ]
-        / 10
-    )
-    return Q
-
-
-class Poly6Lifter(StateLifter):
+class Poly4Lifter(PolyLifter):
     def __init__(self):
-        super().__init__(theta_shape=(1,), M=2)
+        # actual minimum
+        super().__init__(degree=4)
 
-    def generate_random_unknowns(self, replace=True):
-        unknowns = np.random.rand(1)
-        if replace:
-            self.unknowns = unknowns
-        return unknowns
+    def get_Q_mat(self):
+        Q = np.r_[np.c_[2, 1, 0], np.c_[1, -1 / 2, -1 / 3], np.c_[0, -1 / 3, 1 / 4]]
+        return Q
 
-    def get_theta(self):
-        return np.r_[self.unknowns]
+    def generate_random_setup(self):
+        self.theta_ = np.array([-1])
 
-    def get_x(self, theta=None):
-        if theta is None:
-            theta = self.get_theta()
-        return get_x_poly6(theta)
 
-    def get_Q(self, noise=None):
-        Q = get_Q_poly6()
-        y = None
-        return Q, y
+class Poly6Lifter(PolyLifter):
+    def __init__(self):
+        super().__init__(degree=6)
 
-    def get_cost(self, t, *args, **kwargs):
-        Q = get_Q_poly6()
-        x = get_x_poly6(t)
-        return x.T @ Q @ x
+    def get_Q_mat(self):
+        return (
+            np.r_[
+                np.c_[25, 12, 0, 0],
+                np.c_[12, -13, -5 / 2, 0],
+                np.c_[0, -5 / 2, 25 / 4, -9 / 10],
+                np.c_[0, 0, -9 / 10, 1 / 6],
+            ]
+            / 10
+        )
 
-    def local_solver(self, t0, *args, **kwargs):
-        from scipy.optimize import minimize
-
-        sol = minimize(self.get_cost, t0)
-        return sol.x[0], sol.success, sol.fun
-
-    def __repr__(self):
-        return "poly6"
+    def generate_random_setup(self):
+        self.theta_ = np.array([-1])
