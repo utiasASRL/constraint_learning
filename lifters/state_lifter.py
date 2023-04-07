@@ -131,13 +131,15 @@ class StateLifter(object):
             # Normalize the matrix
             if normalize:
                 Ai /= np.max(np.abs(Ai))
-            # Truncate
-            Ai = np.round(Ai,decimals=trunc_tol)
-            # Sparsify
+            # Sparsify and truncate
             if sparse:
-                A_list.append(sp.csr_array(Ai))
+                Ai = sp.csr_array(Ai)
+                Ai.data[np.abs(Ai.data)<trunc_tol] = 0.0   
+                Ai.eliminate_zeros() 
             else:
-                A_list.append(Ai)
+                Ai[np.abs(Ai)<trunc_tol] = 0.0
+            # add to list
+            A_list.append(Ai)
             
             
             vmax = max(vmax, np.max(Ai))
