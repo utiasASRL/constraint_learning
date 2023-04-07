@@ -20,8 +20,8 @@ all_lifters = [
     # RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    # Stereo1DLifter(n_landmarks),
-    # Stereo2DLifter(n_landmarks, level=0),
+    Stereo1DLifter(n_landmarks),
+    Stereo2DLifter(n_landmarks),
     # Stereo3DLifter(n_landmarks),
 ]
 
@@ -257,10 +257,10 @@ def test_solvers(n_seeds=1, noise=0.0):
 
 def test_constraints():
     def test_with_tol(A_list, tol):
-        lifter.sample_feasible()
         x = lifter.get_x()
         for Ai in A_list:
-            assert abs(x.T @ Ai @ x) < tol
+            err = abs(x.T @ Ai @ x)
+            assert err < tol, err
 
             # TODO(FD) not fully understood why this fixes the below test.
             Ai[range(Ai.shape[0]), range(Ai.shape[0])] /= 2.0
@@ -270,12 +270,11 @@ def test_constraints():
             np.testing.assert_allclose(xvec @ ai, 0.0, atol=tol)
 
     for lifter in all_lifters:
-        A_known = lifter.get_A_known()
-
         Y = lifter.generate_Y()
-        basis, S = lifter.get_basis(Y)
+        basis, S = lifter.get_basis(Y, eps=1e-7)
         A_learned = lifter.generate_matrices(basis)
 
+        A_known = lifter.get_A_known()
         test_with_tol(A_learned, tol=1e-5)
         test_with_tol(A_known, tol=1e-10)
 

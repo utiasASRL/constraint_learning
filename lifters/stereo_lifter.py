@@ -4,14 +4,14 @@ from lifters.state_lifter import StateLifter
 from utils import get_rot_matrix
 
 
-def get_C_r_from_theta(theta, d):
-    C = theta[: d**2].reshape((d, d)).T
-    r = theta[-d:]
+def get_C_r_from_xtheta(xtheta, d):
+    C = xtheta[: d**2].reshape((d, d)).T
+    r = xtheta[-d:]
     return C, r
 
 
-def get_T(theta, d):
-    C, r = get_C_r_from_theta(theta, d)
+def get_T(xtheta, d):
+    C, r = get_C_r_from_xtheta(xtheta, d)
     T = np.zeros((d + 1, d + 1))
     T[:d, :d] = C
     T[:d, d] = r
@@ -19,9 +19,9 @@ def get_T(theta, d):
     return T
 
 
-def get_theta_from_unknowns(unknowns, d):
-    pos = unknowns[:d]
-    alpha = unknowns[d:]
+def get_xtheta_from_theta(theta, d):
+    pos = theta[:d]
+    alpha = theta[d:]
     C = get_rot_matrix(alpha)
     c = C.flatten("F")  # column-wise flatten
     theta = np.r_[c, pos]
@@ -62,7 +62,7 @@ class StereoLifter(StateLifter):
         }
 
     def __init__(self, n_landmarks, d, level="no"):
-        assert level in self.LEVELS, f"level must be in {self.LEVELS}"
+        assert level in self.LEVELS, f"level ({level}) not in {self.LEVELS}"
         self.d = d
         self.level = level
         self.n_landmarks = n_landmarks
@@ -70,7 +70,14 @@ class StereoLifter(StateLifter):
         M = self.n_landmarks * self.d
         level_dims = self.get_level_dims(n=self.n_landmarks)
         L = level_dims[level]
+
+        self.theta_ = self.generate_random_theta()
+
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M, L=L)
+
+    @property
+    def theta(self):
+        return self.theta_
 
     def generate_random_setup(self):
         # important!! we can only resample x, the landmarks have to stay the same
@@ -79,41 +86,36 @@ class StereoLifter(StateLifter):
 
     def generate_random_theta(self, n=1):
         n_angles = int(self.d * (self.d - 1) / 2)
-        return np.c_[np.random.rand(n, self.d), np.random.rand(n, n_angles) * 2 * np.pi]
+        return np.r_[
+            np.random.rand(n * self.d), np.random.rand(n * n_angles) * 2 * np.pi
+        ]
 
-    def sample_feasible(self, replace=True):
-        unknowns = self.generate_random_theta(n=1).flatten()
-        if replace:
-            self.unknowns = unknowns
-        return unknowns
+    def sample_feasible(self):
+        return self.generate_random_theta(n=1).flatten()
 
     def get_C_r_from_theta(self, theta=None):
         if theta is None:
-            theta = self.get_theta()
-        return get_C_r_from_theta(theta, self.d)
+            theta = self.theta
+        xtheta = self.get_xtheta_from_theta(theta)
+        return get_C_r_from_xtheta(xtheta, self.d)
 
-    def get_theta_from_unknowns(self, unknowns=None):
-        if unknowns is None:
-            unknowns = self.unknowns
-        return get_theta_from_unknowns(unknowns, self.d)
+    def get_xtheta_from_theta(self, theta=None):
+        if theta is None:
+            theta = self.theta
+        return get_xtheta_from_theta(theta, self.d)
 
-    def get_theta(self):
-        theta = self.get_theta_from_unknowns()
-        assert len(theta) == self.theta_shape[0]
-        return theta
+    def get_xtheta(self):
+        xtheta = self.get_xtheta_from_theta(theta=None)
+        assert len(xtheta) == self.theta_shape[0]
+        return xtheta
 
     def get_x(self, theta=None):
-        Ctest = None
         if theta is None:
-            theta = self.get_theta()
-            Ctest = get_rot_matrix(self.unknowns[self.d :])
-        elif len(theta) < self.theta_shape[0]:
-            theta = self.get_theta_from_unknowns(unknowns=theta)
-
+            theta = self.theta
         C, r = self.get_C_r_from_theta(theta)
-        if Ctest is not None:
-            np.testing.assert_allclose(Ctest, C)
-        x_data = [1] + list(theta)
+
+        xtheta = self.get_xtheta_from_theta(theta)
+        x_data = [1] + list(xtheta)
 
         higher_data = []
         if self.level == "r2":
@@ -144,22 +146,34 @@ class StereoLifter(StateLifter):
         assert len(x_data) == self.dim_x
         return np.array(x_data)
 
-    def get_var_dict(self):
-        var_dict = {"l": 1}
-        var_dict["x"] = self.theta_shape[0]
-        var_dict.update({f"z{i}": self.d for i in range(self.n_landmarks)})
+    def get_vec_around_gt(self, delta):
+        """
+        param delta_gt:
+        - float: sample from gt + std(delta_gt) (set to 0 to start from gt.)
+        """
+        t_gt = self.theta
+        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
+        return t_0
+
+    @property
+    def var_dict(self):
+        var_dict_ = {"l": 1}
+        var_dict_["x"] = self.theta_shape[0]
+        var_dict_.update({f"z{i}": self.d for i in range(self.n_landmarks)})
 
         level_dim = self.get_level_dims(n=1)[self.level]
         if "u" in self.level:
-            var_dict.update({f"y{i}": level_dim for i in range(self.n_landmarks)})
+            var_dict_.update({f"y{i}": level_dim for i in range(self.n_landmarks)})
         else:
-            var_dict.update({f"y": level_dim})
-        return var_dict
+            if level_dim > 0:
+                var_dict_.update({f"y": level_dim})
+        return var_dict_
 
     def get_T(self, theta=None):
         if theta is None:
-            theta = self.get_theta()
-        return get_T(d=self.d, theta=theta)
+            theta = self.theta
+        xtheta = self.get_xtheta_from_theta(theta)
+        return get_T(d=self.d, xtheta=xtheta)
 
     def _get_Q(self, M: np.ndarray, noise: float = 1e-3) -> tuple:
         from poly_matrix.poly_matrix import PolyMatrix
@@ -191,7 +205,7 @@ class StereoLifter(StateLifter):
             Q[f"z{j}", "l"] += -(y[j] - m).T @ M_tilde
             Q[f"z{j}", f"z{j}"] += M_tilde_sq
             # Q[f"y{j}", "l"] = 0.5 * np.diag(M_tilde_sq)
-        return Q.toarray(self.get_var_dict()), y
+        return Q.get_matrix(self.var_dict), y
 
     def __repr__(self):
         level_str = str(self.level).replace(".", "-")

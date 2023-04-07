@@ -34,7 +34,7 @@ class StateLifter(ABC):
 
     @d.setter
     def d(self, var):
-        assert var in [2, 3]
+        assert var in [1, 2, 3]
         self.d_ = var
 
     @property

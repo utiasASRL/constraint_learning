@@ -8,13 +8,20 @@ class Stereo1DLifter(StateLifter):
         self.n_landmarks = n_landmarks
         self.d = 1
         self.W = 1.0
+        self.theta_ = None
         super().__init__(theta_shape=(1,), M=n_landmarks)
+
+    @property
+    def theta(self):
+        if self.theta_ is None:
+            self.theta_ = self.sample_feasible()
+        return self.theta_
 
     def generate_random_setup(self):
         # important!! we can only resample x, the landmarks have to stay the same
         self.landmarks = np.random.rand(self.n_landmarks)
 
-    def sample_feasible(self, replace=True):
+    def sample_feasible(self):
         x_try = np.random.rand(1)
         counter = 0
         while np.min(np.abs(x_try - self.landmarks)) <= 1e-10:
@@ -22,21 +29,15 @@ class Stereo1DLifter(StateLifter):
             if counter >= 1000:
                 print("Warning: couldn't find valid setup")
                 return
-        if replace:
-            self.unknowns = x_try
         return x_try
-
-    def get_theta(self):
-        return np.r_[self.unknowns]
 
     def get_x(self, theta=None):
         if theta is None:
-            theta = self.get_theta()
+            theta = self.theta
 
-        x = self.unknowns
         a = self.landmarks
-        x_data = [1] + list(x)
-        x_data += [float(1 / (x - ai)) for ai in a]
+        x_data = [1] + list(theta)
+        x_data += [float(1 / (theta - ai)) for ai in a]
         return np.array(x_data)
 
     def get_var_dict(self):
@@ -46,7 +47,7 @@ class Stereo1DLifter(StateLifter):
     def get_Q(self, noise=1e-3) -> tuple:
         from poly_matrix.poly_matrix import PolyMatrix
 
-        x = self.unknowns
+        x = self.theta
         a = self.landmarks
 
         y = 1 / (x - a) + np.random.normal(scale=noise, loc=0, size=len(a))
@@ -89,10 +90,10 @@ class Stereo1DLifter(StateLifter):
                 x_op = x_op + dx
                 if np.abs(dx) < eps:
                     msg = f"converged dx after {i} it"
-                    return x_op, msg, Stereo1DLifter.get_cost(a, y, x_op)
+                    return x_op, msg, self.get_cost(x_op, y)
             else:
                 msg = f"converged in du after {i} it"
-                return x_op, msg, Stereo1DLifter.get_cost(a, y, x_op)
+                return x_op, msg, self.get_cost(x_op, y)
         return None, "didn't converge", None
 
     def __repr__(self):

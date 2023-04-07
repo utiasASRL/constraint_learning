@@ -1,7 +1,7 @@
 import numpy as np
 
-from lifters.stereo_lifter import StereoLifter
 from lifters.stereo2d_problem import M
+from lifters.stereo_lifter import StereoLifter
 
 
 def change_dimensions(a, y, x):
@@ -11,7 +11,7 @@ def change_dimensions(a, y, x):
 
 
 class Stereo2DLifter(StereoLifter):
-    def __init__(self, n_landmarks, level=0):
+    def __init__(self, n_landmarks, level="no"):
         # TODO(FD) W is inconsistent with 3D model
         self.W = np.stack([np.eye(2)] * n_landmarks)
         super().__init__(n_landmarks=n_landmarks, d=2, level=level)
@@ -38,19 +38,10 @@ class Stereo2DLifter(StereoLifter):
             Q[f"z{j}", "l"] += -(y[j] - M[:, 1]).T @ M_tilde
             Q[f"z{j}", f"z{j}"] += M_tilde_sq
             # Q[f"y{j}", "l"] = 0.5 * np.diag(M_tilde_sq)
-        return Q.toarray(self.get_var_dict()), y
+        return Q.get_matrix(self.var_dict), y
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
         return self._get_Q(noise=noise, M=M)
-
-    def get_vec_around_gt(self, delta):
-        """
-        param delta_gt:
-        - float: sample from gt + std(delta_gt) (set to 0 to start from gt.)
-        """
-        t_gt = self.unknowns
-        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
-        return t_0
 
     @staticmethod
     def get_inits(n_inits):
@@ -60,7 +51,7 @@ class Stereo2DLifter(StereoLifter):
             2 * np.pi * np.random.rand(n_inits),
         ]
 
-    def get_cost(self, t, y, W):
+    def get_cost(self, t, y, W=None):
         from lifters.stereo2d_problem import _cost
 
         a = self.landmarks
@@ -69,7 +60,7 @@ class Stereo2DLifter(StereoLifter):
         cost = _cost(p_w=p_w, y=y, phi=phi, W=W)[0, 0]
         return cost
 
-    def local_solver(self, t_init, y, W, verbose=False):
+    def local_solver(self, t_init, y, W=None, verbose=False):
         from lifters.stereo2d_problem import local_solver
 
         a = self.landmarks
@@ -82,3 +73,8 @@ class Stereo2DLifter(StereoLifter):
             return phi_hat.flatten(), "converged", cost
         else:
             return None, "didn't converge", cost
+
+
+if __name__ == "__main__":
+    lifter = Stereo2DLifter(n_landmarks=3)
+    lifter.run()
