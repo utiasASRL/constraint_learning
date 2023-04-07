@@ -183,11 +183,11 @@ class StateLifter(ABC):
         print("solve dual problems...")
         dual_costs = []
         n = min(10, len(A_list))
-        n_constraints = range(len(A_list) - n, len(A_list))
+        n_constraints = range(len(A_list) - n, len(A_list) + 1)
         for i in n_constraints:
             cost, H, status = solve_dual(Q, A_list[:i])
             dual_costs.append(cost)
-            print(f"{i+1}/{len(A_list)}")
+            print(f"{i}/{len(A_list)}")
 
         print("find local minimum...")
         xhat, local_cost = find_local_minimum(self, y, delta=noise, n_inits=1)

@@ -41,12 +41,12 @@ class RangeOnlyLifter(StateLifter):
         - ||t_n||^2 for RangeOnlyLoc
         - ||t_n||^2, ||a_k||^2, t_n.T@a_k for RangeOnlySLAM1
         - ||a_k - t_n||^2 for RangeOnlySLAM2
-
-    TODO(FD)
-    unknowns: remove this as it only complicates things
     """
 
-    def __init__(self, n_positions, n_landmarks, d, edges=None):
+    def __init__(
+        self, n_positions, n_landmarks, d, edges=None, remove_gauge=REMOVE_GAUGE
+    ):
+        self.remove_gauge = remove_gauge
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
         self.d = d
@@ -63,7 +63,7 @@ class RangeOnlyLifter(StateLifter):
     def generate_random_landmarks(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
 
-        if REMOVE_GAUGE is not None:
+        if self.remove_gauge is not None:
             self.landmarks[0, :] = 0.0
             self.landmarks[1, 1] = 0  # set a1_y = 0
             if self.d == 3:
@@ -94,7 +94,7 @@ class RangeOnlyLifter(StateLifter):
         positions = theta[:N].reshape((-1, self.d))
 
         if len(theta) > N:
-            if REMOVE_GAUGE == "hard":
+            if self.remove_gauge == "hard":
                 # range-only SLAM
                 landmarks = np.empty((self.n_landmarks, self.d))
                 landmarks[0, :] = 0.0
@@ -226,7 +226,7 @@ class RangeOnlyLifter(StateLifter):
         --> in 3d, will optimize for landmarks_theta = [a1_x, a2_x, a2_y, a3_x, a3_y, a3_z, ...]
         """
         theta = list(self.positions.flatten("C"))
-        if REMOVE_GAUGE == "hard":
+        if self.remove_gauge == "hard":
             theta.append(self.landmarks[1, 0])
             if self.d == 2:
                 theta += list(self.landmarks[2:, :].flatten("C"))
@@ -258,7 +258,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
 
     @property
     def N(self):
-        if REMOVE_GAUGE == "hard":
+        if self.remove_gauge == "hard":
             if self.d == 2:
                 # a1_x, a2, a3, ...
                 return self.n_positions * self.d + (self.n_landmarks - 2) * self.d + 1
@@ -271,7 +271,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
     def get_base_var_dict(self):
         var_dict = {"l": 1}
         var_dict.update({f"x{n}": self.d for n in range(self.n_positions)})
-        if REMOVE_GAUGE == "hard":
+        if self.remove_gauge == "hard":
             if self.d == 2:
                 # a1_x, a2, a3, ...
                 var_dict.update({"a1": 1})
@@ -323,7 +323,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                 {"l": y[n, k], f"tau{n}": -1, f"alpha{k}": -1, f"e{n}{k}": 2}
             )
         # fix Gauge freedom
-        if REMOVE_GAUGE == "cost":
+        if self.remove_gauge == "cost":
             I = np.eye(self.d)
             for d in range(self.d):
                 self.ls_problem.add_residual({"a0": I[d].reshape((1, -1))})
@@ -332,7 +332,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
     def get_cost(self, t, y):
         # fix Gauge freedom
         cost = super().get_cost(t, y)
-        if REMOVE_GAUGE == "cost":
+        if self.remove_gauge == "cost":
             cost += np.linalg.norm(self.landmarks[0]) ** 2
         return cost
 
@@ -367,7 +367,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             J_lifting[counter, i : i + self.d] = 2 * positions[n]
             counter += 1
         for k in range(self.n_landmarks):
-            if REMOVE_GAUGE == "hard":
+            if self.remove_gauge == "hard":
                 self.fill_depending_on_k(J_lifting, counter, k, 2 * landmarks[k, :])
             else:
                 i = (self.n_positions + k) * self.d
@@ -376,7 +376,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
         for n, k in self.edges:
             i = n * self.d
             J_lifting[counter, i : i + self.d] = landmarks[k]
-            if REMOVE_GAUGE == "hard":
+            if self.remove_gauge == "hard":
                 self.fill_depending_on_k(J_lifting, counter, k, positions[n])
             else:
                 i = (self.n_positions + k) * self.d
@@ -386,7 +386,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
 
     def get_hess_lifting(self, t):
         """return list of the hessians of the M lifting functions."""
-        if REMOVE_GAUGE == "hard":
+        if self.remove_gauge == "hard":
             raise NotImplementedError(
                 "get_hess_lifting without Gauge freedom is not implemented yet"
             )
@@ -450,7 +450,7 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
         for n, k in self.edges:
             self.ls_problem.add_residual({"l": y[n, k], f"e{n}{k}": -1})
         # fix Gauge freedom
-        if REMOVE_GAUGE == "cost":
+        if self.remove_gauge == "cost":
             I = np.eye(self.d)
             for d in range(self.d):
                 self.ls_problem.add_residual({"a0": I[d].reshape((1, -1))})
@@ -464,7 +464,7 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
             delta = landmarks[k] - positions[n]
             J_lifting[i, n * self.d : (n + 1) * self.d] = -2 * delta
 
-            if REMOVE_GAUGE == "hard":
+            if self.remove_gauge == "hard":
                 self.fill_depending_on_k(J_lifting, i, k, delta)
             else:
                 start = self.n_positions * self.d + k * self.d
@@ -472,7 +472,7 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
         return J_lifting
 
     def get_hess_lifting(self, t):
-        if REMOVE_GAUGE == "hard":
+        if self.remove_gauge == "hard":
             raise NotImplementedError(
                 "get_hess_lifting without Gauge freedom is not implemented yet"
             )
@@ -501,7 +501,8 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
     """
 
     def __init__(self, n_positions, n_landmarks, d, edges=None):
-        super().__init__(n_positions, n_landmarks, d, edges=edges)
+        # there is no Gauge freedom in range-only localization!
+        super().__init__(n_positions, n_landmarks, d, edges=edges, remove_gauge=None)
 
     def get_Q_from_y(self, y):
         self.ls_problem = LeastSquaresProblem()
@@ -541,6 +542,16 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
     def generate_random_setup(self):
         print("nothing to setup.")
 
+    def get_x(self, theta=None):
+        if theta is None:
+            theta = self.theta
+        positions, landmarks = self.get_positions_and_landmarks(theta)
+        norms = np.linalg.norm(positions, axis=1) ** 2
+
+        x = np.r_[1, theta, norms]
+        assert len(x) == self.N + self.M + 1
+        return x
+
     @property
     def var_dict(self):
         var_dict = {"l": 1}
@@ -551,16 +562,6 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
     @property
     def theta(self):
         return self.positions.flatten("C")
-
-    def get_x(self, theta=None):
-        if theta is None:
-            theta = self.theta
-        positions, landmarks = self.get_positions_and_landmarks(theta)
-        norms = np.linalg.norm(positions, axis=1) ** 2
-
-        x = np.r_[1, theta, norms]
-        assert len(x) == self.N + self.M + 1
-        return x
 
     @property
     def N(self):
