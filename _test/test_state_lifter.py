@@ -1,11 +1,9 @@
 import numpy as np
 
 from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, PolyLifter
-from lifters.range_only_lifters import (
-    RangeOnlyLocLifter,
-    RangeOnlySLAM1Lifter,
-    RangeOnlySLAM2Lifter,
-)
+from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
+from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
@@ -13,31 +11,21 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 d = 2
 n_landmarks = 4
 n_poses = 1
-
+Lifters = {
+    # Poly4Lifter: dict(),
+    # Poly6Lifter: dict(),
+    RangeOnlySLAM1Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # Stereo1DLifter: dict(n_landmarks),
+    # Stereo2DLifter: dict(n_landmarks),
+    # Stereo3DLifter: dict(n_landmarks),
+}
 # Below, we always reset seeds to make sure tests are reproducible.
 all_lifters = []
-np.random.seed(0)
-all_lifters.append(Poly4Lifter())
-np.random.seed(0)
-all_lifters.append(Poly6Lifter())
-np.random.seed(0)
-all_lifters.append(
-    RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
-)
-np.random.seed(0)
-all_lifters.append(
-    RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
-)
-np.random.seed(0)
-all_lifters.append(
-    RangeOnlyLocLifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
-)
-np.random.seed(0)
-all_lifters.append(Stereo1DLifter(n_landmarks))
-np.random.seed(0)
-all_lifters.append(Stereo2DLifter(n_landmarks))
-np.random.seed(0)
-all_lifters.append(Stereo3DLifter(n_landmarks))
+for Lifter, kwargs in Lifters.items():
+    np.random.seed(0)
+    all_lifters.append(Lifter(**kwargs))
 
 
 def test_hess_finite_diff():
