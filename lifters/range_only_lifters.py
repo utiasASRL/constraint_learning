@@ -15,6 +15,10 @@ from poly_matrix.least_squares_problem import LeastSquaresProblem
 REMOVE_GAUGE = "hard"
 # REMOVE_GAUGE = "cost"
 
+SOLVER_KWARGS = dict(
+    method="Nelder-Mead",  # appears to be the fastest.
+)
+
 
 class RangeOnlyLifter(StateLifter):
     """Lifters for range-only localization and SLAM problems.
@@ -59,8 +63,6 @@ class RangeOnlyLifter(StateLifter):
             # TODO(FD) add tests
             self.edges = edges
         super().__init__(theta_shape=(self.N, d), M=self.M)
-
-        np.random.seed(1)
         self.generate_random_landmarks()
         self.generate_random_positions()
 
@@ -100,7 +102,7 @@ class RangeOnlyLifter(StateLifter):
         if len(theta) > N:
             if self.remove_gauge == "hard":
                 # range-only SLAM
-                landmarks = np.empty((self.n_landmarks, self.d))
+                landmarks = np.zeros((self.n_landmarks, self.d))
                 landmarks[0, :] = 0.0
                 landmarks[1, 0] = theta[N]
                 landmarks[1, 1] = 0.0
@@ -113,7 +115,7 @@ class RangeOnlyLifter(StateLifter):
                     landmarks[2, 0] = theta[N + 1]
                     landmarks[2, 1] = theta[N + 2]
                     landmarks[3:, :] = theta[N + 3 :].reshape(
-                        (self.n_landmarks - 2, self.d)
+                        (self.n_landmarks - 3, self.d)
                     )
             else:
                 landmarks = theta[N:].reshape((-1, self.d))
@@ -130,14 +132,14 @@ class RangeOnlyLifter(StateLifter):
             )
             ** 2
         )
-        y = y_gt + np.random.normal(loc=0, scale=noise)
+        y = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
         Q = self.get_Q_from_y(y)
         return Q, y
 
     def get_J(self, t, y):
         J = np.empty((self.dim_x, self.N))
         J[0, :] = 0  # corresponds to homogenization variable
-        J[1 : self.N + 1, : self.N + 1] = np.eye(self.N)  # corresponds to theta
+        J[1 : self.N + 1, :] = np.eye(self.N)  # corresponds to theta
         J[self.N + 1 :, :] = self.get_J_lifting(t)  # corresponds to lifting
         return J
 
@@ -180,7 +182,9 @@ class RangeOnlyLifter(StateLifter):
             cost += (y[n, k] - y_current[n, k]) ** 2
         return cost
 
-    def local_solver(self, t_init, y, tol=1e-10, verbose=False):
+    def local_solver(
+        self, t_init, y, tol=1e-8, verbose=False, solver_kwargs=SOLVER_KWARGS
+    ):
         """
         :param t_init: (positions, landmarks) tuple
         """
@@ -191,9 +195,10 @@ class RangeOnlyLifter(StateLifter):
             x0=t_init,
             args=y,
             jac=self.get_grad,
-            method="Newton-CG",
+            # hess=self.get_hess, not used by any solvers.
+            **solver_kwargs,
             tol=tol,
-            options={"disp": verbose, "xtol": tol},
+            options={"disp": verbose},  # j, "maxfun": 100},
         )
         that = sol.x
         rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
@@ -245,6 +250,52 @@ class RangeOnlyLifter(StateLifter):
     @property
     def var_dict(self):
         pass
+
+    def plot_setup(self, title="setup"):
+        import matplotlib.pylab as plt
+
+        if self.d == 3:
+            fig = plt.figure()
+            ax = fig.add_subplot(111, projection="3d")
+        else:
+            fig, ax = plt.subplots()
+        ax.scatter(*self.landmarks.T, label="landmarks", marker="x")
+        ax.scatter(*self.positions.T, label="positions", marker="x")
+        ax.legend()
+        ax.axis("equal")
+        ax.grid()
+        ax.set_title(title)
+        plt.show()
+        return fig, ax
+
+    def plot_nullvector(self, vec, ax, **kwargs):
+        j = 0
+        for n in range(self.n_positions):
+            pos = self.positions[n]
+            line = np.c_[pos, pos + vec[j : j + self.d]]  # 2 x self.d
+            ax.plot(*line, **kwargs)
+            j += self.d
+        for n in range(self.n_landmarks):
+            if n == 1:
+                pos = self.landmarks[n]
+                e = np.zeros(self.d)
+                e[0] = vec[j]
+                line = np.c_[pos, pos + e]  # 2 x self.d
+                ax.plot(*line, **kwargs)
+                j += 1
+            elif n == 2:
+                pos = self.landmarks[n]
+                e = np.zeros(self.d)
+                e[:2] = vec[j : j + 2]
+                line = np.c_[pos, pos + e]  # 2 x self.d
+                ax.plot(*line, **kwargs)
+                j += 2
+            elif n > 2:
+                pos = self.landmarks[n]
+                e = vec[j : j + self.d]
+                line = np.c_[pos, pos + e]  # 2 x self.d
+                ax.plot(*line, **kwargs)
+                j += self.d
 
 
 class RangeOnlyLocLifter(RangeOnlyLifter):

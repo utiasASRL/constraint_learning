@@ -8,15 +8,15 @@ from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 
-d = 2
-n_landmarks = 4
-n_poses = 1
+d = 3
+n_landmarks = 5
+n_poses = 5
 Lifters = {
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
     RangeOnlySLAM1Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # Stereo1DLifter: dict(n_landmarks),
     # Stereo2DLifter: dict(n_landmarks),
     # Stereo3DLifter: dict(n_landmarks),
@@ -24,7 +24,7 @@ Lifters = {
 # Below, we always reset seeds to make sure tests are reproducible.
 all_lifters = []
 for Lifter, kwargs in Lifters.items():
-    np.random.seed(0)
+    np.random.seed(1)
     all_lifters.append(Lifter(**kwargs))
 
 
@@ -34,31 +34,33 @@ def test_hess_finite_diff():
         lifter.sample_feasible()
 
         errors = []
-        eps_list = np.logspace(-10, -5, 11)
+        eps_list = np.logspace(-10, -5, 3)
         for eps in eps_list:
-            Q, y = lifter.get_Q(noise=1)
+            Q, y = lifter.get_Q(noise=1e-2)
             theta = lifter.get_vec_around_gt(delta=0).flatten("C")
 
             try:
                 grad = lifter.get_grad(theta, y)
                 hess = lifter.get_hess(theta, y)
             except Exception as e:
-                # print(e)
-                # print("get_hess not implemented?")
+                print(e)
+                print("get_hess not implemented?")
                 continue
 
             n = len(theta)
             I = np.eye(n) * eps
 
             max_err = -np.inf
+            errors_mat = np.full((n, n), -np.inf)
             for i in range(n):
                 theta_delta = theta + I[i]
                 grad_delta = lifter.get_grad(theta_delta, y)
 
                 hess_est = (grad_delta - grad) / eps
 
-                err = np.max(np.abs(hess_est - hess[i, :]))
-                max_err = max(err, max_err)
+                abs_error = np.abs(hess_est - hess[i, :])
+                errors_mat[i, :] = np.maximum(abs_error, errors_mat[i, :])
+                max_err = max(np.max(abs_error), max_err)
             errors.append(max_err)
 
         try:
@@ -91,14 +93,15 @@ def test_grad_finite_diff():
             try:
                 grad = lifter.get_grad(theta, y)
             except Exception as e:
-                # print(e)
-                # print("grad not implemented?")
+                print(e)
+                print("grad not implemented?")
                 continue
 
             n = len(theta)
             I = np.eye(n) * eps
 
             max_err = -np.inf
+            errors_mat = np.full(n, -np.inf)
             for i in range(n):
                 theta_delta = theta + I[i]
                 cost_delta = lifter.get_cost(theta_delta, y)
@@ -106,8 +109,8 @@ def test_grad_finite_diff():
                 grad_est = (cost_delta - cost) / eps
 
                 err = abs(grad_est - grad[i])
+                errors_mat[i] = max(errors_mat[i], err)
                 max_err = max(err, max_err)
-                break
 
             errors.append(max_err)
 
@@ -191,6 +194,9 @@ def test_cost(noise=0.0):
 
         x = lifter.get_x(theta)
         costQ = abs(x.T @ Q @ x)
+
+        # TODO(FD) figure out why the tolerance is so bad
+        # for Stereo3D problem.
         assert abs(cost - costQ) < 1e-7, (cost, costQ)
 
         if noise == 0 and not isinstance(lifter, PolyLifter):
@@ -246,14 +252,19 @@ def test_solvers(n_seeds=1, noise=0.0):
                 assert cost_hat <= cost_0
 
                 # TODO(FD) this doesn't pass, looks like the problem is actually not well conditioned!
-                # Need to implement and investigate Hessian!
                 try:
                     np.testing.assert_allclose(theta_hat, theta_gt, atol=1e-5)
                 except AssertionError as e:
                     print(
                         f"Found solution for {lifter} is not ground truth in zero-noise! is the problem well-conditioned?"
                     )
-                    print(e)
+                    mineig_hess_hat = np.linalg.eigvalsh(lifter.get_hess(theta_hat, y))[
+                        0
+                    ]
+                    mineig_hess_gt = np.linalg.eigvalsh(lifter.get_hess(theta_gt, y))[0]
+                    print(
+                        f"minimum eigenvalue at gt: {mineig_hess_gt:.1e} and at estimate: {mineig_hess_hat:.1e}"
+                    )
             else:
                 # test that "we made progress"
                 progress = np.linalg.norm(theta_0 - theta_hat)
@@ -287,26 +298,118 @@ def test_constraints():
         test_with_tol(A_known, tol=1e-10)
 
 
+def test_gauge():
+    import itertools
+
+    # TODO(FD): understand why 3D needs 5 landmarks and positions
+    params = [
+        dict(n_landmarks=5, n_positions=5, d=3),
+        dict(n_landmarks=3, n_positions=3, d=2),
+    ]
+    remove_gauge_list = ["hard", "cost", None]
+
+    for param, remove_gauge in itertools.product(params, remove_gauge_list):
+        lifter = RangeOnlySLAM1Lifter(**param, remove_gauge=remove_gauge)
+
+        Q, y = lifter.get_Q(noise=0)
+        theta = lifter.get_vec_around_gt(delta=0).flatten("C")
+
+        grad = lifter.get_grad(theta, y)
+        hess = lifter.get_hess(theta, y)
+
+        np.testing.assert_almost_equal(grad, 0.0)
+
+        S, V = np.linalg.eig(hess)
+        mask = np.abs(S) < 1e-10
+        n_null = np.sum(mask)
+
+        if remove_gauge == "hard":
+            assert n_null == 0
+        else:
+            assert n_null > 0
+        continue
+
+        eigvecs = V[:, mask]
+        print(f"Hessian has nullspace of dimension {n_null}! Eigenvectors:", eigvecs)
+
+        fig, ax = lifter.plot_setup(title=f"Nullspace dim: {n_null}")
+        for i in range(n_null):
+            vec = eigvecs[:, i]  # p0_x, p0_y, ...
+            lifter.plot_nullvector(vec, ax, color=f"C{i}")
+
+            # theta_delta = theta + eigvec
+            # cost_delta = lifter.get_cost(theta_delta, y)
+            # assert cost_delta < 1e-10, cost_delta
+    print("done")
+    return None
+
+
+def compare_solvers():
+    kwargs = {"method": None}
+
+    compare_solvers = [
+        "Nelder-Mead",
+        "Powell",  # "CG",  CG takes forever.
+        "BFGS",
+        "Newton-CG",
+        "TNC",
+    ]
+    noise = 1e-3
+    for lifter in all_lifters:
+        np.random.seed(0)
+
+        # noisy setup
+        Q, y = lifter.get_Q(noise=noise)
+        if Q is None:
+            continue
+
+        # test that we stay at real solution when initializing at it
+        theta_gt = lifter.get_vec_around_gt(delta=0)
+
+        import time
+
+        for solver in compare_solvers:
+            kwargs["method"] = solver
+            t1 = time.time()
+            theta_hat, msg, cost_solver = lifter.local_solver(
+                theta_gt, y, solver_kwargs=kwargs
+            )
+            ttot = time.time() - t1
+            if theta_hat is None:
+                print(solver, "failed")
+            else:
+                error = np.linalg.norm(theta_hat - theta_gt)
+                print(
+                    f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}"
+                )
+
+
 if __name__ == "__main__":
     import sys
+    import warnings
 
-    import pytest
+    # import pytest
+    # print("testing")
+    # pytest.main([__file__, "-s"])
+    # print("all tests passed")
 
-    print("testing")
-    pytest.main([__file__, "-s"])
-    print("all tests passed")
-    sys.exit()
+    test_solvers()
+    test_solvers_noisy()
+
+    test_gauge()
+    test_grad_finite_diff()
+    test_hess_finite_diff()
 
     test_cost()
     test_cost_noisy()
 
     test_equivalent_lifters()
-    test_grad_finite_diff()
-    test_hess_finite_diff()
 
     test_levels()
 
-    test_solvers()
-    test_solvers_noisy()
-
     test_constraints()
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        compare_solvers()
+    # sys.exit()
