@@ -1,8 +1,12 @@
 import numpy as np
 
-from lifters.stereo3d_problem import M
-from lifters.stereo_lifter import StereoLifter
-from lifters.stereo_lifter import get_T, get_theta_from_T, get_xtheta_from_theta
+from lifters.stereo_lifter import (
+    StereoLifter,
+    get_T,
+    get_theta_from_T,
+    get_xtheta_from_theta,
+)
+
 
 def change_dimensions(a, y):
     p_w = np.concatenate([a, np.ones((a.shape[0], 1))], axis=1)
@@ -13,20 +17,20 @@ def change_dimensions(a, y):
 class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no"):
         self.W = np.eye(4)
+        self.M_matrix_ = None
         super().__init__(n_landmarks=n_landmarks, level=level, d=3)
 
-    def get_Q(self, noise: float = 1e-3) -> tuple:
-        return self._get_Q(noise=noise, M=M)
+    @property
+    def M_matrix(self):
+        if self.M_matrix_ is None:
+            from lifters.stereo3d_problem import M as M_matrix
+
+            self.M_matrix_ = M_matrix
+        return self.M_matrix_
 
     def get_vec_around_gt(self, delta):
-        t_gt = self.theta
-        t_0 = t_gt + np.random.normal(scale=delta, loc=0, size=len(t_gt))
-        theta_0 = self.get_xtheta_from_theta(t_0)
-        return theta_0
-
-    @staticmethod
-    def get_inits(n_inits):
-        return np.c_[np.random.rand(n_inits, 3), 2 * np.pi * np.random.rand(n_inits, 3)]
+        t0 = super().get_vec_around_gt(delta)
+        return get_xtheta_from_theta(t0, 3)
 
     def get_cost(self, t, y, W=None):
         """
@@ -35,7 +39,7 @@ class Stereo3DLifter(StereoLifter):
         - [c1, c2, c3, x, y, z], the theta vector (unrolled C and x, y, z)
         """
         from lifters.stereo3d_problem import projection_error
-        
+
         if W is None:
             W = self.W
         a = self.landmarks
@@ -47,7 +51,7 @@ class Stereo3DLifter(StereoLifter):
             theta = t
         T = get_T(theta, 3)
 
-        cost = projection_error(p_w=p_w, y=y, T=T, M=M, W=W)
+        cost = projection_error(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
         return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False):
@@ -68,7 +72,7 @@ class Stereo3DLifter(StereoLifter):
         T_init = get_T(theta_init, 3)
 
         success, T_hat, cost = stereo_localization_gauss_newton(
-            T_init=T_init, y=y, p_w=p_w, W=W, M=M, log=verbose
+            T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose
         )
         x_hat = get_theta_from_T(T_hat)
 

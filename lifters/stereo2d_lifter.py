@@ -1,6 +1,5 @@
 import numpy as np
 
-from lifters.stereo2d_problem import M
 from lifters.stereo_lifter import StereoLifter
 
 
@@ -14,42 +13,16 @@ class Stereo2DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no"):
         # TODO(FD) W is inconsistent with 3D model
         self.W = np.stack([np.eye(2)] * n_landmarks)
+        self.M_matrix_ = None
         super().__init__(n_landmarks=n_landmarks, d=2, level=level)
 
-    def get_Q_old(self, noise: float = 1e-3) -> tuple:
-        assert self.d == 2
-        from poly_matrix.poly_matrix import PolyMatrix
+    @property
+    def M_matrix(self):
+        if self.M_matrix_ is None:
+            from lifters.stereo2d_problem import M as M_matrix
 
-        T = self.get_T()
-
-        y = []
-        for j in range(self.n_landmarks):
-            y_gt = T @ np.r_[self.landmarks[j, :], 1.0]
-            y_gt /= y_gt[1]
-            y_gt = M @ y_gt
-            y.append(y_gt + np.random.normal(loc=0, scale=noise))
-
-        M_tilde = M[:, [0, 2]]
-
-        Q = PolyMatrix()
-        M_tilde_sq = M_tilde.T @ M_tilde
-        for j in range(len(y)):
-            Q["l", "l"] += np.linalg.norm(y[j] - M[:, 1]) ** 2
-            Q[f"z{j}", "l"] += -(y[j] - M[:, 1]).T @ M_tilde
-            Q[f"z{j}", f"z{j}"] += M_tilde_sq
-            # Q[f"y{j}", "l"] = 0.5 * np.diag(M_tilde_sq)
-        return Q.get_matrix(self.var_dict), y
-
-    def get_Q(self, noise: float = 1e-3) -> tuple:
-        return self._get_Q(noise=noise, M=M)
-
-    @staticmethod
-    def get_inits(n_inits):
-        return np.c_[
-            np.random.rand(n_inits),
-            np.random.rand(n_inits),
-            2 * np.pi * np.random.rand(n_inits),
-        ]
+            self.M_matrix_ = M_matrix
+        return self.M_matrix_
 
     def get_cost(self, t, y, W=None):
         from lifters.stereo2d_problem import _cost
@@ -67,7 +40,7 @@ class Stereo2DLifter(StereoLifter):
 
         p_w, y, init_phi = change_dimensions(a, y, t_init)
         success, phi_hat, cost = local_solver(
-            p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose
+            p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
         )
         if success:
             return phi_hat.flatten(), "converged", cost

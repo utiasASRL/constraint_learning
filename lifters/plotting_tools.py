@@ -15,8 +15,9 @@ def partial_plot_and_save(lifter, Q, A_list, save=True):
         dirname = get_dirname()
 
     # plot resulting matrices
-    from lifters.plotting_tools import plot_matrices
     from math import ceil
+
+    from lifters.plotting_tools import plot_matrices
 
     n = 10
     chunks = min(ceil(len(A_list) / n), 10)
@@ -184,10 +185,10 @@ if __name__ == "__main__":
     A_list = np.random.rand(4, 4, 3)
     fig, axs = plot_matrices(A_list, colorbar=False, vmin=vmin, vmax=vmax, nticks=4)
 
-    dim_X = 2
+    dim_x = 2
     for ax in axs:
-        ax.plot([-0.5, dim_X + 0.5], [dim_X + 0.5, dim_X + 0.5], color="red")
-        ax.plot([dim_X + 0.5, dim_X + 0.5], [-0.5, dim_X + 0.5], color="red")
+        ax.plot([-0.5, dim_x + 0.5], [dim_x + 0.5, dim_x + 0.5], color="red")
+        ax.plot([dim_x + 0.5, dim_x + 0.5], [-0.5, dim_x + 0.5], color="red")
     plt.show()
 
     print("done")

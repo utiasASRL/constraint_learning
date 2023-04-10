@@ -73,12 +73,12 @@ class StateLifter(ABC):
         basis, _ = self.get_basis(Y, eps=EPS, method=METHOD)
         return self.generate_matrices(basis, normalize=NORMALIZE)
 
-    def get_vec_around_gt(self, delta=0):
-        return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
+    def get_vec_around_gt(self, delta: float = 0):
+        """Sample around groudn truth.
 
-    def dim_X(self):
-        print("Warning in state_lifter: use obj.dim_x instead of obj.dim_X()")
-        return self.dim_x
+        :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
+        """
+        return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
 
     def _get_vec(self, mat):
         return mat[np.triu_indices(n=self.dim_x)].flatten()

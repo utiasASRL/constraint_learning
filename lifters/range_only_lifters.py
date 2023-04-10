@@ -60,6 +60,10 @@ class RangeOnlyLifter(StateLifter):
             self.edges = edges
         super().__init__(theta_shape=(self.N, d), M=self.M)
 
+        np.random.seed(1)
+        self.generate_random_landmarks()
+        self.generate_random_positions()
+
     def generate_random_landmarks(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
 
