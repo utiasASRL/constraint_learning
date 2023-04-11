@@ -116,10 +116,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
         elif k == 2:
             i = self.n_positions * self.d + 1
             row[i : i + 2] = vec[:2]
-        elif k == 3:
-            i = self.n_positions * self.d + 3
-            row[i : i + self.d] = vec
-        else:
+        elif k >= 3:
             i = self.n_positions * self.d + 3 + (k - 3) * self.d
             row[i : i + self.d] = vec
 
@@ -171,19 +168,11 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             else:
                 hessian[fix_i[:2], var_i] = val  # a2_x, a2_y
                 hessian[var_i, fix_i[:2]] = val  # a2_x, a2_y
-        elif k == 3:
-            i = self.n_positions * self.d + 3
-            var_i = range(i, i + self.d)
-            if fix_i is None:
-                hessian[var_i, var_i] = val  # a3_x, a3_y, a3_z
-            else:
-                hessian[fix_i, var_i] = val
-                hessian[var_i, fix_i] = val
-        else:
+        elif k >= 3:
             i = self.n_positions * self.d + 3 + (k - 3) * self.d
             var_i = range(i, i + self.d)
             if fix_i is None:
-                hessian[var_i, var_i] = val
+                hessian[var_i, var_i] = val  # a3_x, a3_y, a3_z
             else:
                 hessian[fix_i, var_i] = val
                 hessian[var_i, fix_i] = val
@@ -229,5 +218,5 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
 
 
 if __name__ == "__main__":
-    lifter = RangeOnlySLAM1Lifter(n_positions=3, n_landmarks=4, d=2)
+    lifter = RangeOnlySLAM1Lifter(n_positions=4, n_landmarks=4, d=2)
     lifter.run()

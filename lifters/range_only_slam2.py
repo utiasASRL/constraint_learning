@@ -54,31 +54,43 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
         J_lifting = np.zeros((self.M, self.N))
         for i, (n, k) in enumerate(self.edges):
             delta = landmarks[k] - positions[n]
+
+            # grad w.r.t. position
+            # d/dp_n|| ak - p_n || = -2(ak - p_n)
             J_lifting[i, n * self.d : (n + 1) * self.d] = -2 * delta
 
             if self.remove_gauge == "hard":
-                self.fill_depending_on_k(J_lifting, i, k, delta)
+                # grad w.r.t. landmark d/d_pn ||a_k - p_n || = 2(ak - pn)
+                self.fill_depending_on_k(J_lifting[i], k, 2 * delta)
             else:
                 start = self.n_positions * self.d + k * self.d
                 J_lifting[i, start : start + self.d] = 2 * delta
         return J_lifting
 
     def get_hess_lifting(self, t):
-        if self.remove_gauge == "hard":
-            raise NotImplementedError(
-                "get_hess_lifting without Gauge freedom is not implemented yet"
-            )
-
         """return list of the hessians of the M lifting functions."""
         hessians = []
         for j, (n, k) in enumerate(self.edges):
             hessian = np.zeros((self.N, self.N))
             i = n * self.d
-            j = (self.n_positions + k) * self.d
-            hessian[range(i, i + self.d), range(i, i + self.d)] = 2
-            hessian[range(j, j + self.d), range(j, j + self.d)] = 2
-            hessian[range(i, i + self.d), range(j, j + self.d)] = 2
-            hessian[range(j, j + self.d), range(i, i + self.d)] = 2
+
+            # diagonal for position
+            hessian[range(i, i + self.d), range(i, i + self.d)] = 2.0
+            if self.remove_gauge == "hard":
+                # diagonal for landmark
+                self.fill_hessian_depending_on_k(hessian, k, val=2.0)  # along i
+                # diagonal for position - landmark
+                self.fill_hessian_depending_on_k(
+                    hessian, k, fix_i=range(i, i + self.d), val=-2.0
+                )
+            else:
+                j = (self.n_positions + k) * self.d
+                hessian[range(i, i + self.d), range(i, i + self.d)] = 2
+                # diagonal for landmark
+                hessian[range(j, j + self.d), range(j, j + self.d)] = 2
+                # off-diagonal position - landmark
+                hessian[range(i, i + self.d), range(j, j + self.d)] = -2
+                hessian[range(j, j + self.d), range(i, i + self.d)] = -2
             hessians.append(hessian)
         return hessians
 

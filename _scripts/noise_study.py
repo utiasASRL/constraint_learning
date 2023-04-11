@@ -8,8 +8,8 @@ from lifters.stereo_lifter import StereoLifter
 from utils import get_fname
 
 METHOD = "qr"
-NOISE_DICT = dict(zip(range(5), np.logspace(-3, 1, 5)))
-
+NOISE_DICT = {0: 1e-2} #dict(zip(range(5), np.logspace(-3, 1, 5)))
+USE_MATRICES = "uniform"
 
 def run_noise_study(
     lifter, A_list, noise=1e-3, n_shuffles=0, n_seeds=1, fname="", verbose=False
@@ -54,14 +54,19 @@ def run_noise_study(
             p = ProgressBar(max_value=len(A_shuffle))
 
             if len(A_shuffle) > 200:
-                indices = list(
-                    range(1, len(A_shuffle))[-200:-50:10]
-                )  # ca. 20 datapoints
-                indices += list(range(1, len(A_shuffle) + 1)[-50:])  # 50 datapoints
+                if USE_MATRICES == "last":
+                    indices = list(
+                        range(1, len(A_shuffle))[-200:-50:10]
+                    )  # ca. 20 datapoints
+                    indices += list(range(1, len(A_shuffle) + 1)[-50:])  # 50 datapoints
+                elif USE_MATRICES == "uniform":
+                    indices = np.linspace(1, len(A_shuffle), 20).astype(int)
+                elif USE_MATRICES == "first":
+                    indices = np.linspace(1, min(len(A_shuffle), 400), 41).astype(int)
             else:
                 indices = range(1, len(A_shuffle) + 1)[-200:]
 
-            for i in indices:
+            for i_count, i in enumerate(indices):
                 # print(f"adding {i}/{len(A_shuffle)}")
                 # solve dual
                 dual_cost, H, status = solve_dual(
@@ -83,7 +88,7 @@ def run_noise_study(
                 )
                 p.update(i)
 
-                if i % 10 == 0:
+                if i_count % 5 == 0:
                     df = pd.DataFrame(data)
                     if fname != "":
                         make_dirs_safe(fname)
@@ -97,7 +102,7 @@ def run_noise_study(
     return df
 
 
-if __name__ == "__main__":
+def run_poly_study():
     import itertools
 
     eps = 1e-4
@@ -123,7 +128,7 @@ if __name__ == "__main__":
         run_noise_study(**params, verbose=False)
 
 
-elif False:  # __name__ == "__main__":
+def run_stereo_study():
     import itertools
 
     noises = NOISE_DICT.keys()
@@ -168,3 +173,48 @@ elif False:  # __name__ == "__main__":
                 fname=fname,
             )
             run_noise_study(**params, verbose=False)
+
+
+def run_range_study():
+    import itertools
+
+    from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
+    from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
+
+    lifter_types = {"slam1": RangeOnlySLAM1Lifter, "slam2": RangeOnlySLAM2Lifter}
+
+    noises = NOISE_DICT.keys()
+    d_list = [2, 3]
+
+    # fixed
+    n_landmarks = 5
+    n_positions = 5
+    eps = 1e-4
+    n_seeds = 1
+    n_shuffles = 0
+    method = "qr"
+    for d, (lifter_type, Lifter) in itertools.product(d_list, lifter_types.items()):
+        lifter = Lifter(n_landmarks=n_landmarks, n_positions=n_positions, d=d)
+
+        Y = lifter.generate_Y(factor=1)
+        basis, S = lifter.get_basis(Y, eps=eps, method=method)
+        A_list = lifter.generate_matrices(basis)
+
+        for name in noises:
+            noise = NOISE_DICT[name]
+            fname = get_fname(f"study_range{lifter_type}_{d}d_{name}noise")
+            params = dict(
+                lifter=lifter,
+                A_list=A_list,
+                noise=noise,
+                n_seeds=n_seeds,
+                n_shuffles=n_shuffles,
+                fname=fname,
+            )
+            run_noise_study(**params, verbose=False)
+
+
+if __name__ == "__main__":
+    # run_poly_study()
+    # run_stereo_study()
+    run_range_study()

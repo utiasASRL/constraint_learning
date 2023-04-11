@@ -14,9 +14,9 @@ n_poses = 5
 Lifters = {
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
-    RangeOnlySLAM1Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    # RangeOnlySLAM1Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-    # RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
     # Stereo1DLifter: dict(n_landmarks),
     # Stereo2DLifter: dict(n_landmarks),
     # Stereo3DLifter: dict(n_landmarks),
@@ -392,11 +392,9 @@ if __name__ == "__main__":
     # print("testing")
     # pytest.main([__file__, "-s"])
     # print("all tests passed")
-
-    test_solvers()
-    test_solvers_noisy()
-
-    test_gauge()
+    # test_solvers()
+    # test_solvers_noisy()
+    # test_gauge()
     test_grad_finite_diff()
     test_hess_finite_diff()
 

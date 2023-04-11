@@ -164,7 +164,7 @@ class StateLifter(ABC):
 
         # check that learned constraints meat tolerance
         tol = 1e-5
-        for A in A_list:
+        for A in A_list[:10]:
             self.sample_feasible()
             x = self.get_x()
 
@@ -182,20 +182,28 @@ class StateLifter(ABC):
 
         print("solve dual problems...")
         dual_costs = []
-        n = min(10, len(A_list))
-        n_constraints = range(len(A_list) - n, len(A_list) + 1)
-        for i in n_constraints:
-            cost, H, status = solve_dual(Q, A_list[:i])
+
+        n = 4
+        if len(A_list) > n:
+            use_constraints = [0, (len(A_list) - n) // 2] + list(
+                range(len(A_list) - n + 2, len(A_list) + 1)
+            )
+        else:
+            use_constraints = range(len(A_list))
+        for i in use_constraints:
+            A_current = A_list[:i]
+            cost, H, status = solve_dual(Q, A_current)
             dual_costs.append(cost)
-            print(f"{i}/{len(A_list)}")
+            print(f"added {i}")
 
         print("find local minimum...")
         xhat, local_cost = find_local_minimum(self, y, delta=noise, n_inits=1)
 
         plt.figure()
         plt.axhline(local_cost, label=f"QCQP cost {local_cost:.2e}")
-        plt.scatter(n_constraints, dual_costs, label="dual costs")
-        plt.xlabel("added constraints")
+        plt.scatter(range(len(use_constraints)), dual_costs, label="dual costs")
+        plt.xticks(range(len(use_constraints)), use_constraints)
+        plt.xlabel("added constraints up to")
         plt.ylabel("cost")
         plt.legend()
         plt.show()

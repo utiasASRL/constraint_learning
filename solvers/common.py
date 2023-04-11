@@ -1,6 +1,7 @@
 import cvxpy as cp
 import numpy as np
 
+SOLVER = "MOSEK"
 solver_options = {
     "CVXOPT": {
         "verbose": False,
@@ -9,13 +10,18 @@ solver_options = {
         "abstol": 1e-7,  # will be changed according to primal
         "reltol": 1e-6,  # will be changed according to primal
         "feastol": 1e-9,
-    }
+    },
+    "MOSEK": {},
 }
 
 
-def solve_dual(Q, A_list, tol=1e-6, solver="CVXOPT", verbose=True):
-    solver_options[solver]["abstol"] = tol
-    solver_options[solver]["reltol"] = tol
+def solve_dual(Q, A_list, tol=1e-6, solver=SOLVER, verbose=True):
+    options = solver_options[solver]
+    if "abstol" in options:
+        options["abstol"] = tol
+    if "reltol" in options:
+        options["reltol"] = tol
+
     if verbose:
         print("running with solver options", solver_options[solver])
     rho = cp.Variable()
