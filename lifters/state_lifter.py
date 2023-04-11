@@ -1,6 +1,8 @@
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 
 import numpy as np
+import scipy.linalg as la
+import scipy.sparse as sp
 
 EPS = 1e-10  # threshold for nullspace (eigenvalues)
 METHOD = "qr"  # basis pursuit method
@@ -110,11 +112,9 @@ class StateLifter(ABC):
         """
         generate basis from lifted state matrix Y
         """
-        U, S, Vh = np.linalg.svd(
-            Y
-        )  # nullspace of Y is in last columns of V / last rows of Vh
-        rank = np.sum(np.abs(S) > eps)
         if method == "svd":
+            U, S, Vh = np.linalg.svd(Y)  # nullspace of Y is in last columns of V / last rows of Vh
+            rank = np.sum(np.abs(S) > eps)
             basis = Vh[rank:, :]
 
             # test that it is indeed a null space
@@ -122,14 +122,22 @@ class StateLifter(ABC):
         elif method == "qr":
             Q, R = np.linalg.qr(Y.T)
             basis = Q[:, rank:].T
-
+        elif method == "qrp":
+            Q,R,p = la.qr(Y,pivoting=True)
+            S = np.diag(R)
+            rank = np.sum(np.abs(S) > eps)
+            R1, R2 = R[:rank,:rank],R[:rank,rank:]
+            N = np.vstack([la.solve_triangular(R1,R2), -np.eye(R2.shape[1])])
+            basis = np.zeros(N.T.shape)
+            basis[:,p] = N.T
+                        
             # TODO(FD) below is pretty high. figure out if that's a problem
             # print("max QR basis error:", np.max(np.abs(Y @ basis.T)))
         else:
             raise ValueError(method)
 
         # test that all columns are orthonormal
-        np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
+        # np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
     def generate_matrices(self, basis, normalize=NORMALIZE):
@@ -144,67 +152,16 @@ class StateLifter(ABC):
             Ai[triu] = basis[i, :]
             Ai += Ai.T
             Ai /= 2
-
+            # Normalize the matrix
             if normalize:
-                Ai /= np.max(Ai)
+                Ai /= np.max(np.abs(Ai))
+            # Sparsify and truncate
+            if sparse:
+                Ai = sp.csr_array(Ai)
+                Ai.data[np.abs(Ai.data)<trunc_tol] = 0.0   
+                Ai.eliminate_zeros() 
+            else:
+                Ai[np.abs(Ai)<trunc_tol] = 0.0
+            # add to list
             A_list.append(Ai)
         return A_list
-
-    def run(self):
-        """Convenience function to quickly test and debug lifter"""
-        import matplotlib.pylab as plt
-
-        from lifters.plotting_tools import plot_matrices, plot_singular_values
-
-        Y = self.generate_Y()
-        basis, S = self.get_basis(Y, eps=EPS)
-        A_list = self.generate_matrices(basis)
-
-        plot_singular_values(S, eps=EPS)
-
-        # check that learned constraints meat tolerance
-        tol = 1e-5
-        for A in A_list[:10]:
-            self.sample_feasible()
-            x = self.get_x()
-
-            constraint_violation = x.T @ A @ x
-            if constraint_violation > tol:
-                print("Warning: big violation")
-
-        plot_matrices(A_list, n_matrices=5, start_idx=0)
-        plt.show()
-
-        from solvers.common import find_local_minimum, solve_dual
-
-        noise = 1e-3
-        Q, y = self.get_Q(noise=noise)
-
-        print("solve dual problems...")
-        dual_costs = []
-
-        n = 4
-        if len(A_list) > n:
-            use_constraints = [0, (len(A_list) - n) // 2] + list(
-                range(len(A_list) - n + 2, len(A_list) + 1)
-            )
-        else:
-            use_constraints = range(len(A_list))
-        for i in use_constraints:
-            A_current = A_list[:i]
-            cost, H, status = solve_dual(Q, A_current)
-            dual_costs.append(cost)
-            print(f"added {i}")
-
-        print("find local minimum...")
-        xhat, local_cost = find_local_minimum(self, y, delta=noise, n_inits=1)
-
-        plt.figure()
-        plt.axhline(local_cost, label=f"QCQP cost {local_cost:.2e}")
-        plt.scatter(range(len(use_constraints)), dual_costs, label="dual costs")
-        plt.xticks(range(len(use_constraints)), use_constraints)
-        plt.xlabel("added constraints up to")
-        plt.ylabel("cost")
-        plt.legend()
-        plt.show()
-        plt.pause(1)

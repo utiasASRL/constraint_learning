@@ -9,7 +9,7 @@ from utils import get_fname
 
 METHOD = "qr"
 NOISE_DICT = {0: 1e-2} #dict(zip(range(5), np.logspace(-3, 1, 5)))
-USE_MATRICES = "uniform"
+USE_MATRICES = "first"
 
 def run_noise_study(
     lifter, A_list, noise=1e-3, n_shuffles=0, n_seeds=1, fname="", verbose=False
@@ -202,7 +202,7 @@ def run_range_study():
 
         for name in noises:
             noise = NOISE_DICT[name]
-            fname = get_fname(f"study_range{lifter_type}_{d}d_{name}noise")
+            fname = get_fname(f"study_range{lifter_type}_{d}d_{name}noise_sparse")
             params = dict(
                 lifter=lifter,
                 A_list=A_list,
