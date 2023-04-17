@@ -1,12 +1,19 @@
-from abc import abstractmethod
+from abc import ABC, abstractmethod
 
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
 
 EPS = 1e-10  # threshold for nullspace (eigenvalues)
-METHOD = "qr"  # basis pursuit method
+
+# basis pursuit method, can be
+# - qr: qr decomposition
+# - qrp: qr decomposition with permutations (sparser)
+# - svd: svd
+METHOD = "qr"
+
 NORMALIZE = True  # normalize learned Ai or not
+FACTOR = 2.0  # how much to oversample (>= 1)
 
 
 class StateLifter(ABC):
@@ -70,9 +77,21 @@ class StateLifter(ABC):
     def get_A_known(self) -> list:
         return []
 
-    def get_A_learned(self) -> list:
-        Y = self.generate_Y()
-        basis, _ = self.get_basis(Y, eps=EPS, method=METHOD)
+    def get_A_learned(self, factor=FACTOR, eps=EPS, method=METHOD, A_known=[]) -> list:
+        Y = self.generate_Y(factor=factor)
+
+        if len(A_known):
+            A_known_mat = np.concatenate([self._get_vec(Ai) for Ai in A_known], axis=0)
+            Y = np.concatenate([Y, A_known_mat], axis=0)
+
+        basis, S = self.get_basis(Y, method=method, eps=eps)
+        try:
+            assert abs(S[-basis.shape[0]]) / eps < 1e-1  # 1e-1  1e-10
+            assert abs(S[-basis.shape[0] - 1]) / eps > 10  # 1e-11 1e-10
+        except:
+            print(f"there might be a problem with the chosen threshold {eps}:")
+            print(S[basis.shape[0]], eps, S[basis.shape[0] - 1])
+
         return self.generate_matrices(basis, normalize=NORMALIZE)
 
     def get_vec_around_gt(self, delta: float = 0):
@@ -83,6 +102,7 @@ class StateLifter(ABC):
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
 
     def _get_vec(self, mat):
+        # sparse matrix is of shape (1, N)
         return mat[np.triu_indices(n=self.dim_x)].flatten()
 
     def generate_Y(self, factor=3, ax=None):
@@ -113,7 +133,9 @@ class StateLifter(ABC):
         generate basis from lifted state matrix Y
         """
         if method == "svd":
-            U, S, Vh = np.linalg.svd(Y)  # nullspace of Y is in last columns of V / last rows of Vh
+            U, S, Vh = np.linalg.svd(
+                Y
+            )  # nullspace of Y is in last columns of V / last rows of Vh
             rank = np.sum(np.abs(S) > eps)
             basis = Vh[rank:, :]
 
@@ -121,16 +143,18 @@ class StateLifter(ABC):
             np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
         elif method == "qr":
             Q, R = np.linalg.qr(Y.T)
-            basis = Q[:, rank:].T
-        elif method == "qrp":
-            Q,R,p = la.qr(Y,pivoting=True)
             S = np.diag(R)
             rank = np.sum(np.abs(S) > eps)
-            R1, R2 = R[:rank,:rank],R[:rank,rank:]
-            N = np.vstack([la.solve_triangular(R1,R2), -np.eye(R2.shape[1])])
+            basis = Q[:, rank:].T
+        elif method == "qrp":
+            Q, R, p = la.qr(Y, pivoting=True)
+            S = np.diag(R)
+            rank = np.sum(np.abs(S) > eps)
+            R1, R2 = R[:rank, :rank], R[:rank, rank:]
+            N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
             basis = np.zeros(N.T.shape)
-            basis[:,p] = N.T
-                        
+            basis[:, p] = N.T
+
             # TODO(FD) below is pretty high. figure out if that's a problem
             # print("max QR basis error:", np.max(np.abs(Y @ basis.T)))
         else:
@@ -140,28 +164,34 @@ class StateLifter(ABC):
         # np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
-    def generate_matrices(self, basis, normalize=NORMALIZE):
+    def _get_mat(self, vec, normalize=NORMALIZE, sparse=True, trunc_tol=1e-5):
+        triu = np.triu_indices(n=self.dim_x)
+        Ai = np.zeros((self.dim_x, self.dim_x))
+        Ai[triu] = vec
+        Ai += Ai.T
+        Ai /= 2
+        # Normalize the matrix
+        if normalize:
+            Ai /= np.max(np.abs(Ai))
+        # Sparsify and truncate
+        if sparse:
+            Ai = sp.csr_array(Ai)
+            Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
+            Ai.eliminate_zeros()
+        else:
+            Ai[np.abs(Ai) < trunc_tol] = 0.0
+        # add to list
+        return Ai
+
+    def generate_matrices(
+        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-5
+    ):
         """
         generate matrices from vectors
         """
-        triu = np.triu_indices(n=self.dim_x)
 
         A_list = []
         for i in range(basis.shape[0]):
-            Ai = np.zeros((self.dim_x, self.dim_x))
-            Ai[triu] = basis[i, :]
-            Ai += Ai.T
-            Ai /= 2
-            # Normalize the matrix
-            if normalize:
-                Ai /= np.max(np.abs(Ai))
-            # Sparsify and truncate
-            if sparse:
-                Ai = sp.csr_array(Ai)
-                Ai.data[np.abs(Ai.data)<trunc_tol] = 0.0   
-                Ai.eliminate_zeros() 
-            else:
-                Ai[np.abs(Ai)<trunc_tol] = 0.0
-            # add to list
+            Ai = self._get_mat(basis[[i]], normalize, sparse, trunc_tol)
             A_list.append(Ai)
         return A_list

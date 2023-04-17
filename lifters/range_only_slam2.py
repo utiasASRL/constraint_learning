@@ -48,6 +48,24 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
                 self.ls_problem.add_residual({"a0": I[d].reshape((1, -1))})
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
+    def get_A_known(self):
+        from poly_matrix.poly_matrix import PolyMatrix
+
+        A_list = []
+        for n, k in self.edges:
+            A = PolyMatrix()
+            A[f"x{n}", f"x{n}"] = np.eye(self.d)
+            if self.remove_gauge == "hard":
+                if k > 0:
+                    A[f"a{k}", f"a{k}"] = np.eye(self.var_dict[f"a{k}"])
+                    A[f"x{n}", f"a{k}"] = -np.eye(self.d)[:, : self.var_dict[f"a{k}"]]
+            else:
+                A[f"a{k}", f"a{k}"] = np.eye(self.d)
+                A[f"x{n}", f"a{k}"] = -np.eye(self.d)
+            A["l", f"e{n}{k}"] = -0.5
+            A_list.append(A.get_matrix(self.var_dict))
+        return A_list
+
     def get_J_lifting(self, t):
         positions, landmarks = self.get_positions_and_landmarks(t)
 

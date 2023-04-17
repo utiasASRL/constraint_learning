@@ -10,7 +10,7 @@ def get_dirname():
     return dirname
 
 
-def partial_plot_and_save(lifter, Q, A_list, save=True):
+def partial_plot_and_save(lifter, Q, A_list, save=True, appendix=""):
     if save:
         dirname = get_dirname()
 
@@ -37,16 +37,19 @@ def partial_plot_and_save(lifter, Q, A_list, save=True):
         )
         if k in [0, 1, chunks - 2, chunks - 1]:
             if save:
-                savefig(fig, f"{dirname}/A{plot_count}_{lifter}.png")
+                savefig(fig, f"{dirname}/A{plot_count}_{lifter}{appendix}.png")
             plot_count += 1
 
     if Q is not None:
         fig, ax = plt.subplots()
         fig.set_size_inches(3, 3)
-        ax.matshow(np.abs(Q) > 1e-10)
+        try:
+            ax.matshow(np.abs(Q) > 1e-10)
+        except:
+            ax.matshow(np.abs(Q.toarray() > 1e-10))
         ax.set_title("Q mask")
         if save:
-            savefig(fig, f"{dirname}/Q_{lifter}.png")
+            savefig(fig, f"{dirname}/Q_{lifter}{appendix}.png")
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None):
@@ -106,7 +109,10 @@ def plot_matrices(
     axs = axs.flatten()
     fig.set_size_inches(num_plots, 2)
     for i, (ax, Ai) in enumerate(zip(axs, A_list[start_idx:])):
-        im = ax.matshow(Ai, norm=norm)
+        if type(Ai) == np.ndarray:
+            im = ax.matshow(Ai, norm=norm)
+        else:
+            im = ax.matshow(Ai.toarray(), norm=norm)
         ax.axis("off")
         ax.set_title(f"$A_{{{i+1}}}$", y=1.0)
         if colorbar:

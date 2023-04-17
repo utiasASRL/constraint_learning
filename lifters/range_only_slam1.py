@@ -36,15 +36,10 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
         var_dict = {"l": 1}
         var_dict.update({f"x{n}": self.d for n in range(self.n_positions)})
         if self.remove_gauge == "hard":
-            if self.d == 2:
-                # a1_x, a2, a3, ...
-                var_dict.update({"a1": 1})
-                var_dict.update({f"a{k}": self.d for k in range(2, self.n_landmarks)})
-            else:
-                # a1_x, a2_x, a2_y, a3, a4, ...
-                var_dict.update({"a1": 1})
-                var_dict.update({"a2": 2})
-                var_dict.update({f"a{k}": self.d for k in range(3, self.n_landmarks)})
+            # for 2d, a1_x, a2_x, a2_y, ...
+            # for 3d, a1_x, a2_x, a2_y, a3_x, a3_y, a3_z, ...
+            var_dict.update({f"a{k}": k for k in range(1, self.d)})
+            var_dict.update({f"a{k}": self.d for k in range(self.d, self.n_landmarks)})
         else:
             var_dict.update({f"a{k}": self.d for k in range(self.n_landmarks)})
         return var_dict
@@ -92,6 +87,35 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             for d in range(self.d):
                 self.ls_problem.add_residual({"a0": I[d].reshape((1, -1))})
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
+
+    def get_A_known(self):
+        from poly_matrix.poly_matrix import PolyMatrix
+
+        A_list = []
+        for n in range(self.n_positions):
+            A = PolyMatrix()
+            A[f"x{n}", f"x{n}"] = np.eye(self.d)
+            A["l", f"tau{n}"] = -0.5
+            A_list.append(A.get_matrix(self.var_dict))
+        for k in range(self.n_landmarks):
+            A = PolyMatrix()
+            if self.remove_gauge == "hard":
+                if k > 0:
+                    A[f"a{k}", f"a{k}"] = np.eye(self.var_dict[f"a{k}"])
+            else:
+                A[f"a{k}", f"a{k}"] = np.eye(self.d)
+            A["l", f"alpha{k}"] = -0.5
+            A_list.append(A.get_matrix(self.var_dict))
+        for n, k in self.edges:
+            A = PolyMatrix()
+            if self.remove_gauge == "hard":
+                if k > 0:
+                    A[f"x{n}", f"a{k}"] = np.eye(self.d)[:, : self.var_dict[f"a{k}"]]
+            else:
+                A[f"x{n}", f"a{k}"] = np.eye(self.d)
+            A["l", f"e{n}{k}"] = -1
+            A_list.append(A.get_matrix(self.var_dict))
+        return A_list
 
     def get_cost(self, t, y):
         # fix Gauge freedom

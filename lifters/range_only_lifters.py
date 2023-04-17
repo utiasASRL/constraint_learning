@@ -321,6 +321,17 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
             )
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
+    def get_A_known(self):
+        from poly_matrix.poly_matrix import PolyMatrix
+
+        A_list = []
+        for n in range(self.n_positions):
+            A = PolyMatrix()
+            A[f"x{n}", f"x{n}"] = np.eye(self.d)
+            A["l", f"z{n}"] = -0.5
+            A_list.append(A.get_matrix(self.var_dict))
+        return A_list
+
     def get_J_lifting(self, t):
         # theta
         t = t.reshape((-1, self.d))

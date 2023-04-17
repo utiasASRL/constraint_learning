@@ -8,8 +8,9 @@ from lifters.stereo_lifter import StereoLifter
 from utils import get_fname
 
 METHOD = "qr"
-NOISE_DICT = {0: 1e-2} #dict(zip(range(5), np.logspace(-3, 1, 5)))
+NOISE_DICT = {0: 1e-2}  # dict(zip(range(5), np.logspace(-3, 1, 5)))
 USE_MATRICES = "first"
+
 
 def run_noise_study(
     lifter, A_list, noise=1e-3, n_shuffles=0, n_seeds=1, fname="", verbose=False
@@ -74,7 +75,17 @@ def run_noise_study(
                 )
                 # print(f"status: {status}, dual_cost: {dual_cost}")
 
-                eigs = np.linalg.eigvalsh(H) if H is not None else None
+                if H is None:
+                    eigs = None
+                elif type(H) == np.ndarray:
+                    eigs = np.linalg.eigvalsh(H) if H is not None else None
+                else:
+                    try:
+                        import scipy.sparse.linalg as spl
+
+                        eigs = spl.eigs(H, which="SA", k=5)
+                    except:
+                        eigs = np.linalg.eigvalsh(H.toarray())
                 data.append(
                     {
                         "n": i,
@@ -113,10 +124,7 @@ def run_poly_study():
 
     lifters = [Poly4Lifter(), Poly6Lifter()]
     for lifter in lifters:
-        Y = lifter.generate_Y(factor=3)
-        basis, S = lifter.get_basis(Y, eps=eps, method=method)
-        A_list = lifter.generate_matrices(basis)
-
+        A_list = lifter.get_A_learned(eps=eps, method=method, factor=3)
         params = dict(
             lifter=lifter,
             A_list=A_list,
@@ -157,10 +165,7 @@ def run_stereo_study():
         else:
             raise ValueError(d)
 
-        Y = lifter.generate_Y(factor=3)
-        basis, S = lifter.get_basis(Y, eps=eps, method=method)
-        A_list = lifter.generate_matrices(basis)
-
+        A_list = lifter.get_A_learned(eps=eps, method=method, factor=3)
         for name in noises:
             noise = NOISE_DICT[name]
             fname = get_fname(f"study_stereo{d}d_{name}noise_{level}level")
@@ -192,13 +197,13 @@ def run_range_study():
     eps = 1e-4
     n_seeds = 1
     n_shuffles = 0
+
     method = "qr"
+
     for d, (lifter_type, Lifter) in itertools.product(d_list, lifter_types.items()):
         lifter = Lifter(n_landmarks=n_landmarks, n_positions=n_positions, d=d)
 
-        Y = lifter.generate_Y(factor=1)
-        basis, S = lifter.get_basis(Y, eps=eps, method=method)
-        A_list = lifter.generate_matrices(basis)
+        A_list = lifter.get_A_learned(eps=eps, method=method, factor=2)
 
         for name in noises:
             noise = NOISE_DICT[name]
