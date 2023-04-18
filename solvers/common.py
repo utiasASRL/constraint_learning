@@ -2,6 +2,7 @@ import cvxpy as cp
 import numpy as np
 
 SOLVER = "MOSEK"
+# SOLVER = "CVXOPT"
 solver_options = {
     "CVXOPT": {
         "verbose": False,
@@ -11,37 +12,75 @@ solver_options = {
         "reltol": 1e-6,  # will be changed according to primal
         "feastol": 1e-9,
     },
-    "MOSEK": {},
-}
-
-msk_opts = {}
-msk_opts["sdp_solver"] = cp.MOSEK
-msk_opts["mosek_params"] = {
-    "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,
-    "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,
-    "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,
-    "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
-    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,
-    "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
+    "MOSEK": {
+        "mosek_params": {
+            "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,
+            "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,
+            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,
+            "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
+            "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
+        },
+    },
 }
 
 
 def solve_sdp_cvxpy(
-    Q, A_b_list, adjust=(1.0, 0.0), opts=msk_opts, primal=False, verbose=True
+    Q,
+    A_b_list,
+    adjust=True,
+    solver=SOLVER,
+    opts=solver_options[SOLVER],
+    primal=False,
+    verbose=True,
+    tol=None,
 ):
     """Run CVXPY to solve a semidefinite program.
 
     Args:
         Q (_type_): Cost matrix
         A_b_list (_type_): constraint tuple, (A,b) such that trace(A @ X) == b
-        adjust (tuple, optional): tuple of scale and offset to adjust the cost. Defaults to (1.0,0.0).
+        adjust (bool, optional): Choose to normalize Q matrix.
         primal (bool, optional): Choose to solve primal or dual. Defaults to False (dual).
         verbose (bool, optional): Print verbose ouptut. Defaults to True.
 
     Returns:
         _type_: (X, cost_out): solution matrix and output cost.
     """
+
+    if tol:
+        if "mosek_params" in opts:
+            opts["mosek_params"].update(
+                {
+                    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
+                    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
+                    "MSK_DPAR_INTPNT_CO_TOL_INFEAS": tol,
+                }
+            )
+        else:
+            opts.update(
+                {
+                    "abstol": tol,
+                    "reltol": tol,
+                    "feastol": tol,
+                }
+            )
+
+    if adjust:
+        from copy import deepcopy
+
+        import scipy.sparse.linalg as spl
+
+        Q_here = deepcopy(Q)
+        offset = Q_here[0, 0]
+        Q_here[0, 0] -= offset
+
+        scale = spl.norm(Q_here)
+        Q_here /= scale
+    else:
+        Q_here = Q
+
     if primal:
         """
         min < Q, X >
@@ -50,15 +89,14 @@ def solve_sdp_cvxpy(
         X = cp.Variable(Q.shape, symmetric=True)
         constraints = [X >> 0]
         constraints += [cp.trace(A @ X) == b for A, b in A_b_list]
-        cprob = cp.Problem(cp.Minimize(cp.trace(Q @ X)), constraints)
+        cprob = cp.Problem(cp.Minimize(cp.trace(Q_here @ X)), constraints)
         cprob.solve(
-            solver=opts["sdp_solver"],
+            solver=solver,
             save_file="solve_cvxpy_primal.ptf",
-            mosek_params=opts["mosek_params"],
+            **opts,
             verbose=verbose,
         )
-        # Get cost by reversing scaling
-        cost_out = cprob.value * adjust[0] + adjust[1]
+        cost = cprob.value
         X = X.value
     else:  # Dual
         """
@@ -71,18 +109,21 @@ def solve_sdp_cvxpy(
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
-        constraint = LHS << Q
-        prob = cp.Problem(objective, [constraint])
+        constraint = LHS << Q_here
+        cprob = cp.Problem(objective, [constraint])
         cprob.solve(
-            solver=opts["sdp_solver"],
+            solver=solver,
             save_file="solve_cvxpy_dual.ptf",
-            mosek_params=opts["mosek_params"],
+            **opts,
             verbose=verbose,
         )
-        cost_out = prob.value * adjust[0] + adjust[1]
+        cost = cprob.value
         X = constraint.dual_value
     # Get cost by reversing scaling
-    return X, cost_out
+    if adjust:
+        cost *= scale
+        cost += offset
+    return X, cost
 
 
 def solve_dual(Q, A_list, tol=1e-6, solver=SOLVER, verbose=True):
@@ -124,7 +165,7 @@ def solve_dual(Q, A_list, tol=1e-6, solver=SOLVER, verbose=True):
         return None, None, prob.status
 
 
-def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10):
+def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False):
     local_solutions = []
     costs = []
 
@@ -132,13 +173,26 @@ def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10):
     inits += [
         lifter.get_vec_around_gt(delta=delta) for i in range(n_inits - 1)
     ]  # around gt
-    for t_init in inits:
+    for i, t_init in enumerate(inits):
+        if plot:
+            import matplotlib.pylab as plt
+
+            fig, ax = plt.subplots()
+            p0, a0 = lifter.get_positions_and_landmarks(t_init)
+            ax.scatter(*p0.T, color=f"C{0}", marker="o")
+            ax.scatter(*a0.T, color=f"C{0}", marker="x")
         t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
+
         # print(msg)
         if t_local is not None:
             # cost_lifter = lifter.get_cost(t_local, y=y)
             costs.append(cost_solver)
             local_solutions.append(t_local)
+
+            if plot:
+                p0, a0 = lifter.get_positions_and_landmarks(t_local)
+                ax.scatter(*p0.T, color=f"C{1}", marker="*")
+                ax.scatter(*a0.T, color=f"C{1}", marker="+")
     local_solutions = np.array(local_solutions)
 
     if len(costs):

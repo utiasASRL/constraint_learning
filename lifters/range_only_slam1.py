@@ -70,8 +70,10 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
     def generate_random_setup(self):
         self.generate_random_landmarks()
 
-    def sample_feasible(self):
-        self.generate_random_positions()
+    def sample_theta(self):
+        positions = self.sample_random_positions()
+        # landmarks = self.sample_random_landmarks()
+        return self.get_theta(positions, self.landmarks)
 
     def get_Q_from_y(self, y):
         self.ls_problem = LeastSquaresProblem()
@@ -125,7 +127,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
         return cost
 
     def sample_feasible(self):
-        self.generate_random_positions()
+        return self.sample_random_positions()
 
     def fill_depending_on_k(self, row, k, vec):
         """Because of Gauge freedom removal,
@@ -242,5 +244,5 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
 
 
 if __name__ == "__main__":
-    lifter = RangeOnlySLAM1Lifter(n_positions=4, n_landmarks=4, d=2)
-    lifter.run()
+    lifter = RangeOnlySLAM1Lifter(n_positions=3, n_landmarks=4, d=2)
+    lifter.run(n_dual=1, noise=0.1, plot=True)

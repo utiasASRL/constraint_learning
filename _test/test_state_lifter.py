@@ -1,6 +1,7 @@
 import matplotlib.pylab as plt
 import numpy as np
 
+from lifters.poly_lifters import PolyLifter
 from lifters.test_tools import all_lifters
 
 
@@ -211,9 +212,7 @@ def test_constraints():
             err = abs(x.T @ Ai @ x)
             assert err < tol, err
 
-            # TODO(FD) not fully understood why this fixes the below test.
             Ai[range(Ai.shape[0]), range(Ai.shape[0])] /= 2.0
-
             ai = lifter._get_vec(Ai)
             xvec = lifter._get_vec(np.outer(x, x))
             np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
@@ -252,12 +251,13 @@ def compare_solvers():
     compare_solvers = [
         "Nelder-Mead",
         "Powell",  # "CG",  CG takes forever.
+        # "Newton-CG",
         "BFGS",
-        "Newton-CG",
         "TNC",
     ]
-    noise = 1e-3
+    noise = 1e-1
     for lifter in all_lifters():
+        print("testing", lifter)
         np.random.seed(0)
 
         # noisy setup
@@ -282,7 +282,7 @@ def compare_solvers():
             else:
                 error = np.linalg.norm(theta_hat - theta_gt)
                 print(
-                    f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}"
+                    f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}. \n\tmessage:{msg} "
                 )
 
 
@@ -290,9 +290,8 @@ if __name__ == "__main__":
     import sys
     import warnings
 
-    test_constraints()
-    sys.exit(0)
-
+    # test_constraints()
+    # sys.exit(0)
     # import pytest
     # print("testing")
     # pytest.main([__file__, "-s"])
@@ -300,17 +299,16 @@ if __name__ == "__main__":
     # test_solvers()
     # test_solvers_noisy()
     # test_gauge()
-    test_grad_finite_diff()
-    test_hess_finite_diff()
 
     test_cost()
     test_cost_noisy()
 
-    test_equivalent_lifters()
-
-    test_levels()
+    test_grad_finite_diff()
+    test_hess_finite_diff()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         compare_solvers()
+
+    print("all tests passed")
     # sys.exit()

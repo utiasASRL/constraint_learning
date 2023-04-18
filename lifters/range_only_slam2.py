@@ -118,4 +118,4 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
 
 if __name__ == "__main__":
     lifter = RangeOnlySLAM2Lifter(n_positions=3, n_landmarks=4, d=2)
-    lifter.run()
+    lifter.run(n_dual=1)

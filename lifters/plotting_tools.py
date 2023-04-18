@@ -2,7 +2,6 @@ import os
 
 import matplotlib.pylab as plt
 import numpy as np
-import seaborn as sns
 
 
 def get_dirname():
@@ -146,6 +145,8 @@ def plot_singular_values(S, eps=None):
 
 
 def plot_tightness(df, ax=None):
+    import seaborn as sns
+
     palette = "viridis"
     if ax is None:
         fig, ax = plt.subplots()

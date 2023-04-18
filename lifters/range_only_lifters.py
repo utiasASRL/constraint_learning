@@ -16,7 +16,9 @@ REMOVE_GAUGE = "hard"
 # REMOVE_GAUGE = "cost"
 
 SOLVER_KWARGS = dict(
-    method="Nelder-Mead",  # appears to be the fastest.
+    # method="Nelder-Mead",
+    method="BFGS"  # the only one that almost always converges
+    # method="Powell"
 )
 
 
@@ -67,29 +69,35 @@ class RangeOnlyLifter(StateLifter):
         self.generate_random_positions()
 
     def generate_random_landmarks(self):
-        self.landmarks = np.random.rand(self.n_landmarks, self.d)
-
+        landmarks = self.sample_random_landmarks()
         if self.remove_gauge is not None:
-            self.landmarks[0, :] = 0.0
-            self.landmarks[1, 1] = 0  # set a1_y = 0
+            landmarks[0, :] = 0.0
+            landmarks[1, 1] = 0  # set a1_y = 0
             if self.d == 3:
-                self.landmarks[1, 2] = 0  # set a1_z = 0
-                self.landmarks[2, 2] = 0  # set a2_z = 0
+                landmarks[1, 2] = 0  # set a1_z = 0
+                landmarks[2, 2] = 0  # set a2_z = 0
 
             # TODO(FD) figure out if below is necessary (it shouldn't hurt anyways)
             # make sure to also fix the flip
             if self.d == 2:
                 # make sure a2_y > 0.
-                if self.landmarks[2, 1] < 0:  #
-                    self.landmarks[:, 1] = -self.landmarks[:, 1]
+                if landmarks[2, 1] < 0:  #
+                    landmarks[:, 1] = -landmarks[:, 1]
             elif self.d == 3:
                 # landmarks 0, 1, 2 now live in the x-y plane.
-                if self.landmarks[3, 2] < 0:
-                    self.landmarks[:, 2] = -self.landmarks[:, 2]
+                if landmarks[3, 2] < 0:
+                    landmarks[:, 2] = -landmarks[:, 2]
+        self.landmarks = landmarks
+
+    def sample_random_landmarks(self):
+        return np.random.rand(self.n_landmarks, self.d)
+
+    def sample_random_positions(self):
+        # TODO(FD) implement motion model?
+        return np.random.rand(self.n_positions, self.d)
 
     def generate_random_positions(self):
-        # TODO(FD) implement motion model?
-        self.positions = np.random.rand(self.n_positions, self.d)
+        self.positions = self.sample_random_positions()
 
     def get_positions_and_landmarks(self, theta):
         """
@@ -103,15 +111,15 @@ class RangeOnlyLifter(StateLifter):
             if self.remove_gauge == "hard":
                 # range-only SLAM
                 landmarks = np.zeros((self.n_landmarks, self.d))
-                landmarks[0, :] = 0.0
+                landmarks[0, :] = self.landmarks[0, :]
                 landmarks[1, 0] = theta[N]
-                landmarks[1, 1] = 0.0
+                landmarks[1, 1] = self.landmarks[1, 1]
                 if self.d == 2:
                     landmarks[2:, :] = theta[N + 1 :].reshape(
                         (self.n_landmarks - 2, self.d)
                     )
                 elif self.d == 3:
-                    landmarks[1, 2] = 0
+                    landmarks[1, 2] = self.landmarks[1, 2]
                     landmarks[2, 0] = theta[N + 1]
                     landmarks[2, 1] = theta[N + 2]
                     landmarks[3:, :] = theta[N + 3 :].reshape(
@@ -134,6 +142,14 @@ class RangeOnlyLifter(StateLifter):
         )
         y = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
         Q = self.get_Q_from_y(y)
+
+        # DEBUGGING
+        x = self.get_x()
+        cost1 = x.T @ Q @ x
+        cost2 = np.sum((y - y_gt) ** 2)
+        cost3 = self.get_cost(self.theta, y)
+        assert abs(cost1 - cost2) < 1e-10
+        assert abs(cost1 - cost3) < 1e-10
         return Q, y
 
     def get_J(self, t, y):
@@ -200,11 +216,14 @@ class RangeOnlyLifter(StateLifter):
             tol=tol,
             options={"disp": verbose},  # j, "maxfun": 100},
         )
-        that = sol.x
-        rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
-        assert abs(rel_error) < 1e-10, rel_error
-        msg = sol.message + f" in {sol.nit} iterations"
-        cost = sol.fun
+        if sol.success:
+            that = sol.x
+            rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
+            assert abs(rel_error) < 1e-10, rel_error
+            cost = sol.fun
+        else:
+            that = cost = None
+        msg = sol.message + f"(# iterations: {sol.nit})"
         return that, msg, cost
 
     @abstractmethod
@@ -234,17 +253,20 @@ class RangeOnlyLifter(StateLifter):
         --> in 2d, will optimize for landmarks_theta = [a1_x, a2_x, a2_y, ...]
         --> in 3d, will optimize for landmarks_theta = [a1_x, a2_x, a2_y, a3_x, a3_y, a3_z, ...]
         """
-        theta = list(self.positions.flatten("C"))
+        return self.get_theta(self.positions, self.landmarks)
+
+    def get_theta(self, positions, landmarks):
+        theta = list(positions.flatten("C"))
         if self.remove_gauge == "hard":
-            theta.append(self.landmarks[1, 0])
+            theta.append(landmarks[1, 0])
             if self.d == 2:
-                theta += list(self.landmarks[2:, :].flatten("C"))
+                theta += list(landmarks[2:, :].flatten("C"))
             elif self.d == 3:
-                theta.append(self.landmarks[2, 0])
-                theta.append(self.landmarks[2, 1])
-                theta += list(self.landmarks[3:, :].flatten("C"))
+                theta.append(landmarks[2, 0])
+                theta.append(landmarks[2, 1])
+                theta += list(landmarks[3:, :].flatten("C"))
         else:
-            theta += list(self.landmarks.flatten("C"))
+            theta += list(landmarks.flatten("C"))
         return np.array(theta)
 
     @property
@@ -351,8 +373,8 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
         return hessians
 
     def sample_feasible(self):
-        self.generate_random_positions()
-        self.generate_random_landmarks()
+        positions = self.sample_random_positions()
+        landmarks = self.sample_random_landmarks()
 
     def generate_random_setup(self):
         print("nothing to setup.")
