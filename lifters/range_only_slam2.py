@@ -18,8 +18,8 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
         return len(self.edges)
 
     @property
-    def var_dict(self):
-        var_dict = self.get_base_var_dict()
+    def sub_var_dict(self):
+        var_dict = {}
         var_dict.update({f"e{n}{k}": 1 for n, k in self.edges})
         return var_dict
 

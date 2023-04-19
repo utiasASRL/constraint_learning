@@ -67,7 +67,7 @@ class StateLifter(ABC):
         return
 
     @abstractmethod
-    def sample_feasible(self):
+    def sample_theta(self):
         return
 
     @abstractmethod
@@ -207,8 +207,8 @@ class StateLifter(ABC):
         max_violation = -np.inf
         j_bad = []
         for j, A in enumerate(A_list):
-            self.sample_feasible()
-            x = self.get_x()
+            t = self.sample_theta()
+            x = self.get_x(t)
 
             constraint_violation = abs(x.T @ A @ x)
             max_violation = max(max_violation, constraint_violation)
@@ -239,9 +239,20 @@ class StateLifter(ABC):
         import matplotlib.pylab as plt
 
         from lifters.plotting_tools import plot_matrices
+        from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
+
+        Q, y = self.get_Q(noise=noise)
+
+        print("find local minimum...")
+        that, local_cost = find_local_minimum(
+            self, y, delta=noise, n_inits=1, plot=False, verbose=True
+        )
 
         A_known = self.get_A_known()
         A_list = self.get_A_learned(eps=EPS, method="qrp", plot=plot, A_known=A_known)
+        print(
+            f"number of constraints: known {len(A_known)}, redundant {len(A_list) - len(A_known)}, total {len(A_list)}"
+        )
 
         max_error, j_bad = self.test_constraints(A_list, errors="print")
         for i, j in enumerate(j_bad):
@@ -256,10 +267,6 @@ class StateLifter(ABC):
 
         if plot:
             plot_matrices(A_list, n_matrices=5, start_idx=0)
-
-        from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
-
-        Q, y = self.get_Q(noise=noise)
 
         tol = 1e-10
         print("solve dual problems...")
@@ -279,13 +286,6 @@ class StateLifter(ABC):
             # cost, H, status = solve_dual(Q, A_list[:i])
             # dual_costs.append(cost)
 
-            # assuming solution is rank 1, extract it.
-
-        print("find local minimum...")
-        that, local_cost = find_local_minimum(
-            self, y, delta=noise, n_inits=1, plot=plot, verbose=True
-        )
-
         E, V = np.linalg.eigh(X)
         xhat = V[:, -1] * np.sqrt(E[-1])
         if abs(xhat[0] + 1) < 1e-10:  # xhat is close to -1
@@ -299,108 +299,34 @@ class StateLifter(ABC):
             print(f"not rank 1! {E}")
         else:
             assert abs((self.get_cost(theta, y) - cost)) < 1e-7
-        p_primal, a_primal = self.get_positions_and_landmarks(theta)
-        p_hat, a_hat = self.get_positions_and_landmarks(that)
-        p_gt, a_gt = self.get_positions_and_landmarks(self.theta)
         print(
-            f"dual costs: {np.format_float_scientific(np.array(dual_costs), precision=4)}"
+            f"dual costs: {[np.format_float_scientific(d, precision=4) for d in dual_costs]}"
         )
         print(f"local cost: {np.format_float_scientific(local_cost, precision=4)}")
 
         if plot:
             fig, ax = plt.subplots()
+            p_gt, a_gt = self.get_positions_and_landmarks(self.theta)
             ax.scatter(*p_gt.T, color="C0")
             ax.scatter(*a_gt.T, color="C0", marker="x")
-            ax.scatter(*p_hat.T, color="C1", marker="*")
-            ax.scatter(*a_hat.T, color="C1", marker="+")
-            ax.scatter(*p_primal.T, color="C2", marker="*")
-            ax.scatter(*a_primal.T, color="C2", marker="+")
-            plt.show()
+            for i, (t, name) in enumerate(zip([theta, that], ["primal", "qcqp"])):
+                cost = self.get_cost(t, y)
+                p, a = self.get_positions_and_landmarks(t)
+                ax.scatter(
+                    *p.T, color=f"C{i+1}", marker="*", label=f"{name}, {cost:.1e}"
+                )
+                ax.scatter(
+                    *a.T,
+                    color=f"C{i+1}",
+                    marker="+",
+                )
+                # 2 x K x d
+                a_lines = np.concatenate([a_gt[None, :], a[None, :]], axis=0)
+                ax.plot(a_lines[:, :, 0], a_lines[:, :, 1], color=f"C{i+1}")
+                p_lines = np.concatenate([p_gt[None, :], p[None, :]], axis=0)
+                ax.plot(p_lines[:, :, 0], p_lines[:, :, 1], color=f"C{i+1}")
+            ax.legend(loc="best")
 
-            plt.figure()
-            plt.axhline(local_cost, label=f"QCQP cost {local_cost:.2e}")
-            plt.scatter(n_constraints, dual_costs, label="dual costs")
-            plt.xlabel("added constraints")
-            plt.ylabel("cost")
-            plt.legend()
-            plt.show()
-            plt.pause(1)
-
-    def run_temp(self, n_dual: int = 3, plot: bool = False, noise: float = 1e-4):
-        """Convenience function to quickly test and debug lifter
-
-        :param n_dual
-
-        """
-        import matplotlib.pylab as plt
-
-        from lifters.plotting_tools import plot_matrices
-
-        A_known = self.get_A_known()
-        A_list = self.get_A_learned(eps=EPS, method="qrp", plot=plot, A_known=A_known)
-
-        max_error, j_bad = self.test_constraints(A_list, errors="print")
-        for j in j_bad:
-            del A_list[j]
-
-        # check that learned constraints meat tolerance
-
-        if plot:
-            plot_matrices(A_list, n_matrices=5, start_idx=0)
-
-        from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
-
-        Q, y = self.get_Q(noise=noise)
-
-        print("solve dual problems...")
-        dual_costs = []
-        primal_costs = []
-        n = min(n_dual, len(A_list))
-        n_constraints = range(len(A_list) - n + 1, len(A_list) + 1)
-        for i in n_constraints:
-            print(f"{i}/{len(A_list)}")
-
-            A_b_list = [(self.get_A0(), 1)] + [(A, 0) for A in A_list]
-            X, cost = solve_sdp_cvxpy(Q, A_b_list, primal=False, tol=1e-10)
-            dual_costs.append(cost)
-
-            X, cost = solve_sdp_cvxpy(Q, A_b_list, primal=True, tol=1e-10)
-            primal_costs.append(cost)
-
-            # cost, H, status = solve_dual(Q, A_list[:i])
-            # dual_costs.append(cost)
-
-            # assuming solution is rank 1, extract it.
-
-        print("find local minimum...")
-        that, local_cost = find_local_minimum(
-            self, y, delta=noise, n_inits=1, plot=plot, verbose=True
-        )
-
-        E, V = np.linalg.eig(X)
-        xhat = V[:, 0] * np.sqrt(E[0])
-        if abs(xhat[0] + 1) < 1e-10:  # xhat is close to -1
-            xhat = -xhat
-        theta = xhat[1 : self.N + 1]
-        assert abs((self.get_cost(theta, y) - cost)) < 1e-8
-        p_primal, a_primal = self.get_positions_and_landmarks(theta)
-        p_hat, a_hat = self.get_positions_and_landmarks(that)
-        p_gt, a_gt = self.get_positions_and_landmarks(self.theta)
-        fig, ax = plt.subplots()
-        ax.scatter(*p_gt.T, color="C0")
-        ax.scatter(*a_gt.T, color="C0", marker="x")
-        ax.scatter(*p_primal.T, color="C1", marker="*")
-        ax.scatter(*a_primal.T, color="C1", marker="+")
-        ax.scatter(*p_hat.T, color="C2", marker="*")
-        ax.scatter(*a_hat.T, color="C2", marker="+")
-        plt.show()
-
-        print(
-            f"dual costs: {np.format_float_scientific(np.array(dual_costs), precision=4)}"
-        )
-        print(f"local cost: {np.format_float_scientific(local_cost, precision=4)}")
-
-        if plot:
             plt.figure()
             plt.axhline(local_cost, label=f"QCQP cost {local_cost:.2e}")
             plt.scatter(n_constraints, dual_costs, label="dual costs")

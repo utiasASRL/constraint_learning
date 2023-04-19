@@ -8,18 +8,19 @@ from lifters.test_tools import all_lifters
 def test_hess_finite_diff():
     for lifter in all_lifters():
         lifter.generate_random_setup()
-        lifter.sample_feasible()
+        lifter.sample_theta()
 
         errors = []
-        eps_list = np.logspace(-10, -5, 3)
+        eps_list = np.logspace(-10, -5, 5)
         for eps in eps_list:
             Q, y = lifter.get_Q(noise=1e-2)
             theta = lifter.get_vec_around_gt(delta=0).flatten("C")
 
             try:
                 grad = lifter.get_grad(theta, y)
-                hess = lifter.get_hess(theta, y)
+                hess = lifter.get_hess(theta, y).toarray()
             except Exception as e:
+                raise e
                 print(e)
                 print("get_hess not implemented?")
                 continue
@@ -44,20 +45,21 @@ def test_hess_finite_diff():
             assert min(errors) < 1e-5
         except ValueError:
             print("skipping Hessian test")
-        except AssertionError:
-            print(f"Hessian test for {lifter} not passing")
-            # import matplotlib.pylab as plt
-            # plt.figure()
-            # plt.title(f"hess {lifter}")
-            # plt.loglog(eps_list, errors)
-            # plt.show()
-            # assert  < 1e-7
+        # except AssertionError:
+        # except Exception as e:
+        #    print(f"Hessian test for {lifter} not passing")
+        # import matplotlib.pylab as plt
+        # plt.figure()
+        # plt.title(f"hess {lifter}")
+        # plt.loglog(eps_list, errors)
+        # plt.show()
+        # assert  < 1e-7
 
 
 def test_grad_finite_diff():
     for lifter in all_lifters():
         lifter.generate_random_setup()
-        lifter.sample_feasible()
+        lifter.sample_theta()
 
         errors = []
         eps_list = np.logspace(-10, -1, 11)
@@ -70,6 +72,7 @@ def test_grad_finite_diff():
             try:
                 grad = lifter.get_grad(theta, y)
             except Exception as e:
+                raise e
                 print(e)
                 print("grad not implemented?")
                 continue
@@ -299,9 +302,8 @@ if __name__ == "__main__":
     # test_solvers()
     # test_solvers_noisy()
     # test_gauge()
-
-    test_cost()
-    test_cost_noisy()
+    # test_cost()
+    # test_cost_noisy()
 
     test_grad_finite_diff()
     test_hess_finite_diff()

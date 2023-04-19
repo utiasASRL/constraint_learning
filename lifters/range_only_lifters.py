@@ -1,5 +1,6 @@
 import itertools
 from abc import abstractmethod
+from copy import deepcopy
 
 import numpy as np
 
@@ -37,7 +38,7 @@ class RangeOnlyLifter(StateLifter):
     - generate_random_positions:
         return randomly generated positions (motion model to be implemented)
 
-    - sample_feasible:
+    - sample_theta:
         - for localization problem, this can regenerate both landmarks and positions
         - for SLAM problem, regenerate only positions (to be tested)
 
@@ -70,6 +71,10 @@ class RangeOnlyLifter(StateLifter):
 
     def generate_random_landmarks(self):
         landmarks = self.sample_random_landmarks()
+        self.landmarks = landmarks
+
+    def sample_random_landmarks(self):
+        landmarks = np.random.rand(self.n_landmarks, self.d)
         if self.remove_gauge is not None:
             landmarks[0, :] = 0.0
             landmarks[1, 1] = 0  # set a1_y = 0
@@ -87,10 +92,7 @@ class RangeOnlyLifter(StateLifter):
                 # landmarks 0, 1, 2 now live in the x-y plane.
                 if landmarks[3, 2] < 0:
                     landmarks[:, 2] = -landmarks[:, 2]
-        self.landmarks = landmarks
-
-    def sample_random_landmarks(self):
-        return np.random.rand(self.n_landmarks, self.d)
+        return landmarks
 
     def sample_random_positions(self):
         # TODO(FD) implement motion model?
@@ -110,16 +112,20 @@ class RangeOnlyLifter(StateLifter):
         if len(theta) > N:
             if self.remove_gauge == "hard":
                 # range-only SLAM
+
+                # TODO(FD): figure out if it's easier to set to zero or to the actual landmarks.
                 landmarks = np.zeros((self.n_landmarks, self.d))
-                landmarks[0, :] = self.landmarks[0, :]
+                # landmarks = deepcopy(self.landmarks)
+
+                # landmarks[0, :] = 0.0  # self.landmarks[0, :]
                 landmarks[1, 0] = theta[N]
-                landmarks[1, 1] = self.landmarks[1, 1]
+                # landmarks[1, 1] = 0.0  # self.landmarks[1, 1]
                 if self.d == 2:
                     landmarks[2:, :] = theta[N + 1 :].reshape(
                         (self.n_landmarks - 2, self.d)
                     )
                 elif self.d == 3:
-                    landmarks[1, 2] = self.landmarks[1, 2]
+                    # landmarks[1, 2] = 0.0 #self.landmarks[1, 2]
                     landmarks[2, 0] = theta[N + 1]
                     landmarks[2, 1] = theta[N + 2]
                     landmarks[3:, :] = theta[N + 3 :].reshape(
@@ -153,10 +159,13 @@ class RangeOnlyLifter(StateLifter):
         return Q, y
 
     def get_J(self, t, y):
-        J = np.empty((self.dim_x, self.N))
-        J[0, :] = 0  # corresponds to homogenization variable
-        J[1 : self.N + 1, :] = np.eye(self.N)  # corresponds to theta
-        J[self.N + 1 :, :] = self.get_J_lifting(t)  # corresponds to lifting
+        import scipy.sparse as sp
+
+        J = sp.csr_array(
+            (np.ones(self.N), (range(1, self.N + 1), range(self.N))),
+            shape=(self.dim_x, self.N),
+        )
+        J[self.N + 1 :, :] = self.get_J_lifting(t)
         return J
 
     def get_hess(self, t, y):
@@ -171,7 +180,7 @@ class RangeOnlyLifter(StateLifter):
         residuals = B @ x
         for m, h in enumerate(hessians):
             bm_tilde = B[:, -self.M + m]
-            factor = bm_tilde.T @ residuals
+            factor = float(bm_tilde.T @ residuals)
             hess += 2 * factor * h
         return hess
 
@@ -227,7 +236,7 @@ class RangeOnlyLifter(StateLifter):
         return that, msg, cost
 
     @abstractmethod
-    def sample_feasible(self):
+    def sample_theta(self):
         pass
 
     @abstractmethod
@@ -371,10 +380,6 @@ class RangeOnlyLocLifter(RangeOnlyLifter):
             hessian[range(i, i + self.d), range(i, i + self.d)] = 2
             hessians.append(hessian)
         return hessians
-
-    def sample_feasible(self):
-        positions = self.sample_random_positions()
-        landmarks = self.sample_random_landmarks()
 
     def generate_random_setup(self):
         print("nothing to setup.")
