@@ -4,6 +4,7 @@ import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
 
+
 class StateLifter(object):
     def __init__(self, theta_shape, M, L=0):
         self.theta_shape = theta_shape
@@ -38,7 +39,25 @@ class StateLifter(object):
         return []
 
     def get_vec(self, mat):
+        # Multiply off-diagonals by sqrt(2)
+        mat *= np.sqrt(2)
+        if isinstance(mat, sp.spmatrix):
+            mat.setdiag(mat.diagonal() / np.sqrt(2))
+        elif isinstance(mat, np.ndarray):
+            ind = range(mat.shape[0])
+            mat[ind, ind] = np.diag(mat) / np.sqrt(2)
         return mat[np.triu_indices(n=self.dim_X())].flatten()
+
+    def get_mat(self, vec):
+        Ai = np.zeros((self.dim_X(), self.dim_X()))
+        triu = np.triu_indices(n=self.dim_X())
+        Ai[triu] = vec
+        Ai += Ai.T
+        # Divide the off diagonal by root 2
+        Ai /= np.sqrt(2)
+        ind = range(self.dim_X())
+        Ai[ind, ind] = np.diag(Ai) / np.sqrt(2)
+        return Ai
 
     def get_vec_around_gt(self, delta=0):
         if type(self.unknowns) == np.ndarray:
@@ -77,12 +96,19 @@ class StateLifter(object):
 
         return Y
 
-    def get_basis(self, Y, eps=1e-10, method="qr"):
+    def get_basis(self, Y, A_list: list = [], eps=1e-10, method="qr"):
         """
         generate basis from lifted state matrix Y
         """
+        # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
+        if len(A_list) > 0:
+            A = np.vstack([self.get_vec(a) for a in A_list])
+            Y = np.vstack([Y, A])
+
         if method == "svd":
-            U, S, Vh = np.linalg.svd(Y)  # nullspace of Y is in last columns of V / last rows of Vh
+            U, S, Vh = np.linalg.svd(
+                Y
+            )  # nullspace of Y is in last columns of V / last rows of Vh
             rank = np.sum(np.abs(S) > eps)
             basis = Vh[rank:, :]
             # test that it is indeed a null space
@@ -93,21 +119,19 @@ class StateLifter(object):
             rank = np.sum(np.abs(S) > eps)
             basis = Q[:, rank:].T
         elif method == "qrp":
-            Q,R,p = la.qr(Y,pivoting=True)
+            Q, R, p = la.qr(Y, pivoting=True, mode="economic")
             S = np.diag(R)
             rank = np.sum(np.abs(S) > eps)
-            R1, R2 = R[:rank,:rank],R[:rank,rank:]
-            N = np.vstack([la.solve_triangular(R1,R2), -np.eye(R2.shape[1])])
+            R1, R2 = R[:rank, :rank], R[:rank, rank:]
+            N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
             basis = np.zeros(N.T.shape)
-            basis[:,p] = N.T
-                        
-            # TODO(FD) below is pretty high. figure out if that's a problem
-            # print("max QR basis error:", np.max(np.abs(Y @ basis.T)))
+            basis[:, p] = N.T
         else:
             raise ValueError(method)
+        # Add known constraints to basis
+        if len(A_list) > 0:
+            basis = np.vstack([A, basis])
 
-        # test that all columns are orthonormal
-        # np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
     def dim_X(self):
@@ -117,33 +141,26 @@ class StateLifter(object):
         """
         generate matrices from vectors
         """
-        dim_X = self.dim_X()
-        triu = np.triu_indices(n=dim_X)
 
         A_list = []
         vmax = -np.inf
         vmin = np.inf
         for i in range(basis.shape[0]):
-            Ai = np.zeros((self.dim_X(), self.dim_X()))
-            Ai[triu] = basis[i, :]
-            Ai += Ai.T
-            Ai /= 2
+            Ai = self.get_mat(basis[i, :])
             # Normalize the matrix
             if normalize:
                 Ai /= np.max(np.abs(Ai))
             # Sparsify and truncate
             if sparse:
                 Ai = sp.csr_array(Ai)
-                Ai.data[np.abs(Ai.data)<trunc_tol] = 0.0   
-                Ai.eliminate_zeros() 
+                Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
+                Ai.eliminate_zeros()
             else:
-                Ai[np.abs(Ai)<trunc_tol] = 0.0
+                Ai[np.abs(Ai) < trunc_tol] = 0.0
             # add to list
             A_list.append(Ai)
-            
-            
+
             vmax = max(vmax, np.max(Ai))
             vmin = min(vmin, np.min(Ai))
-            
-            
+
         return A_list

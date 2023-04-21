@@ -59,6 +59,9 @@ def solve_sdp_cvxpy(
         # Get cost by reversing scaling
         cost_out = cprob.value * adjust[0] + adjust[1]
         X = X.value
+        # Get Dual Variables
+        H = constraints[0].dual_value
+        yvals = [c.dual_value for c in constraints[1:]]
     else:  # Dual
         """
         max < y, b >
@@ -71,17 +74,21 @@ def solve_sdp_cvxpy(
         objective = cp.Maximize(b @ y)
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
         constraint = LHS << Q
-        prob = cp.Problem(objective, [constraint])
+        cprob = cp.Problem(objective, [constraint])
         cprob.solve(
             solver=opts["sdp_solver"],
             save_file="solve_cvxpy_dual.ptf",
             mosek_params=opts["mosek_params"],
             verbose=verbose,
         )
-        cost_out = prob.value * adjust[0] + adjust[1]
+        cost_out = cprob.value * adjust[0] + adjust[1]
         X = constraint.dual_value
-    # Get cost by reversing scaling
-    return X, cost_out
+        # Dual variables
+        H = Q - LHS.value
+        yvals = [x.value for x in y]
+    # Get information
+    info = {"H": H, "yvals": yvals, "cost": cost_out}
+    return X, info
 
 
 def solve_dual(Q, A_list, tol=1e-6, solver="CVXOPT", verbose=True):
