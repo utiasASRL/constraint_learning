@@ -39,6 +39,14 @@ class StateLifter(object):
         return []
 
     def get_vec(self, mat):
+        """Convert NxN Symmetric matrix to (N+1)N/2 vectorized version that preserves inner product.
+
+        Args:
+            mat (spmatrix or ndarray): symmetric matrix
+
+        Returns:
+            ndarray
+        """
         # Multiply off-diagonals by sqrt(2)
         mat *= np.sqrt(2)
         if isinstance(mat, sp.spmatrix):
@@ -49,6 +57,14 @@ class StateLifter(object):
         return mat[np.triu_indices(n=self.dim_X())].flatten()
 
     def get_mat(self, vec):
+        """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
+
+        Args:
+            vec (ndarray): symmetric matrix
+
+        Returns:
+            ndarray
+        """
         Ai = np.zeros((self.dim_X(), self.dim_X()))
         triu = np.triu_indices(n=self.dim_X())
         Ai[triu] = vec
@@ -96,7 +112,7 @@ class StateLifter(object):
 
         return Y
 
-    def get_basis(self, Y, A_list: list = [], eps=1e-10, method="qr"):
+    def get_basis(self, Y, A_list: list = [], eps=1e-10, method="qrp"):
         """
         generate basis from lifted state matrix Y
         """
@@ -119,6 +135,7 @@ class StateLifter(object):
             rank = np.sum(np.abs(S) > eps)
             basis = Q[:, rank:].T
         elif method == "qrp":
+            # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
             Q, R, p = la.qr(Y, pivoting=True, mode="economic")
             S = np.diag(R)
             rank = np.sum(np.abs(S) > eps)
