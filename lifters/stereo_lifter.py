@@ -3,11 +3,12 @@ from abc import ABC, abstractproperty
 import numpy as np
 
 from lifters.state_lifter import StateLifter
+from poly_matrix.poly_matrix import PolyMatrix
 from utils import get_rot_matrix
 
 
 def get_C_r_from_xtheta(xtheta, d):
-    C = xtheta[: d**2].reshape((d, d)).T
+    C = xtheta[: d**2].reshape((d, d))
     r = xtheta[-d:]
     return C, r
 
@@ -25,7 +26,7 @@ def get_xtheta_from_theta(theta, d):
     pos = theta[:d]
     alpha = theta[d:]
     C = get_rot_matrix(alpha)
-    c = C.flatten("F")  # column-wise flatten
+    c = C.flatten("C")  # row-wise flatten
     theta = np.r_[c, pos]
     return theta
 
@@ -34,7 +35,7 @@ def get_theta_from_T(T):
     # T is either 4x4 or 3x3 matrix.
     C = T[:-1, :-1]
     r = T[:-1, -1]
-    return np.r_[C.flatten("F"), r]
+    return np.r_[C.flatten("C"), r]  # row-wise
 
 
 class StereoLifter(StateLifter, ABC):
@@ -63,10 +64,11 @@ class StereoLifter(StateLifter, ABC):
         self.level = level
         self.n_landmarks = n_landmarks
 
-        M = self.n_landmarks * self.d
+        M = self.n_landmarks * self.d  # u, v, z (3d) or u, z (2d)
         L = self.get_level_dims(n=self.n_landmarks)[level]
 
         self.theta_ = self.generate_random_theta()
+        self.var_dict_ = None
 
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M, L=L)
 
@@ -95,18 +97,30 @@ class StereoLifter(StateLifter, ABC):
         return self.theta_
 
     @property
-    def var_dict(self):
-        var_dict_ = {"l": 1}
-        var_dict_["x"] = self.theta_shape[0]
-        var_dict_.update({f"z{i}": self.d for i in range(self.n_landmarks)})
+    def base_var_dict(self):
+        var_dict = {}
+        var_dict.update({f"c_{i}": self.d for i in range(self.d)})
+        var_dict.update({"t": self.d})
+        return var_dict
 
+    @property
+    def sub_var_dict(self):
+        var_dict = {f"z_{k}": self.d for k in range(self.n_landmarks)}
         level_dim = self.get_level_dims()[self.level]
         if "u" in self.level:
-            var_dict_.update({f"y{i}": level_dim for i in range(self.n_landmarks)})
+            var_dict.update({f"y_{i}": level_dim for i in range(self.n_landmarks)})
         else:
             if level_dim > 0:
-                var_dict_.update({f"y": level_dim})
-        return var_dict_
+                var_dict.update({f"y": level_dim})
+        return var_dict
+
+    @property
+    def var_dict(self):
+        if self.var_dict_ is None:
+            self.var_dict_ = {"l": 1}
+            self.var_dict_.update(self.base_var_dict)
+            self.var_dict_.update(self.sub_var_dict)
+        return self.var_dict_
 
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
@@ -148,7 +162,7 @@ class StereoLifter(StateLifter, ABC):
 
             if self.level == "u2":
                 higher_data += list(u**2)
-            if self.level == "u@u":
+            elif self.level == "u@u":
                 higher_data += [u @ u]
             elif self.level == "u@r":
                 higher_data += [u @ r]
@@ -161,7 +175,38 @@ class StereoLifter(StateLifter, ABC):
         assert len(x_data) == self.dim_x
         return np.array(x_data)
 
-    def sample_feasible(self):
+    def get_A_known(self):
+        # C = [ c1
+        #       c2
+        #       c3 ]
+        # [xj]   [c1 @ pj]
+        # [yj] = [c2 @ pj]
+        # [zj]   [c3 @ pj]
+        # enforce that u_xj = 1/zj * xj -> zj*u_xj = c3 @ pj * u_xj = c1 @ pj
+        # enforce that u_yj = 1/zj * yj -> zj*u_yj = c3 @ pj * u_yj = c2 @ pj
+        A_known = []
+        for k in range(self.n_landmarks):
+            for j in range(self.d):
+                A = PolyMatrix()
+                # x contains: [c1, c2, c3, t]
+                fill_mat = np.zeros((self.d, self.d))
+                fill_mat[:, j] = self.landmarks[k]
+                A[f"c_{self.d-1}", f"z_{k}"] = fill_mat
+
+                fill_mat = np.zeros((self.d, self.d))
+                fill_mat[-1, j] = 1.0
+                A[f"t", f"z_{k}"] = fill_mat
+
+                if j < self.d - 1:  # u, (v)
+                    A["l", f"c_{j}"] = -self.landmarks[k].reshape((1, -1))
+                    fill_mat = -np.eye(self.d)[j]
+                    A["l", "t"] = fill_mat.reshape((1, -1))
+                elif j == self.d - 1:  # z
+                    A["l", "l"] = -2.0
+                A_known.append(A.get_matrix(self.var_dict))
+        return A_known
+
+    def sample_theta(self):
         return self.generate_random_theta().flatten()
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
@@ -193,7 +238,7 @@ class StereoLifter(StateLifter, ABC):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"l": y[j] - m, f"z{j}": -M_tilde})
+            ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde})
         return ls_problem.get_Q().get_matrix(self.var_dict), y
 
     def __repr__(self):

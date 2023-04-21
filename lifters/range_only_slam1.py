@@ -371,6 +371,12 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                 hessian[var_i, fix_i] = val
 
     def get_hess_lifting(self, t):
+        if self.level == "inner":
+            return self.get_hess_lifting_inner(t)
+        else:
+            raise NotImplementedError(self.level)
+
+    def get_hess_lifting_inner(self, t):
         """return list of the hessians of the M lifting functions."""
         hessians = []
         # Hessian of || tau_j ||^2:  2 * I

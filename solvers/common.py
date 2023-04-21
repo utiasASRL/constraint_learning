@@ -17,7 +17,7 @@ solver_options = {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
             "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,
             "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,
-            "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,
+            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10, this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
@@ -113,7 +113,6 @@ def solve_sdp_cvxpy(
         cprob = cp.Problem(objective, [constraint])
         cprob.solve(
             solver=solver,
-            save_file="solve_cvxpy_dual.ptf",
             **opts,
             verbose=verbose,
         )

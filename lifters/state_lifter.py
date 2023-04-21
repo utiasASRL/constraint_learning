@@ -1,18 +1,19 @@
 from abc import ABC, abstractmethod
 
+import matplotlib.pylab as plt
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
 
-EPS = 1e-10  # threshold for nullspace (eigenvalues)
+EPS = 1e-10  # threshold for nullspace (on eigenvalues)
 
 # basis pursuit method, can be
 # - qr: qr decomposition
 # - qrp: qr decomposition with permutations (sparser)
 # - svd: svd
-METHOD = "qr"
+METHOD = "qrp"
 
-NORMALIZE = True  # normalize learned Ai or not
+NORMALIZE = True  # normalize learned Ai or not, (True)
 FACTOR = 2.0  # how much to oversample (>= 1)
 
 
@@ -78,9 +79,10 @@ class StateLifter(ABC):
         return []
 
     def get_A_learned(
-        self, factor=FACTOR, eps=EPS, method=METHOD, A_known=[], plot=False
+        self, factor=FACTOR, eps=EPS, method=METHOD, A_known=[], plot=False, Y=None
     ) -> list:
-        Y = self.generate_Y(factor=factor)
+        if Y is None:
+            Y = self.generate_Y(factor=factor)
 
         if len(A_known):
             A_known_mat = np.concatenate([self._get_vec(Ai) for Ai in A_known], axis=0)
@@ -118,7 +120,6 @@ class StateLifter(ABC):
         # need at least dim_Y different random setups
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
-        self.generate_random_setup()
         for seed in range(n_seeds):
             np.random.seed(seed)
 
@@ -151,8 +152,8 @@ class StateLifter(ABC):
         elif method == "qr":
             Q, R = np.linalg.qr(Y.T)
             S = np.diag(R)
-            rank = np.sum(np.abs(S) > eps)
-            basis = Q[:, rank:].T
+            basis = Q[:, np.abs(S) < eps].T
+            S = sorted(np.abs(S))[::-1]  # decreasing order
         elif method == "qrp":
             Q, R, p = la.qr(Y, pivoting=True)
             S = np.diag(R)
@@ -174,7 +175,7 @@ class StateLifter(ABC):
     def _get_mat(self, vec, normalize=NORMALIZE, sparse=True, trunc_tol=1e-5):
         triu = np.triu_indices(n=self.dim_x)
         Ai = np.zeros((self.dim_x, self.dim_x))
-        Ai[triu] = vec
+        Ai[triu] = vec.flatten()
         Ai += Ai.T
         Ai /= 2
         # Normalize the matrix
@@ -182,7 +183,7 @@ class StateLifter(ABC):
             Ai /= np.max(np.abs(Ai))
         # Sparsify and truncate
         if sparse:
-            Ai = sp.csr_array(Ai)
+            Ai = sp.csc_array(Ai)
             Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
             Ai.eliminate_zeros()
         else:
@@ -198,8 +199,8 @@ class StateLifter(ABC):
         """
 
         A_list = []
-        for i in range(basis.shape[0]):
-            Ai = self._get_mat(basis[[i]], normalize, sparse, trunc_tol)
+        for i in range(len(basis)):
+            Ai = self._get_mat(basis[i], normalize, sparse, trunc_tol)
             A_list.append(Ai)
         return A_list
 
@@ -229,6 +230,9 @@ class StateLifter(ABC):
         A0 = PolyMatrix()
         A0["l", "l"] = 1.0
         return A0.get_matrix(self.var_dict)
+
+    def get_A_b_list(self, A_list):
+        return [(self.get_A0(), 1.0)] + [(A, 0.0) for A in A_list]
 
     def run(self, n_dual: int = 3, plot: bool = False, noise: float = 1e-4):
         """Convenience function to quickly test and debug lifter
@@ -261,7 +265,8 @@ class StateLifter(ABC):
         # just a sanity check
         if len(j_bad):
             max_error, j_bad = self.test_constraints(A_list, errors="print")
-        A_b_list = [(self.get_A0(), 1.0)] + [(A, 0.0) for A in A_list]
+
+        A_b_list = self.get_A_b_list(A_list)
 
         # check that learned constraints meat tolerance
 

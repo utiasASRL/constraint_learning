@@ -18,8 +18,8 @@ REMOVE_GAUGE = "hard"
 
 SOLVER_KWARGS = dict(
     # method="Nelder-Mead",
-    method="BFGS"  # the only one that almost always converges
-    # method="Powell"
+    # method="BFGS"  # the only one that almost always converges
+    method="Powell"
 )
 
 
