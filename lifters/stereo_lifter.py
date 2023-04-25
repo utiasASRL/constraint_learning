@@ -241,6 +241,9 @@ class StereoLifter(StateLifter, ABC):
             ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde})
         return ls_problem.get_Q().get_matrix(self.var_dict), y
 
+    def get_grad(self, t, y):
+        raise NotImplementedError("get_grad not implement yet")
+
     def __repr__(self):
         level_str = str(self.level).replace(".", "-")
         return f"stereo{self.d}d_{level_str}"

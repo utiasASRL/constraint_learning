@@ -17,13 +17,11 @@ def test_equivalent_lifters():
 
     np.random.seed(1)
     l1.generate_random_setup()
-    l1.sample_feasible()
     Q, y = l1.get_Q(noise=1e-3)
     cost1 = l1.get_cost(l1.theta, y)
 
     np.random.seed(1)
     l2.generate_random_setup()
-    l2.sample_feasible()
     Q, y = l2.get_Q(noise=1e-3)
     cost2 = l2.get_cost(l2.theta, y)
     assert abs(cost1 - cost2) < 1e-10
@@ -78,7 +76,10 @@ def test_gauge():
 
         np.testing.assert_almost_equal(grad, 0.0)
 
-        S, V = np.linalg.eig(hess)
+        try:
+            S, V = np.linalg.eig(hess)
+        except:
+            S, V = np.linalg.eig(hess.toarray())
         mask = np.abs(S) < 1e-10
         n_null = np.sum(mask)
 

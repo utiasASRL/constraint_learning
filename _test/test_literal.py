@@ -10,6 +10,8 @@ from lifters.plotting_tools import plot_matrices
 from lifters.test_tools import all_lifters
 from poly_matrix.poly_matrix import PolyMatrix
 
+PLOTTING = False
+
 
 def sparsify(lifter, A_tilde, A_known=[]):
     ai_tilde_list = [lifter._get_vec(Ai_tilde).reshape((-1, 1)) for Ai_tilde in A_tilde]
@@ -98,17 +100,18 @@ def test_sparsify():
         A_learned_naive = sparsify_naive(lifter, Y=Y, A_tilde=A_learned, axs=None)
         A_learned_sparse = sparsify(lifter, A_learned, A_known)
 
-        fig, ax = plot_matrices(A_known[:10], colorbar=False)
-        fig.suptitle("known")
-        fig, ax = plot_matrices(A_learned[:10], colorbar=False)
-        fig.suptitle("learned")
-        fig, ax = plot_matrices(A_learned_sparse[:10], colorbar=False)
-        fig.suptitle("sparse optimization")
-        fig, ax = plot_matrices(A_learned_naive[:10], colorbar=False)
-        fig.suptitle("sparse naive")
-        plt.show()
+        if PLOTTING:
+            fig, ax = plot_matrices(A_known[:10], colorbar=False)
+            fig.suptitle("known")
+            fig, ax = plot_matrices(A_learned[:10], colorbar=False)
+            fig.suptitle("learned")
+            fig, ax = plot_matrices(A_learned_sparse[:10], colorbar=False)
+            fig.suptitle("sparse optimization")
+            fig, ax = plot_matrices(A_learned_naive[:10], colorbar=False)
+            fig.suptitle("sparse naive")
+            plt.show()
 
 
 if __name__ == "__main__":
     test_interpret()
-    # test_sparsify()
+    test_sparsify()

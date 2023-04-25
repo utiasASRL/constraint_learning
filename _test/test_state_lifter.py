@@ -74,8 +74,8 @@ def test_grad_finite_diff():
 
             try:
                 grad = lifter.get_grad(theta, y)
-            except Exception as e:
-                raise e
+            except NotImplementedError as e:
+                # raise e
                 print(e)
                 print("grad not implemented?")
                 continue
@@ -296,12 +296,14 @@ if __name__ == "__main__":
     import sys
     import warnings
 
+    import pytest
+
+    print("testing")
+    pytest.main([__file__, "-s"])
+    print("all tests passed")
+
     # test_constraints()
     # sys.exit(0)
-    # import pytest
-    # print("testing")
-    # pytest.main([__file__, "-s"])
-    # print("all tests passed")
     # test_solvers()
     # test_solvers_noisy()
     # test_gauge()

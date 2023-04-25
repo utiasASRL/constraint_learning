@@ -33,7 +33,7 @@ class Stereo2DLifter(StereoLifter):
         cost = _cost(p_w=p_w, y=y, phi=phi, W=W)[0, 0]
         return cost
 
-    def local_solver(self, t_init, y, W=None, verbose=False):
+    def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         from lifters.stereo2d_problem import local_solver
 
         a = self.landmarks

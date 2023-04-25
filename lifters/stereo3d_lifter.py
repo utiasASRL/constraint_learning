@@ -54,7 +54,7 @@ class Stereo3DLifter(StereoLifter):
         cost = projection_error(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
         return cost
 
-    def local_solver(self, t_init, y, W=None, verbose=False):
+    def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         """
         :param t_init: same options  asfor t in cost.
         """

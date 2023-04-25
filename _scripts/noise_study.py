@@ -7,9 +7,9 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.stereo_lifter import StereoLifter
 from utils import get_fname
 
-METHOD = "qr"
-NOISE_DICT = {0: 1e-2}  # dict(zip(range(5), np.logspace(-3, 1, 5)))
-USE_MATRICES = "first"
+METHOD = "qrp"
+NOISE_DICT = {0: 1e-1}  # dict(zip(range(5), np.logspace(-3, 1, 5)))
+USE_MATRICES = "all"  # "first"
 
 
 def run_noise_study(
@@ -20,12 +20,13 @@ def run_noise_study(
     import pandas as pd
     from progressbar import ProgressBar
 
-    from solvers.common import find_local_minimum, solve_dual
+    from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
 
     data = []
 
     seeds = range(n_seeds)
     for j, seed in enumerate(seeds):
+        print(f"seed {seed+1}/{seeds}")
         # generate random measurements
         np.random.seed(seed)
         Q, y = lifter.get_Q(noise=noise)
@@ -52,6 +53,7 @@ def run_noise_study(
                 # print("using original")
                 pass
 
+            print(f"  shuffle {shuffle}/{n_shuffles}")
             p = ProgressBar(max_value=len(A_shuffle))
 
             if len(A_shuffle) > 200:
@@ -64,16 +66,20 @@ def run_noise_study(
                     indices = np.linspace(1, len(A_shuffle), 20).astype(int)
                 elif USE_MATRICES == "first":
                     indices = np.linspace(1, min(len(A_shuffle), 400), 41).astype(int)
+                elif USE_MATRICES == "all":
+                    indices = range(1, len(A_shuffle) + 1)
             else:
-                indices = range(1, len(A_shuffle) + 1)[-200:]
+                indices = range(1, len(A_shuffle) + 1)
 
             for i_count, i in enumerate(indices):
                 # print(f"adding {i}/{len(A_shuffle)}")
                 # solve dual
-                dual_cost, H, status = solve_dual(
-                    Q, A_shuffle[:i], tol=tol, verbose=verbose
-                )
-                # print(f"status: {status}, dual_cost: {dual_cost}")
+                A_b_list = lifter.get_A_b_list(A_shuffle[:i])
+                H, dual_cost = solve_sdp_cvxpy(Q, A_b_list, tol=1e-10)
+                status = ""
+                # dual_cost, H, status = solve_dual(
+                #    Q, A_shuffle[:i], tol=tol, verbose=verbose
+                # )
 
                 if H is None:
                     eigs = None
@@ -84,7 +90,8 @@ def run_noise_study(
                         import scipy.sparse.linalg as spl
 
                         eigs = spl.eigs(H, which="SA", k=5)
-                    except:
+                    except Exception as e:
+                        print(e)
                         eigs = np.linalg.eigvalsh(H.toarray())
                 data.append(
                     {
@@ -148,7 +155,7 @@ def run_stereo_study():
     eps = 1e-4
     n_seeds = 1
     n_shuffles = 0
-    method = "qr"
+    method = "qrp"
     for d, level in itertools.product(d_list, level_list):
         if d == 1:
             lifter = Stereo1DLifter(n_landmarks=n_landmarks)
@@ -158,9 +165,9 @@ def run_stereo_study():
         elif d == 2:
             lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
         elif d == 3:
-            if level == "urT":
-                print("skipping Lasserre for 3D cause too slow")
-                continue
+            # if level == "urT":
+            #    print("skipping Lasserre for 3D cause too slow")
+            #    continue
             lifter = Stereo3DLifter(n_landmarks=n_landmarks, level=level)
         else:
             raise ValueError(d)
@@ -221,5 +228,5 @@ def run_range_study():
 
 if __name__ == "__main__":
     # run_poly_study()
-    # run_stereo_study()
-    run_range_study()
+    run_stereo_study()
+    # run_range_study()

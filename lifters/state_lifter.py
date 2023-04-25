@@ -79,19 +79,29 @@ class StateLifter(ABC):
         return []
 
     def get_A_learned(
-        self, factor=FACTOR, eps=EPS, method=METHOD, A_known=[], plot=False, Y=None
+        self,
+        factor=FACTOR,
+        eps=EPS,
+        method=METHOD,
+        A_known=[],
+        plot=False,
+        Y=None,
+        return_S=False,
     ) -> list:
         if Y is None:
             Y = self.generate_Y(factor=factor)
+
+        S_known = [None] * len(A_known)
 
         if len(A_known):
             A_known_mat = np.concatenate([self._get_vec(Ai) for Ai in A_known], axis=0)
             Y = np.concatenate([Y, A_known_mat], axis=0)
 
         basis, S = self.get_basis(Y, method=method, eps=eps)
+        rank = basis.shape[0]
         try:
-            assert abs(S[-basis.shape[0]]) / eps < 1e-1  # 1e-1  1e-10
-            assert abs(S[-basis.shape[0] - 1]) / eps > 10  # 1e-11 1e-10
+            assert abs(S[-rank]) / eps < 1e-1  # 1e-1  1e-10
+            assert abs(S[-rank - 1]) / eps > 10  # 1e-11 1e-10
         except:
             print(f"there might be a problem with the chosen threshold {eps}:")
             print(S[basis.shape[0]], eps, S[basis.shape[0] - 1])
@@ -101,7 +111,13 @@ class StateLifter(ABC):
 
             plot_singular_values(S, eps=eps)
 
-        return self.generate_matrices(basis, normalize=NORMALIZE) + A_known
+        if return_S:
+            return (
+                self.generate_matrices(basis, normalize=NORMALIZE) + A_known,
+                list(np.abs(S[-rank:])) + S_known,
+            )
+        else:
+            return self.generate_matrices(basis, normalize=NORMALIZE) + A_known
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.

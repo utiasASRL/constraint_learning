@@ -1,11 +1,14 @@
 import cvxpy as cp
 import numpy as np
+import scipy.sparse.linalg as spl
 
-SOLVER = "MOSEK"
-# SOLVER = "CVXOPT"
+VERBOSE = False
+SOLVER = "MOSEK"  # first choice
+SOLVER_ALT = None  # "CVXOPT"  # if first choice fails. can be set to None
 solver_options = {
+    None: {},
     "CVXOPT": {
-        "verbose": False,
+        "verbose": VERBOSE,
         "refinement": 1,
         "kktsolver": "qr",  # important so that we can solve with redundant constraints
         "abstol": 1e-7,  # will be changed according to primal
@@ -22,8 +25,41 @@ solver_options = {
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
         },
+        "verbose": VERBOSE,
     },
 }
+
+
+def adjust_tol(options, tol):
+    for opt in options:
+        if "mosek_params" in opt:
+            opt["mosek_params"].update(
+                {
+                    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
+                    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
+                    "MSK_DPAR_INTPNT_CO_TOL_INFEAS": tol,
+                }
+            )
+        else:
+            opt.update(
+                {
+                    "abstol": tol,
+                    "reltol": tol,
+                    "feastol": tol,
+                }
+            )
+
+
+def adjust_Q(Q):
+    from copy import deepcopy
+
+    Q_here = deepcopy(Q)
+    offset = Q_here[0, 0]
+    Q_here[0, 0] -= offset
+
+    scale = spl.norm(Q_here)
+    Q_here /= scale
+    return Q_here, scale, offset
 
 
 def solve_sdp_cvxpy(
@@ -32,6 +68,8 @@ def solve_sdp_cvxpy(
     adjust=True,
     solver=SOLVER,
     opts=solver_options[SOLVER],
+    solver_alt=SOLVER_ALT,
+    opts_alt=solver_options[SOLVER_ALT],
     primal=False,
     verbose=True,
     tol=None,
@@ -50,37 +88,9 @@ def solve_sdp_cvxpy(
     """
 
     if tol:
-        if "mosek_params" in opts:
-            opts["mosek_params"].update(
-                {
-                    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_INFEAS": tol,
-                }
-            )
-        else:
-            opts.update(
-                {
-                    "abstol": tol,
-                    "reltol": tol,
-                    "feastol": tol,
-                }
-            )
+        adjust_tol([opts, opts_alt], tol)
 
-    if adjust:
-        from copy import deepcopy
-
-        import scipy.sparse.linalg as spl
-
-        Q_here = deepcopy(Q)
-        offset = Q_here[0, 0]
-        Q_here[0, 0] -= offset
-
-        scale = spl.norm(Q_here)
-        Q_here /= scale
-    else:
-        Q_here = Q
-
+    Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
     if primal:
         """
         min < Q, X >
@@ -111,15 +121,29 @@ def solve_sdp_cvxpy(
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
         constraint = LHS << Q_here
         cprob = cp.Problem(objective, [constraint])
-        cprob.solve(
-            solver=solver,
-            **opts,
-            verbose=verbose,
-        )
-        cost = cprob.value
-        X = constraint.dual_value
-    # Get cost by reversing scaling
-    if adjust:
+        try:
+            cprob.solve(
+                solver=solver,
+                **opts,
+            )
+        except:
+            try:
+                cprob.solve(
+                    solver=solver_alt,
+                    **opts_alt,
+                )
+            except:
+                cost = None
+                X = None
+            else:
+                cost = cprob.value
+                X = constraint.dual_value
+        else:
+            cost = cprob.value
+            X = constraint.dual_value
+
+    # reverse Q adjustment
+    if cost:
         cost *= scale
         cost += offset
     return X, cost
