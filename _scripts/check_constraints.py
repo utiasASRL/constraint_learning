@@ -2,6 +2,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 
+from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from solvers.common import find_local_minimum, solve_sdp_cvxpy
 
@@ -15,6 +16,65 @@ from solvers.common import find_local_minimum, solve_sdp_cvxpy
 METHOD = "sparse"
 
 TOL_SPARSE_LAMBDA = 1e-10
+SOLVER = "CVXOPT"
+# SOLVER = "MOSEK"
+
+
+def compare_constraints(lifter, fname=""):
+    A_known = lifter.get_A_known()
+    A_incr = lifter.get_A_learned(A_known=A_known, method="qrp")
+    A_learned = lifter.get_A_learned()
+
+    from noise_study import run_noise_study
+
+    from lifters.plotting_tools import plot_matrices, plot_tightness, savefig
+
+    noises = np.logspace(-3, -1, 3)
+    n_seeds = 3
+    n_shuffles = 1
+    for A_list, name in zip([A_incr[::-1], A_learned], ["incremental", "learned"]):
+        print(f"checking {name} constraints...")
+        lifter.test_constraints(A_list, errors="print")
+
+        for noise in noises:
+            params = dict(
+                lifter=lifter,
+                A_list=A_list,
+                noise=noise,
+                n_seeds=n_seeds,
+                n_shuffles=n_shuffles,
+                fname="",
+            )
+            df = run_noise_study(**params, verbose=False, solver=SOLVER)
+            fig, ax = plot_tightness(df)
+            ax.set_title(f"{name}, noise {noise:.1e}")
+            ax.set_ylim(1e-12, 1e-1)
+            if fname != "":
+                savefig(
+                    fig, fname + f"_{name}_{str(noise).replace('.','-')}_{SOLVER}.png"
+                )
+    return
+
+    from math import ceil
+
+    n_per_plot = min(len(A_learned), 10)
+    for A_list, name in zip(
+        [A_known, A_incr, A_learned], ["known", "incremental", "learned"]
+    ):
+        n_plots = ceil(len(A_list) / n_per_plot)
+        for i in range(n_plots):
+            fig, ax = plot_matrices(
+                A_list,
+                n_per_plot,
+                start_idx=i * n_per_plot,
+                colorbar=False,
+                title=name,
+                nticks=3,
+            )
+            if fname != "":
+                savefig(fig, fname + f"_{name}{i}.png")
+    plt.show()
+    plt.close()
 
 
 def get_tightness_study(
@@ -120,6 +180,7 @@ def get_tightness_study(
                 H, lamda = solve_lambda(Q, A_b_list, xhat)
                 indices = np.argsort(np.abs(lamda))[::-1]
                 A_b_list_here = [A_b_list[i] for i in indices]
+                current_num = len(lamda)
 
             # solve again to get rank etc.
             dual_Xhat, dual_cost = solve_sdp_cvxpy(Q, A_b_list_here, verbose=False)
@@ -147,11 +208,7 @@ def get_tightness_study(
     return df
 
 
-if __name__ == "__main__":
-    from pathlib import Path
-
-    root = Path(__file__).resolve().parents[1]
-
+def stereo_2d_study(fname_root):
     n_landmarks = 2
     noise = 1e-3
     n_shuffles = 20
@@ -161,7 +218,7 @@ if __name__ == "__main__":
     for level in levels:
         lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
 
-        fname = str(root / f"_results/check_constraints_{lifter}.pkl")
+        fname = str(fname_root / f"_{lifter}.pkl")
         df = get_tightness_study(
             lifter,
             n_shuffles=n_shuffles,
@@ -171,3 +228,38 @@ if __name__ == "__main__":
         )
         pd.to_pickle(df, fname)
         print("saved final as", fname)
+
+
+def stereo_1d_study(fname_root):
+    n_landmarks = 3
+    noise = 1e-3
+    n_shuffles = 20
+    n_random_noise = 3
+
+    lifter = Stereo1DLifter(n_landmarks=n_landmarks)
+
+    fname = fname_root + f"_{lifter}"
+    compare_constraints(lifter, fname)
+
+    fname = fname_root + f"_{lifter}.pkl"
+    df = get_tightness_study(
+        lifter,
+        n_shuffles=n_shuffles,
+        n_random_noise=n_random_noise,
+        noise=noise,
+        fname=fname,
+    )
+    pd.to_pickle(df, fname)
+    print("saved final as", fname)
+
+
+if __name__ == "__main__":
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1]
+    fname_root = str(root / "_results/constraints")
+
+    stereo_1d_study(fname_root=fname_root)
+
+    # fname_root = root / "_results/check_constraints"
+    # stereo_2d_study(fname_root=fname_root)

@@ -94,7 +94,7 @@ class StateLifter(ABC):
         S_known = [None] * len(A_known)
 
         if len(A_known):
-            A_known_mat = np.concatenate([self._get_vec(Ai) for Ai in A_known], axis=0)
+            A_known_mat = np.concatenate([self.get_vec(Ai) for Ai in A_known], axis=0)
             Y = np.concatenate([Y, A_known_mat], axis=0)
 
         basis, S = self.get_basis(Y, method=method, eps=eps)
@@ -149,7 +149,7 @@ class StateLifter(ABC):
             x = self.get_x(theta)
             X = np.outer(x, x)
 
-            Y[seed, :] = self._get_vec(X)
+            Y[seed, :] = self.get_vec(X)
         return Y
 
     def get_basis(self, Y, eps=EPS, method=METHOD):
@@ -220,7 +220,10 @@ class StateLifter(ABC):
             A_list.append(Ai)
         return A_list
 
-    def test_constraints(self, A_list, tol=1e-7, errors="raise"):
+    def test_constraints(self, A_list, tol: float = 1e-7, errors: str = "raise"):
+        """
+        :param errors: "raise" or "print" detected violations.
+        """
         max_violation = -np.inf
         j_bad = []
         for j, A in enumerate(A_list):

@@ -70,7 +70,7 @@ class Stereo1DLifter(StateLifter):
             A["l", f"z_{j}"] = 0.5 * self.landmarks[j]
             A["x", f"z_{j}"] = -0.5
             A["l", "l"] = 1.0
-            A_known.append(A.toarray(variables=self.var_dict))
+            A_known.append(A.get_matrix(variables=self.var_dict))
         return A_known
 
     def get_cost(self, t, y):

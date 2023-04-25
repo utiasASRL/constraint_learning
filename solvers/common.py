@@ -65,11 +65,9 @@ def adjust_Q(Q):
 def solve_sdp_cvxpy(
     Q,
     A_b_list,
-    adjust=True,
+    adjust=False,
     solver=SOLVER,
-    opts=solver_options[SOLVER],
     solver_alt=SOLVER_ALT,
-    opts_alt=solver_options[SOLVER_ALT],
     primal=False,
     verbose=True,
     tol=None,
@@ -86,6 +84,8 @@ def solve_sdp_cvxpy(
     Returns:
         _type_: (X, cost_out): solution matrix and output cost.
     """
+    opts = solver_options[solver]
+    opts_alt = solver_options[solver_alt]
 
     if tol:
         adjust_tol([opts, opts_alt], tol)

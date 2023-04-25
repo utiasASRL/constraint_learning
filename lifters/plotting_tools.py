@@ -51,14 +51,19 @@ def partial_plot_and_save(lifter, Q, A_list, save=True, appendix=""):
             savefig(fig, f"{dirname}/Q_{lifter}{appendix}.png")
 
 
-def add_colorbar(fig, ax, im, title=None, nticks=None):
+def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
     divider = make_axes_locatable(ax)
     cax = divider.append_axes("right", size="5%", pad=0.05)
-    fig.colorbar(im, cax=cax, orientation="vertical")
     if title is not None:
         cax.set_ylabel(title)
+
+    if not visible:
+        cax.axis("off")
+        return
+
+    fig.colorbar(im, cax=cax, orientation="vertical")
 
     # add symmetric nticks ticks: min and max, and equally spaced in between
     if nticks is not None:
@@ -98,6 +103,7 @@ def plot_matrices(
     vmax=None,
     nticks=None,
     lines=[],
+    title="",
 ):
     import matplotlib
 
@@ -115,21 +121,25 @@ def plot_matrices(
         ax.axis("off")
         ax.set_title(f"$A_{{{i+1}}}$", y=1.0)
         if colorbar:
-            add_colorbar(fig, ax, im)
+            add_colorbar(fig, ax, im, nticks=nticks)
+        else:
+            add_colorbar(fig, ax, im, nticks=nticks, visible=False)
 
     try:
         for n in lines:
             for ax in axs[: i + 1]:
                 ax.plot([-0.5, n - 0.5], [n - 0.5, n - 0.5], color="red")
                 ax.plot([n - 0.5, n - 0.5], [-0.5, n - 0.5], color="red")
-
-        add_colorbar(fig, ax, im, nticks=nticks)
-        [ax.axis("off") for ax in axs[i:]]
-        fig.suptitle(
-            f"{start_idx+1}:{start_idx+i+1} of {len(A_list)} constraints", y=0.9
-        )
     except:
         pass
+
+    if not colorbar:
+        add_colorbar(fig, ax, im, nticks=nticks, visible=True)
+    # add_colorbar(fig, ax, im, nticks=nticks)
+    [ax.axis("off") for ax in axs[i:]]
+    fig.suptitle(
+        f"{title} {start_idx+1}:{start_idx+i+1} of {len(A_list)} constraints", y=0.9
+    )
     return fig, axs
 
 

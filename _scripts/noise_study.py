@@ -4,29 +4,36 @@ from lifters.plotting_tools import make_dirs_safe
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.stereo_lifter import StereoLifter
+from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
 from utils import get_fname
 
 METHOD = "qrp"
 NOISE_DICT = {0: 1e-1}  # dict(zip(range(5), np.logspace(-3, 1, 5)))
 USE_MATRICES = "all"  # "first"
 
+SOLVER = "MOSEK"
+
 
 def run_noise_study(
-    lifter, A_list, noise=1e-3, n_shuffles=0, n_seeds=1, fname="", verbose=False
+    lifter,
+    A_list,
+    noise=1e-3,
+    n_shuffles=0,
+    n_seeds=1,
+    fname="",
+    verbose=False,
+    solver=SOLVER,
 ):
     from copy import deepcopy
 
     import pandas as pd
     from progressbar import ProgressBar
 
-    from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
-
     data = []
 
     seeds = range(n_seeds)
     for j, seed in enumerate(seeds):
-        print(f"seed {seed+1}/{seeds}")
+        print(f"seed {j+1}/{len(seeds)}")
         # generate random measurements
         np.random.seed(seed)
         Q, y = lifter.get_Q(noise=noise)
@@ -75,7 +82,7 @@ def run_noise_study(
                 # print(f"adding {i}/{len(A_shuffle)}")
                 # solve dual
                 A_b_list = lifter.get_A_b_list(A_shuffle[:i])
-                H, dual_cost = solve_sdp_cvxpy(Q, A_b_list, tol=1e-10)
+                H, dual_cost = solve_sdp_cvxpy(Q, A_b_list, tol=1e-10, solver=solver)
                 status = ""
                 # dual_cost, H, status = solve_dual(
                 #    Q, A_shuffle[:i], tol=tol, verbose=verbose
