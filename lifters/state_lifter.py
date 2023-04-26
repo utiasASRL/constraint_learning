@@ -75,6 +75,49 @@ class StateLifter(ABC):
     def get_x(self, theta) -> np.ndarray:
         return
 
+    def get_vec(self, mat):
+        """Convert NxN Symmetric matrix to (N+1)N/2 vectorized version that preserves inner product.
+
+        Args:
+            mat (spmatrix or ndarray): symmetric matrix
+
+        Returns:
+            ndarray
+        """
+        # Multiply off-diagonals by sqrt(2)
+        mat *= np.sqrt(2)
+        if isinstance(mat, sp.spmatrix):
+            # below changes sparsity strucutre and raises Warning.
+            # mat.setdiag(mat.diagonal() / np.sqrt(2))
+
+            # TODO(FD) could probably do below faster by replacing for loop
+            for i in range(mat.shape[0]):
+                if mat[i, i] != 0:
+                    mat[i, i] = mat[i, i] / np.sqrt(2)
+        elif isinstance(mat, np.ndarray):
+            ind = range(mat.shape[0])
+            mat[ind, ind] = np.diag(mat) / np.sqrt(2)
+        return mat[np.triu_indices(n=self.dim_x)].flatten()
+
+    def get_mat(self, vec):
+        """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
+
+        Args:
+            vec (ndarray): symmetric matrix
+
+        Returns:
+            ndarray
+        """
+        Ai = np.zeros((self.dim_x, self.dim_x))
+        triu = np.triu_indices(n=self.dim_x)
+        Ai[triu] = vec
+        Ai += Ai.T
+        # Divide the off diagonal by root 2
+        Ai /= np.sqrt(2)
+        ind = range(self.dim_x)
+        Ai[ind, ind] = np.diag(Ai) / np.sqrt(2)
+        return Ai
+
     def get_A_known(self) -> list:
         return []
 
@@ -93,12 +136,8 @@ class StateLifter(ABC):
 
         S_known = [None] * len(A_known)
 
-        if len(A_known):
-            A_known_mat = np.concatenate([self.get_vec(Ai) for Ai in A_known], axis=0)
-            Y = np.concatenate([Y, A_known_mat], axis=0)
-
-        basis, S = self.get_basis(Y, method=method, eps=eps)
-        rank = basis.shape[0]
+        basis, S = self.get_basis(Y, method=method, eps=eps, A_list=A_known)
+        rank = basis.shape[0] - len(A_known)
         try:
             assert abs(S[-rank]) / eps < 1e-1  # 1e-1  1e-10
             assert abs(S[-rank - 1]) / eps > 10  # 1e-11 1e-10
@@ -113,11 +152,11 @@ class StateLifter(ABC):
 
         if return_S:
             return (
-                self.generate_matrices(basis, normalize=NORMALIZE) + A_known,
-                list(np.abs(S[-rank:])) + S_known,
+                self.generate_matrices(basis, normalize=NORMALIZE),
+                S_known + list(np.abs(S[-rank:])),
             )
         else:
-            return self.generate_matrices(basis, normalize=NORMALIZE) + A_known
+            return self.generate_matrices(basis, normalize=NORMALIZE)
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
@@ -125,10 +164,6 @@ class StateLifter(ABC):
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
         """
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
-
-    def _get_vec(self, mat):
-        # sparse matrix is of shape (1, N)
-        return mat[np.triu_indices(n=self.dim_x)].flatten()
 
     def generate_Y(self, factor=3, ax=None):
         dim_Y = int(self.dim_x * (self.dim_x + 1) / 2)
@@ -152,10 +187,16 @@ class StateLifter(ABC):
             Y[seed, :] = self.get_vec(X)
         return Y
 
-    def get_basis(self, Y, eps=EPS, method=METHOD):
-        """
-        generate basis from lifted state matrix Y
-        """
+    def get_basis(self, Y, A_list: list = [], eps=EPS, method=METHOD):
+        """Generate basis from lifted state matrix Y."""
+        # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
+        if len(A_list) > 0:
+            A = np.vstack([self.get_vec(a) for a in A_list])
+            Y = np.vstack([Y, A])
+
+        if method != "qrp":
+            raise ValueError("using a method other than qrp is not recommended.")
+
         if method == "svd":
             U, S, Vh = np.linalg.svd(
                 Y
@@ -171,52 +212,43 @@ class StateLifter(ABC):
             basis = Q[:, np.abs(S) < eps].T
             S = sorted(np.abs(S))[::-1]  # decreasing order
         elif method == "qrp":
-            Q, R, p = la.qr(Y, pivoting=True)
+            # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
+            Q, R, p = la.qr(Y, pivoting=True, mode="economic")
             S = np.diag(R)
             rank = np.sum(np.abs(S) > eps)
             R1, R2 = R[:rank, :rank], R[:rank, rank:]
             N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
             basis = np.zeros(N.T.shape)
             basis[:, p] = N.T
-
-            # TODO(FD) below is pretty high. figure out if that's a problem
-            # print("max QR basis error:", np.max(np.abs(Y @ basis.T)))
         else:
             raise ValueError(method)
+        # Add known constraints to basis
+        if len(A_list) > 0:
+            basis = np.vstack([A, basis])
 
-        # test that all columns are orthonormal
-        # np.testing.assert_allclose(basis @ basis.T, np.eye(basis.shape[0]), atol=1e-10)
         return basis, S
 
-    def _get_mat(self, vec, normalize=NORMALIZE, sparse=True, trunc_tol=1e-5):
-        triu = np.triu_indices(n=self.dim_x)
-        Ai = np.zeros((self.dim_x, self.dim_x))
-        Ai[triu] = vec.flatten()
-        Ai += Ai.T
-        Ai /= 2
-        # Normalize the matrix
-        if normalize:
-            Ai /= np.max(np.abs(Ai))
-        # Sparsify and truncate
-        if sparse:
-            Ai = sp.csc_array(Ai)
-            Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
-            Ai.eliminate_zeros()
-        else:
-            Ai[np.abs(Ai) < trunc_tol] = 0.0
-        # add to list
-        return Ai
-
     def generate_matrices(
-        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-5
+        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10
     ):
         """
         generate matrices from vectors
         """
 
         A_list = []
-        for i in range(len(basis)):
-            Ai = self._get_mat(basis[i], normalize, sparse, trunc_tol)
+        for i in range(basis.shape[0]):
+            Ai = self.get_mat(basis[i, :])
+            # Normalize the matrix
+            if normalize:
+                Ai /= np.max(np.abs(Ai))
+            # Sparsify and truncate
+            if sparse:
+                Ai = sp.csr_array(Ai)
+                Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
+                Ai.eliminate_zeros()
+            else:
+                Ai[np.abs(Ai) < trunc_tol] = 0.0
+            # add to list
             A_list.append(Ai)
         return A_list
 

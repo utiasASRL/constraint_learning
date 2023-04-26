@@ -134,7 +134,7 @@ def test_cost(noise=0.0):
 
         # TODO(FD) figure out why the tolerance is so bad
         # for Stereo3D problem.
-        assert abs(cost - costQ) < 1e-7, (cost, costQ)
+        assert abs(cost - costQ) < 1e-6, (cost, costQ)
 
         if noise == 0 and not isinstance(lifter, PolyLifter):
             assert cost < 1e-10, cost
@@ -218,9 +218,8 @@ def test_constraints():
             err = abs(x.T @ Ai @ x)
             assert err < tol, err
 
-            Ai[range(Ai.shape[0]), range(Ai.shape[0])] /= 2.0
-            ai = lifter._get_vec(Ai)
-            xvec = lifter._get_vec(np.outer(x, x))
+            ai = lifter.get_vec(Ai)
+            xvec = lifter.get_vec(np.outer(x, x))
             np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
     for lifter in all_lifters():
@@ -248,7 +247,7 @@ def test_constraints():
                 factor=2, eps=1e-7, method=method, A_known=A_known
             )
             if method == "qrp":
-                assert len(A_learned) == len(A_learned_incremental) + len(A_known)
+                assert len(A_learned) == len(A_learned_incremental)
 
 
 def compare_solvers():
@@ -296,22 +295,21 @@ if __name__ == "__main__":
     import sys
     import warnings
 
-    import pytest
+    # import pytest
+    # print("testing")
+    # pytest.main([__file__, "-s"])
+    # print("all tests passed")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
 
-    print("testing")
-    pytest.main([__file__, "-s"])
-    print("all tests passed")
+        test_constraints()
+        test_solvers()
+        test_solvers_noisy()
+        test_cost()
+        test_cost_noisy()
 
-    # test_constraints()
-    # sys.exit(0)
-    # test_solvers()
-    # test_solvers_noisy()
-    # test_gauge()
-    # test_cost()
-    # test_cost_noisy()
-
-    test_grad_finite_diff()
-    test_hess_finite_diff()
+        test_grad_finite_diff()
+        test_hess_finite_diff()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

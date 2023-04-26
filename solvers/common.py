@@ -108,6 +108,9 @@ def solve_sdp_cvxpy(
         )
         cost = cprob.value
         X = X.value
+        # Get Dual Variables
+        H = constraints[0].dual_value
+        yvals = [c.dual_value for c in constraints[1:]]
     else:  # Dual
         """
         max < y, b >
@@ -135,18 +138,24 @@ def solve_sdp_cvxpy(
             except:
                 cost = None
                 X = None
+                H = None
+                yvals = None
             else:
                 cost = cprob.value
                 X = constraint.dual_value
+                H = Q - LHS.value
+                yvals = [x.value for x in y]
         else:
             cost = cprob.value
             X = constraint.dual_value
-
+            H = Q - LHS.value
+            yvals = [x.value for x in y]
     # reverse Q adjustment
     if cost:
         cost *= scale
         cost += offset
-    return X, cost
+    info = {"H": H, "yvals": yvals, "cost": cost}
+    return X, info
 
 
 def solve_dual(Q, A_list, tol=1e-6, solver=SOLVER, verbose=True):

@@ -82,7 +82,8 @@ def run_noise_study(
                 # print(f"adding {i}/{len(A_shuffle)}")
                 # solve dual
                 A_b_list = lifter.get_A_b_list(A_shuffle[:i])
-                H, dual_cost = solve_sdp_cvxpy(Q, A_b_list, tol=1e-10, solver=solver)
+                H, info = solve_sdp_cvxpy(Q, A_b_list, tol=1e-10, solver=solver)
+                dual_cost = info["cost"]
                 status = ""
                 # dual_cost, H, status = solve_dual(
                 #    Q, A_shuffle[:i], tol=tol, verbose=verbose
