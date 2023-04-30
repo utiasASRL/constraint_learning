@@ -9,19 +9,19 @@ def get_dirname():
     return dirname
 
 
-def partial_plot_and_save(lifter, Q, A_list, save=True, appendix=""):
-    if save:
-        dirname = get_dirname()
-
+def partial_plot_and_save(lifter, Q, A_list, fname_root="", appendix="", title="A"):
     # plot resulting matrices
     from math import ceil
 
     from lifters.plotting_tools import plot_matrices
 
-    n = 10
-    chunks = min(ceil(len(A_list) / n), 10)
+    n = 10  # how many plots per figure
+    chunks = min(ceil(len(A_list) / n), 20)  # how many figures to create
+    # make sure it's symmetric
     vmin = np.min([np.min(A) for A in A_list])
     vmax = np.max([np.max(A) for A in A_list])
+    vmin = min(vmin, -vmax)
+    vmax = max(vmax, -vmin)
     plot_count = 0
     for k in np.arange(chunks):
         fig, axs = plot_matrices(
@@ -29,14 +29,15 @@ def partial_plot_and_save(lifter, Q, A_list, save=True, appendix=""):
             n_matrices=n,
             start_idx=k * n,
             colorbar=False,
-            nticks=3,
             vmin=vmin,
             vmax=vmax,
+            nticks=3,
             lines=[1 + lifter.N, 1 + lifter.N + lifter.M],
+            title=title,
         )
-        if k in [0, 1, chunks - 2, chunks - 1]:
-            if save:
-                savefig(fig, f"{dirname}/A{plot_count}_{lifter}{appendix}.png")
+        # if k in [0, 1, chunks - 2, chunks - 1]:
+        if fname_root != "":
+            savefig(fig, f"{fname_root}/{title}{plot_count}_{lifter}{appendix}.png")
             plot_count += 1
 
     if Q is not None:
@@ -47,8 +48,8 @@ def partial_plot_and_save(lifter, Q, A_list, save=True, appendix=""):
         except:
             ax.matshow(np.abs(Q.toarray() > 1e-10))
         ax.set_title("Q mask")
-        if save:
-            savefig(fig, f"{dirname}/Q_{lifter}{appendix}.png")
+        if fname_root != "":
+            savefig(fig, f"{fname_root}/Q_{lifter}{appendix}.png")
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True):
@@ -94,6 +95,30 @@ def savefig(fig, name, verbose=True):
         print(f"saved plot as {name}")
 
 
+def plot_matrix(
+    Ai, vmin=None, vmax=None, nticks=None, title="", colorbar=True, fig=None, ax=None
+):
+    import matplotlib
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    if fig is None:
+        fig = plt.gcf()
+
+    norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
+    if type(Ai) == np.ndarray:
+        im = ax.matshow(Ai, norm=norm)
+    else:
+        im = ax.matshow(Ai.toarray(), norm=norm)
+    ax.axis("off")
+    ax.set_title(title, y=1.0)
+    if colorbar:
+        add_colorbar(fig, ax, im, nticks=nticks)
+    else:
+        add_colorbar(fig, ax, im, nticks=nticks, visible=False)
+    return fig, ax, im
+
+
 def plot_matrices(
     A_list,
     n_matrices=15,
@@ -105,25 +130,22 @@ def plot_matrices(
     lines=[],
     title="",
 ):
-    import matplotlib
-
-    norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
     num_plots = min(len(A_list), n_matrices)
 
     fig, axs = plt.subplots(1, num_plots, squeeze=False)
     axs = axs.flatten()
     fig.set_size_inches(num_plots, 2)
     for i, (ax, Ai) in enumerate(zip(axs, A_list[start_idx:])):
-        if type(Ai) == np.ndarray:
-            im = ax.matshow(Ai, norm=norm)
-        else:
-            im = ax.matshow(Ai.toarray(), norm=norm)
-        ax.axis("off")
-        ax.set_title(f"$A_{{{i+1}}}$", y=1.0)
-        if colorbar:
-            add_colorbar(fig, ax, im, nticks=nticks)
-        else:
-            add_colorbar(fig, ax, im, nticks=nticks, visible=False)
+        fig, ax, im = plot_matrix(
+            Ai,
+            vmin,
+            vmax,
+            title=f"${title}_{{{start_idx+i+1}}}$",
+            colorbar=colorbar,
+            nticks=nticks,
+            fig=fig,
+            ax=axs[i],
+        )
 
     try:
         for n in lines:
@@ -137,9 +159,9 @@ def plot_matrices(
         add_colorbar(fig, ax, im, nticks=nticks, visible=True)
     # add_colorbar(fig, ax, im, nticks=nticks)
     [ax.axis("off") for ax in axs[i:]]
-    fig.suptitle(
-        f"{title} {start_idx+1}:{start_idx+i+1} of {len(A_list)} constraints", y=0.9
-    )
+    # fig.suptitle(
+    #    f"{title} {start_idx+1}:{start_idx+i+1} of {len(A_list)} constraints", y=0.9
+    # )
     return fig, axs
 
 

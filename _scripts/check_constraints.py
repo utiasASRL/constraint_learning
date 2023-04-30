@@ -1,7 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
+from noise_study import run_noise_study
 
+from lifters.plotting_tools import plot_matrices, plot_tightness, savefig
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from solvers.common import find_local_minimum, solve_sdp_cvxpy
@@ -11,14 +13,16 @@ from solvers.common import find_local_minimum, solve_sdp_cvxpy
 # all: brute force
 # sparse: use sparse optimization
 
-# METHOD = "bnb"
-METHOD = "all"
-# METHOD = "sparse"
+METHODS = ["all", "bnb"]
 
 TOL_SPARSE_LAMBDA = 1e-10
 
-# assume strong daality when relative gap is smaller
-TOL_REL_GAP = 1e-7
+# assume strong duality when relative gap is smaller
+TOL_REL_GAP = 1e-3
+TOL_ABS_GAP = 1e-5
+
+# tolerance for nullspace basis vectors
+EPS_LEARNED = 1e-7
 
 # SOLVER = "CVXOPT"
 SOLVER = "MOSEK"
@@ -26,12 +30,8 @@ SOLVER = "MOSEK"
 
 def compare_constraints(lifter, fname=""):
     A_known = lifter.get_A_known()
-    A_incr = lifter.get_A_learned(A_known=A_known, method="qrp")
+    A_incr = lifter.get_A_learned(A_known=A_known, method="qrp", normalize=False)
     A_learned = lifter.get_A_learned()
-
-    from noise_study import run_noise_study
-
-    from lifters.plotting_tools import plot_matrices, plot_tightness, savefig
 
     noises = np.logspace(-3, -1, 3)
     n_seeds = 3
@@ -57,7 +57,6 @@ def compare_constraints(lifter, fname=""):
                 savefig(
                     fig, fname + f"_{name}_{str(noise).replace('.','-')}_{SOLVER}.png"
                 )
-    return
 
     from math import ceil
 
@@ -82,7 +81,7 @@ def compare_constraints(lifter, fname=""):
 
 
 def get_tightness_study(
-    lifter, n_shuffles, n_random_noise, noise, verbose=True, fname=""
+    lifter, n_shuffles, n_random_noise, noise, verbose=True, use_known=True, fname=""
 ):
     def branch_and_bound(left, right, costs):
         """perform branch and abound on number of constraints."""
@@ -120,7 +119,7 @@ def get_tightness_study(
             # by default, search right first (arbitrary)
             r = branch_and_bound(half, right, costs)
             if r > half:
-                return r + 1
+                return r
             assert r == half
             return branch_and_bound(left, r, costs)
         elif costs[half] > (costs[right] - eps):
@@ -136,18 +135,19 @@ def get_tightness_study(
             dual_Xhat, info = solve_sdp_cvxpy(Q, A_b_list[: idx + 1], verbose=False)
             dual_cost = info["cost"]
             costs[idx] = dual_cost if dual_cost else 0.0
-        # current_num is the number required to be within the
-
-    A_known = lifter.get_A_known()
-    A_all = lifter.get_A_learned(A_known=A_known)
-    n_learned = len(A_all) - len(A_known)
-    names = [f"A{i}:known" for i in range(len(A_known))]
-    names += [f"A{len(A_known) + i}:learned" for i in range(n_learned)]
 
     data = []
     for noise_seed in range(n_random_noise):
         print(f"noise {noise_seed+1}/{n_random_noise}")
         np.random.seed(noise_seed)
+
+        lifter.generate_random_setup()
+        if use_known:
+            A_known = lifter.get_A_known()
+        else:
+            A_known = []
+        A_all = lifter.get_A_learned(A_known=A_known, eps=EPS_LEARNED, normalize=False)
+        n_learned = len(A_all) - len(A_known)
         Q, y = lifter.get_Q(noise=noise)
 
         A_b_list_all = lifter.get_A_b_list(A_all)
@@ -184,7 +184,7 @@ def get_tightness_study(
             min_number = 1
             max_number = len(A_all) + 1
             A_b_list = [A_b_list_all[0]] + [A_b_list_all[s + 1] for s in shuffle_idx]
-            for method in ["bnb", "all"]:
+            for method in METHODS:  # , "all"]:
                 costs = {i + 1: 0 for i in range(0, len(A_all) + 1)}
                 print(f"      solve with {method}")
                 if method == "bnb":
@@ -194,7 +194,7 @@ def get_tightness_study(
                     # find minimum required constraints for strong duality
                     current_num = np.where(
                         [
-                            (c - qcqp_cost) / qcqp_cost > TOL_REL_GAP
+                            (qcqp_cost - c) / qcqp_cost > TOL_REL_GAP
                             for c in costs.values()
                         ]
                     )[0]
@@ -207,9 +207,12 @@ def get_tightness_study(
                 dual_cost = info["cost"]
 
                 rel_error = abs(dual_cost - dual_cost1) / dual_cost
-                assert rel_error < 1e-3, rel_error
+                if rel_error > 1e-3:
+                    print(
+                        f"Warning, mismatch between dual errors: {dual_cost, dual_cost1}. Skipping..."
+                    )
+                    continue
                 rank = np.linalg.matrix_rank(dual_Xhat)
-
                 gap = qcqp_cost - dual_cost
                 results_dict = dict(
                     shuffle_seed=shuffle_seed,
@@ -223,9 +226,6 @@ def get_tightness_study(
                     num_constraints=current_num,
                     lamda=lamda,
                 )
-                results_dict.update(
-                    {names[s]: 1 for _, s in enumerate(shuffle_idx[:current_num])}
-                )
                 data.append(results_dict)
 
         if fname != "":
@@ -237,34 +237,31 @@ def get_tightness_study(
 
 
 def stereo_2d_study(fname_root):
-    n_landmarks = 2
+    n_landmarks = 3
     noise = 1e-2
     n_shuffles = 3
-    n_random_noise = 3
+    n_random_noise = 5
 
     levels = ["urT"]  # ["urT", "no"]
     for level in levels:
         lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
 
-        fname = fname_root + f"_{lifter}.pkl"
-        # fname = ""
+        fname = fname_root + f"_{lifter}_learned.pkl"
         df = get_tightness_study(
             lifter,
             n_shuffles=n_shuffles,
             n_random_noise=n_random_noise,
             noise=noise,
             fname=fname,
+            use_known=False,
         )
-        if fname != "":
-            pd.to_pickle(df, fname)
-            print("saved final as", fname)
 
 
 def stereo_1d_study(fname_root):
     n_landmarks = 3
     noise = 1e-3
-    n_shuffles = 20
-    n_random_noise = 3
+    n_shuffles = 3  # includes -1 and 0.
+    n_random_noise = 5
 
     lifter = Stereo1DLifter(n_landmarks=n_landmarks)
 
@@ -284,11 +281,14 @@ def stereo_1d_study(fname_root):
 
 
 if __name__ == "__main__":
+    import warnings
     from pathlib import Path
 
     root = Path(__file__).resolve().parents[1]
     # fname_root = str(root / "_results/constraints")
     # stereo_1d_study(fname_root=fname_root)
 
-    fname_root = str(root / "_results/constraints_big")
-    stereo_2d_study(fname_root=fname_root)
+    fname_root = str(root / "_results/experiments")
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        stereo_2d_study(fname_root=fname_root)

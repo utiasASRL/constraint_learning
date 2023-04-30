@@ -64,46 +64,15 @@ df.dropna(axis=1, how="all", inplace=True)
 #    inplace=True,
 # )
 # display(df)
-pd.reset_option("display.max_columns")
 
 # %%
 
-names = {0: "x", 1: "y", 2: "z"}
-landmark_dict = {
-    np.round(lifter.landmarks[k, d], 4): f"$\\textcolor{{red}}{{a_{k}^{names[d]}}}$"
-    for k in range(lifter.n_landmarks)
-    for d in range(lifter.d)
-}
-print(landmark_dict.keys())
+from lifters.interpret import convert_series_to_string, get_known_variables
 
+landmark_dict = get_known_variables(lifter)
 strings = []
 for i, row in df.iterrows():
-    string = ""
-
-    multiindex = pd.MultiIndex.from_arrays([np.zeros(len(row)), row.index])
-    row.index = multiindex
-    row_coo = row.astype(pd.SparseDtype(float, fill_value=0)).sparse.to_coo()[0]
-    for idx in row_coo.col:
-        key = row[0].index[idx]
-        val = row[0][key]
-        # check if there is a landmark coordinate in this value.
-        key_print = "$" + key.replace(".", "\\cdot ") + "$"
-        val_key = np.round(val, 4)
-        if val_key in landmark_dict:
-            string += f" +{landmark_dict[val_key]} {key_print}"
-        elif -val_key in landmark_dict:
-            string += f" -{landmark_dict[-val_key]} {key_print}"
-        elif np.mod(val, 1) < 1e-10:
-            # string += f" + {val_key:.2f} {key}"
-            string += f" {val:+.0f} {key_print}"
-        elif np.mod(val * 10, 1) < 1e-10:
-            # string += f" + {val_key:.2f} {key}"
-            string += f" {val:+.1f} {key_print}"
-        else:
-            print("random:", val)
-            string += f" +$\\alpha$ {key_print}"
-
-    string = string[1:]
+    string = convert_series_to_string(row, landmark_dict=landmark_dict)
     print(string)
     strings.append(string + "\n")
 
@@ -128,3 +97,5 @@ savefig(fig, f"_results/{lifter}_constraints.ps")
 savefig(fig, f"_results/{lifter}_constraints.png")
 
 # %%
+
+pd.reset_option("display.max_columns")

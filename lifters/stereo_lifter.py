@@ -56,6 +56,8 @@ class StereoLifter(StateLifter, ABC):
         "u@r",
         "uuT",
         "urT",
+        "urT-diag",
+        "urT-off",
     ]
 
     def __init__(self, n_landmarks, d, level="no"):
@@ -86,6 +88,8 @@ class StereoLifter(StateLifter, ABC):
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
+            "urT-diag": n * self.d,
+            "urT-off": n * int(self.d * (self.d - 1) / 2),
         }
 
     @abstractproperty
@@ -109,9 +113,8 @@ class StereoLifter(StateLifter, ABC):
         level_dim = self.get_level_dims()[self.level]
         if "u" in self.level:
             var_dict.update({f"y_{i}": level_dim for i in range(self.n_landmarks)})
-        else:
-            if level_dim > 0:
-                var_dict.update({f"y": level_dim})
+        elif level_dim > 0:
+            var_dict.update({f"y": level_dim})
         return var_dict
 
     @property
@@ -171,6 +174,12 @@ class StereoLifter(StateLifter, ABC):
             elif self.level == "urT":
                 # this works
                 higher_data += list(np.outer(u, r).flatten())
+            elif self.level == "urT-off":
+                # this works
+                higher_data += list(np.outer(u, r)[np.triu_indices(self.d - 1)])
+            elif self.level == "urT-diag":
+                # this works
+                higher_data += list(np.diag(np.outer(u, r)))
         x_data += higher_data
         assert len(x_data) == self.dim_x
         return np.array(x_data)

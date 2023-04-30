@@ -4,7 +4,7 @@ from lifters.plotting_tools import make_dirs_safe
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from solvers.common import find_local_minimum, solve_dual, solve_sdp_cvxpy
+from solvers.common import find_local_minimum, solve_sdp_cvxpy
 from utils import get_fname
 
 METHOD = "qrp"

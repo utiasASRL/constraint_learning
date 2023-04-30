@@ -24,7 +24,7 @@ class Stereo1DLifter(StateLifter):
     def sample_theta(self):
         x_try = np.random.rand(1)
         counter = 0
-        while np.min(np.abs(x_try - self.landmarks)) <= 1e-10:
+        while np.min(np.abs(x_try - self.landmarks)) <= 1e-3:
             x_try = np.random.rand(1)
             if counter >= 1000:
                 print("Warning: couldn't find valid setup")
@@ -60,17 +60,31 @@ class Stereo1DLifter(StateLifter):
             ls_problem.add_residual({"l": -y[j], f"z_{j}": 1})
         return ls_problem.get_Q().get_matrix(self.var_dict), y
 
-    def get_A_known(self):
+    def get_A_known(self, add_known_redundant=False):
         from poly_matrix.poly_matrix import PolyMatrix
 
         A_known = []
 
+        # enforce that z_j = 1/(x - a_j) == 1 <=> 1 - z_j*x + a_j*z_j = 0
         for j in range(self.n_landmarks):
             A = PolyMatrix()
             A["l", f"z_{j}"] = 0.5 * self.landmarks[j]
             A["x", f"z_{j}"] = -0.5
             A["l", "l"] = 1.0
             A_known.append(A.get_matrix(variables=self.var_dict))
+
+        if not add_known_redundant:
+            return A_known
+
+        # add known redundant constraints:
+        # enforce that z_j - z_i = (a_j - a_i) * z_j * z_i
+        for i in range(self.n_landmarks):
+            for j in range(i + 1, self.n_landmarks):
+                A = PolyMatrix()
+                A["l", f"z_{j}"] = 1
+                A["l", f"z_{i}"] = -1
+                A[f"z_{i}", f"z_{j}"] = self.landmarks[i] - self.landmarks[j]
+                A_known.append(A.get_matrix(variables=self.var_dict))
         return A_known
 
     def get_cost(self, t, y):
