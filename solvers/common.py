@@ -131,6 +131,7 @@ def solve_sdp_cvxpy(
             )
         except:
             try:
+                assert solver_alt is not None
                 cprob.solve(
                     solver=solver_alt,
                     **opts_alt,
@@ -156,45 +157,6 @@ def solve_sdp_cvxpy(
         cost += offset
     info = {"H": H, "yvals": yvals, "cost": cost}
     return X, info
-
-
-def solve_dual(Q, A_list, tol=1e-6, solver=SOLVER, verbose=True):
-    options = solver_options[solver]
-    if "abstol" in options:
-        options["abstol"] = tol
-    if "reltol" in options:
-        options["reltol"] = tol
-
-    if verbose:
-        print("running with solver options", solver_options[solver])
-    rho = cp.Variable()
-
-    import scipy.sparse as sp
-
-    A_0 = sp.csr_array(([1.0], ([0], [0])), shape=Q.shape)
-
-    H = Q
-    # cp.Parameter(Q.shape)
-    # H.value = Q
-    H += rho * A_0
-
-    cp_variables = {}
-    for i, Ai in enumerate(A_list):
-        cp_variables[f"l{i}"] = cp.Variable()
-        H += cp_variables[f"l{i}"] * Ai
-
-    constraints = [H >> 0]
-
-    prob = cp.Problem(cp.Maximize(-rho), constraints)
-    try:
-        prob.solve(solver=solver, **solver_options[solver])
-        if verbose:
-            print("solution:", prob.status)
-        return -rho.value, H.value, prob.status
-    except Exception as e:
-        if verbose:
-            print("solution:", prob.status)
-        return None, None, prob.status
 
 
 def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False):

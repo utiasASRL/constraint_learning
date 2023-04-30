@@ -14,18 +14,18 @@ PLOTTING = False
 
 
 def sparsify(lifter, A_tilde, A_known=[]):
-    ai_tilde_list = [lifter._get_vec(Ai_tilde).reshape((-1, 1)) for Ai_tilde in A_tilde]
+    ai_tilde_list = [lifter.get_vec(Ai_tilde).reshape((-1, 1)) for Ai_tilde in A_tilde]
     Ai_tilde_matrix = np.concatenate(ai_tilde_list, axis=1)
     N, n = Ai_tilde_matrix.shape
     basis_sparse = []
     for i in range(n):
         print(f"treating {i+1}/{n}")
-        ai_tilde = Ai_tilde_matrix[:, i]  # N x 1
+        ai_tilde = Ai_tilde_matrix[:, i].reshape((-1, 1))  # N x 1
 
         alpha_i = cp.Variable((n, 1))
         ai = Ai_tilde_matrix @ alpha_i  # N x 1
 
-        constraints = [lifter._get_vec(Ai_known) @ ai == 0 for Ai_known in A_known]
+        constraints = [lifter.get_vec(Ai_known) @ ai == 0 for Ai_known in A_known]
         constraints += [a.T @ ai == 0 for a in basis_sparse]
         prob = cp.Problem(
             cp.Minimize(cp.norm_inf(ai) + 10 * cp.norm1(ai - ai_tilde)),
@@ -34,7 +34,7 @@ def sparsify(lifter, A_tilde, A_known=[]):
         prob.solve()
 
         ai_hat = Ai_tilde_matrix @ alpha_i.value
-        basis_sparse.append(np.array(ai_hat))
+        basis_sparse.append(np.array(ai_hat).flatten())
         if i > 10:
             break
     A_sparse = lifter.generate_matrices(basis_sparse)
@@ -52,7 +52,7 @@ def sparsify_naive(lifter, Y, A_tilde, frac=8, tol=1e-5, axs=None):
     for A in A_tilde:
         A_new = deepcopy(A)
         A_new.data = (A.data * frac).round() / frac
-        error = Y @ lifter._get_vec(A_new).T
+        error = Y @ lifter.get_vec(A_new).T
         if axs is not None:
             axs[0].matshow(A.toarray())
             axs[1].matshow(A_new.toarray())

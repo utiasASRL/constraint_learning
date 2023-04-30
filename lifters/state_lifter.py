@@ -13,7 +13,7 @@ EPS = 1e-10  # threshold for nullspace (on eigenvalues)
 # - svd: svd
 METHOD = "qrp"
 
-NORMALIZE = True  # normalize learned Ai or not, (True)
+NORMALIZE = False  # normalize learned Ai or not, (True)
 FACTOR = 2.0  # how much to oversample (>= 1)
 
 
@@ -78,44 +78,78 @@ class StateLifter(ABC):
     def get_vec(self, mat):
         """Convert NxN Symmetric matrix to (N+1)N/2 vectorized version that preserves inner product.
 
-        Args:
-            mat (spmatrix or ndarray): symmetric matrix
-
-        Returns:
-            ndarray
+        :param mat: (spmatrix or ndarray) symmetric matrix
+        :return: ndarray
         """
-        # Multiply off-diagonals by sqrt(2)
-        mat *= np.sqrt(2)
+        from copy import deepcopy
+
+        mat = deepcopy(mat)
         if isinstance(mat, sp.spmatrix):
-            # below changes sparsity strucutre and raises Warning.
-            # mat.setdiag(mat.diagonal() / np.sqrt(2))
+            ii, jj = mat.nonzero()
+            mat[ii, jj] *= np.sqrt(2.0)
+            diag = ii == jj
+            mat[ii[diag], jj[diag]] /= np.sqrt(2)
+        else:
+            mat *= np.sqrt(2.0)
+            mat[range(mat.shape[0]), range(mat.shape[0])] /= np.sqrt(2)
+        return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
 
-            # TODO(FD) could probably do below faster by replacing for loop
-            for i in range(mat.shape[0]):
-                if mat[i, i] != 0:
-                    mat[i, i] = mat[i, i] / np.sqrt(2)
+        def sub2ind(rows, cols):
+            return rows * (mat.shape[0] - np.cumsum(rows)) + cols
+
+        vec_shape = int(mat.shape[0] * (mat.shape[0] + 1) / 2)
+
+        if isinstance(mat, sp.spmatrix):
+            ii, jj = mat.nonzero()
         elif isinstance(mat, np.ndarray):
-            ind = range(mat.shape[0])
-            mat[ind, ind] = np.diag(mat) / np.sqrt(2)
-        return mat[np.triu_indices(n=self.dim_x)].flatten()
+            ii, jj = np.where(mat != 0)
 
-    def get_mat(self, vec):
+        # multiply all elements by sqrt(2)
+        vec_nnz = np.array(mat[ii, jj]).flatten() * np.sqrt(2)
+        # undo operation for diagonal
+        vec_nnz[ii == jj] /= np.sqrt(2)
+        vec = np.zeros(vec_shape)
+        vec[sub2ind(ii, jj)] = vec_nnz
+        return vec
+
+    def get_mat(self, vec, sparse=False, trunc_tol=1e-8):
         """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
 
-        Args:
-            vec (ndarray): symmetric matrix
+        In particular, this means that we divide the off-diagonal elements by sqrt(2).
 
-        Returns:
-            ndarray
+        :param vec (ndarray): vector of upper-diagonal elements
+        :return: symmetric matrix filled with vec.
         """
-        Ai = np.zeros((self.dim_x, self.dim_x))
         triu = np.triu_indices(n=self.dim_x)
-        Ai[triu] = vec
-        Ai += Ai.T
-        # Divide the off diagonal by root 2
-        Ai /= np.sqrt(2)
-        ind = range(self.dim_x)
-        Ai[ind, ind] = np.diag(Ai) / np.sqrt(2)
+        mask = np.abs(vec) > trunc_tol
+        triu_i_nnz = triu[0][mask]
+        triu_j_nnz = triu[1][mask]
+        vec_nnz = vec[mask]
+        if sparse:
+            # divide off-diagonal elements by sqrt(2)
+            offdiag = triu_i_nnz != triu_j_nnz
+            diag = triu_i_nnz == triu_j_nnz
+            triu_i = triu_i_nnz[offdiag]
+            triu_j = triu_j_nnz[offdiag]
+            diag_i = triu_i_nnz[diag]
+            vec_nnz_off = vec_nnz[offdiag] / np.sqrt(2)
+            vec_nnz_diag = vec_nnz[diag]
+            Ai = sp.csr_array(
+                (
+                    np.r_[vec_nnz_diag, vec_nnz_off, vec_nnz_off],
+                    (np.r_[diag_i, triu_i, triu_j], np.r_[diag_i, triu_j, triu_i]),
+                ),
+                (self.dim_x, self.dim_x),
+            )
+        else:
+            Ai = np.zeros((self.dim_x, self.dim_x))
+
+            # divide all elements by sqrt(2)
+            Ai[triu_i_nnz, triu_j_nnz] = vec_nnz / np.sqrt(2)
+            Ai[triu_j_nnz, triu_i_nnz] = vec_nnz / np.sqrt(2)
+
+            # undo operation for diagonal
+            Ai[range(self.dim_x), range(self.dim_x)] *= np.sqrt(2)
         return Ai
 
     def get_A_known(self) -> list:
@@ -130,20 +164,21 @@ class StateLifter(ABC):
         plot=False,
         Y=None,
         return_S=False,
+        normalize=NORMALIZE,
     ) -> list:
         if Y is None:
             Y = self.generate_Y(factor=factor)
 
-        S_known = [None] * len(A_known)
+        S_known = [0] * len(A_known)
 
         basis, S = self.get_basis(Y, method=method, eps=eps, A_list=A_known)
-        rank = basis.shape[0] - len(A_known)
+        corank = basis.shape[0] - len(A_known)
         try:
-            assert abs(S[-rank]) / eps < 1e-1  # 1e-1  1e-10
-            assert abs(S[-rank - 1]) / eps > 10  # 1e-11 1e-10
+            assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
+            assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
         except:
             print(f"there might be a problem with the chosen threshold {eps}:")
-            print(S[basis.shape[0]], eps, S[basis.shape[0] - 1])
+            print(S[-corank], eps, S[-corank - 1])
 
         if plot:
             from lifters.plotting_tools import plot_singular_values
@@ -151,12 +186,14 @@ class StateLifter(ABC):
             plot_singular_values(S, eps=eps)
 
         if return_S:
-            return (
-                self.generate_matrices(basis, normalize=NORMALIZE),
-                S_known + list(np.abs(S[-rank:])),
-            )
+            A_learned = self.generate_matrices(basis, normalize=normalize)
+            if corank > 0:
+                return A_learned, S_known + list(np.abs(S[-corank:]))
+            else:
+                # avoid S[-0] which gives unexpected result.
+                return A_learned, S_known
         else:
-            return self.generate_matrices(basis, normalize=NORMALIZE)
+            return self.generate_matrices(basis, normalize=normalize)
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
@@ -188,14 +225,19 @@ class StateLifter(ABC):
         return Y
 
     def get_basis(self, Y, A_list: list = [], eps=EPS, method=METHOD):
-        """Generate basis from lifted state matrix Y."""
+        """Generate basis from lifted state matrix Y.
+
+        :param A_list: if given, will generate basis that is orthogonal to these given constraints.
+
+        :return: basis with A_list as first elements (if given)
+        """
         # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
         if len(A_list) > 0:
             A = np.vstack([self.get_vec(a) for a in A_list])
             Y = np.vstack([Y, A])
 
         if method != "qrp":
-            raise ValueError("using a method other than qrp is not recommended.")
+            print("using a method other than qrp is not recommended.")
 
         if method == "svd":
             U, S, Vh = np.linalg.svd(
@@ -207,15 +249,20 @@ class StateLifter(ABC):
             # test that it is indeed a null space
             np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
         elif method == "qr":
+            # if Y.T = QR, the last n-r columns
+            # of R make up the nullspace of Y.
             Q, R = np.linalg.qr(Y.T)
-            S = np.diag(R)
-            basis = Q[:, np.abs(S) < eps].T
-            S = sorted(np.abs(S))[::-1]  # decreasing order
+            S = np.abs(np.diag(R))
+            sorted_idx = np.argsort(S)[::-1]
+            S = S[sorted_idx]
+            rank = np.where(S < eps)[0][0]
+            # decreasing order
+            basis = Q[:, sorted_idx[rank:]].T
         elif method == "qrp":
             # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
             Q, R, p = la.qr(Y, pivoting=True, mode="economic")
-            S = np.diag(R)
-            rank = np.sum(np.abs(S) > eps)
+            S = np.abs(np.diag(R))
+            rank = np.sum(S > eps)
             R1, R2 = R[:rank, :rank], R[:rank, rank:]
             N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
             basis = np.zeros(N.T.shape)
@@ -229,22 +276,27 @@ class StateLifter(ABC):
         return basis, S
 
     def generate_matrices(
-        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10
+        self,
+        basis,
+        normalize=NORMALIZE,
+        sparse=True,
+        trunc_tol=1e-10,
     ):
         """
         generate matrices from vectors
         """
 
         A_list = []
-        for i in range(basis.shape[0]):
-            Ai = self.get_mat(basis[i, :])
+        for i in range(len(basis)):
+            Ai = self.get_mat(basis[i], sparse=sparse, trunc_tol=trunc_tol)
             # Normalize the matrix
-            if normalize:
-                Ai /= np.max(np.abs(Ai))
+            if normalize and not sparse:
+                # Ai /= np.max(np.abs(Ai))
+                Ai /= np.linalg.norm(Ai, p=2)
+            elif normalize and sparse:
+                Ai /= sp.linalg.norm(Ai, ord="fro")
             # Sparsify and truncate
             if sparse:
-                Ai = sp.csr_array(Ai)
-                Ai.data[np.abs(Ai.data) < trunc_tol] = 0.0
                 Ai.eliminate_zeros()
             else:
                 Ai[np.abs(Ai) < trunc_tol] = 0.0

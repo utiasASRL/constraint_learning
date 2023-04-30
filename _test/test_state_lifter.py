@@ -218,6 +218,10 @@ def test_constraints():
             err = abs(x.T @ Ai @ x)
             assert err < tol, err
 
+            ai = lifter.get_vec(Ai.toarray())
+            xvec = lifter.get_vec(np.outer(x, x))
+            np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
+
             ai = lifter.get_vec(Ai)
             xvec = lifter.get_vec(np.outer(x, x))
             np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
@@ -291,9 +295,36 @@ def compare_solvers():
                 )
 
 
+def test_vec_mat():
+    for lifter in all_lifters():
+        import scipy.sparse as sp
+
+        A_known = lifter.get_A_known()
+        for A in A_known:
+            a_dense = lifter.get_vec(A.toarray())
+            a_sparse = lifter.get_vec(A)
+            np.testing.assert_allclose(a_dense, a_sparse)
+
+            # get_vec multiplies off-diagonal elements by sqrt(2)
+            a = lifter.get_vec(A)
+
+            A_test = lifter.get_mat(a, sparse=False)
+            np.testing.assert_allclose(A.toarray(), A_test)
+
+            # get_mat divides off-diagonal elements by sqrt(2)
+            A_test = lifter.get_mat(a, sparse=True)
+            np.testing.assert_allclose(A.toarray(), A_test.toarray())
+
+        A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
+        for i in range(len(A_known)):
+            np.testing.assert_allclose(A_learned[i].toarray(), A_known[i].toarray())
+
+
 if __name__ == "__main__":
     import sys
     import warnings
+
+    test_vec_mat()
 
     # import pytest
     # print("testing")
