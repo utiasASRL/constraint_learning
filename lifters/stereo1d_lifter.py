@@ -31,13 +31,26 @@ class Stereo1DLifter(StateLifter):
                 return
         return x_try
 
-    def get_x(self, theta=None):
+    def get_x(self, theta=None, var_subset=None):
+        """
+        :param var_subset: list of variables to include in x vector. Set to None for all.
+        """
         if theta is None:
             theta = self.theta
+        if var_subset is None:
+            var_subset = self.var_dict.keys()
 
-        a = self.landmarks
-        x_data = [1] + list(theta)
-        x_data += [float(1 / (theta - ai)) for ai in a]
+        x_data = []
+        for key in var_subset:
+            if key == "l":
+                x_data.append(1.0)
+            elif key == "x":
+                x_data.append(float(theta))
+            elif "z" in key:
+                idx = int(key.split("_")[-1])
+                x_data.append(float(1 / (theta - self.landmarks[idx])))
+            else:
+                raise ValueError("unknown key in get_x", key)
         return np.array(x_data)
 
     @property

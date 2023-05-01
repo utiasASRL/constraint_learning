@@ -21,27 +21,60 @@ EPS_LEARNED = 1e-7
 
 # SOLVER = "CVXOPT"
 SOLVER = "MOSEK"
-NORMALIZE = True
+NORMALIZE = False
 METHOD = "qrp"
 
 # remove Q[0,0] for optimization, and normalize entries
 # TODO(FD) for some reason this is not helping for 1d problem
 ADJUST = False
-ADD_KNOWN_REDUNDANT = False  # add some known redundant constraints
-
 
 n_landmarks = 3
 noise = 1e-2
 level = "urT"
-use_known = True
 seed = 0
 d = 1
 
+save_pairs = [
+    ("original", "increase"),
+    ("original", "decrease"),
+    ("optimization", "decrease"),
+    ("opt-force", "decrease"),
+    ("singular", "decrease"),
+    ("sparsity", "increase"),
+]
+
+parameter_list = [
+    dict(  # fully learned
+        add_known_redundant=False,
+        use_known=True,
+        incremental=False,
+        appendix="learned",
+    ),
+    dict(  # fully known
+        add_known_redundant=True,
+        use_known=True,
+        incremental=False,
+        appendix="known",
+    ),
+    dict(  # incremental
+        add_known_redundant=False,
+        use_known=False,
+        incremental=True,
+        appendix="incremental",
+    ),
+    dict(  # incremental
+        add_known_redundant=False,
+        use_known=False,
+        incremental=True,
+        appendix="incremental",
+    ),
+]
+
+params = parameter_list[2]
+# for params in parameter_list:
+
 root = Path(__file__).resolve().parents[1]
-if use_known:
-    fname_root = str(root / f"_results/experiments_{d}d_known")
-else:
-    fname_root = str(root / f"_results/experiments_{d}d_learned")
+fname_root = str(root / f"_results/experiments_{d}d_{params['appendix']}")
 
 if d == 2:
     lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
@@ -52,8 +85,8 @@ elif d == 1:
 # generate constraints
 np.random.seed(seed)
 lifter.generate_random_setup()
-if use_known:
-    A_known = lifter.get_A_known(add_known_redundant=ADD_KNOWN_REDUNDANT)
+if (params["use_known"]) and (not params["incremental"]):
+    A_known = lifter.get_A_known(add_known_redundant=params["add_known_redundant"])
 else:
     A_known = []
 
@@ -63,7 +96,8 @@ A_all, S = lifter.get_A_learned(
     normalize=NORMALIZE,
     return_S=True,
     method=METHOD,
-    plot=True,
+    plot=False,
+    incremental=params["incremental"],
 )
 errs, idxs = lifter.test_constraints(A_all, errors="print")
 for idx in idxs:
@@ -93,20 +127,22 @@ xhat = lifter.get_x(qcqp_that)
 H, lamdas_force = solve_lambda(Q, A_b_list_all, xhat, force_first=1 + len(A_known))
 if lamdas_force is None:
     print("Warning: problem doesn't have feasible solution!")
-lamdas_force = np.abs(lamdas_force)
+    lamdas_force = np.zeros(len(A_b_list_all))
+else:
+    lamdas_force = np.abs(lamdas_force)
 
 H, lamdas = solve_lambda(Q, A_b_list_all, xhat, force_first=1)
 if lamdas is None:
     print("Warning: problem doesn't have feasible solution!")
-lamdas = np.abs(lamdas)
+    lamdas = np.zeros(len(A_b_list_all))
+else:
+    lamdas = np.abs(lamdas)
 
 plt.figure()
 plt.semilogy(lamdas_force, label=f"forced {1 + len(A_known)}")
 plt.axvline(1 + len(A_known), color="k", ls=":")
 plt.semilogy(lamdas, label="free")
 plt.legend()
-plt.show()
-
 
 # %%
 # compute lambas by solving (tight) dual problem
@@ -130,6 +166,7 @@ sparsities = np.array([A.nnz for A in A_all])
 # compute other scores?
 # will order decreasingly
 order_dicts = {
+    "original": np.arange(len(A_all)),
     "sparsity": sparsities,
     "optimization": lamdas[1:],
     "opt-force": lamdas_force[1:],
@@ -156,12 +193,6 @@ from progressbar import ProgressBar
 # create tightness study for this particular case, mostly as a sanity check.
 data_tight = []
 
-save_pairs = [
-    ("optimization", "decrease"),
-    ("opt-force", "decrease"),
-    ("singular", "decrease"),
-    ("sparsity", "increase"),
-]
 # for (order, order_type), df_sub in df_tight.groupby(["order", "type"]):
 for order_name, order_type in save_pairs:
     print(f"{order_name} {order_type}")
@@ -177,21 +208,21 @@ for order_name, order_type in save_pairs:
     tight_counter = 0
     min_number = None
 
-    p = ProgressBar(max_value=len(order + 1))
-    for i in range(1, len(order + 1)):
+    p = ProgressBar(max_value=len(order + 2))
+    for i in range(1, len(order) + 1):
         p.update(i)
         X, info = solve_sdp_cvxpy(Q, A_b_here[: i + 1], adjust=ADJUST)
 
-        if info["cost"] is None:
-            continue
-        error = abs(qcqp_cost - info["cost"])
-        if error < TOL_ABS_GAP:
-            tight = True
-            if min_number is None:
-                min_number = i
-            tight_counter += 1
+        tight = False
+        if info["cost"] is not None:
+            error = abs(qcqp_cost - info["cost"])
+            if error < TOL_ABS_GAP:
+                tight = True
+                if min_number is None:
+                    min_number = i
+                tight_counter += 1
         else:
-            tight = False
+            print(f"Did not solve at constraint {i}")
         if tight_counter > 10:
             break
 
@@ -226,15 +257,15 @@ ax.axhline(qcqp_cost, color="k")
 for (order_name, order_type), df_sub in df_tight.groupby(["order_name", "order_type"]):
     try:
         number = np.where(df_sub.tight.values)[0][0]
+        label = f"{order_name} {order_type}: {number}"
     except IndexError:
         number = None
-    label = f"{order_name} {order_type}: {number}"
-    ax.semilogy(df_sub.cost.values, label=label)
+        label = f"{order_name} {order_type}: never tight"
+    ax.semilogy(range(1, len(df_sub) + 1), df_sub.cost.values, label=label)
 ax.legend()
 ax.grid()
 if fname_root != "":
     savefig(fig, fname_root + f"_tightness.png")
-
 
 from math import ceil
 
@@ -242,12 +273,6 @@ from math import ceil
 # plot the matrices
 from lifters.plotting_tools import plot_matrix
 
-save_pairs = [
-    ("optimization", "decrease"),
-    ("opt-force", "decrease"),
-    ("singular", "decrease"),
-    ("sparsity", "increase"),
-]
 # for (order, order_type), df_sub in df_tight.groupby(["order", "type"]):
 for order_name, order_type in save_pairs:
     df_sub = df_tight[
@@ -265,8 +290,8 @@ for order_name, order_type in save_pairs:
         values = df_sub.value.values
 
         # make sure it's symmetric
-        vmin = np.min([np.min(A) for A in matrices])
-        vmax = np.max([np.max(A) for A in matrices])
+        vmin = np.min([np.min(A) for A in matrices if (A is not None)])
+        vmax = np.max([np.max(A) for A in matrices if (A is not None)])
         vmin = min(vmin, -vmax)
         vmax = max(vmax, -vmin)
 
@@ -277,11 +302,14 @@ for order_name, order_type in save_pairs:
         for row, col in itertools.product(range(n_rows), range(n_cols)):
             ax = axs[row * 2 + j, col]
             if i < len(matrices):
+                if matrices[i] is None:
+                    continue
                 title = f"{matrix_type}{i}"
                 if matrix_type == "A":
                     title += f"\n{names_here[i]}"
                 else:
                     title += f"\nc={costs[i]:.2e}\nv={values[i]:.2e}"
+
                 plot_matrix(
                     ax=ax,
                     Ai=matrices[i],
@@ -330,7 +358,6 @@ for i, A in enumerate(A_all):
         continue
     sparse_series = A_poly.interpret(var_dict)
     data_math.append(sparse_series)
-    break
 
 df_math = pd.DataFrame(data=data_math, dtype="Sparse[object]")
 for name, values in order_dicts.items():

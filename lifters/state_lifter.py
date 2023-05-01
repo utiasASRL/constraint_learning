@@ -5,6 +5,8 @@ import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
 
+from poly_matrix import PolyMatrix
+
 EPS = 1e-10  # threshold for nullspace (on eigenvalues)
 
 # basis pursuit method, can be
@@ -72,7 +74,7 @@ class StateLifter(ABC):
         return
 
     @abstractmethod
-    def get_x(self, theta) -> np.ndarray:
+    def get_x(self, theta, var_subset=None) -> np.ndarray:
         return
 
     def get_vec(self, mat):
@@ -112,7 +114,7 @@ class StateLifter(ABC):
         vec[sub2ind(ii, jj)] = vec_nnz
         return vec
 
-    def get_mat(self, vec, sparse=False, trunc_tol=1e-8):
+    def get_mat(self, vec, sparse=False, trunc_tol=1e-8, var_dict=None):
         """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
 
         In particular, this means that we divide the off-diagonal elements by sqrt(2).
@@ -120,7 +122,12 @@ class StateLifter(ABC):
         :param vec (ndarray): vector of upper-diagonal elements
         :return: symmetric matrix filled with vec.
         """
-        triu = np.triu_indices(n=self.dim_x)
+        # len(vec) = k = n(n+1)/2 -> dim_x = n =
+        dim_x = int(0.5 * (-1 + np.sqrt(1 + 8 * len(vec))))
+        if var_dict is None:
+            assert dim_x == self.dim_x
+
+        triu = np.triu_indices(n=dim_x)
         mask = np.abs(vec) > trunc_tol
         triu_i_nnz = triu[0][mask]
         triu_j_nnz = triu[1][mask]
@@ -150,50 +157,81 @@ class StateLifter(ABC):
 
             # undo operation for diagonal
             Ai[range(self.dim_x), range(self.dim_x)] *= np.sqrt(2)
-        return Ai
+
+        if var_dict is None:
+            return Ai
+        # if var_dict is not None, then Ai corresponds to the subblock
+        # defined by var_dict, of the full constraint matrix.
+        Ai_poly, __ = PolyMatrix.init_from_sparse(Ai, var_dict)
+        return Ai_poly.get_matrix(self.var_dict)
 
     def get_A_known(self) -> list:
         return []
 
     def get_A_learned(
         self,
-        factor=FACTOR,
         eps=EPS,
-        method=METHOD,
         A_known=[],
         plot=False,
         Y=None,
         return_S=False,
+        factor=FACTOR,
+        method=METHOD,
         normalize=NORMALIZE,
+        incremental=False,
     ) -> list:
-        if Y is None:
-            Y = self.generate_Y(factor=factor)
+        import itertools
 
-        S_known = [0] * len(A_known)
-
-        basis, S = self.get_basis(Y, method=method, eps=eps, A_list=A_known)
-        corank = basis.shape[0] - len(A_known)
-        try:
-            assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
-            assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
-        except:
-            print(f"there might be a problem with the chosen threshold {eps}:")
-            print(S[-corank], eps, S[-corank - 1])
-
-        if plot:
-            from lifters.plotting_tools import plot_singular_values
-
-            plot_singular_values(S, eps=eps)
-
-        if return_S:
-            A_learned = self.generate_matrices(basis, normalize=normalize)
-            if corank > 0:
-                return A_learned, S_known + list(np.abs(S[-corank:]))
-            else:
-                # avoid S[-0] which gives unexpected result.
-                return A_learned, S_known
+        if incremental:
+            var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
+            var_subsets += list(itertools.combinations(self.var_dict.keys(), 3))
+            if len(A_known):
+                raise NotImplementedError(
+                    "can't do incremental A learning with known matrices yet."
+                )
+            if Y is not None:
+                raise NotImplementedError(
+                    "can't do incremental A learning with fixed Y yet."
+                )
         else:
-            return self.generate_matrices(basis, normalize=normalize)
+            var_subsets = [list(self.var_dict.keys())]
+
+        A_learned = []
+        S_all = [0] * len(A_known)
+
+        for var_subset in var_subsets:
+            Y = self.generate_Y(factor=factor, var_subset=var_subset)
+
+            # TODO(FD) extract subset of known matrices given the current variables?
+
+            basis, S = self.get_basis(Y, method=method, eps=eps, A_list=A_known)
+            corank = basis.shape[0] - len(A_known)
+            print(f"corank {var_subset}: {corank}")
+            try:
+                assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
+                assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
+            except:
+                pass
+                # print(f"there might be a problem with the chosen threshold {eps}:")
+                # print(S[-corank], eps, S[-corank - 1])
+
+            if plot:
+                from lifters.plotting_tools import plot_singular_values
+
+                plot_singular_values(S, eps=eps)
+
+            var_dict = {
+                key: val for key, val in self.var_dict.items() if (key in var_subset)
+            }
+            A_learned += self.generate_matrices(
+                basis, normalize=normalize, var_dict=var_dict
+            )
+            if corank > 0:  # to avoid S[-0] which gives unexpected result.
+                S_all += list(np.abs(S[-corank:]))
+        if return_S:
+            return A_learned, S_all
+        else:
+            return A_learned
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
@@ -202,8 +240,12 @@ class StateLifter(ABC):
         """
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
 
-    def generate_Y(self, factor=3, ax=None):
-        dim_Y = int(self.dim_x * (self.dim_x + 1) / 2)
+    def get_dim(self, var_subset):
+        return sum([val for key, val in self.var_dict.items() if (key in var_subset)])
+
+    def generate_Y(self, factor=3, ax=None, var_subset=None):
+        dim_x = self.get_dim(var_subset=var_subset)
+        dim_Y = int(dim_x * (dim_x + 1) / 2)
 
         # need at least dim_Y different random setups
         n_seeds = int(dim_Y * factor)
@@ -218,7 +260,7 @@ class StateLifter(ABC):
                 else:
                     ax.scatter(*theta[:, :2].T)
 
-            x = self.get_x(theta)
+            x = self.get_x(theta, var_subset=var_subset)
             X = np.outer(x, x)
 
             Y[seed, :] = self.get_vec(X)
@@ -276,11 +318,7 @@ class StateLifter(ABC):
         return basis, S
 
     def generate_matrices(
-        self,
-        basis,
-        normalize=NORMALIZE,
-        sparse=True,
-        trunc_tol=1e-10,
+        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10, var_dict=None
     ):
         """
         generate matrices from vectors
@@ -288,7 +326,9 @@ class StateLifter(ABC):
 
         A_list = []
         for i in range(len(basis)):
-            Ai = self.get_mat(basis[i], sparse=sparse, trunc_tol=trunc_tol)
+            Ai = self.get_mat(
+                basis[i], sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict
+            )
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
