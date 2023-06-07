@@ -23,3 +23,23 @@ def get_rot_matrix(rot):
         return r.as_matrix()
     else:
         raise ValueError(rot)
+
+
+def setup_tex():
+    import shutil
+    import matplotlib.pylab as plt
+
+    usetex = True if shutil.which("latex") else False
+    print("found latex:", usetex)
+    plt.rcParams.update(
+        {
+            "text.usetex": usetex,
+            "font.family": "DejaVu Sans",
+            "font.size": 12,
+        }
+    )
+    import matplotlib
+
+    # matplotlib.use("ps")
+    plt.rc("text.latex", preamble=r"\usepackage{bm}\usepackage{color}")
+    return plt

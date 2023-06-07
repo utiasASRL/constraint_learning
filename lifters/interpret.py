@@ -37,7 +37,7 @@ def get_known_variables(lifter, n_round=N_ROUND, color=False):
 
 def convert_series_to_string(row, landmark_dict={}, precision=8, verbose=False):
     """
-    Convert row to string.
+    Convert row to an interpretable string.
     """
     multiindex = pd.MultiIndex.from_arrays([np.zeros(len(row)), row.index])
     row.index = multiindex
@@ -48,7 +48,7 @@ def convert_series_to_string(row, landmark_dict={}, precision=8, verbose=False):
         val = np.round(row[0][key], precision)
         # check if there is a landmark coordinate in this value.
         key_print = "$" + key.replace(".", "\\cdot ") + "$"
-        val_key = np.round(val, N_ROUND)
+        val_key = float(np.round(val, N_ROUND))
         if val_key in landmark_dict:
             string += f" +{landmark_dict[val_key]} {key_print}"
         elif -val_key in landmark_dict:

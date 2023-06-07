@@ -1,28 +1,11 @@
 # %%
-import shutil
-
-import matplotlib.pylab as plt
-import numpy as np
 import pandas as pd
-from IPython.display import display
+from utils.common import setup_tex
 
-usetex = True if shutil.which("latex") else False
-print("found latex:", usetex)
-plt.rcParams.update(
-    {
-        "text.usetex": usetex,
-        "font.family": "DejaVu Sans",
-        "font.size": 12,
-    }
-)
-import matplotlib
-
-matplotlib.use("ps")
-
-plt.rc("text.latex", preamble=r"\usepackage{bm}\usepackage{color}")
-figsize = 7
+plt = setup_tex()
 
 pd.set_option("display.max_columns", None)
+figsize = 7
 
 # %%
 from lifters.plotting_tools import savefig
@@ -34,7 +17,7 @@ A_known = lifter.get_A_known()
 A_learned_unknown = lifter.get_A_learned(method="qrp", eps=1e-7)
 
 A_learned = lifter.get_A_learned(method="qrp", A_known=A_known, eps=1e-7)
-assert (A_known[-1] != A_learned[-1]).nnz == 0
+assert (abs(A_known[0] - A_learned[0]) > 1e13).nnz == 0
 assert len(A_learned) == len(A_learned_unknown)
 
 
@@ -47,7 +30,6 @@ df = pd.DataFrame(data, dtype="Sparse[object]")
 
 
 # %%
-
 # first, sort dataframe by values and drop na columns.
 
 

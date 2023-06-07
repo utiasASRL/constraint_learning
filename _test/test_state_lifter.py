@@ -296,9 +296,8 @@ def compare_solvers():
 
 
 def test_vec_mat():
+    """Make sure that we can go back and forth from vec to mat."""
     for lifter in all_lifters():
-        import scipy.sparse as sp
-
         A_known = lifter.get_A_known()
         for A in A_known:
             a_dense = lifter.get_vec(A.toarray())
@@ -316,8 +315,8 @@ def test_vec_mat():
             np.testing.assert_allclose(A.toarray(), A_test.toarray())
 
         A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
-        for i in range(len(A_known)):
-            np.testing.assert_allclose(A_learned[i].toarray(), A_known[i].toarray())
+        for A_l, A_k in zip(A_learned, A_known):
+            np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
 
 
 if __name__ == "__main__":

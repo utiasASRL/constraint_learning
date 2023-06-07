@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 
-import matplotlib.pylab as plt
 import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
@@ -96,24 +95,6 @@ class StateLifter(ABC):
             mat[range(mat.shape[0]), range(mat.shape[0])] /= np.sqrt(2)
         return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
 
-        def sub2ind(rows, cols):
-            return rows * (mat.shape[0] - np.cumsum(rows)) + cols
-
-        vec_shape = int(mat.shape[0] * (mat.shape[0] + 1) / 2)
-
-        if isinstance(mat, sp.spmatrix):
-            ii, jj = mat.nonzero()
-        elif isinstance(mat, np.ndarray):
-            ii, jj = np.where(mat != 0)
-
-        # multiply all elements by sqrt(2)
-        vec_nnz = np.array(mat[ii, jj]).flatten() * np.sqrt(2)
-        # undo operation for diagonal
-        vec_nnz[ii == jj] /= np.sqrt(2)
-        vec = np.zeros(vec_shape)
-        vec[sub2ind(ii, jj)] = vec_nnz
-        return vec
-
     def get_mat(self, vec, sparse=False, trunc_tol=1e-8, var_dict=None):
         """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
 
@@ -170,21 +151,27 @@ class StateLifter(ABC):
 
     def get_A_learned(
         self,
-        eps=EPS,
-        A_known=[],
-        plot=False,
-        Y=None,
-        return_S=False,
-        factor=FACTOR,
-        method=METHOD,
-        normalize=NORMALIZE,
-        incremental=False,
+        eps: float = EPS,
+        A_known: list = [],
+        plot: bool = False,
+        Y: np.ndarray = None,
+        return_S: bool = False,
+        factor: int = FACTOR,
+        method: str = METHOD,
+        normalize: bool = NORMALIZE,
+        incremental: bool = False,
     ) -> list:
+        """
+        Learn the constraint matrices.
+
+        :param A_known: if given, learn constraints that are orthogonal to these known
+                        constraints.
+
+        :return: list of leanred matrices. A_known is also added to the beginning of returned list.
+        """
         import itertools
 
         if incremental:
-            var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
-            var_subsets += list(itertools.combinations(self.var_dict.keys(), 3))
             if len(A_known):
                 raise NotImplementedError(
                     "can't do incremental A learning with known matrices yet."
@@ -193,20 +180,32 @@ class StateLifter(ABC):
                 raise NotImplementedError(
                     "can't do incremental A learning with fixed Y yet."
                 )
+            var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
+            var_subsets += list(itertools.combinations(self.var_dict.keys(), 3))
+            var_subsets += list(itertools.combinations(self.var_dict.keys(), 4))
         else:
             var_subsets = [list(self.var_dict.keys())]
 
         A_learned = []
         S_all = [0] * len(A_known)
 
+        # keep track of current set of lin. independent constraints
+        dim_Y = int(self.dim_x * (self.dim_x + 1) / 2)
+        basis_all = np.empty((dim_Y, 0))
+        current_rank = 0
+        early_stop = False
+
         for var_subset in var_subsets:
             Y = self.generate_Y(factor=factor, var_subset=var_subset)
 
             # TODO(FD) extract subset of known matrices given the current variables?
 
-            basis, S = self.get_basis(Y, method=method, eps=eps, A_list=A_known)
+            basis, S = self.get_basis(Y, method=method, eps=eps, A_known=A_known)
             corank = basis.shape[0] - len(A_known)
             print(f"corank {var_subset}: {corank}")
+            if corank == 0:
+                continue
+
             try:
                 assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
                 assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
@@ -223,11 +222,48 @@ class StateLifter(ABC):
             var_dict = {
                 key: val for key, val in self.var_dict.items() if (key in var_subset)
             }
-            A_learned += self.generate_matrices(
+            A_new = self.generate_matrices(
                 basis, normalize=normalize, var_dict=var_dict
             )
-            if corank > 0:  # to avoid S[-0] which gives unexpected result.
-                S_all += list(np.abs(S[-corank:]))
+            # note: avoid S[-0] which gives unexpected result!
+            S_new = list(np.abs(S[-corank:]))
+
+            # find out which of the constraints are linearly dependant of the others.
+            if incremental:
+                delete = []
+                for i, Ai in enumerate(A_new):
+                    ai = self.get_vec(Ai)
+
+                    basis_all_test = np.c_[basis_all, ai]
+                    new_rank = np.linalg.matrix_rank(basis_all_test)
+                    if new_rank == current_rank + 1:
+                        basis_all = basis_all_test
+                        current_rank += 1
+                    elif new_rank == current_rank:
+                        delete.append(i)
+                    else:
+                        print(
+                            f"Warning: invalid rank change from rank {current_rank} to {new_rank}"
+                        )
+                        early_stop = True
+                        break
+
+                if early_stop:
+                    break
+                # reverse order to not change indexing as we delete elements
+                if len(delete) == len(A_new):
+                    print(f"deleting all {len(A_new)} elements!")
+                    continue
+                elif len(delete):
+                    print(f"deleting {len(delete)}/{len(A_new)} elements.")
+                    for i in delete[::-1]:
+                        del A_new[i]
+                        del S_new[i]
+
+            A_learned += A_new
+            S_all += S_new
+            assert len(A_learned) == len(S_all)
+
         if return_S:
             return A_learned, S_all
         else:
@@ -240,7 +276,9 @@ class StateLifter(ABC):
         """
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
 
-    def get_dim(self, var_subset):
+    def get_dim(self, var_subset=None):
+        if var_subset is None:
+            return self.get_dim(var_subset=self.var_dict)
         return sum([val for key, val in self.var_dict.items() if (key in var_subset)])
 
     def generate_Y(self, factor=3, ax=None, var_subset=None):
@@ -266,16 +304,16 @@ class StateLifter(ABC):
             Y[seed, :] = self.get_vec(X)
         return Y
 
-    def get_basis(self, Y, A_list: list = [], eps=EPS, method=METHOD):
+    def get_basis(self, Y, A_known: list = [], eps=EPS, method=METHOD):
         """Generate basis from lifted state matrix Y.
 
-        :param A_list: if given, will generate basis that is orthogonal to these given constraints.
+        :param A_known: if given, will generate basis that is orthogonal to these given constraints.
 
-        :return: basis with A_list as first elements (if given)
+        :return: basis with A_known as first elements (if given)
         """
         # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
-        if len(A_list) > 0:
-            A = np.vstack([self.get_vec(a) for a in A_list])
+        if len(A_known) > 0:
+            A = np.vstack([self.get_vec(a) for a in A_known])
             Y = np.vstack([Y, A])
 
         if method != "qrp":
@@ -312,7 +350,7 @@ class StateLifter(ABC):
         else:
             raise ValueError(method)
         # Add known constraints to basis
-        if len(A_list) > 0:
+        if len(A_known) > 0:
             basis = np.vstack([A, basis])
 
         return basis, S
@@ -321,9 +359,8 @@ class StateLifter(ABC):
         self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10, var_dict=None
     ):
         """
-        generate matrices from vectors
+        Generate constraint matrices from the rows of the nullspace basis matrix.
         """
-
         A_list = []
         for i in range(len(basis)):
             Ai = self.get_mat(

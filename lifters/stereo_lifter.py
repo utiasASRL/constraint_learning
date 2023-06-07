@@ -7,6 +7,13 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils import get_rot_matrix
 
 
+def get_C_r_from_theta(theta, d):
+    r = theta[:d]
+    alpha = theta[d:]
+    C = get_rot_matrix(alpha)
+    return C, r
+
+
 def get_C_r_from_xtheta(xtheta, d):
     C = xtheta[: d**2].reshape((d, d))
     r = xtheta[-d:]
@@ -141,47 +148,68 @@ class StereoLifter(StateLifter, ABC):
         n_angles = int(self.d * (self.d - 1) / 2)
         return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
 
-    def get_x(self, theta=None):
+    def get_x(self, theta=None, var_subset=None):
+        """
+        :param var_subset: list of variables to include in x vector. Set to None for all.
+        """
         if theta is None:
             theta = self.theta
-        xtheta = get_xtheta_from_theta(theta, self.d)
-        C, r = get_C_r_from_xtheta(xtheta, self.d)
+        if var_subset is None:
+            var_subset = self.var_dict.keys()
 
-        x_data = [1] + list(xtheta)
+        # use by most variables below
+        C, r = get_C_r_from_theta(theta, self.d)
 
-        higher_data = []
-        if self.level == "r2":
-            higher_data += list(r**2)
-        if self.level == "r@r":
-            higher_data += [r @ r]
-        elif self.level == "rrT":
-            higher_data += list(np.outer(r, r).flatten())
+        x_data = []
+        for key in var_subset:
+            if key == "l":
+                x_data.append(1.0)
+            elif key == "t":
+                x_data += list(r)
+            elif "c" in key:
+                # c = C.flatten("C")
+                d = int(key.split("_")[-1])
+                x_data += list(C[d, :])
 
-        for j in range(self.n_landmarks):
-            pj = self.landmarks[j, :]
-            zj = C[self.d - 1, :] @ pj + r[self.d - 1]
-            u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
-            x_data += list(u)
+            elif key == "y":
+                if self.level == "r2":
+                    x_data += list(r**2)
+                if self.level == "r@r":
+                    x_data += [r @ r]
+                elif self.level == "rrT":
+                    x_data += list(np.outer(r, r).flatten())
+            elif "z" in key:
+                j = int(key.split("_")[-1])
+                pj = self.landmarks[j, :]
+                zj = C[self.d - 1, :] @ pj + r[self.d - 1]
+                u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
+                x_data += list(u)
 
-            if self.level == "u2":
-                higher_data += list(u**2)
-            elif self.level == "u@u":
-                higher_data += [u @ u]
-            elif self.level == "u@r":
-                higher_data += [u @ r]
-            elif self.level == "uuT":
-                higher_data += list(np.outer(u, u).flatten())
-            elif self.level == "urT":
-                # this works
-                higher_data += list(np.outer(u, r).flatten())
-            elif self.level == "urT-off":
-                # this works
-                higher_data += list(np.outer(u, r)[np.triu_indices(self.d - 1)])
-            elif self.level == "urT-diag":
-                # this works
-                higher_data += list(np.diag(np.outer(u, r)))
-        x_data += higher_data
-        assert len(x_data) == self.dim_x
+            elif "y" in key:
+                j = int(key.split("_")[-1])
+                pj = self.landmarks[j]
+                zj = C[self.d - 1, :] @ pj + r[self.d - 1]
+                u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
+                if self.level == "u2":
+                    x_data += list(u**2)
+                elif self.level == "u@u":
+                    x_data += [u @ u]
+                elif self.level == "u@r":
+                    x_data += [u @ r]
+                elif self.level == "uuT":
+                    x_data += list(np.outer(u, u).flatten())
+                elif self.level == "urT":
+                    # this works
+                    x_data += list(np.outer(u, r).flatten())
+                elif self.level == "urT-off":
+                    # this works
+                    x_data += list(np.outer(u, r)[np.triu_indices(self.d - 1)])
+                elif self.level == "urT-diag":
+                    # this works
+                    x_data += list(np.diag(np.outer(u, r)))
+
+        dim_x = self.get_dim(var_subset=var_subset)
+        assert len(x_data) == dim_x
         return np.array(x_data)
 
     def get_A_known(self):

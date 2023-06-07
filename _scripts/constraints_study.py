@@ -10,6 +10,7 @@ import pandas as pd
 from lifters.plotting_tools import savefig
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
 from solvers.common import find_local_minimum, solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
 
@@ -32,15 +33,15 @@ n_landmarks = 3
 noise = 1e-2
 level = "urT"
 seed = 0
-d = 1
+d = 3
 
 save_pairs = [
     ("original", "increase"),
     ("original", "decrease"),
     ("optimization", "decrease"),
     ("opt-force", "decrease"),
-    ("singular", "decrease"),
-    ("sparsity", "increase"),
+    # ("singular", "decrease"),
+    # ("sparsity", "increase"),
 ]
 
 parameter_list = [
@@ -62,12 +63,6 @@ parameter_list = [
         incremental=True,
         appendix="incremental",
     ),
-    dict(  # incremental
-        add_known_redundant=False,
-        use_known=False,
-        incremental=True,
-        appendix="incremental",
-    ),
 ]
 
 params = parameter_list[2]
@@ -76,10 +71,12 @@ params = parameter_list[2]
 root = Path(__file__).resolve().parents[1]
 fname_root = str(root / f"_results/experiments_{d}d_{params['appendix']}")
 
-if d == 2:
-    lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
-elif d == 1:
+if d == 1:
     lifter = Stereo1DLifter(n_landmarks=n_landmarks)
+elif d == 2:
+    lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level)
+elif d == 3:
+    lifter = Stereo3DLifter(n_landmarks=n_landmarks, level=level)
 
 # %%
 # generate constraints
