@@ -35,7 +35,7 @@ level = "urT"
 seed = 0
 d = 3
 
-save_pairs = [
+order_pairs = [
     ("original", "increase"),
     ("original", "decrease"),
     ("optimization", "decrease"),
@@ -118,8 +118,27 @@ elif qcqp_cost < 1e-7:
 
 
 # %%
+# intermediate step: remove lin. dependant matrices from final list.
+# this should have happened earlier but for some reason there are some
+# residual dependent vectors that need to be removed.
+basis = np.concatenate([lifter.get_vec(A)[:, None] for A in A_all], axis=1)
+import scipy.linalg as la
+
+__, r, p = la.qr(basis, pivoting=True, mode="economic")
+rank = np.where(np.abs(np.diag(r)) > EPS_LEARNED)[0][-1] + 1
+A_reduced = [A_all[i] for i in p[:rank]]
+print(f"only {rank} of {len(A_all)} constraints are independent")
+
+# sanity check
+basis_reduced = np.concatenate([lifter.get_vec(A)[:, None] for A in A_reduced], axis=1)
+__, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
+rank_new = np.where(np.abs(np.diag(r)) > EPS_LEARNED)[0][-1] + 1
+assert rank_new == rank
+
+A_b_list_all = lifter.get_A_b_list(A_reduced)
+
+# %%
 # compute lamdas using optimization
-A_b_list_all = lifter.get_A_b_list(A_all)
 xhat = lifter.get_x(qcqp_that)
 H, lamdas_force = solve_lambda(Q, A_b_list_all, xhat, force_first=1 + len(A_known))
 if lamdas_force is None:
@@ -191,7 +210,7 @@ from progressbar import ProgressBar
 data_tight = []
 
 # for (order, order_type), df_sub in df_tight.groupby(["order", "type"]):
-for order_name, order_type in save_pairs:
+for order_name, order_type in order_pairs:
     print(f"{order_name} {order_type}")
     # for order_name, order_arrays in order_dicts.items():
     step = 1 if order_type == "increase" else -1
@@ -271,7 +290,7 @@ from math import ceil
 from lifters.plotting_tools import plot_matrix
 
 # for (order, order_type), df_sub in df_tight.groupby(["order", "type"]):
-for order_name, order_type in save_pairs:
+for order_name, order_type in order_pairs:
     df_sub = df_tight[
         (df_tight.order_name == order_name) & (df_tight.order_type == order_type)
     ]

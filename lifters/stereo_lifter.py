@@ -38,7 +38,7 @@ def get_xtheta_from_theta(theta, d):
     return theta
 
 
-def get_theta_from_T(T):
+def get_xtheta_from_T(T):
     # T is either 4x4 or 3x3 matrix.
     C = T[:-1, :-1]
     r = T[:-1, -1]
@@ -157,8 +157,13 @@ class StereoLifter(StateLifter, ABC):
         if var_subset is None:
             var_subset = self.var_dict.keys()
 
-        # use by most variables below
-        C, r = get_C_r_from_theta(theta, self.d)
+        # TODO(FD) below is a bit hacky, these two variables should not both be called theta.
+        # theta is either (x, y, alpha) or (x, y, z, a1, a2, a3)
+        if len(theta) in [3, 6]:
+            C, r = get_C_r_from_theta(theta, self.d)
+        # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
+        elif len(theta) == 12:
+            C, r = get_C_r_from_xtheta(theta, self.d)
 
         x_data = []
         for key in var_subset:

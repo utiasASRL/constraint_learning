@@ -17,6 +17,11 @@ METHOD = "qrp"
 NORMALIZE = False  # normalize learned Ai or not, (True)
 FACTOR = 2.0  # how much to oversample (>= 1)
 
+# maximum number of elements to use when doing incremental learning.
+# we start with all possible pairs of variables (k=2) and go up to
+# k=MAX_N_SUBSETS.
+MAX_N_SUBSETS = 4
+
 
 class StateLifter(ABC):
     def __init__(self, theta_shape, M, L=0):
@@ -181,8 +186,8 @@ class StateLifter(ABC):
                     "can't do incremental A learning with fixed Y yet."
                 )
             var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
-            var_subsets += list(itertools.combinations(self.var_dict.keys(), 3))
-            var_subsets += list(itertools.combinations(self.var_dict.keys(), 4))
+            for k in range(3, MAX_N_SUBSETS + 1):
+                var_subsets += list(itertools.combinations(self.var_dict.keys(), k))
         else:
             var_subsets = [list(self.var_dict.keys())]
 
@@ -199,10 +204,10 @@ class StateLifter(ABC):
             Y = self.generate_Y(factor=factor, var_subset=var_subset)
 
             # TODO(FD) extract subset of known matrices given the current variables?
-
+            # TODO(FD) can we already enforce lin. independance to previously found
+            # matrices at this point?
             basis, S = self.get_basis(Y, method=method, eps=eps, A_known=A_known)
             corank = basis.shape[0] - len(A_known)
-            print(f"corank {var_subset}: {corank}")
             if corank == 0:
                 continue
 
@@ -229,13 +234,14 @@ class StateLifter(ABC):
             S_new = list(np.abs(S[-corank:]))
 
             # find out which of the constraints are linearly dependant of the others.
+            # TODO(FD): could potentially do below with a QRP decomposition.
             if incremental:
                 delete = []
                 for i, Ai in enumerate(A_new):
                     ai = self.get_vec(Ai)
 
                     basis_all_test = np.c_[basis_all, ai]
-                    new_rank = np.linalg.matrix_rank(basis_all_test)
+                    new_rank = np.linalg.matrix_rank(basis_all_test, tol=1e-10)
                     if new_rank == current_rank + 1:
                         basis_all = basis_all_test
                         current_rank += 1
@@ -245,17 +251,19 @@ class StateLifter(ABC):
                         print(
                             f"Warning: invalid rank change from rank {current_rank} to {new_rank}"
                         )
-                        early_stop = True
+                        early_stop = False
                         break
 
                 if early_stop:
                     break
-                # reverse order to not change indexing as we delete elements
                 if len(delete) == len(A_new):
-                    print(f"deleting all {len(A_new)} elements!")
+                    # print(f"      {var_subset}: deleting all")
                     continue
                 elif len(delete):
-                    print(f"deleting {len(delete)}/{len(A_new)} elements.")
+                    print(
+                        f"{var_subset}: keeping {len(A_new)-len(delete)}/{len(A_new)}"
+                    )
+                    # reverse order to not change indexing as we delete elements
                     for i in delete[::-1]:
                         del A_new[i]
                         del S_new[i]

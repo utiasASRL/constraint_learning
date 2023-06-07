@@ -3,7 +3,7 @@ import numpy as np
 from lifters.stereo_lifter import (
     StereoLifter,
     get_T,
-    get_theta_from_T,
+    get_xtheta_from_T,
     get_xtheta_from_theta,
 )
 
@@ -74,7 +74,7 @@ class Stereo3DLifter(StereoLifter):
         success, T_hat, cost = stereo_localization_gauss_newton(
             T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose
         )
-        x_hat = get_theta_from_T(T_hat)
+        x_hat = get_xtheta_from_T(T_hat)
 
         if success:
             return x_hat, "converged", cost
