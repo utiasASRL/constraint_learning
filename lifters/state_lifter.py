@@ -208,16 +208,14 @@ class StateLifter(ABC):
             # matrices at this point?
             basis, S = self.get_basis(Y, method=method, eps=eps, A_known=A_known)
             corank = basis.shape[0] - len(A_known)
-            if corank == 0:
-                continue
 
-            try:
-                assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
-                assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
-            except:
-                pass
-                # print(f"there might be a problem with the chosen threshold {eps}:")
-                # print(S[-corank], eps, S[-corank - 1])
+            if corank > 1:
+                try:
+                    assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
+                    assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
+                except:
+                    print(f"there might be a problem with the chosen threshold {eps}:")
+                    print(S[-corank], eps, S[-corank - 1])
 
             if plot:
                 from lifters.plotting_tools import plot_singular_values
@@ -231,7 +229,7 @@ class StateLifter(ABC):
                 basis, normalize=normalize, var_dict=var_dict
             )
             # note: avoid S[-0] which gives unexpected result!
-            S_new = list(np.abs(S[-corank:]))
+            S_new = list(np.abs(S[-corank:])) if corank > 0 else []
 
             # find out which of the constraints are linearly dependant of the others.
             # TODO(FD): could potentially do below with a QRP decomposition.

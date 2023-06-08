@@ -78,7 +78,7 @@ def generate_matrices(lifter, param, fname_root=""):
         del A_all[idx]
         del S[idx]
     n_learned = len(A_all) - len(A_known)
-    print(f"left with {n_learned} leanred cosntraints")
+    print(f"left with {n_learned} learned cosntraints")
 
     # intermediate step: remove lin. dependant matrices from final list.
     # this should have happened earlier but for some reason there are some
@@ -88,16 +88,19 @@ def generate_matrices(lifter, param, fname_root=""):
 
     __, r, p = la.qr(basis, pivoting=True, mode="economic")
     rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-    A_reduced = [A_all[i] for i in p[:rank]]
-    print(f"{rank} of {len(A_all)} constraints are independent")
+    if rank < len(A_all):
+        A_reduced = [A_all[i] for i in p[:rank]]
+        print(f"only {rank} of {len(A_all)} constraints are independent")
 
-    # sanity check
-    basis_reduced = np.concatenate(
-        [lifter.get_vec(A)[:, None] for A in A_reduced], axis=1
-    )
-    __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
-    rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-    assert rank_new == rank
+        # sanity check
+        basis_reduced = np.concatenate(
+            [lifter.get_vec(A)[:, None] for A in A_reduced], axis=1
+        )
+        __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
+        rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
+        assert rank_new == rank
+    else:
+        A_reduced = A_all
 
     A_b_list_all = lifter.get_A_b_list(A_reduced)
 
@@ -336,12 +339,13 @@ if __name__ == "__main__":
 
     root = Path(__file__).resolve().parents[1]
 
-    recompute_matrices = False
-    recompute_tightness = False
+    recompute_matrices = True
+    recompute_tightness = True
 
     n_matrices = None  # for debugging only. set to None to use all
     # for d, param in itertools.product([3], ["learned"]):
-    for d, param in itertools.product([2, 3], ["learned", "incremental"]):
+    # for d, param in itertools.product([2, 3], ["learned", "incremental"]):
+    for d, param in itertools.product([1], ["known", "learned", "incremental"]):
         fname_root = str(root / f"_results/experiments_{d}d_{param}")
 
         np.random.seed(SEED)
