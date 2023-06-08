@@ -16,7 +16,7 @@ def change_dimensions(a, y):
 
 class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no"):
-        self.W = np.eye(4)
+        self.W = np.stack([np.eye(4)] * n_landmarks)
         self.M_matrix_ = None
         super().__init__(n_landmarks=n_landmarks, level=level, d=3)
 
@@ -36,13 +36,14 @@ class Stereo3DLifter(StereoLifter):
         """
         :param t: can be either
         - x, y, z, yaw, pitch roll: vector of unknowns, or
-        - [c1, c2, c3, x, y, z], the theta vector (unrolled C and x, y, z)
+        - [c1, c2, c3, x, y, z], the theta vector (flattened C and x, y, z)
         """
-        from lifters.stereo3d_problem import projection_error
+        from lifters.stereo3d_problem import _cost
 
         if W is None:
             W = self.W
         a = self.landmarks
+
         p_w, y = change_dimensions(a, y)
 
         if len(t) == 6:
@@ -51,14 +52,14 @@ class Stereo3DLifter(StereoLifter):
             theta = t
         T = get_T(theta, 3)
 
-        cost = projection_error(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
+        cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
         return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         """
         :param t_init: same options  asfor t in cost.
         """
-        from lifters.stereo3d_problem import stereo_localization_gauss_newton
+        from lifters.stereo3d_problem import local_solver
 
         if W is None:
             W = self.W
@@ -71,7 +72,7 @@ class Stereo3DLifter(StereoLifter):
             theta_init = t_init
         T_init = get_T(theta_init, 3)
 
-        success, T_hat, cost = stereo_localization_gauss_newton(
+        success, T_hat, cost = local_solver(
             T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose
         )
         x_hat = get_xtheta_from_T(T_hat)

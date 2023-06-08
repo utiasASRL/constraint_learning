@@ -4,7 +4,6 @@ import scipy.sparse.linalg as spl
 
 VERBOSE = False
 SOLVER = "MOSEK"  # first choice
-SOLVER_ALT = None  # "CVXOPT"  # if first choice fails. can be set to None
 solver_options = {
     None: {},
     "CVXOPT": {
@@ -16,16 +15,16 @@ solver_options = {
         "feastol": 1e-9,
     },
     "MOSEK": {
+        "verbose": VERBOSE,
         "mosek_params": {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10, this made the problem infeasible sometimes
-            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-12,  # was 1e-8
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-12,  # was 1e-8
+            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
+            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,  # was 1e-10
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
         },
-        "verbose": VERBOSE,
     },
 }
 
@@ -50,16 +49,36 @@ def adjust_tol(options, tol):
             )
 
 
-def adjust_Q(Q):
+def adjust_Q(Q, offset=True, scale=True, plot=False):
     from copy import deepcopy
 
-    Q_here = deepcopy(Q)
-    offset = Q_here[0, 0]
-    Q_here[0, 0] -= offset
+    ii, jj = (Q == Q.max()).nonzero()
+    if (ii[0], jj[0]) != (0, 0) or (len(ii) > 1):
+        print(
+            "Warning: largest element of Q is not unique or not in top-left. Check ordering?"
+        )
 
-    scale = spl.norm(Q_here)
-    Q_here /= scale
-    return Q_here, scale, offset
+    Q_mat = deepcopy(Q)
+    if offset:
+        Q_offset = Q_mat[0, 0]
+    else:
+        Q_offset = 0
+    Q_mat[0, 0] -= Q_offset
+
+    if scale:
+        # Q_scale = spl.norm(Q_mat, "fro")
+        Q_scale = Q_mat.max()
+    else:
+        Q_scale = 1.0
+    Q_mat /= Q_scale
+    if plot:
+        import matplotlib.pylab as plt
+
+        fig, axs = plt.subplots(1, 2)
+        axs[0].matshow(np.log10(np.abs(Q.toarray())))
+        axs[1].matshow(np.log10(np.abs(Q_mat.toarray())))
+        plt.show()
+    return Q_mat, Q_scale, Q_offset
 
 
 def solve_sdp_cvxpy(
@@ -67,7 +86,6 @@ def solve_sdp_cvxpy(
     A_b_list,
     adjust=False,
     solver=SOLVER,
-    solver_alt=SOLVER_ALT,
     primal=False,
     verbose=True,
     tol=None,
@@ -85,10 +103,9 @@ def solve_sdp_cvxpy(
         _type_: (X, cost_out): solution matrix and output cost.
     """
     opts = solver_options[solver]
-    opts_alt = solver_options[solver_alt]
 
     if tol:
-        adjust_tol([opts, opts_alt], tol)
+        adjust_tol([opts], tol)
 
     Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
     if primal:
@@ -130,11 +147,15 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except:
+            print("Solver {s} failed! solving again with verbose option.")
+            from copy import deepcopy
+
+            o_here = deepcopy(opts)
+            o_here["verbose"] = True
             try:
-                assert solver_alt is not None
                 cprob.solve(
-                    solver=solver_alt,
-                    **opts_alt,
+                    solver=solver,
+                    **o_here,
                 )
             except:
                 cost = None
@@ -144,17 +165,19 @@ def solve_sdp_cvxpy(
             else:
                 cost = cprob.value
                 X = constraint.dual_value
-                H = Q - LHS.value
+                H = Q_here - LHS.value
                 yvals = [x.value for x in y]
         else:
             cost = cprob.value
             X = constraint.dual_value
-            H = Q - LHS.value
+            H = Q_here - LHS.value
             yvals = [x.value for x in y]
     # reverse Q adjustment
     if cost:
-        cost *= scale
-        cost += offset
+        cost = cost * scale + offset
+        yvals[0] = yvals[0] * scale + offset
+        H *= scale
+        H[0, 0] += offset
     info = {"H": H, "yvals": yvals, "cost": cost}
     return X, info
 

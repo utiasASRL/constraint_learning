@@ -111,7 +111,7 @@ def generative_camera_model(
     return M @ p_c / p_c[:, None, 2]
 
 
-def projection_error(y: np.array, T: np.array, M: np.array, p_w: np.array, W: np.array):
+def _cost(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
     """Compute projection error
 
     Args:
@@ -129,7 +129,7 @@ def projection_error(y: np.array, T: np.array, M: np.array, p_w: np.array, W: np
     return np.sum(e.transpose((0, 2, 1)) @ W @ e, axis=0)[0][0]
 
 
-def stereo_localization_gauss_newton(
+def local_solver(
     T_init: np.array,
     y: np.array,
     p_w: np.array,
@@ -160,8 +160,10 @@ def stereo_localization_gauss_newton(
     while (perturb_mag > min_update_norm) and (i < max_iters):
         delta = _delta(T_op @ p_w, M)
         beta = _u(y, T_op @ p_w, M)
-        A = np.sum(delta @ (W + W.T) @ delta.transpose((0, 2, 1)), axis=0)
-        b = np.sum(-delta @ (W + W.T) @ beta, axis=0)
+        A = np.sum(
+            delta @ (W + W.transpose((0, 2, 1))) @ delta.transpose((0, 2, 1)), axis=0
+        )
+        b = np.sum(-delta @ (W + W.transpose((0, 2, 1))) @ beta, axis=0)
         epsilon = _svdsolve(A, b)
         T_op = vec2tran(epsilon) @ T_op
         perturb_mag = np.linalg.norm(epsilon)
@@ -170,5 +172,5 @@ def stereo_localization_gauss_newton(
         i = i + 1
         if i == max_iters:
             solved = False
-    cost = projection_error(y, T_op, M, p_w, W)
+    cost = _cost(T_op, p_w, y, W, M)
     return solved, T_op, cost

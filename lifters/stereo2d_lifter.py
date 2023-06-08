@@ -11,10 +11,9 @@ def change_dimensions(a, y, x):
 
 class Stereo2DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no"):
-        # TODO(FD) W is inconsistent with 3D model
         self.W = np.stack([np.eye(2)] * n_landmarks)
         self.M_matrix_ = None
-        super().__init__(n_landmarks=n_landmarks, d=2, level=level)
+        super().__init__(n_landmarks=n_landmarks, level=level, d=2)
 
     @property
     def M_matrix(self):
@@ -27,15 +26,19 @@ class Stereo2DLifter(StereoLifter):
     def get_cost(self, t, y, W=None):
         from lifters.stereo2d_problem import _cost
 
+        if W is None:
+            W = self.W
         a = self.landmarks
 
         p_w, y, phi = change_dimensions(a, y, t)
-        cost = _cost(p_w=p_w, y=y, phi=phi, W=W)[0, 0]
+        cost = _cost(phi, p_w, y, W, self.M_matrix)
         return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         from lifters.stereo2d_problem import local_solver
 
+        if W is None:
+            W = self.W
         a = self.landmarks
 
         p_w, y, init_phi = change_dimensions(a, y, t_init)

@@ -145,7 +145,7 @@ class StereoLifter(StateLifter, ABC):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
 
     def generate_random_theta(self):
-        n_angles = int(self.d * (self.d - 1) / 2)
+        n_angles = 1 if self.d == 2 else 3
         return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
 
     def get_x(self, theta=None, var_subset=None):
@@ -217,7 +217,7 @@ class StereoLifter(StateLifter, ABC):
         assert len(x_data) == dim_x
         return np.array(x_data)
 
-    def get_A_known(self):
+    def get_A_known(self, add_known_redundant=False):
         # C = [ c1
         #       c2
         #       c3 ]
@@ -281,7 +281,16 @@ class StereoLifter(StateLifter, ABC):
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
             ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde})
-        return ls_problem.get_Q().get_matrix(self.var_dict), y
+        Q = ls_problem.get_Q().get_matrix(self.var_dict)
+
+        # sanity check
+        x = self.get_x()
+        t = self.theta
+        cost_raw = self.get_cost(t, y)
+        cost_Q = x.T @ Q.toarray() @ x
+        assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
+
+        return Q, y
 
     def get_grad(self, t, y):
         raise NotImplementedError("get_grad not implement yet")
