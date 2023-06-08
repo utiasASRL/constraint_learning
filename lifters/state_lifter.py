@@ -132,17 +132,17 @@ class StateLifter(ABC):
                     np.r_[vec_nnz_diag, vec_nnz_off, vec_nnz_off],
                     (np.r_[diag_i, triu_i, triu_j], np.r_[diag_i, triu_j, triu_i]),
                 ),
-                (self.dim_x, self.dim_x),
+                (dim_x, dim_x),
             )
         else:
-            Ai = np.zeros((self.dim_x, self.dim_x))
+            Ai = np.zeros((dim_x, dim_x))
 
             # divide all elements by sqrt(2)
             Ai[triu_i_nnz, triu_j_nnz] = vec_nnz / np.sqrt(2)
             Ai[triu_j_nnz, triu_i_nnz] = vec_nnz / np.sqrt(2)
 
             # undo operation for diagonal
-            Ai[range(self.dim_x), range(self.dim_x)] *= np.sqrt(2)
+            Ai[range(dim_x), range(dim_x)] *= np.sqrt(2)
 
         if var_dict is None:
             return Ai
@@ -225,11 +225,15 @@ class StateLifter(ABC):
             var_dict = {
                 key: val for key, val in self.var_dict.items() if (key in var_subset)
             }
-            A_new = self.generate_matrices(
-                basis, normalize=normalize, var_dict=var_dict
-            )
-            # note: avoid S[-0] which gives unexpected result!
-            S_new = list(np.abs(S[-corank:])) if corank > 0 else []
+            if corank > 0:
+                A_new = self.generate_matrices(
+                    basis, normalize=normalize, var_dict=var_dict
+                )
+                # note: avoid S[-0] which gives unexpected result!
+                S_new = list(np.abs(S[-corank:]))
+            else:
+                A_new = []
+                S_new = []
 
             # find out which of the constraints are linearly dependant of the others.
             # TODO(FD): could potentially do below with a QRP decomposition.
@@ -265,6 +269,8 @@ class StateLifter(ABC):
                     for i in delete[::-1]:
                         del A_new[i]
                         del S_new[i]
+                else:
+                    print(f"{var_subset}: keeping all {len(A_new)}")
 
             A_learned += A_new
             S_all += S_new

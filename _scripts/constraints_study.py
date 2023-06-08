@@ -5,54 +5,12 @@ import numpy as np
 import pandas as pd
 
 from lifters.plotting_tools import savefig
+from lifters.stereo1d_slam_lifter import Stereo1DSLAMLifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from solvers.common import find_local_minimum, solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
-
-# assume strong duality when absolute gap is smaller
-TOL_REL_GAP = 1e-3  # 1e-10  # was 1e-5
-
-# tolerance for nullspace basis vectors
-EPS_SVD = 1e-7
-# tolerance for feasibility error of learned constraints
-EPS_ERROR = 1e-8
-
-NORMALIZE = False
-METHOD = "qrp"
-
-# TODO(FD) for some reason this is not helping for 1d problem
-# remove Q[0,0] for optimization, and normalize entries
-ADJUST = True
-
-N_LANDMARKS = 3  # should be 4 for 3d?
-NOISE = 1e-2
-LEVEL = "urT"
-SEED = 1
-
-PARAMETER_DICT = {
-    "learned": dict(  # fully learned
-        add_known_redundant=False,
-        use_known=True,
-        incremental=False,
-    ),
-    "known": dict(  # fully known (only 1D)
-        add_known_redundant=True,
-        use_known=True,
-        incremental=False,
-    ),
-    "incremental": dict(  # incremental
-        add_known_redundant=False,
-        use_known=False,
-        incremental=True,
-    ),
-}
-
-ORDER_PAIRS = [
-    ("original", "increase"),
-    ("optimization", "decrease"),
-]
 
 
 def generate_matrices(lifter, param, fname_root=""):
@@ -78,7 +36,7 @@ def generate_matrices(lifter, param, fname_root=""):
         del A_all[idx]
         del S[idx]
     n_learned = len(A_all) - len(A_known)
-    print(f"left with {n_learned} learned cosntraints")
+    print(f"left with {n_learned} learned constraints")
 
     # intermediate step: remove lin. dependant matrices from final list.
     # this should have happened earlier but for some reason there are some
@@ -332,6 +290,49 @@ def interpret_dataframe(lifter, A_b_list_all, order_dicts, fname_root):
         print("saved math as", fname)
 
 
+# assume strong duality when absolute gap is smaller
+TOL_REL_GAP = 1e-3  # 1e-10  # was 1e-5
+
+# tolerance for nullspace basis vectors
+EPS_SVD = 1e-5
+# tolerance for feasibility error of learned constraints
+EPS_ERROR = 1e-8
+
+NORMALIZE = False
+METHOD = "qrp"
+
+# TODO(FD) for some reason this is not helping for 1d problem
+# remove Q[0,0] for optimization, and normalize entries
+ADJUST = True
+
+N_LANDMARKS = 3  # should be 4 for 3d?
+NOISE = 1e-2
+SEED = 1
+
+PARAMETER_DICT = {
+    "learned": dict(  # fully learned
+        add_known_redundant=False,
+        use_known=False,
+        incremental=False,
+    ),
+    "known": dict(  # fully known (only 1D)
+        add_known_redundant=True,
+        use_known=True,
+        incremental=False,
+    ),
+    "incremental": dict(  # incremental
+        add_known_redundant=False,
+        use_known=False,
+        incremental=True,
+    ),
+}
+
+ORDER_PAIRS = [
+    ("original", "increase"),
+    ("optimization", "decrease"),
+]
+
+
 if __name__ == "__main__":
     import pickle
     from pathlib import Path
@@ -345,17 +346,18 @@ if __name__ == "__main__":
     n_matrices = None  # for debugging only. set to None to use all
     # for d, param in itertools.product([3], ["learned"]):
     # for d, param in itertools.product([2, 3], ["learned", "incremental"]):
-    for d, param in itertools.product([1], ["known", "learned", "incremental"]):
-        fname_root = str(root / f"_results/experiments_{d}d_{param}")
-
+    for d, param in itertools.product([1], ["learned"]):
         np.random.seed(SEED)
         if d == 1:
-            lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS)
+            lifter = Stereo1DSLAMLifter(n_landmarks=N_LANDMARKS, level="all")  # za
         elif d == 2:
-            lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, level=LEVEL)
+            lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, level="urT")
         elif d == 3:
-            lifter = Stereo3DLifter(n_landmarks=N_LANDMARKS, level=LEVEL)
+            lifter = Stereo3DLifter(n_landmarks=N_LANDMARKS, level="urT")
         lifter.generate_random_setup()
+
+        fname_root = str(root / f"_results/experiments_{lifter}_{param}")
+
         # solve locally
         np.random.seed(SEED)
         Q, y = lifter.get_Q(noise=NOISE)
@@ -372,7 +374,7 @@ if __name__ == "__main__":
             A_b_list_all, names = generate_matrices(lifter, param, fname_root)
 
             # increase how many constraints we add to the problem
-            qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y)
+            qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
             xhat = lifter.get_x(qcqp_that)
             if qcqp_cost is None:
                 print("Warning: could not solve local.")

@@ -18,7 +18,6 @@ class Stereo1DLifter(StateLifter):
         return self.theta_
 
     def generate_random_setup(self):
-        # important!! we can only resample x, the landmarks have to stay the same
         self.landmarks = np.random.rand(self.n_landmarks)
 
     def sample_theta(self):
@@ -78,7 +77,7 @@ class Stereo1DLifter(StateLifter):
 
         A_known = []
 
-        # enforce that z_j = 1/(x - a_j) == 1 <=> 1 - z_j*x + a_j*z_j = 0
+        # enforce that z_j = 1/(x - a_j) <=> 1 - z_j*x + a_j*z_j = 0
         for j in range(self.n_landmarks):
             A = PolyMatrix()
             A["l", f"z_{j}"] = 0.5 * self.landmarks[j]

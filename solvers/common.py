@@ -147,7 +147,7 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except:
-            print("Solver {s} failed! solving again with verbose option.")
+            print(f"Solver {solver} failed! solving again with verbose option.")
             from copy import deepcopy
 
             o_here = deepcopy(opts)
