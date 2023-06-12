@@ -4,11 +4,13 @@ from lifters.state_lifter import StateLifter
 
 
 class Stereo1DLifter(StateLifter):
-    def __init__(self, n_landmarks):
+    def __init__(self, n_landmarks, add_parameters=False):
         self.n_landmarks = n_landmarks
         self.d = 1
         self.W = 1.0
         self.theta_ = None
+        self.parameters = None
+        self.add_parameters = add_parameters
         super().__init__(theta_shape=(1,), M=n_landmarks)
 
     @property
@@ -19,6 +21,7 @@ class Stereo1DLifter(StateLifter):
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks)
+        self.parameters = self.get_parameters()
 
     def sample_theta(self):
         x_try = np.random.rand(1)
@@ -30,12 +33,28 @@ class Stereo1DLifter(StateLifter):
                 return
         return x_try
 
-    def get_x(self, theta=None, var_subset=None):
+    def sample_parameters(self):
+        if self.add_parameters:
+            parameters_ = [1.0] + list(np.random.rand(self.n_landmarks))
+        else:
+            parameters_ = [1.0]
+        return parameters_
+
+    def get_parameters(self, var_subset=None):
+        if self.add_parameters:
+            return [1.0] + list(self.landmarks)
+        else:
+            return [1.0]
+
+    def get_x(self, theta=None, parameters=None, var_subset=None):
         """
         :param var_subset: list of variables to include in x vector. Set to None for all.
         """
         if theta is None:
             theta = self.theta
+        if parameters is None:
+            parameters = self.parameters
+
         if var_subset is None:
             var_subset = self.var_dict.keys()
 
@@ -47,7 +66,11 @@ class Stereo1DLifter(StateLifter):
                 x_data.append(float(theta))
             elif "z" in key:
                 idx = int(key.split("_")[-1])
-                x_data.append(float(1 / (theta - self.landmarks[idx])))
+                if self.add_parameters:
+                    assert parameters is not None
+                    x_data.append(float(1 / (theta - parameters[idx + 1])))
+                else:
+                    x_data.append(float(1 / (theta - self.landmarks[idx])))
             else:
                 raise ValueError("unknown key in get_x", key)
         return np.array(x_data)
@@ -74,6 +97,9 @@ class Stereo1DLifter(StateLifter):
 
     def get_A_known(self, add_known_redundant=False):
         from poly_matrix.poly_matrix import PolyMatrix
+
+        # if self.add_parameters:
+        #    raise ValueError("can't extract known matrices yet when using parameters.")
 
         A_known = []
 
@@ -125,4 +151,7 @@ class Stereo1DLifter(StateLifter):
         return None, "didn't converge", None
 
     def __repr__(self):
-        return "stereo1d"
+        if self.add_parameters:
+            return "stereo1d_params"
+        else:
+            return "stereo1d"

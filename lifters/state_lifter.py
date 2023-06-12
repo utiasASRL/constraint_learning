@@ -154,6 +154,21 @@ class StateLifter(ABC):
     def get_A_known(self) -> list:
         return []
 
+    def extract_A_known(self, A_known, var_subset):
+        sub_A_known = []
+        for A in A_known:
+            A_poly, var_dict = PolyMatrix.init_from_sparse(A, self.var_dict)
+
+            # if all of the non-zero elements of A_poly are in var_subset,
+            # we can use this matrix.
+            if np.all([v in var_subset for v in A_poly.get_variables()]):
+                sub_A_known.append(
+                    A_poly.get_matrix(
+                        {k: v for k, v in var_dict.items() if k in var_subset}
+                    )
+                )
+        return sub_A_known
+
     def get_A_learned(
         self,
         eps: float = EPS,
@@ -177,10 +192,6 @@ class StateLifter(ABC):
         import itertools
 
         if incremental:
-            if len(A_known):
-                raise NotImplementedError(
-                    "can't do incremental A learning with known matrices yet."
-                )
             if Y is not None:
                 raise NotImplementedError(
                     "can't do incremental A learning with fixed Y yet."
@@ -192,22 +203,36 @@ class StateLifter(ABC):
             var_subsets = [list(self.var_dict.keys())]
 
         A_learned = []
-        S_all = [0] * len(A_known)
+        A_learned += A_known
+        S_learned = [0] * len(A_known)
 
         # keep track of current set of lin. independent constraints
-        dim_Y = int(self.dim_x * (self.dim_x + 1) / 2)
-        basis_all = np.empty((dim_Y, 0))
-        current_rank = 0
+        dim_Y = self.get_dim_X() * self.get_dim_P()
         early_stop = False
+
+        if len(A_known):
+            basis_all = np.vstack(
+                [self.get_augmented_vec(self.get_vec(A)) for A in A_known]
+            ).T
+            assert basis_all.shape[0] == dim_Y
+            current_rank = np.linalg.matrix_rank(basis_all)
+        else:
+            basis_all = np.empty((dim_Y, 0))
+            current_rank = 0
 
         for var_subset in var_subsets:
             Y = self.generate_Y(factor=factor, var_subset=var_subset)
 
-            # TODO(FD) extract subset of known matrices given the current variables?
-            # TODO(FD) can we already enforce lin. independance to previously found
+            # extract subset of known matrices given the current variables
+            sub_A_known = self.extract_A_known(A_known, var_subset)
+
+            # TODO(FD) can we enforce lin. independance to previously found
             # matrices at this point?
-            basis, S = self.get_basis(Y, method=method, eps=eps, A_known=A_known)
-            corank = basis.shape[0] - len(A_known)
+            basis, S = self.get_basis(Y, method=method, eps=eps, A_known=sub_A_known)
+            corank = basis.shape[0]
+
+            if corank == 0:
+                continue
 
             if corank > 1:
                 try:
@@ -218,22 +243,23 @@ class StateLifter(ABC):
                     print(S[-corank], eps, S[-corank - 1])
 
             if plot:
+                import matplotlib.pylab as plt
                 from lifters.plotting_tools import plot_singular_values
 
                 plot_singular_values(S, eps=eps)
 
+                fig, ax = plt.subplots()
+                ax.matshow(basis)
+                ax.axvline(self.get_dim_X(var_subset) - 0.5, color="red")
+
             var_dict = {
                 key: val for key, val in self.var_dict.items() if (key in var_subset)
             }
-            if corank > 0:
-                A_new = self.generate_matrices(
-                    basis, normalize=normalize, var_dict=var_dict
-                )
-                # note: avoid S[-0] which gives unexpected result!
-                S_new = list(np.abs(S[-corank:]))
-            else:
-                A_new = []
-                S_new = []
+            A_new = self.generate_matrices(
+                basis, normalize=normalize, var_dict=var_dict
+            )
+            # note: avoid S[-0] which gives unexpected result!
+            S_new = list(np.abs(S[-corank:]))
 
             # find out which of the constraints are linearly dependant of the others.
             # TODO(FD): could potentially do below with a QRP decomposition.
@@ -242,7 +268,9 @@ class StateLifter(ABC):
                 for i, Ai in enumerate(A_new):
                     ai = self.get_vec(Ai)
 
-                    basis_all_test = np.c_[basis_all, ai]
+                    bi = self.get_augmented_vec(ai)
+
+                    basis_all_test = np.c_[basis_all, bi]
                     new_rank = np.linalg.matrix_rank(basis_all_test, tol=1e-10)
                     if new_rank == current_rank + 1:
                         basis_all = basis_all_test
@@ -273,11 +301,11 @@ class StateLifter(ABC):
                     print(f"{var_subset}: keeping all {len(A_new)}")
 
             A_learned += A_new
-            S_all += S_new
-            assert len(A_learned) == len(S_all)
+            S_learned += S_new
+            assert len(A_learned) == len(S_learned)
 
         if return_S:
-            return A_learned, S_all
+            return A_learned, S_learned
         else:
             return A_learned
 
@@ -288,32 +316,52 @@ class StateLifter(ABC):
         """
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
 
-    def get_dim(self, var_subset=None):
+    def get_dim_x(self, var_subset=None):
         if var_subset is None:
-            return self.get_dim(var_subset=self.var_dict)
+            return self.get_dim_x(var_subset=self.var_dict)
         return sum([val for key, val in self.var_dict.items() if (key in var_subset)])
 
+    def sample_parameters(self):
+        return [1.0]
+
+    def get_parameters(self, var_subset=None):
+        # TODO: use the var_subset variable!
+        """Default behavior: has no effect. Can add things like landmark coordintaes here, to learn dependencies."""
+        return self.parameters
+
+    def get_dim_X(self, var_subset=None):
+        dim_x = self.get_dim_x(var_subset)
+        return int(dim_x * (dim_x + 1) / 2)
+
+    def get_dim_P(self, var_subset=None):
+        # TODO: use the var_subset variable!
+        return len(self.get_parameters(var_subset))
+
     def generate_Y(self, factor=3, ax=None, var_subset=None):
-        dim_x = self.get_dim(var_subset=var_subset)
-        dim_Y = int(dim_x * (dim_x + 1) / 2)
+        dim_X = self.get_dim_X(var_subset=var_subset)
+        dim_P = self.get_dim_P(var_subset=var_subset)
 
         # need at least dim_Y different random setups
+        dim_Y = int(dim_X * dim_P)
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
         for seed in range(n_seeds):
             np.random.seed(seed)
 
             theta = self.sample_theta()
+            parameters = self.sample_parameters()
+
             if seed < 10 and ax is not None:
                 if np.ndim(self.theta) == 1:
                     ax.scatter(np.arange(len(theta)), theta)
                 else:
                     ax.scatter(*theta[:, :2].T)
 
-            x = self.get_x(theta, var_subset=var_subset)
+            x = self.get_x(theta, parameters, var_subset=var_subset)
             X = np.outer(x, x)
 
-            Y[seed, :] = self.get_vec(X)
+            # generates [1*x, a1*x, ..., aK*x]
+            Y[seed, :] = np.kron(parameters, self.get_vec(X))
         return Y
 
     def get_basis(self, Y, A_known: list = [], eps=EPS, method=METHOD):
@@ -321,11 +369,11 @@ class StateLifter(ABC):
 
         :param A_known: if given, will generate basis that is orthogonal to these given constraints.
 
-        :return: basis with A_known as first elements (if given)
+        :return: basis
         """
         # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
         if len(A_known) > 0:
-            A = np.vstack([self.get_vec(a) for a in A_known])
+            A = np.vstack([self.get_augmented_vec(self.get_vec(a)) for a in A_known])
             Y = np.vstack([Y, A])
 
         if method != "qrp":
@@ -361,11 +409,22 @@ class StateLifter(ABC):
             basis[:, p] = N.T
         else:
             raise ValueError(method)
-        # Add known constraints to basis
-        if len(A_known) > 0:
-            basis = np.vstack([A, basis])
-
         return basis, S
+
+    def get_reduced_vec(self, bi, var_subset=None):
+        parameters = self.get_parameters(var_subset)
+        dim_X = self.get_dim_X(var_subset)
+        n_parts = len(bi) / dim_X
+        assert n_parts == len(parameters)
+
+        ai = np.zeros(dim_X)
+        for i, p in enumerate(parameters):
+            ai += p * bi[i * dim_X : (i + 1) * dim_X]
+        return ai
+
+    def get_augmented_vec(self, ai):
+        n_parameters = self.get_dim_P()
+        return np.hstack([ai, np.zeros((n_parameters - 1) * len(ai))])
 
     def generate_matrices(
         self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10, var_dict=None
@@ -375,9 +434,8 @@ class StateLifter(ABC):
         """
         A_list = []
         for i in range(len(basis)):
-            Ai = self.get_mat(
-                basis[i], sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict
-            )
+            ai = self.get_reduced_vec(basis[i], var_dict)
+            Ai = self.get_mat(ai, sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict)
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
@@ -401,7 +459,8 @@ class StateLifter(ABC):
         j_bad = []
         for j, A in enumerate(A_list):
             t = self.sample_theta()
-            x = self.get_x(t)
+            p = self.parameters
+            x = self.get_x(t, p)
 
             constraint_violation = abs(x.T @ A @ x)
             max_violation = max(max_violation, constraint_violation)
