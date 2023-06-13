@@ -23,7 +23,7 @@ ADJUST = True
 PARAMETER_DICT = {
     "learned": dict(  # fully learned
         add_known_redundant=False,
-        use_known=True,
+        use_known=False,
         incremental=False,
     ),
     "known": dict(  # fully known (only 1D)
@@ -33,13 +33,13 @@ PARAMETER_DICT = {
     ),
     "incremental": dict(  # incremental
         add_known_redundant=False,
-        use_known=True,
+        use_known=False,
         incremental=True,
     ),
 }
 
 
-def generate_matrices(lifter, param, fname_root=""):
+def generate_matrices(lifter, param, fname_root="", prune=True):
     params = PARAMETER_DICT[param]
     if params["use_known"]:
         A_known = lifter.get_A_known(add_known_redundant=params["add_known_redundant"])
@@ -47,11 +47,10 @@ def generate_matrices(lifter, param, fname_root=""):
         A_known = []
     print(f"adding {len(A_known)} known constraints.")
 
-    A_all, S = lifter.get_A_learned(
+    A_all, basis_full = lifter.get_A_learned(
         A_known=A_known,
         eps=EPS_SVD,
         normalize=NORMALIZE,
-        return_S=True,
         method=METHOD,
         plot=False,
         incremental=params["incremental"],
@@ -60,37 +59,38 @@ def generate_matrices(lifter, param, fname_root=""):
     print(f"found {len(idxs)} violating constraints")
     for idx in idxs[::-1]:
         del A_all[idx]
-        del S[idx]
     n_learned = len(A_all) - len(A_known)
     print(f"left with {n_learned} learned constraints")
 
-    # intermediate step: remove lin. dependant matrices from final list.
-    # this should have happened earlier but for some reason there are some
-    # residual dependent vectors that need to be removed.
-    basis = np.concatenate([lifter.get_vec(A)[:, None] for A in A_all], axis=1)
-    import scipy.linalg as la
+    if prune:
+        # intermediate step: remove lin. dependant matrices from final list.
+        # this should have happened earlier but for some reason there are some
+        # residual dependent vectors that need to be removed.
+        basis = np.concatenate([lifter.get_vec(A)[:, None] for A in A_all], axis=1)
+        import scipy.linalg as la
 
-    __, r, p = la.qr(basis, pivoting=True, mode="economic")
-    rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-    if rank < len(A_all):
-        A_reduced = [A_all[i] for i in p[:rank]]
-        print(f"only {rank} of {len(A_all)} constraints are independent")
+        __, r, p = la.qr(basis, pivoting=True, mode="economic")
+        rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
+        if rank < len(A_all):
+            A_reduced = [A_all[i] for i in p[:rank]]
+            print(f"only {rank} of {len(A_all)} constraints are independent")
 
-        # sanity check
-        basis_reduced = np.concatenate(
-            [lifter.get_vec(A)[:, None] for A in A_reduced], axis=1
-        )
-        __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
-        rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-        assert rank_new == rank
+            # sanity check
+            basis_reduced = np.concatenate(
+                [lifter.get_vec(A)[:, None] for A in A_reduced], axis=1
+            )
+            __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
+            rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
+            assert rank_new == rank
+        else:
+            A_reduced = A_all
+        A_b_list_all = lifter.get_A_b_list(A_reduced)
     else:
-        A_reduced = A_all
-
-    A_b_list_all = lifter.get_A_b_list(A_reduced)
+        A_b_list_all = lifter.get_A_b_list(A_all)
 
     names = [f"A{i}:known" for i in range(len(A_known))]
     names += [f"A{len(A_known) + i}:learned" for i in range(n_learned)]
-    return A_b_list_all, names
+    return A_b_list_all, basis_full, names
 
 
 def generate_orders(Q, A_b_list_all, xhat, qcqp_cost):

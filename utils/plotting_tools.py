@@ -4,6 +4,15 @@ import numpy as np
 from lifters.plotting_tools import savefig
 
 
+def plot_basis(basis, lifter, fname_root):
+    fig, ax = plt.subplots()
+    ax.matshow(basis)
+    for p in range(1, lifter.get_dim_P()):
+        ax.axvline(p * lifter.get_dim_X() - 0.5, color="red")
+    if fname_root != "":
+        savefig(fig, fname_root + f"_basis.png")
+
+
 def plot_tightness(df_tight, qcqp_cost, fname_root):
     fig, ax = plt.subplots()
     ax.axhline(qcqp_cost, color="k")

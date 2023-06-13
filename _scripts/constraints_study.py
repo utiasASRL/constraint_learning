@@ -15,9 +15,9 @@ from utils.analyze_tightness import (
     compute_tightness,
 )
 from utils.interpret import interpret_dataframe
-from utils.plotting_tools import plot_tightness, plot_matrices
+from utils.plotting_tools import plot_basis, plot_tightness, plot_matrices
 
-N_LANDMARKS = 3  # should be 4 for 3d?
+N_LANDMARKS = 3  # should be 4 for 3d
 NOISE = 1e-2
 SEED = 1
 ADD_PARAMS = True
@@ -26,6 +26,8 @@ ORDER_PAIRS = [
     ("original", "increase"),
     ("optimization", "decrease"),
 ]
+D_LIST = [2]
+PARAM_LIST = ["incremental", "learned"]
 
 if __name__ == "__main__":
     import pickle
@@ -38,10 +40,7 @@ if __name__ == "__main__":
     recompute_tightness = True
 
     n_matrices = None  # for debugging only. set to None to use all
-    # for d, param in itertools.product([3], ["learned"]):
-    # for d, param in itertools.product([2, 3], ["learned", "incremental"]):
-    # for d, param in itertools.product([1], ["learned", "incremental", "known"]):
-    for d, param in itertools.product([1], ["incremental", "learned", "known"]):
+    for d, param in itertools.product(D_LIST, PARAM_LIST):
         np.random.seed(SEED)
         if d == 1:
             # lifter = Stereo1DSLAMLifter(n_landmarks=N_LANDMARKS, level="all")  # za
@@ -51,7 +50,9 @@ if __name__ == "__main__":
                 n_landmarks=N_LANDMARKS, level="urT", add_parameters=ADD_PARAMS
             )
         elif d == 3:
-            lifter = Stereo3DLifter(n_landmarks=N_LANDMARKS, level="urT")
+            lifter = Stereo3DLifter(
+                n_landmarks=N_LANDMARKS, level="urT", add_parameters=ADD_PARAMS
+            )
         lifter.generate_random_setup()
 
         fname_root = str(root / f"_results/experiments_{lifter}_{param}")
@@ -64,12 +65,13 @@ if __name__ == "__main__":
         if not recompute_matrices:
             with open(fname, "rb") as f:
                 A_b_list_all = pickle.load(f)
+                basis = pickle.load(f)
                 names = pickle.load(f)
                 order_dict = pickle.load(f)
                 qcqp_cost = pickle.load(f)
                 xhat = pickle.load(f)
         else:
-            A_b_list_all, names = generate_matrices(lifter, param, fname_root)
+            A_b_list_all, basis, names = generate_matrices(lifter, param, fname_root)
 
             # increase how many constraints we add to the problem
             qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
@@ -82,6 +84,7 @@ if __name__ == "__main__":
             order_dict = generate_orders(Q, A_b_list_all, xhat, qcqp_cost)
             with open(fname, "wb") as f:
                 pickle.dump(A_b_list_all, f)
+                pickle.dump(basis, f)
                 pickle.dump(names, f)
                 pickle.dump(order_dict, f)
                 pickle.dump(qcqp_cost, f)
@@ -117,6 +120,8 @@ if __name__ == "__main__":
             df_tight = pd.concat(dfs)
             pd.to_pickle(df_tight, fname)
             print("saved values as", fname)
+
+        plot_basis(basis, lifter, fname_root)
 
         # plot the tightness for different orders
         plot_tightness(df_tight, qcqp_cost, fname_root)
