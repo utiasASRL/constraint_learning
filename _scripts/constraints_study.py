@@ -27,7 +27,7 @@ ORDER_PAIRS = [
     ("optimization", "decrease"),
 ]
 D_LIST = [2]
-PARAM_LIST = ["incremental", "learned"]
+PARAM_LIST = ["incremental"]  # , "learned"]
 
 if __name__ == "__main__":
     import pickle

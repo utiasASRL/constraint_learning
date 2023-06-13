@@ -67,18 +67,20 @@ class StereoLifter(StateLifter, ABC):
         "urT-off",
     ]
 
-    def __init__(self, n_landmarks, d, level="no"):
+    def __init__(self, n_landmarks, d, level="no", add_parameters=False):
         assert level in self.LEVELS, f"level ({level}) not in {self.LEVELS}"
         self.d = d
         self.level = level
         self.n_landmarks = n_landmarks
 
+        self.add_parameters = add_parameters
+        self.parameters = None
+
         M = self.n_landmarks * self.d  # u, v, z (3d) or u, z (2d)
         L = self.get_level_dims(n=self.n_landmarks)[level]
 
-        self.theta_ = self.generate_random_theta()
+        self.theta_ = None
         self.var_dict_ = None
-
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M, L=L)
 
     def get_level_dims(self, n=1):
@@ -105,6 +107,8 @@ class StereoLifter(StateLifter, ABC):
 
     @property
     def theta(self):
+        if self.theta_ is None:
+            self.theta_ = self.generate_random_theta()
         return self.theta_
 
     @property
@@ -140,20 +144,20 @@ class StereoLifter(StateLifter, ABC):
         ]
 
     def generate_random_setup(self):
-        # important!! we can only resample x, the landmarks have to stay the same
-        # [(x, y, alpha), (landmarks)]
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
 
     def generate_random_theta(self):
         n_angles = 1 if self.d == 2 else 3
         return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
 
-    def get_x(self, theta=None, var_subset=None):
+    def get_x(self, theta=None, parameters=None, var_subset=None):
         """
         :param var_subset: list of variables to include in x vector. Set to None for all.
         """
         if theta is None:
             theta = self.theta
+        if parameters is None:
+            parameters = self.parameters
         if var_subset is None:
             var_subset = self.var_dict.keys()
 
@@ -213,7 +217,7 @@ class StereoLifter(StateLifter, ABC):
                     # this works
                     x_data += list(np.diag(np.outer(u, r)))
 
-        dim_x = self.get_dim(var_subset=var_subset)
+        dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
 
@@ -250,6 +254,12 @@ class StereoLifter(StateLifter, ABC):
 
     def sample_theta(self):
         return self.generate_random_theta().flatten()
+
+    def sample_parameters(self):
+        if self.add_parameters:
+            return [1.0] + list(np.random.rand(self.n_landmarks * self.d))
+        else:
+            return [1.0]
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
         return self._get_Q(noise=noise)

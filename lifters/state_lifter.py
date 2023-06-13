@@ -20,7 +20,7 @@ FACTOR = 2.0  # how much to oversample (>= 1)
 # maximum number of elements to use when doing incremental learning.
 # we start with all possible pairs of variables (k=2) and go up to
 # k=MAX_N_SUBSETS.
-MAX_N_SUBSETS = 4
+MAX_N_SUBSETS = 2
 
 
 class StateLifter(ABC):
@@ -184,7 +184,12 @@ class StateLifter(ABC):
         product_dict = {}
         for p in range(self.get_dim_P()):
             for zi, zj in vectorized_var_list:
-                product_dict[f"p{p}.{zi}.{zj}"] = self.var_dict[zi] * self.var_dict[zj]
+                # for diagonal, we will only have half of the matrix
+                if zi == zj:
+                    size = int(self.var_dict[zi] * (self.var_dict[zj] + 1) / 2)
+                else:
+                    size = self.var_dict[zi] * self.var_dict[zj]
+                product_dict[f"p{p}.{zi}.{zj}"] = size
         return product_dict
 
     def get_A_learned(
@@ -258,7 +263,7 @@ class StateLifter(ABC):
                 print(f"{var_subset}: no new learned matrices found")
                 continue
 
-            print(f"{var_subset}: learned matrices found")
+            print(f"{var_subset}: {corank} learned matrices found")
 
             if corank > 1:
                 try:
@@ -278,17 +283,17 @@ class StateLifter(ABC):
             for i, bi_sub in enumerate(basis_new):
                 # get the variable pairs that bi_sub corresponds to.
                 sub_product_dict = self.get_augmented_dict(var_subset)
-                assert len(sub_product_dict) == len(bi_sub)
+                assert sum([size for size in sub_product_dict.values()]) == len(bi_sub)
 
                 bi_poly = PolyMatrix(symmetric=False)
-                for j, p in enumerate(sub_product_dict):
-                    bi_poly["l", p] = bi_sub[j]
+                j = 0
+                for key, size in sub_product_dict.items():
+                    bi_poly["l", key] = bi_sub[j : j + size][None, :]
+                    j += size
 
                 # created zero-padded bi
                 all_product_dict = self.get_augmented_dict()
-                bi = bi_poly.get_vector_dense(i=["l"], j=all_product_dict.keys())[
-                    None, :
-                ]
+                bi = bi_poly.get_vector_dense(all_product_dict, i="l")[None, :]
 
                 basis_learned_test = np.vstack([basis_learned, bi])
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
@@ -324,24 +329,24 @@ class StateLifter(ABC):
         return sum([val for key, val in self.var_dict.items() if (key in var_subset)])
 
     def sample_parameters(self):
+        """Default behavior: has no effect. Can add things like landmark coordintaes here, to learn dependencies."""
         return [1.0]
 
-    def get_parameters(self, var_subset=None):
-        # TODO: use the var_subset variable!
-        """Default behavior: has no effect. Can add things like landmark coordintaes here, to learn dependencies."""
+    def get_parameters(self):
+        if self.parameters is None:
+            self.parameters = self.sample_parameters()
         return self.parameters
 
     def get_dim_X(self, var_subset=None):
         dim_x = self.get_dim_x(var_subset)
         return int(dim_x * (dim_x + 1) / 2)
 
-    def get_dim_P(self, var_subset=None):
-        # TODO: use the var_subset variable!
-        return len(self.get_parameters(var_subset))
+    def get_dim_P(self):
+        return len(self.get_parameters())
 
     def generate_Y(self, factor=3, ax=None, var_subset=None):
         dim_X = self.get_dim_X(var_subset=var_subset)
-        dim_P = self.get_dim_P(var_subset=var_subset)
+        dim_P = self.get_dim_P()
 
         # need at least dim_Y different random setups
         dim_Y = int(dim_X * dim_P)
@@ -427,7 +432,7 @@ class StateLifter(ABC):
         return basis, S
 
     def get_reduced_vec(self, bi, var_subset=None):
-        parameters = self.get_parameters(var_subset)
+        parameters = self.get_parameters()
         dim_X = self.get_dim_X(var_subset)
         n_parts = len(bi) / dim_X
         assert n_parts == len(parameters)
