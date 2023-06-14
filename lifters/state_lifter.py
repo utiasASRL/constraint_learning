@@ -232,7 +232,7 @@ class StateLifter(ABC):
             # for k in range(3, MAX_N_SUBSETS + 1):
             #    var_subsets += list(itertools.combinations(self.var_dict.keys(), k))
         else:
-            var_subsets = [list(self.var_dict.keys())]
+            var_subsets = [tuple(self.var_dict.keys())]
 
         A_learned = []
         A_learned += A_known
@@ -330,48 +330,40 @@ class StateLifter(ABC):
         basis_poly = PolyMatrix(symmetric=False)
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
-        # for var_subset, bi_poly_list in basis_dict.items():
-        var_subset = ("l", "x", "z_0")
-        bi_poly_list = basis_dict[var_subset]
         m = 0
-        # for each found constraint....
-        for bi_poly in bi_poly_list:
-            # if z_0 is in this constraint, repeat the constraint for each landmark.
-            if np.any(["z_0" in key for key in bi_poly.variable_dict_j]):
-                for i in range(self.n_landmarks):
+        for var_subset, bi_poly_list in basis_dict.items():
+            # for each found constraint....
+            for bi_poly in bi_poly_list:
+                # if z_0 is in this constraint, repeat the constraint for each landmark.
+                if var_subset == ("l", "x", "z_0"):
+                    for i in range(self.n_landmarks):
+                        for key in bi_poly.variable_dict_j:
+                            key_i = key.replace("z_0", f"z_{i}").replace(
+                                "p_0", f"p_{i}"
+                            )
+                            basis_poly[m, key_i] = bi_poly["l", key]
+                        m += 1
+                # if z_0 and z_1 are in this constraint, repeat the constraint for each landmark.
+                if var_subset == ("l", "x", "z_0", "z_1"):
+                    for i, j in itertools.combinations(range(self.n_landmarks), 2):
+                        # print(f"should map 0 to {i} and 1 to {j}")
+                        assert i != j
+                        for key in bi_poly.variable_dict_j:
+                            # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
+                            key_ij = key.replace("z_0", f"zi_{i}").replace(
+                                "z_1", f"zi_{j}"
+                            )
+                            key_ij = key_ij.replace("p_0", f"pi_{i}").replace(
+                                "p_1", f"pi_{j}"
+                            )
+                            key_ij = key_ij.replace("zi", "z").replace("pi", "p")
+                            # print("changed", key, "to", key_ij)
+                            basis_poly[m, key_ij] = bi_poly["l", key]
+                        m += 1
+                else:
                     for key in bi_poly.variable_dict_j:
-                        key_i = key.replace("z_0", f"z_{i}").replace("p_0", f"p_{i}")
-                        basis_poly[m, key_i] = bi_poly["l", key]
+                        basis_poly[m, key] = bi_poly["l", key]
                     m += 1
-            else:
-                for key in bi_poly.variable_dict_j:
-                    basis_poly[m, key] = bi_poly["l", key]
-                m += 1
-
-        var_subset = ("l", "x", "z_0", "z_1")
-        bi_poly_list = basis_dict[var_subset]
-        for bi_poly in bi_poly_list:
-            # if z_0 and z_1 are in this constraint, repeat the constraint for each landmark.
-            if np.any(
-                [("z_0" in key) or ("z_1" in key) for key in bi_poly.variable_dict_j]
-            ):
-                for i, j in itertools.combinations(range(self.n_landmarks), 2):
-                    # print(f"should map 0 to {i} and 1 to {j}")
-                    assert i != j
-                    for key in bi_poly.variable_dict_j:
-                        # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
-                        key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
-                        key_ij = key_ij.replace("p_0", f"pi_{i}").replace(
-                            "p_1", f"pi_{j}"
-                        )
-                        key_ij = key_ij.replace("zi", "z").replace("pi", "p")
-                        # print("changed", key, "to", key_ij)
-                        basis_poly[m, key_ij] = bi_poly["l", key]
-                    m += 1
-            else:  # below should actually never happen.
-                for key in bi_poly.variable_dict_j:
-                    basis_poly[m, key] = bi_poly["l", key]
-                m += 1
 
         all_dict = self.get_augmented_dict()
         basis_learned = basis_poly.get_matrix((list(range(m)), all_dict))
