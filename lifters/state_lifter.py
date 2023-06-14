@@ -219,9 +219,17 @@ class StateLifter(ABC):
                 raise NotImplementedError(
                     "can't do incremental A learning with fixed Y yet."
                 )
-            var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
-            for k in range(3, MAX_N_SUBSETS + 1):
-                var_subsets += list(itertools.combinations(self.var_dict.keys(), k))
+
+            # var_dict is always composed of
+            # - "l": homogenization
+            # - "x": fixed-size parameters
+            # - "z_i", ..., "z_N": variable-size parameters
+            var_subsets = []
+            for k in range(MAX_N_SUBSETS):
+                var_subsets.append(tuple(["l", "x"] + [f"z_{i}" for i in range(k)]))
+            # var_subsets = list(itertools.combinations(self.var_dict.keys(), 2))
+            # for k in range(3, MAX_N_SUBSETS + 1):
+            #    var_subsets += list(itertools.combinations(self.var_dict.keys(), k))
         else:
             var_subsets = [list(self.var_dict.keys())]
 
@@ -229,7 +237,7 @@ class StateLifter(ABC):
         A_learned += A_known
 
         # keep track of current set of lin. independent constraints
-        dim_Y = self.get_dim_X() * self.get_dim_P()
+        dim_Y = self.get_dim_X(var_subsets[-1]) * self.get_dim_P()
 
         if len(A_known):
             if incremental:
@@ -247,7 +255,7 @@ class StateLifter(ABC):
 
         basis_dict = {}
 
-        all_product_dict = self.get_augmented_dict()
+        all_product_dict = self.get_augmented_dict(var_subset=var_subsets[-1])
         for var_subset in var_subsets:
             basis_dict[var_subset] = []
             # var_dict = {key: self.var_dict[key] for key in var_subset}
@@ -296,7 +304,9 @@ class StateLifter(ABC):
                 bi_poly = PolyMatrix(symmetric=False)
                 j = 0
                 for key, size in sub_product_dict.items():
-                    bi_poly["l", key] = bi_sub[j : j + size][None, :]
+                    val = bi_sub[j : j + size]
+                    if np.any(np.abs(val) > 1e-10):
+                        bi_poly["l", key] = val[None, :]
                     j += size
 
                 # created zero-padded bi
@@ -316,20 +326,55 @@ class StateLifter(ABC):
                         f"Warning: invalid rank change from rank {current_rank} to {new_rank}"
                     )
 
-            if plot:
-                from utils.plotting_tools import plot_basis
-
-                plot_basis(basis_learned, self, "")
-
-        A_learned = self.generate_matrices(basis_learned, normalize=normalize)
-
+        # given the learned matrices we need to generalize to all landmarks!
         basis_poly = PolyMatrix(symmetric=False)
+        # ex: (l, x, z_0), [B_i]
+        # for var_subset, bi_poly_list in basis_dict.items():
+        var_subset = ("l", "x", "z_0")
+        bi_poly_list = basis_dict[var_subset]
         m = 0
-        for var_subset, bi_poly_list in basis_dict.items():
-            for bi_poly in bi_poly_list:
+        # for each found constraint....
+        for bi_poly in bi_poly_list:
+            # if z_0 is in this constraint, repeat the constraint for each landmark.
+            if np.any(["z_0" in key for key in bi_poly.variable_dict_j]):
+                for i in range(self.n_landmarks):
+                    for key in bi_poly.variable_dict_j:
+                        key_i = key.replace("z_0", f"z_{i}").replace("p_0", f"p_{i}")
+                        basis_poly[m, key_i] = bi_poly["l", key]
+                    m += 1
+            else:
                 for key in bi_poly.variable_dict_j:
                     basis_poly[m, key] = bi_poly["l", key]
                 m += 1
+
+        var_subset = ("l", "x", "z_0", "z_1")
+        bi_poly_list = basis_dict[var_subset]
+        for bi_poly in bi_poly_list:
+            # if z_0 and z_1 are in this constraint, repeat the constraint for each landmark.
+            if np.any(
+                [("z_0" in key) or ("z_1" in key) for key in bi_poly.variable_dict_j]
+            ):
+                for i, j in itertools.combinations(range(self.n_landmarks), 2):
+                    print(f"should map 0 to {i} and 1 to {j}")
+                    assert i != j
+                    for key in bi_poly.variable_dict_j:
+                        # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
+                        key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
+                        key_ij = key_ij.replace("p_0", f"pi_{i}").replace(
+                            "p_1", f"pi_{j}"
+                        )
+                        key_ij = key_ij.replace("zi", "z").replace("pi", "p")
+                        print("changed", key, "to", key_ij)
+                        basis_poly[m, key_ij] = bi_poly["l", key]
+                    m += 1
+            else:  # below should actually never happen.
+                for key in bi_poly.variable_dict_j:
+                    basis_poly[m, key] = bi_poly["l", key]
+                m += 1
+
+        all_dict = self.get_augmented_dict()
+        basis_learned = basis_poly.get_matrix((list(range(m)), all_dict))
+        A_learned = self.generate_matrices(basis_learned, normalize=normalize)
         return A_learned, basis_learned, basis_poly
 
     def get_vec_around_gt(self, delta: float = 0):
@@ -448,14 +493,23 @@ class StateLifter(ABC):
         return basis, S
 
     def get_reduced_vec(self, bi, var_subset=None):
+        if isinstance(bi, np.ndarray):
+            len_b = len(bi)
+        else:
+            # bi can be a scipy sparse matrix,
+            len_b = bi.shape[1]
+
         parameters = self.get_parameters()
         dim_X = self.get_dim_X(var_subset)
-        n_parts = len(bi) / dim_X
+        n_parts = len_b / dim_X
         assert n_parts == len(parameters)
 
         ai = np.zeros(dim_X)
         for i, p in enumerate(parameters):
-            ai += p * bi[i * dim_X : (i + 1) * dim_X]
+            if isinstance(bi, np.ndarray):
+                ai += p * bi[i * dim_X : (i + 1) * dim_X]
+            else:
+                ai += p * bi[0, i * dim_X : (i + 1) * dim_X].toarray().flatten()
         return ai
 
     def get_augmented_vec(self, ai):
@@ -468,8 +522,12 @@ class StateLifter(ABC):
         """
         Generate constraint matrices from the rows of the nullspace basis matrix.
         """
+        try:
+            n_basis = len(basis)
+        except:
+            n_basis = basis.shape[0]
         A_list = []
-        for i in range(len(basis)):
+        for i in range(n_basis):
             ai = self.get_reduced_vec(basis[i], var_dict)
             Ai = self.get_mat(ai, sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict)
             # Normalize the matrix

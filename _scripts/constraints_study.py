@@ -74,6 +74,8 @@ if __name__ == "__main__":
             A_b_list_all, basis, basis_poly, names = generate_matrices(
                 lifter, param, fname_root
             )
+            # plot the basis matrix including labels
+            plot_basis(basis_poly, lifter, fname_root)
 
             # increase how many constraints we add to the problem
             qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
@@ -122,8 +124,6 @@ if __name__ == "__main__":
             df_tight = pd.concat(dfs)
             pd.to_pickle(df_tight, fname)
             print("saved values as", fname)
-
-        plot_basis(basis_poly, lifter, fname_root)
 
         # plot the tightness for different orders
         plot_tightness(df_tight, qcqp_cost, fname_root)

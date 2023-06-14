@@ -7,8 +7,8 @@ from poly_matrix.poly_matrix import PolyMatrix
 
 def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
     all_product_dict = lifter.get_augmented_dict()
-    variables_j = list(all_product_dict.keys())
-    variables_i = basis_poly.generate_variable_dict_i().keys()
+    variables_j = all_product_dict
+    variables_i = basis_poly.generate_variable_dict_i()
 
     import matplotlib as mpl
 
@@ -25,7 +25,9 @@ def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
     cmap.set_under((0.0, 0.0, 1.0))
     bounds = [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25]
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
-    fig, ax, im = basis_poly.matshow(variables_j=variables_j, cmap=cmap, norm=norm)
+    fig, ax, im = basis_poly.matshow(
+        variables_i=variables_i, variables_j=variables_j, cmap=cmap, norm=norm
+    )
     cax = add_colorbar(fig, ax, im)
     cax.set_yticks([-1.0, -0.5, 0, 0.5, 1.0])
     scale = 0.2
