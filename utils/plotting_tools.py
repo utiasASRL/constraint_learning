@@ -1,12 +1,35 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-from lifters.plotting_tools import savefig
+from lifters.plotting_tools import savefig, add_colorbar
+from poly_matrix.poly_matrix import PolyMatrix
 
 
-def plot_basis(basis, lifter, fname_root):
-    fig, ax = plt.subplots()
-    ax.matshow(basis)
+def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
+    all_product_dict = lifter.get_augmented_dict()
+    variables_j = list(all_product_dict.keys())
+    variables_i = basis_poly.generate_variable_dict_i().keys()
+
+    import matplotlib as mpl
+
+    cmap = mpl.colors.ListedColormap(
+        [
+            [0.0, 0.4, 1.0],
+            [0.0, 0.8, 1.0],
+            [1.0, 1.0, 1.0],
+            [1.0, 0.8, 0.0],
+            [1.0, 0.4, 0.0],
+        ]
+    )
+    cmap.set_over((1.0, 0.0, 0.0))
+    cmap.set_under((0.0, 0.0, 1.0))
+    bounds = [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25]
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    fig, ax, im = basis_poly.matshow(variables_j=variables_j, cmap=cmap, norm=norm)
+    cax = add_colorbar(fig, ax, im)
+    cax.set_yticks([-1.0, -0.5, 0, 0.5, 1.0])
+    scale = 0.2
+    fig.set_size_inches(len(variables_j) * scale, len(variables_i) * scale)
     for p in range(1, lifter.get_dim_P()):
         ax.axvline(p * lifter.get_dim_X() - 0.5, color="red")
     if fname_root != "":

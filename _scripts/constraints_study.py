@@ -24,9 +24,9 @@ ADD_PARAMS = True
 
 ORDER_PAIRS = [
     ("original", "increase"),
-    ("optimization", "decrease"),
+    # ("optimization", "decrease"),
 ]
-D_LIST = [2]
+D_LIST = [1]
 PARAM_LIST = ["incremental"]  # , "learned"]
 
 if __name__ == "__main__":
@@ -71,7 +71,9 @@ if __name__ == "__main__":
                 qcqp_cost = pickle.load(f)
                 xhat = pickle.load(f)
         else:
-            A_b_list_all, basis, names = generate_matrices(lifter, param, fname_root)
+            A_b_list_all, basis, basis_poly, names = generate_matrices(
+                lifter, param, fname_root
+            )
 
             # increase how many constraints we add to the problem
             qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
@@ -121,7 +123,7 @@ if __name__ == "__main__":
             pd.to_pickle(df_tight, fname)
             print("saved values as", fname)
 
-        plot_basis(basis, lifter, fname_root)
+        plot_basis(basis_poly, lifter, fname_root)
 
         # plot the tightness for different orders
         plot_tightness(df_tight, qcqp_cost, fname_root)

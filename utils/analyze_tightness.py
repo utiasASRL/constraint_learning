@@ -47,7 +47,7 @@ def generate_matrices(lifter, param, fname_root="", prune=True):
         A_known = []
     print(f"adding {len(A_known)} known constraints.")
 
-    A_all, basis_full = lifter.get_A_learned(
+    A_all, basis_all, basis_poly = lifter.get_A_learned(
         A_known=A_known,
         eps=EPS_SVD,
         normalize=NORMALIZE,
@@ -90,7 +90,7 @@ def generate_matrices(lifter, param, fname_root="", prune=True):
 
     names = [f"A{i}:known" for i in range(len(A_known))]
     names += [f"A{len(A_known) + i}:learned" for i in range(n_learned)]
-    return A_b_list_all, basis_full, names
+    return A_b_list_all, basis_all, basis_poly, names
 
 
 def generate_orders(Q, A_b_list_all, xhat, qcqp_cost):

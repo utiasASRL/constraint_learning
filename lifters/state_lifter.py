@@ -20,7 +20,7 @@ FACTOR = 2.0  # how much to oversample (>= 1)
 # maximum number of elements to use when doing incremental learning.
 # we start with all possible pairs of variables (k=2) and go up to
 # k=MAX_N_SUBSETS.
-MAX_N_SUBSETS = 2
+MAX_N_SUBSETS = 3
 
 
 class StateLifter(ABC):
@@ -189,7 +189,8 @@ class StateLifter(ABC):
                     size = int(self.var_dict[zi] * (self.var_dict[zj] + 1) / 2)
                 else:
                     size = self.var_dict[zi] * self.var_dict[zj]
-                product_dict[f"p{p}.{zi}.{zj}"] = size
+                param_name = "l" if p == 0 else f"p_{p-1}"
+                product_dict[f"{param_name}.{zi}.{zj}"] = size
         return product_dict
 
     def get_A_learned(
@@ -198,7 +199,6 @@ class StateLifter(ABC):
         A_known: list = [],
         plot: bool = False,
         Y: np.ndarray = None,
-        return_S: bool = False,
         factor: int = FACTOR,
         method: str = METHOD,
         normalize: bool = NORMALIZE,
@@ -232,6 +232,10 @@ class StateLifter(ABC):
         dim_Y = self.get_dim_X() * self.get_dim_P()
 
         if len(A_known):
+            if incremental:
+                raise ValueError(
+                    "don't use A_known with incremental! this leads to worse performance"
+                )
             basis_learned = np.vstack(
                 [self.get_augmented_vec(self.get_vec(A)) for A in A_known]
             )
@@ -241,8 +245,12 @@ class StateLifter(ABC):
             basis_learned = np.empty((0, dim_Y))
             current_rank = 0
 
+        basis_dict = {}
+
+        all_product_dict = self.get_augmented_dict()
         for var_subset in var_subsets:
-            var_dict = {key: self.var_dict[key] for key in var_subset}
+            basis_dict[var_subset] = []
+            # var_dict = {key: self.var_dict[key] for key in var_subset}
 
             Y = self.generate_Y(factor=factor, var_subset=var_subset)
 
@@ -292,13 +300,13 @@ class StateLifter(ABC):
                     j += size
 
                 # created zero-padded bi
-                all_product_dict = self.get_augmented_dict()
                 bi = bi_poly.get_vector_dense(all_product_dict, i="l")[None, :]
 
                 basis_learned_test = np.vstack([basis_learned, bi])
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
                 if new_rank == current_rank + 1:
                     print(f"b{i} is valid basis vector.")
+                    basis_dict[var_subset].append(bi_poly)
                     basis_learned = basis_learned_test
                     current_rank += 1
                 elif new_rank == current_rank:
@@ -314,7 +322,15 @@ class StateLifter(ABC):
                 plot_basis(basis_learned, self, "")
 
         A_learned = self.generate_matrices(basis_learned, normalize=normalize)
-        return A_learned, basis_learned
+
+        basis_poly = PolyMatrix(symmetric=False)
+        m = 0
+        for var_subset, bi_poly_list in basis_dict.items():
+            for bi_poly in bi_poly_list:
+                for key in bi_poly.variable_dict_j:
+                    basis_poly[m, key] = bi_poly["l", key]
+                m += 1
+        return A_learned, basis_learned, basis_poly
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
