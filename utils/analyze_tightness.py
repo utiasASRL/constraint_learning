@@ -4,13 +4,13 @@ import pandas as pd
 from solvers.common import solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
 
+from lifters.state_lifter import StateLifter
+
 # assume strong duality when gap is smaller than this
 TOL_REL_GAP = 1e-3  # 1e-10  # was 1e-5
 
 # tolerance for nullspace basis vectors
 EPS_SVD = 1e-5
-# tolerance for feasibility error of learned constraints
-EPS_ERROR = 1e-8
 
 NORMALIZE = False
 METHOD = "qrp"
@@ -39,7 +39,7 @@ PARAMETER_DICT = {
 }
 
 
-def generate_matrices(lifter, param, fname_root="", prune=True):
+def generate_matrices(lifter: StateLifter, param):
     params = PARAMETER_DICT[param]
     if params["use_known"]:
         A_known = lifter.get_A_known(add_known_redundant=params["add_known_redundant"])
@@ -47,50 +47,33 @@ def generate_matrices(lifter, param, fname_root="", prune=True):
         A_known = []
     print(f"adding {len(A_known)} known constraints.")
 
-    A_all, basis_all, basis_poly = lifter.get_A_learned(
+    # find the patterns of constraints that can easily be generalized to any number of constraints.
+    basis_dict = lifter.get_basis_dict(
         A_known=A_known,
         eps=EPS_SVD,
-        normalize=NORMALIZE,
         method=METHOD,
         plot=False,
         incremental=params["incremental"],
     )
-    errs, idxs = lifter.test_constraints(A_all, errors="print", tol=EPS_ERROR)
-    print(f"found {len(idxs)} violating constraints")
-    for idx in idxs[::-1]:
-        del A_all[idx]
-    n_learned = len(A_all) - len(A_known)
-    print(f"left with {n_learned} learned constraints")
 
-    if prune:
-        # intermediate step: remove lin. dependant matrices from final list.
-        # this should have happened earlier but for some reason there are some
-        # residual dependent vectors that need to be removed.
-        basis = np.concatenate([lifter.get_vec(A)[:, None] for A in A_all], axis=1)
-        import scipy.linalg as la
+    from poly_matrix.poly_matrix import PolyMatrix
 
-        __, r, p = la.qr(basis, pivoting=True, mode="economic")
-        rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-        if rank < len(A_all):
-            A_reduced = [A_all[i] for i in p[:rank]]
-            print(f"only {rank} of {len(A_all)} constraints are independent")
+    basis_small = PolyMatrix(symmetric=False)
+    m = 0
+    for poly_mat_list in basis_dict.values():
+        for mat in poly_mat_list:
+            for key in mat.variable_dict_j:
+                basis_small[m, key] = mat["l", key]
+            m += 1
 
-            # sanity check
-            basis_reduced = np.concatenate(
-                [lifter.get_vec(A)[:, None] for A in A_reduced], axis=1
-            )
-            __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
-            rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-            assert rank_new == rank
-        else:
-            A_reduced = A_all
-        A_b_list_all = lifter.get_A_b_list(A_reduced)
-    else:
-        A_b_list_all = lifter.get_A_b_list(A_all)
+    # now actually generalize these patterns
+    A_all, basis_all = lifter.get_A_learned(basis_dict, normalize=NORMALIZE)
+
+    A_b_list_all = lifter.get_A_b_list(A_all)
 
     names = [f"A{i}:known" for i in range(len(A_known))]
-    names += [f"A{len(A_known) + i}:learned" for i in range(n_learned)]
-    return A_b_list_all, basis_all, basis_poly, names
+    names += [f"A{len(A_known) + i}:learned" for i in range(len(A_all))]
+    return A_b_list_all, basis_small, basis_all, names
 
 
 def generate_orders(Q, A_b_list_all, xhat, qcqp_cost):

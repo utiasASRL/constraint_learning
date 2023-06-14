@@ -65,17 +65,19 @@ if __name__ == "__main__":
         if not recompute_matrices:
             with open(fname, "rb") as f:
                 A_b_list_all = pickle.load(f)
-                basis = pickle.load(f)
+                basis_small = pickle.load(f)
+                basis_all = pickle.load(f)
                 names = pickle.load(f)
                 order_dict = pickle.load(f)
                 qcqp_cost = pickle.load(f)
                 xhat = pickle.load(f)
         else:
-            A_b_list_all, basis, basis_poly, names = generate_matrices(
-                lifter, param, fname_root
+            A_b_list_all, basis_small, basis_all, names = generate_matrices(
+                lifter, param
             )
             # plot the basis matrix including labels
-            plot_basis(basis_poly, lifter, fname_root)
+            plot_basis(basis_all, lifter, fname_root + "_all")
+            plot_basis(basis_small, lifter, fname_root + "_small")
 
             # increase how many constraints we add to the problem
             qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
@@ -88,7 +90,8 @@ if __name__ == "__main__":
             order_dict = generate_orders(Q, A_b_list_all, xhat, qcqp_cost)
             with open(fname, "wb") as f:
                 pickle.dump(A_b_list_all, f)
-                pickle.dump(basis, f)
+                pickle.dump(basis_small, f)
+                pickle.dump(basis_all, f)
                 pickle.dump(names, f)
                 pickle.dump(order_dict, f)
                 pickle.dump(qcqp_cost, f)

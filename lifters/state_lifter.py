@@ -7,6 +7,10 @@ import scipy.sparse as sp
 from poly_matrix import PolyMatrix
 
 EPS = 1e-10  # threshold for nullspace (on eigenvalues)
+# tolerance for feasibility error of learned constraints
+EPS_ERROR = 1e-8
+
+PRUNE = True  # prune learned matrices to make sure they are all lin. indep.
 
 # basis pursuit method, can be
 # - qr: qr decomposition
@@ -193,7 +197,7 @@ class StateLifter(ABC):
                 product_dict[f"{param_name}.{zi}.{zj}"] = size
         return product_dict
 
-    def get_A_learned(
+    def get_basis_dict(
         self,
         eps: float = EPS,
         A_known: list = [],
@@ -201,7 +205,6 @@ class StateLifter(ABC):
         Y: np.ndarray = None,
         factor: int = FACTOR,
         method: str = METHOD,
-        normalize: bool = NORMALIZE,
         incremental: bool = False,
     ) -> list:
         """
@@ -212,8 +215,6 @@ class StateLifter(ABC):
 
         :return: list of learned matrices, nullspace basis, and S if return_S is True,
         """
-        import itertools
-
         if incremental:
             if Y is not None:
                 raise NotImplementedError(
@@ -295,20 +296,15 @@ class StateLifter(ABC):
                 plot_singular_values(S, eps=eps)
 
             # find out which of the constraints are linearly dependant of the others.
-            # TODO(FD): could potentially do below with a QRP decomposition.
+            # TODO(FD) sum out constraints to be reduce even more!
             for i, bi_sub in enumerate(basis_new):
                 # get the variable pairs that bi_sub corresponds to.
                 sub_product_dict = self.get_augmented_dict(var_subset)
                 assert sum([size for size in sub_product_dict.values()]) == len(bi_sub)
 
-                bi_poly = PolyMatrix(symmetric=False)
-                j = 0
-                for key, size in sub_product_dict.items():
-                    val = bi_sub[j : j + size]
-                    if np.any(np.abs(val) > 1e-10):
-                        bi_poly["l", key] = val[None, :]
-                    j += size
-
+                bi_poly, __ = PolyMatrix.init_from_sparse_vector(
+                    bi_sub, sub_product_dict, tol=1e-10
+                )
                 # created zero-padded bi
                 bi = bi_poly.get_vector_dense(all_product_dict, i="l")[None, :]
 
@@ -325,10 +321,15 @@ class StateLifter(ABC):
                     print(
                         f"Warning: invalid rank change from rank {current_rank} to {new_rank}"
                     )
+        return basis_dict
+
+    def get_A_learned(self, basis_dict, normalize=NORMALIZE):
+        import itertools
 
         # given the learned matrices we need to generalize to all landmarks!
         basis_poly = PolyMatrix(symmetric=False)
-        # ex: (l, x, z_0), [B_i]
+
+        # TODO(FD) generalize below; but for now, this is easier to debug and understand.
         # for var_subset, bi_poly_list in basis_dict.items():
         var_subset = ("l", "x", "z_0")
         bi_poly_list = basis_dict[var_subset]
@@ -355,7 +356,7 @@ class StateLifter(ABC):
                 [("z_0" in key) or ("z_1" in key) for key in bi_poly.variable_dict_j]
             ):
                 for i, j in itertools.combinations(range(self.n_landmarks), 2):
-                    print(f"should map 0 to {i} and 1 to {j}")
+                    # print(f"should map 0 to {i} and 1 to {j}")
                     assert i != j
                     for key in bi_poly.variable_dict_j:
                         # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
@@ -364,7 +365,7 @@ class StateLifter(ABC):
                             "p_1", f"pi_{j}"
                         )
                         key_ij = key_ij.replace("zi", "z").replace("pi", "p")
-                        print("changed", key, "to", key_ij)
+                        # print("changed", key, "to", key_ij)
                         basis_poly[m, key_ij] = bi_poly["l", key]
                     m += 1
             else:  # below should actually never happen.
@@ -375,7 +376,36 @@ class StateLifter(ABC):
         all_dict = self.get_augmented_dict()
         basis_learned = basis_poly.get_matrix((list(range(m)), all_dict))
         A_learned = self.generate_matrices(basis_learned, normalize=normalize)
-        return A_learned, basis_learned, basis_poly
+
+        # test that the constraints hold
+        errs, idxs = self.test_constraints(A_learned, errors="print", tol=EPS_ERROR)
+        print(f"found {len(idxs)} violating constraints")
+        for idx in idxs[::-1]:
+            del A_learned[idx]
+        print(f"left with {len(A_learned)} total constraints")
+
+        # there are still residual dependent vectors which only appear
+        # after summing out the parameters. we want to remove those.
+        basis = np.concatenate([self.get_vec(A)[:, None] for A in A_learned], axis=1)
+        import scipy.linalg as la
+
+        __, r, p = la.qr(basis, pivoting=True, mode="economic")
+        rank = np.where(np.abs(np.diag(r)) > EPS)[0][-1] + 1
+        if rank < len(A_learned):
+            A_reduced = [A_learned[i] for i in p[:rank]]
+            basis_poly.drop(variables_i=p[rank:])
+            print(f"only {rank} of {len(A_learned)} constraints are independent")
+
+            # sanity check
+            basis_reduced = np.concatenate(
+                [self.get_vec(A)[:, None] for A in A_reduced], axis=1
+            )
+            __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
+            rank_new = np.where(np.abs(np.diag(r)) > EPS)[0][-1] + 1
+            assert rank_new == rank
+        else:
+            A_reduced = A_learned
+        return A_reduced, basis_poly
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
