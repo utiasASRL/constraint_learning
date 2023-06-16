@@ -49,7 +49,7 @@ def generate_matrices(lifter: StateLifter, param):
 
     # find the patterns of constraints that can easily be generalized to any number of constraints.
     if params["incremental"]:
-        basis_dict = lifter.get_basis_dict_incremental(
+        basis_list = lifter.get_basis_list_incremental(
             eps=EPS_SVD,
             method=METHOD,
             plot=False,
@@ -59,12 +59,11 @@ def generate_matrices(lifter: StateLifter, param):
         # basis_ordered.matshow(variables_j=var_dict_j)
 
         # now actually generalize these patterns
-        basis_poly = lifter.augment_basis_dict(basis_dict, normalize=NORMALIZE)
+        basis_poly_list = lifter.augment_basis_list(basis_list, normalize=NORMALIZE)
 
-        all_dict = lifter.get_label_list()
-        basis_poly.matshow(variables_j=all_dict)
-        basis_learned = basis_poly.get_matrix(
-            variables=(basis_poly.variable_dict_i, all_dict)
+        all_dict = {l: 1 for l in lifter.get_label_list()}
+        basis_learned = np.vstack(
+            [b.get_matrix((["l"], all_dict)).toarray() for b in basis_poly_list]
         )
         A_all = lifter.generate_matrices(basis_learned)
 
@@ -72,7 +71,7 @@ def generate_matrices(lifter: StateLifter, param):
 
     names = [f"A{i}:known" for i in range(len(A_known))]
     names += [f"A{len(A_known) + i}:learned" for i in range(len(A_all))]
-    return A_b_list_all, basis_dict, basis_poly, names
+    return A_b_list_all, basis_list, names
 
 
 def generate_orders(Q, A_b_list_all, xhat, qcqp_cost):

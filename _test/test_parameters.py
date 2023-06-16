@@ -53,24 +53,20 @@ def test_with_parameters(d=1):
         raise ValueError(d)
 
     if INCREMENTAL:
-        basis_dict = lifter.get_basis_dict_incremental()
-        # __, basis_poly = lifter.get_A_learned(incremental=INCREMENTAL)
+        basis_list = lifter.get_basis_list_incremental()
+        from utils.plotting_tools import plot_basis
+        from poly_matrix.poly_matrix import PolyMatrix
 
-        # plot_basis(basis_small, lifter, fname_root + "_small")
-        from utils.plotting_tools import visualize_small_basis
-
-        visualize_small_basis(basis_dict, lifter, "")
+        basis_poly = PolyMatrix.init_from_row_list(basis_list)
+        plot_basis(basis_poly, lifter)
         # wtf, if I remeove this then basis_small is None. If I leave it, it is defined.
         # this has to do with plt.ion(), but I don't know why.
 
-        print("tried variable subsets", list(basis_dict.keys()))
-        basis_poly = lifter.augment_basis_dict(basis_dict, normalize=NORMALIZE)
-
-        label_list = lifter.get_label_list()
-        basis_poly.matshow()
-
-        basis_learned = basis_poly.get_matrix(
-            variables=(basis_poly.variable_dict_i, label_list)
+        basis_list_all = lifter.augment_basis_list(basis_list, normalize=NORMALIZE)
+        basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
+        label_dict = {l: 1 for l in lifter.get_label_list()}
+        basis_learned = basis_poly_all.get_matrix(
+            variables=(basis_poly_all.variable_dict_i, label_dict)
         )
         A_learned = lifter.generate_matrices(basis_learned)
     else:

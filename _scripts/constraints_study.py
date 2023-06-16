@@ -3,6 +3,7 @@
 import numpy as np
 import pandas as pd
 
+from poly_matrix.poly_matrix import PolyMatrix
 from lifters.stereo1d_slam_lifter import Stereo1DSLAMLifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -15,7 +16,11 @@ from utils.analyze_tightness import (
     compute_tightness,
 )
 from utils.interpret import interpret_dataframe
-from utils.plotting_tools import plot_basis, plot_tightness, plot_matrices
+from utils.plotting_tools import (
+    plot_basis,
+    plot_tightness,
+    plot_matrices,
+)
 
 N_LANDMARKS = 3  # should be 4 for 3d
 NOISE = 1e-2
@@ -27,7 +32,7 @@ ORDER_PAIRS = [
     # ("optimization", "decrease"),
 ]
 D_LIST = [1]
-PARAM_LIST = ["learned"]
+PARAM_LIST = ["incremental"]
 
 if __name__ == "__main__":
     import pickle
@@ -53,7 +58,6 @@ if __name__ == "__main__":
             lifter = Stereo3DLifter(
                 n_landmarks=N_LANDMARKS, level="urT", add_parameters=ADD_PARAMS
             )
-        lifter.generate_random_setup()
 
         fname_root = str(root / f"_results/experiments_{lifter}_{param}")
 
@@ -65,19 +69,17 @@ if __name__ == "__main__":
         if not recompute_matrices:
             with open(fname, "rb") as f:
                 A_b_list_all = pickle.load(f)
-                basis_small = pickle.load(f)
-                basis_all = pickle.load(f)
                 names = pickle.load(f)
                 order_dict = pickle.load(f)
                 qcqp_cost = pickle.load(f)
                 xhat = pickle.load(f)
         else:
-            A_b_list_all, basis_small, basis_all, names = generate_matrices(
-                lifter, param
-            )
+            A_b_list_all, basis_list, names = generate_matrices(lifter, param)
             # plot the basis matrix including labels
-            plot_basis(basis_all, lifter, fname_root + "_all")
-            plot_basis(basis_small, lifter, fname_root + "_small")
+
+            # plot_basis(basis_small, lifter, fname_root + "_small")
+            basis_small_poly = PolyMatrix.init_from_row_list(basis_list)
+            plot_basis(basis_small_poly, lifter, fname_root + "_small")
 
             # increase how many constraints we add to the problem
             qcqp_that, qcqp_cost = find_local_minimum(lifter, y=y, verbose=False)
@@ -90,8 +92,6 @@ if __name__ == "__main__":
             order_dict = generate_orders(Q, A_b_list_all, xhat, qcqp_cost)
             with open(fname, "wb") as f:
                 pickle.dump(A_b_list_all, f)
-                pickle.dump(basis_small, f)
-                pickle.dump(basis_all, f)
                 pickle.dump(names, f)
                 pickle.dump(order_dict, f)
                 pickle.dump(qcqp_cost, f)

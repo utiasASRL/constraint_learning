@@ -5,30 +5,9 @@ from lifters.plotting_tools import savefig, add_colorbar
 from poly_matrix.poly_matrix import PolyMatrix
 
 
-def visualize_small_basis(basis_dict, lifter, fname_root):
-    # generate a small poly matrix (for plotting only)
-    from poly_matrix.poly_matrix import PolyMatrix
-
-    basis_small = PolyMatrix(symmetric=False)
-    m = 0
-    for poly_mat_list in basis_dict.values():
-        for mat in poly_mat_list:
-            for key in mat.variable_dict_j:
-                basis_small[m, key] = mat["l", key]
-            m += 1
-
-    var_list = lifter.get_label_list()
-    if basis_small.nnz > 0:
-        fig, ax, im = basis_small.matshow(variables_j=var_list)
-    if fname_root != "":
-        savefig(fig, fname_root + "_basis.png")
-    return basis_small
-
-
-def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
-    all_product_dict = lifter.get_augmented_dict()
-    variables_j = all_product_dict
+def plot_basis(basis_poly: PolyMatrix, lifter, fname_root=""):
     variables_i = basis_poly.generate_variable_dict_i()
+    variables_j = {l: 1 for l in lifter.get_label_list()}
 
     import matplotlib as mpl
 
@@ -56,6 +35,7 @@ def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
         ax.axvline(p * lifter.get_dim_X() - 0.5, color="red")
     if fname_root != "":
         savefig(fig, fname_root + f"_basis.png")
+    return fig, ax
 
 
 def plot_tightness(df_tight, qcqp_cost, fname_root):

@@ -27,25 +27,25 @@ FACTOR = 2.0  # how much to oversample (>= 1)
 MAX_N_SUBSETS = 2
 
 
-def create_symmetric(triu_vector, size):
-    mat = np.zeros((size, size))
-    mat[np.triu_indices(size)] = triu_vector
-    mat += mat.T
-    mat[range(size), range(size)] /= 2.0
-    return mat
-
-
-def test_S_cutoff(S, corank, eps):
-    if corank > 1:
-        try:
-            assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
-            assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
-        except:
-            print(f"there might be a problem with the chosen threshold {eps}:")
-            print(S[-corank], eps, S[-corank - 1])
-
-
 class StateLifter(ABC):
+    @staticmethod
+    def create_symmetric(triu_vector, size):
+        mat = np.zeros((size, size))
+        mat[np.triu_indices(size)] = triu_vector
+        mat += mat.T
+        mat[range(size), range(size)] /= 2.0
+        return mat
+
+    @staticmethod
+    def test_S_cutoff(S, corank, eps=EPS):
+        if corank > 1:
+            try:
+                assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
+                assert abs(S[-corank - 1]) / eps > 10  # 1e-11 1e-10
+            except:
+                print(f"there might be a problem with the chosen threshold {eps}:")
+                print(S[-corank], eps, S[-corank - 1])
+
     def __init__(self, theta_shape, M, L=0):
         self.theta_shape = theta_shape
         if len(theta_shape) > 1:
@@ -268,13 +268,13 @@ class StateLifter(ABC):
         if incremental:
             assert Y is None
             assert len(A_known) == 0
-            basis_dict = self.get_basis_dict_incremental(
+            basis_list = self.get_basis_list_incremental(
                 eps=eps,
                 plot=plot,
                 factor=factor,
                 method=method,
             )
-            basis_poly = self.augment_basis_dict(basis_dict, normalize=normalize)
+            basis_poly = self.augment_basis_list(basis_list, normalize=normalize)
 
             all_dict = self.get_label_list()
             basis_learned = basis_poly.get_matrix()
@@ -320,9 +320,12 @@ class StateLifter(ABC):
             A_reduced = A_learned
         return A_reduced, basis_poly
 
-    def zero_pad_subvector(self, b, var_subset):
+    def zero_pad_subvector(self, b, var_subset, target_subset=None):
         """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+
+        if target_subset is None:
+            target_subset = self.var_dict
 
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
@@ -332,11 +335,11 @@ class StateLifter(ABC):
         poly_all = PolyMatrix(symmetric=False)
         for p in range(dim_P):
             block = b[p * dim_X : (p + 1) * (dim_X)]
-            mat = create_symmetric(block, dim_x)
+            mat = self.create_symmetric(block, dim_x)
             poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
 
             # TODO(FD) implement below using sparse matrices?
-            mat = poly_mat.get_matrix(self.var_dict).toarray()
+            mat = poly_mat.get_matrix(target_subset).toarray()
             bi_all = np.r_[bi_all, mat[np.triu_indices(mat.shape[0])]]
 
             for keyi, keyj in itertools.combinations_with_replacement(
@@ -349,13 +352,13 @@ class StateLifter(ABC):
                     for l, v in zip(labels, val.flatten()):
                         poly_all["l", l] = v
 
-        assert len(bi_all) == self.get_dim_X() * self.get_dim_P()
+        assert len(bi_all) == self.get_dim_X(target_subset) * self.get_dim_P()
         return bi_all, poly_all
 
     def get_incremental_vars(self):
         return tuple(["l", "x"] + [f"z_{i}" for i in range(MAX_N_SUBSETS)])
 
-    def get_basis_dict_incremental(
+    def get_basis_list_incremental(
         self,
         eps: float = EPS,
         plot: bool = False,
@@ -368,14 +371,12 @@ class StateLifter(ABC):
             var_subsets.append(tuple(["l", "x"] + [f"z_{i}" for i in range(k)]))
 
         # keep track of current set of lin. independent constraints
-        dim_Y = self.get_dim_X(var_subsets[-1]) * self.get_dim_P()
+        dim_Y = self.get_dim_X() * self.get_dim_P()
         basis_learned = np.empty((0, dim_Y))
         current_rank = 0
 
-        basis_dict = {}
+        basis_list = []
         for var_subset in var_subsets:
-            basis_dict[var_subset] = []
-
             Y = self.generate_Y(factor=factor, var_subset=var_subset)
 
             # extract subset of known matrices given the current variables
@@ -395,7 +396,7 @@ class StateLifter(ABC):
                 continue
 
             print(f"{var_subset}: {corank} learned matrices found")
-            test_S_cutoff(S, corank, eps)
+            self.test_S_cutoff(S, corank, eps)
 
             if plot:
                 from lifters.plotting_tools import plot_singular_values
@@ -411,7 +412,7 @@ class StateLifter(ABC):
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
                 if new_rank == current_rank + 1:
                     # print(f"b{i} is valid basis vector.")
-                    basis_dict[var_subset].append(bi_poly)
+                    basis_list.append(bi_poly)
                     basis_learned = basis_learned_test
                     current_rank += 1
                 elif new_rank == current_rank:
@@ -420,7 +421,7 @@ class StateLifter(ABC):
                     print(
                         f"Warning: invalid rank change from rank {current_rank} to {new_rank}"
                     )
-        return basis_dict
+        return basis_list
 
     def get_basis_learned(
         self,
@@ -457,7 +458,7 @@ class StateLifter(ABC):
         corank = basis_new.shape[0]
 
         print(f"{corank} learned matrices found")
-        test_S_cutoff(S, corank, eps)
+        self.test_S_cutoff(S, corank, eps)
 
         if plot:
             from lifters.plotting_tools import plot_singular_values
@@ -489,32 +490,28 @@ class StateLifter(ABC):
                 basis_poly[i, key] = bi_poly["l", key]
         return A_learned, basis_poly
 
-    def augment_basis_dict(self, basis_dict, normalize=NORMALIZE):
+    def augment_basis_list(self, basis_list, normalize=NORMALIZE):
         # given the learned matrices we need to generalize to all landmarks!
-        basis_poly = PolyMatrix(symmetric=False)
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
-        m = 0
-        for var_subset, bi_poly_list in basis_dict.items():
-            # for each found constraint....
-            for bi_poly in bi_poly_list:
-                # if z_0 is in this constraint, repeat the constraint for each landmark.
-                for i, j in itertools.combinations(range(self.n_landmarks), 2):
-                    if (i != 0) or (j != 1):
-                        print(f"should map 0 to {i} and 1 to {j}")
-                    assert i != j
-                    for key in bi_poly.variable_dict_j:
-                        # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
-                        key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
-                        key_ij = key_ij.replace("p_0", f"pi_{i}").replace(
-                            "p_1", f"pi_{j}"
-                        )
-                        key_ij = key_ij.replace("zi", "z").replace("pi", "p")
-                        if key != key_ij:
-                            print("changed", key, "to", key_ij)
-                        basis_poly[m, key_ij] = bi_poly["l", key]
-                    m += 1
-        return basis_poly
+        new_poly_rows = []
+        for bi_poly in basis_list:
+            # if z_0 is in this constraint, repeat the constraint for each landmark.
+            for i, j in itertools.combinations(range(self.n_landmarks), 2):
+                new_poly_row = PolyMatrix(symmetric=False)
+                if (i != 0) or (j != 1):
+                    print(f"should map 0 to {i} and 1 to {j}")
+                assert i != j
+                for key in bi_poly.variable_dict_j:
+                    # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
+                    key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
+                    key_ij = key_ij.replace("p_0", f"pi_{i}").replace("p_1", f"pi_{j}")
+                    key_ij = key_ij.replace("zi", "z").replace("pi", "p")
+                    if key != key_ij:
+                        print("changed", key, "to", key_ij)
+                    new_poly_row["l", key_ij] = bi_poly["l", key]
+                new_poly_rows.append(new_poly_row)
+        return new_poly_rows
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around groudn truth.
@@ -722,13 +719,17 @@ class StateLifter(ABC):
             #    print(f"no violation at {j}")
         return max_violation, j_bad
 
-    def get_A0(self):
+    def get_A0(self, var_subset=None):
+        if var_subset is not None:
+            var_dict = {k: self.var_dict[k] for k in var_subset}
+        else:
+            var_dict = self.var_dict
         A0 = PolyMatrix()
         A0["l", "l"] = 1.0
-        return A0.get_matrix(self.var_dict)
+        return A0.get_matrix(var_dict)
 
-    def get_A_b_list(self, A_list):
-        return [(self.get_A0(), 1.0)] + [(A, 0.0) for A in A_list]
+    def get_A_b_list(self, A_list, var_subset=None):
+        return [(self.get_A0(var_subset), 1.0)] + [(A, 0.0) for A in A_list]
 
     def run(self, n_dual: int = 3, plot: bool = False, noise: float = 1e-4):
         """Convenience function to quickly test and debug lifter
