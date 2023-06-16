@@ -350,7 +350,8 @@ class StateLifter(ABC):
                     labels = self.get_labels(p, keyi, keyj)
                     assert len(labels) == np.size(val)
                     for l, v in zip(labels, val.flatten()):
-                        poly_all["l", l] = v
+                        if np.any(np.abs(v)) > 1e-10:
+                            poly_all["l", l] = v
 
         assert len(bi_all) == self.get_dim_X(target_subset) * self.get_dim_P()
         return bi_all, poly_all
@@ -406,6 +407,7 @@ class StateLifter(ABC):
             # find out which of the constraints are linearly dependant of the others.
             # TODO(FD) sum out constraints to be reduce even more!
             for i, bi_sub in enumerate(basis_new):
+                bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
                 bi, bi_poly = self.zero_pad_subvector(bi_sub, var_subset)
 
                 basis_learned_test = np.vstack([basis_learned, bi])
@@ -490,7 +492,7 @@ class StateLifter(ABC):
                 basis_poly[i, key] = bi_poly["l", key]
         return A_learned, basis_poly
 
-    def augment_basis_list(self, basis_list, normalize=NORMALIZE):
+    def augment_basis_list(self, basis_list, verbose=False):
         # given the learned matrices we need to generalize to all landmarks!
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
@@ -499,7 +501,7 @@ class StateLifter(ABC):
             # if z_0 is in this constraint, repeat the constraint for each landmark.
             for i, j in itertools.combinations(range(self.n_landmarks), 2):
                 new_poly_row = PolyMatrix(symmetric=False)
-                if (i != 0) or (j != 1):
+                if verbose and ((i != 0) or (j != 1)):
                     print(f"should map 0 to {i} and 1 to {j}")
                 assert i != j
                 for key in bi_poly.variable_dict_j:
@@ -507,7 +509,7 @@ class StateLifter(ABC):
                     key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
                     key_ij = key_ij.replace("p_0", f"pi_{i}").replace("p_1", f"pi_{j}")
                     key_ij = key_ij.replace("zi", "z").replace("pi", "p")
-                    if key != key_ij:
+                    if verbose and (key != key_ij):
                         print("changed", key, "to", key_ij)
                     new_poly_row["l", key_ij] = bi_poly["l", key]
                 new_poly_rows.append(new_poly_row)

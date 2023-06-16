@@ -54,6 +54,7 @@ class Learner(object):
         return [p.get_matrix(var_dict) for p in self.poly_matrices]
 
     def is_tight(self):
+        return False
         from solvers.common import find_local_minimum, solve_sdp_cvxpy
         from solvers.sparse import solve_lambda
 
@@ -65,27 +66,28 @@ class Learner(object):
         qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False)
         xhat = self.lifter.get_x(qcqp_that)
 
-        # compute lamdas using optimization
-        __, lamdas = solve_lambda(Q, A_b_list_all, xhat, force_first=1)
-        if lamdas is None:
-            print("Warning: problem doesn't have feasible solution!")
-            return False
-
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
             Q, A_b_list_all, adjust=ADJUST
         )  # , rho_hat=qcqp_cost)
         if info["cost"] is None:
-            print("Warning: infeasible?")
+            print("Warning: is problem infeasible?")
             return False
         else:
             if abs(qcqp_cost - info["cost"]) / qcqp_cost > TOL_REL_GAP:
                 print("Warning: no strong duality?")
                 print(f"qcqp cost: {qcqp_cost}")
                 print(f"dual cost: {info['cost']}")
+                return False
             else:
                 print("Strong duality!")
                 return True
+
+        # compute lamdas using optimization
+        __, lamdas = solve_lambda(Q, A_b_list_all, xhat, force_first=1)
+        if lamdas is None:
+            print("Warning: problem doesn't have feasible solution!")
+            return False
 
     @property
     def var_dict(self):
@@ -119,11 +121,12 @@ class Learner(object):
         new_patterns = []
         for bi_sub in basis_new:
             # check if this newly learned pattern is linearly independent of previous patterns.
+            bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
             bi, bi_poly = self.lifter.zero_pad_subvector(
-                bi_sub, var_subset=self.variables, target_subset=self.variables
+                bi_sub, var_subset=self.var_dict, target_subset=self.var_dict
             )
 
-            ai = self.lifter.get_reduced_a(bi, var_subset=self.variables)
+            ai = self.lifter.get_reduced_a(bi, var_subset=self.var_dict)
 
             # if so, add it to the new patterns.
             if increases_rank(a_current, ai):
