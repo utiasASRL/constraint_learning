@@ -55,9 +55,6 @@ class StereoLifter(StateLifter, ABC):
 
     LEVELS = [
         "no",
-        "r@r",  # x**2 + y**2
-        "r2",  # x**2, y**2
-        "rrT",  # x**2, y**2, xy
         "u@u",  # ...
         "u2",
         "u@r",
@@ -79,8 +76,6 @@ class StereoLifter(StateLifter, ABC):
         M = self.n_landmarks * self.d  # u, v, z (3d) or u, z (2d)
         L = self.get_level_dims(n=self.n_landmarks)[level]
 
-        self.theta_ = None
-        self.var_dict_ = None
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M, L=L)
 
     def get_level_dims(self, n=1):
@@ -114,18 +109,15 @@ class StereoLifter(StateLifter, ABC):
     @property
     def base_var_dict(self):
         var_dict = {}
-        var_dict.update({f"c_{i}": self.d for i in range(self.d)})
-        var_dict.update({"t": self.d})
+        # var_dict.update({f"c_{i}": self.d for i in range(self.d)})
+        # var_dict.update({"t": self.d})
+        var_dict = {f"x": self.d**2 + self.d}
         return var_dict
 
     @property
     def sub_var_dict(self):
-        var_dict = {f"z_{k}": self.d for k in range(self.n_landmarks)}
         level_dim = self.get_level_dims()[self.level]
-        if "u" in self.level:
-            var_dict.update({f"y_{i}": level_dim for i in range(self.n_landmarks)})
-        elif level_dim > 0:
-            var_dict.update({f"y": level_dim})
+        var_dict = {f"z_{k}": self.d + level_dim for k in range(self.n_landmarks)}
         return var_dict
 
     @property
@@ -136,6 +128,17 @@ class StereoLifter(StateLifter, ABC):
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
 
+    @property
+    def param_dict(self):
+        if self.param_dict_ is None:
+            self.param_dict_ = {0: "l"}
+            i = 1
+            for n in range(self.n_landmarks):
+                for d in range(self.d):
+                    self.param_dict_[i] = f"p_{n}:{d}"
+                    i += 1
+        return self.param_dict_
+
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
         return np.c_[
@@ -145,10 +148,17 @@ class StereoLifter(StateLifter, ABC):
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
+        self.parameters = self.get_parameters()
 
     def generate_random_theta(self):
         n_angles = 1 if self.d == 2 else 3
         return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
+
+    def get_parameters(self):
+        if self.add_parameters:
+            return np.r_[1.0, self.landmarks.flatten()]
+        else:
+            return np.array([1.0])
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -169,37 +179,29 @@ class StereoLifter(StateLifter, ABC):
         elif len(theta) == 12:
             C, r = get_C_r_from_xtheta(theta, self.d)
 
+        if self.add_parameters:
+            landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
+        else:
+            landmarks = self.landmarks
+
         x_data = []
         for key in var_subset:
             if key == "l":
                 x_data.append(1.0)
-            elif key == "t":
-                x_data += list(r)
-            elif "c" in key:
-                # c = C.flatten("C")
-                d = int(key.split("_")[-1])
-                x_data += list(C[d, :])
-
-            elif key == "y":
-                if self.level == "r2":
-                    x_data += list(r**2)
-                if self.level == "r@r":
-                    x_data += [r @ r]
-                elif self.level == "rrT":
-                    x_data += list(np.outer(r, r).flatten())
+            elif key == "x":
+                x_data += list(r) + list(C.flatten("F"))  # column-wise flatten
             elif "z" in key:
                 j = int(key.split("_")[-1])
-                pj = self.landmarks[j, :]
+
+                pj = landmarks[j, :]
+
                 zj = C[self.d - 1, :] @ pj + r[self.d - 1]
                 u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
                 x_data += list(u)
 
-            elif "y" in key:
-                j = int(key.split("_")[-1])
-                pj = self.landmarks[j]
-                zj = C[self.d - 1, :] @ pj + r[self.d - 1]
-                u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
-                if self.level == "u2":
+                if self.level == "no":
+                    continue
+                elif self.level == "u2":
                     x_data += list(u**2)
                 elif self.level == "u@u":
                     x_data += [u @ u]
@@ -216,6 +218,8 @@ class StereoLifter(StateLifter, ABC):
                 elif self.level == "urT-diag":
                     # this works
                     x_data += list(np.diag(np.outer(u, r)))
+                else:
+                    raise ValueError(self.level)
 
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
@@ -230,6 +234,9 @@ class StereoLifter(StateLifter, ABC):
         # [zj]   [c3 @ pj]
         # enforce that u_xj = 1/zj * xj -> zj*u_xj = c3 @ pj * u_xj = c1 @ pj
         # enforce that u_yj = 1/zj * yj -> zj*u_yj = c3 @ pj * u_yj = c2 @ pj
+        print("Warning: get_A_known not adapted to new variables yet.")
+        return []
+
         A_known = []
         for k in range(self.n_landmarks):
             for j in range(self.d):
@@ -257,7 +264,7 @@ class StereoLifter(StateLifter, ABC):
 
     def sample_parameters(self):
         if self.add_parameters:
-            return [1.0] + list(np.random.rand(self.n_landmarks * self.d))
+            return [1.0] + list(np.random.rand(self.n_landmarks, self.d).flatten())
         else:
             return [1.0]
 
@@ -282,7 +289,10 @@ class StereoLifter(StateLifter, ABC):
 
         # in 2d: M[:, [0, 2]]
         # in 3d: M[:, [0, 1, 3]]
-        M_tilde = self.M_matrix[:, list(range(self.d - 1)) + [self.d]]
+        M_tilde = np.zeros((self.var_dict["z_0"], self.d))
+        M_tilde[: self.M_matrix.shape[0], :] = self.M_matrix[
+            :, list(range(self.d - 1)) + [self.d]
+        ]
 
         # in 2d: M[:, 1]
         # in 3d: M[:, 2]
@@ -290,7 +300,7 @@ class StereoLifter(StateLifter, ABC):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde})
+            ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde.T})
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
 
         # sanity check

@@ -40,7 +40,7 @@ class Stereo1DLifter(StateLifter):
             parameters_ = [1.0]
         return parameters_
 
-    def get_parameters(self, var_subset=None):
+    def get_parameters(self):
         if self.add_parameters:
             return [1.0] + list(self.landmarks)
         else:
@@ -79,6 +79,14 @@ class Stereo1DLifter(StateLifter):
     def var_dict(self):
         vars = ["l", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
+
+    @property
+    def param_dict(self):
+        if self.param_dict_ is None:
+            self.param_dict_ = {0: "l"}
+            for n in range(self.n_landmarks):
+                self.param_dict_[n + 1] = f"p_{n}"
+        return self.param_dict_
 
     def get_grad(self, t, y):
         raise NotImplementedError("get_grad not implement yet")

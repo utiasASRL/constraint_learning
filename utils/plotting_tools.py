@@ -5,6 +5,26 @@ from lifters.plotting_tools import savefig, add_colorbar
 from poly_matrix.poly_matrix import PolyMatrix
 
 
+def visualize_small_basis(basis_dict, lifter, fname_root):
+    # generate a small poly matrix (for plotting only)
+    from poly_matrix.poly_matrix import PolyMatrix
+
+    basis_small = PolyMatrix(symmetric=False)
+    m = 0
+    for poly_mat_list in basis_dict.values():
+        for mat in poly_mat_list:
+            for key in mat.variable_dict_j:
+                basis_small[m, key] = mat["l", key]
+            m += 1
+
+    var_list = lifter.get_label_list()
+    if basis_small.nnz > 0:
+        fig, ax, im = basis_small.matshow(variables_j=var_list)
+    if fname_root != "":
+        savefig(fig, fname_root + "_basis.png")
+    return basis_small
+
+
 def plot_basis(basis_poly: PolyMatrix, lifter, fname_root):
     all_product_dict = lifter.get_augmented_dict()
     variables_j = all_product_dict

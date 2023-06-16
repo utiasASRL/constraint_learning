@@ -14,9 +14,10 @@ n_poses = 4
 Lifters = {
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
-    # Stereo1DLifter: dict(n_landmarks=n_landmarks),
-    Stereo2DLifter: dict(n_landmarks=n_landmarks),
-    Stereo3DLifter: dict(n_landmarks=n_landmarks),
+    Stereo1DLifter: dict(n_landmarks=n_landmarks),
+    Stereo1DLifter: dict(n_landmarks=n_landmarks, add_parameters=True),
+    # Stereo2DLifter: dict(n_landmarks=n_landmarks),
+    # Stereo3DLifter: dict(n_landmarks=n_landmarks),
     # RangeOnlySLAM1Lifter: dict(
     #    n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="inner"
     # ),
