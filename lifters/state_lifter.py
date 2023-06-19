@@ -218,10 +218,19 @@ class StateLifter(ABC):
         size_i = self.var_dict[zi]
         size_j = self.var_dict[zj]
         if (size_i > 1) or (size_j > 1):
-            for i, j in itertools.product(range(size_i), range(size_j)):
-                labels.append(f"{self.param_dict[p]}.{zi}.{zj}:{i}_{j}")
+            if zi == zj:
+                size = int(size_i * (size_i + 1) / 2)
+                # only upper diagonal for i == j
+                key_pairs = itertools.combinations_with_replacement(range(size_i), 2)
+            else:
+                size = size_i * size_j
+                key_pairs = itertools.product(range(size_i), range(size_j))
+            for i, j in key_pairs:
+                labels.append(f"{self.param_dict[p]}.{zi}.{zj}:{i}-{j}")
         else:
+            size = 1
             labels.append(f"{self.param_dict[p]}.{zi}.{zj}")
+        assert len(labels) == size
         return labels
 
     def var_list_all(self, var_subset=None):
@@ -234,6 +243,7 @@ class StateLifter(ABC):
         for p in range(self.get_dim_P()):
             for zi, zj in vectorized_var_list:
                 label_list += self.get_labels(p, zi, zj)
+            assert len(label_list) == (p + 1) * self.get_dim_X(var_subset)
         return label_list
 
     def var_dict_all(self, var_subset=None):
@@ -360,10 +370,15 @@ class StateLifter(ABC):
                 if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
                     val = poly_mat.matrix[keyi][keyj]
                     labels = self.get_labels(p, keyi, keyj)
-                    assert len(labels) == np.size(val)
-                    for l, v in zip(labels, val.flatten()):
+                    if keyi != keyj:
+                        vals = val.flatten()
+                    else:
+                        vals = val[np.triu_indices(val.shape[0])]
+                    assert len(labels) == len(vals)
+                    for l, v in zip(labels, vals):
                         if np.any(np.abs(v)) > 1e-10:
                             poly_all["l", l] = v
+
         return poly_all
 
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
@@ -545,8 +560,9 @@ class StateLifter(ABC):
             for key in bi_poly.variable_dict_j:
                 vars = key.split(".")
                 for var in vars:
-                    if "_" in var:
-                        i = int(var.split("_")[-1])
+                    var_base = var.split(":")[0]
+                    if "_" in var_base:
+                        i = int(var_base.split("_")[-1])
                         unique_idx.add(i)
 
             # if z_0 is in this constraint, repeat the constraint for each landmark.

@@ -5,8 +5,8 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.plotting_tools import savefig
 
-MAX_VARS = 3
-N_LANDMARKS = 4
+MAX_VARS = 2
+N_LANDMARKS = 3
 NOISE = 1e-1
 SEED = 5
 
@@ -34,13 +34,13 @@ class Learner(object):
     Class to incrementally learn and augment constraint patterns until we reach tightness.
     """
 
-    VARIABLES = [f"z_{i}" for i in range(MAX_VARS)]
+    VARIABLES = ["x"] + [f"z_{i}" for i in range(MAX_VARS)]
 
     def __init__(self, lifter: StateLifter):
         self.lifter = lifter
         self.var_counter = -1
 
-        self.mat_vars = ["l", "x"]
+        self.mat_vars = ["l"]
 
         # b_vector contains the learned "patterns" of the form:
         # {variable_tuple: [list of learned b-vectors for this variable subset]}
@@ -105,14 +105,14 @@ class Learner(object):
         if target_mat_var_dict is None:
             target_mat_var_dict = self.mat_var_dict
 
-        if len(self.b_vectors):
-            bs = []
-            for mat_var_dict, b_list in self.b_vectors.items():
-                for bi in b_list:
-                    bi = self.lifter.zero_pad_subvector(
-                        bi, mat_var_dict, target_mat_var_dict
-                    )
-                    bs.append(bi)
+        bs = []
+        for mat_var_dict, b_list in self.b_vectors.items():
+            for bi in b_list:
+                bi = self.lifter.zero_pad_subvector(
+                    bi, mat_var_dict, target_mat_var_dict
+                )
+                bs.append(bi)
+        if len(bs):
             return np.vstack(bs)
         return None
 
@@ -175,7 +175,7 @@ class Learner(object):
         Y = self.lifter.generate_Y(var_subset=self.mat_vars)
 
         basis_current = self.get_b_current()
-        if use_known:
+        if use_known and basis_current is not None:
             Y = np.vstack([Y, basis_current])
 
         basis_new, S = self.lifter.get_basis(Y)
@@ -242,7 +242,7 @@ class Learner(object):
                 print("no more variables to add")
                 break
 
-            new_patterns = self.learn_patterns(use_known=False)
+            new_patterns = self.learn_patterns(use_known=True)
             if len(new_patterns) == 0:
                 print("new variables didn't have any effect")
                 continue
