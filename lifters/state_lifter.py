@@ -422,6 +422,15 @@ class StateLifter(ABC):
         dim_x = self.get_dim_x(var_subset)
         dim_P = self.get_dim_P()
         bi_all = np.empty(0)
+
+        # can call this function with "a" vector (equivalent to b without parameters)
+        if len(b) == dim_X:
+            b = self.augment_using_zero_padding(b)
+        # default is that b is an augmented vector (with parameters)
+        else:
+            dim_P = self.get_dim_P()
+            assert len(b) == dim_X * dim_P
+
         for p in range(dim_P):
             block = b[p * dim_X : (p + 1) * (dim_X)]
             mat = self.create_symmetric(block, dim_x)

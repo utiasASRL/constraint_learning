@@ -5,9 +5,9 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.plotting_tools import savefig
 
-MAX_VARS = 2
-N_LANDMARKS = 3
-NOISE = 1e-1
+MAX_VARS = 0
+N_LANDMARKS = 4
+NOISE = 1e-2
 SEED = 5
 
 ADJUST = True
@@ -195,16 +195,11 @@ class Learner(object):
                 new_patterns.append(bi_sub)
             else:
                 print(f"b{i} is linearly dependent")
-        self.b_vectors[tuple(self.mat_vars)] = new_patterns
         return new_patterns
 
-    def apply_patterns(self):
-        key = tuple(self.mat_vars)
-        if not key in self.b_vectors:
-            print(f"no patterns learned yet for {key}.")
-            return
-
-        new_patterns = self.b_vectors[key]
+    def apply_patterns(self, new_patterns):
+        # list of constraint indices that were not redundant after summing out parameters.
+        valid_list = []
 
         for i, new_pattern in enumerate(new_patterns):
             new_poly_rows = self.lifter.augment_basis_list(
@@ -224,13 +219,22 @@ class Learner(object):
                         Ai_sparse, self.lifter.var_dict
                     )
 
-                    self.lifter.test_constraints([Ai_sparse], errors="raise")
+                    try:
+                        self.lifter.test_constraints([Ai_sparse], errors="raise")
+                    except:
+                        print(
+                            f"Warning: skipping matrix {j} of pattern b{i} because high error."
+                        )
+                        continue
 
                     # name = f"[{','.join(self.mat_vars)}]:{i}"
                     name = f"{self.mat_vars[-1]}:b{i}-{j}"
                     self.A_matrices[name] = Ai
                     counter += 1
-            print(f"pattern b{i}: added {counter} constraints")
+            if counter > 0:
+                print(f"pattern b{i}: added {counter} constraints")
+                valid_list.append(i)
+        return valid_list
 
     def run(self, fname_root=""):
         from utils.plotting_tools import plot_basis
@@ -239,29 +243,41 @@ class Learner(object):
         plot_rows = []
         plot_row_labels = []
 
+        # do the first round without parameters, to find state-only-dependent constraints.
+        self.lifter.add_parameters = False
+
         while not self.is_tight():
+            # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
                 break
 
+            # make sure we use parameters as soon as we add z variables
+            if "z_0" in self.mat_vars:
+                self.lifter.add_parameters = True
+
+            # learn new patterns, orthogonal to the ones found so far.
             new_patterns = self.learn_patterns(use_known=True)
             if len(new_patterns) == 0:
                 print("new variables didn't have any effect")
                 continue
 
-            self.apply_patterns()
+            # apply the pattern to all landmarks
+            valid_idx = self.apply_patterns(new_patterns)
+            self.b_vectors[tuple(self.mat_vars)] = [new_patterns[i] for i in valid_idx]
 
             plot_rows += [
-                self.lifter.convert_b_to_poly(bi, self.mat_vars) for bi in new_patterns
+                self.lifter.convert_b_to_poly(new_patterns[i], self.mat_vars)
+                for i in valid_idx
             ]
-            plot_row_labels += [
-                f"{self.mat_vars}:b{i}" for i in range(len(new_patterns))
-            ]
+            plot_row_labels += [f"{self.mat_vars}:b{i}" for i in valid_idx]
 
         patterns_poly = PolyMatrix.init_from_row_list(
             plot_rows, row_labels=plot_row_labels
         )
-        fig, ax = plot_basis(patterns_poly, self.lifter, var_subset=self.mat_vars)
+        fig, ax = plot_basis(
+            patterns_poly, self.lifter, var_subset=self.mat_vars, discrete=True
+        )
         if fname_root != "":
             savefig(fig, fname_root + "_patterns.png")
 
@@ -294,7 +310,7 @@ class Learner(object):
 if __name__ == "__main__":
     from stereo2d_lifter import Stereo2DLifter
 
-    lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, add_parameters=True, level="urT")
+    lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, level="urT")
 
     # from stereo1d_lifter import Stereo1DLifter
     # lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)

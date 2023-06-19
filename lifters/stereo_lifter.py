@@ -132,11 +132,13 @@ class StereoLifter(StateLifter, ABC):
     def param_dict(self):
         if self.param_dict_ is None:
             self.param_dict_ = {"l": 0}
-            i = 1
-            for n in range(self.n_landmarks):
-                for d in range(self.d):
-                    self.param_dict_[f"p_{n}:{d}"] = i
-                    i += 1
+            if self.add_parameters:
+                i = 1
+                # row-wise flatten.
+                for n in range(self.n_landmarks):
+                    for d in range(self.d):
+                        self.param_dict_[f"p_{n}:{d}"] = i
+                        i += 1
         return self.param_dict_
 
     def get_inits(self, n_inits):
@@ -156,6 +158,7 @@ class StereoLifter(StateLifter, ABC):
 
     def get_parameters(self):
         if self.add_parameters:
+            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
             return np.r_[1.0, self.landmarks.flatten()]
         else:
             return np.array([1.0])

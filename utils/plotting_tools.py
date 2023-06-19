@@ -7,31 +7,37 @@ from poly_matrix.poly_matrix import PolyMatrix
 
 
 def plot_basis(
-    basis_poly: PolyMatrix, lifter: StateLifter, var_subset: dict = None, fname_root=""
+    basis_poly: PolyMatrix,
+    lifter: StateLifter,
+    var_subset: dict = None,
+    fname_root="",
+    discrete=True,
 ):
     variables_i = basis_poly.generate_variable_dict_i()
     variables_j = lifter.var_dict_all(var_subset)
 
-    import matplotlib as mpl
+    if discrete:
+        import matplotlib as mpl
 
-    cmap = mpl.colors.ListedColormap(
-        [
-            [0.0, 0.4, 1.0],
-            [0.0, 0.8, 1.0],
-            [1.0, 1.0, 1.0],
-            [1.0, 0.8, 0.0],
-            [1.0, 0.4, 0.0],
-        ]
-    )
-    cmap.set_over((1.0, 0.0, 0.0))
-    cmap.set_under((0.0, 0.0, 1.0))
-    bounds = [-1.25, -0.75, -0.25, 0.25, 0.75, 1.25]
-    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+        values = basis_poly.get_matrix((variables_i, variables_j)).data
+        values = sorted(list(np.unique(values.round(2))) + [0])
+
+        cmap = plt.get_cmap("viridis", len(values))
+        cmap.set_over((1.0, 0.0, 0.0))
+        cmap.set_under((0.0, 0.0, 1.0))
+        bounds = [values[0] - 0.005] + [v + 0.005 for v in values]
+        yticks = [""] + list(values)
+        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    else:
+        cmap = plt.get_cmap("viridis")
+        norm = None
+        yticks = None
     fig, ax, im = basis_poly.matshow(
         variables_i=variables_i, variables_j=variables_j, cmap=cmap, norm=norm
     )
     cax = add_colorbar(fig, ax, im)
-    cax.set_yticks([-1.0, -0.5, 0, 0.5, 1.0])
+    if yticks is not None:
+        cax.set_yticklabels(yticks)
     scale = 0.2
     fig.set_size_inches(len(variables_j) * scale, len(variables_i) * scale)
     for p in range(1, lifter.get_dim_P()):
