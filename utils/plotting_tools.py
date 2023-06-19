@@ -2,12 +2,15 @@ import matplotlib.pylab as plt
 import numpy as np
 
 from lifters.plotting_tools import savefig, add_colorbar
+from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 
-def plot_basis(basis_poly: PolyMatrix, lifter, fname_root=""):
+def plot_basis(
+    basis_poly: PolyMatrix, lifter: StateLifter, var_subset: dict = None, fname_root=""
+):
     variables_i = basis_poly.generate_variable_dict_i()
-    variables_j = {l: 1 for l in lifter.get_label_list()}
+    variables_j = lifter.var_dict_all(var_subset)
 
     import matplotlib as mpl
 
@@ -32,7 +35,7 @@ def plot_basis(basis_poly: PolyMatrix, lifter, fname_root=""):
     scale = 0.2
     fig.set_size_inches(len(variables_j) * scale, len(variables_i) * scale)
     for p in range(1, lifter.get_dim_P()):
-        ax.axvline(p * lifter.get_dim_X() - 0.5, color="red")
+        ax.axvline(p * lifter.get_dim_X(var_subset) - 0.5, color="red")
     if fname_root != "":
         savefig(fig, fname_root + f"_basis.png")
     return fig, ax

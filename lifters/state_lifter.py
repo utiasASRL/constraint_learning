@@ -8,7 +8,9 @@ import scipy.sparse as sp
 
 from poly_matrix import PolyMatrix
 
-EPS = 1e-10  # threshold for nullspace (on eigenvalues)
+# consider singular value zero below this
+EPS_SVD = 1e-8
+
 # tolerance for feasibility error of learned constraints
 EPS_ERROR = 1e-8
 
@@ -37,7 +39,7 @@ class StateLifter(ABC):
         return mat
 
     @staticmethod
-    def test_S_cutoff(S, corank, eps=EPS):
+    def test_S_cutoff(S, corank, eps=EPS_SVD):
         if corank > 1:
             try:
                 assert abs(S[-corank]) / eps < 1e-1  # 1e-1  1e-10
@@ -143,7 +145,11 @@ class StateLifter(ABC):
         :return: symmetric matrix filled with vec.
         """
         # len(vec) = k = n(n+1)/2 -> dim_x = n =
-        dim_x = int(0.5 * (-1 + np.sqrt(1 + 8 * len(vec))))
+        try:
+            len_vec = len(vec)
+        except:
+            len_vec = vec.shape[1]
+        dim_x = int(0.5 * (-1 + np.sqrt(1 + 8 * len_vec)))
         assert dim_x == self.get_dim_x(var_dict)
 
         triu = np.triu_indices(n=dim_x)
@@ -218,7 +224,7 @@ class StateLifter(ABC):
             labels.append(f"{self.param_dict[p]}.{zi}.{zj}")
         return labels
 
-    def get_label_list(self, var_subset=None):
+    def var_list_all(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict.keys()
         vectorized_var_list = list(
@@ -230,9 +236,60 @@ class StateLifter(ABC):
                 label_list += self.get_labels(p, zi, zj)
         return label_list
 
+    def var_dict_all(self, var_subset=None):
+        return {l: 1 for l in self.var_list_all(var_subset)}
+
+    def get_basis_from_poly_rows(self, basis_poly_list, var_subset=None):
+        if var_subset is not None:
+            var_dict = {k: self.var_dict[k] for k in var_subset}
+        else:
+            var_dict = self.var_dict
+
+        all_dict = {l: 1 for l in self.var_list_all(var_subset)}
+        basis_reduced = np.empty((0, len(all_dict)))
+        for i, bi_poly in enumerate(basis_poly_list):
+            # test that this constraint holds
+
+            bi = bi_poly.get_matrix((["l"], all_dict))
+
+            if bi.shape[1] == self.get_dim_X(var_subset) * self.get_dim_P():
+                ai = self.get_reduced_a(bi, var_subset=var_subset)
+                Ai = self.get_mat(ai, var_dict=var_dict)
+            elif bi.shape[1] == self.get_dim_X():
+                Ai = self.get_mat(bi, var_subset=var_subset)
+
+            err, idx = self.test_constraints([Ai], errors="print", tol=EPS_ERROR)
+            if len(idx):
+                print(f"found b{i} has error: {err[0]}")
+                continue
+
+            # test that this constraint is lin. independent of previous ones.
+            basis_reduced_test = np.vstack([basis_reduced, bi.toarray()])
+            rank = np.linalg.matrix_rank(basis_reduced_test)
+            if rank == basis_reduced_test.shape[0]:
+                basis_reduced = basis_reduced_test
+            else:
+                print(f"b{i} is linearly dependant after factoring out parameters.")
+        print(f"left with {basis_reduced.shape} total constraints")
+        return basis_reduced
+
+        # there are still residual dependent vectors which only appear
+        # after summing out the parameters. we want to remove those.
+        import scipy.linalg as la
+
+        __, r, p = la.qr(basis_learned, pivoting=True, mode="economic")
+        rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
+        if rank < len(basis_learned.shape[0]):
+            # sanity check
+            basis_learned = basis_learned[p[:rank], :]
+            __, r, p = la.qr(basis_learned, pivoting=True, mode="economic")
+            rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
+            assert rank_new == rank
+        return basis_learned
+
     def get_vector_dense(self, poly_row_sub):
         # complete the missing variables
-        var_dict = self.get_label_list()
+        var_dict = self.var_dict_all()
         poly_row_all = poly_row_sub.get_matrix((["l"], var_dict), output_type="poly")
         vector = np.empty(0)
         for param in self.param_dict.values():
@@ -246,7 +303,7 @@ class StateLifter(ABC):
                             self.var_dict[vari], self.var_dict[varj]
                         )
                     else:
-                        mat = create_symmetric(val, self.var_dict[vari])
+                        mat = self.create_symmetric(val, self.var_dict[vari])
                         sub_mat[vari, varj] = mat
                 elif val != 0:
                     sub_mat[vari, varj] = val
@@ -257,7 +314,7 @@ class StateLifter(ABC):
     def get_A_learned(
         self,
         A_known: list = [],
-        eps: float = EPS,
+        eps: float = EPS_SVD,
         plot: bool = False,
         Y: np.ndarray = None,
         factor: int = FACTOR,
@@ -274,11 +331,8 @@ class StateLifter(ABC):
                 factor=factor,
                 method=method,
             )
-            basis_poly = self.augment_basis_list(basis_list, normalize=normalize)
-
-            all_dict = self.get_label_list()
-            basis_learned = basis_poly.get_matrix()
-
+            basis_list_all = self.augment_basis_list(basis_list, normalize=normalize)
+            basis_learned = self.get_basis_from_poly_rows(basis_list_all)
             A_learned = self.generate_matrices(basis_learned, normalize=normalize)
         else:
             A_learned, basis_poly = self.get_basis_learned(
@@ -289,50 +343,44 @@ class StateLifter(ABC):
                 factor=factor,
                 method=method,
             )
+        return A_learned, basis_poly
 
-        # test that the constraints hold
-        errs, idxs = self.test_constraints(A_learned, errors="print", tol=EPS_ERROR)
-        print(f"found {len(idxs)} violating constraints")
-        for idx in idxs[::-1]:
-            del A_learned[idx]
-        print(f"left with {len(A_learned)} total constraints")
-
-        # there are still residual dependent vectors which only appear
-        # after summing out the parameters. we want to remove those.
-        basis = np.concatenate([self.get_vec(A)[:, None] for A in A_learned], axis=1)
-        import scipy.linalg as la
-
-        __, r, p = la.qr(basis, pivoting=True, mode="economic")
-        rank = np.where(np.abs(np.diag(r)) > EPS)[0][-1] + 1
-        if rank < len(A_learned):
-            A_reduced = [A_learned[i] for i in p[:rank]]
-            basis_poly.drop(variables_i=p[rank:])
-            print(f"only {rank} of {len(A_learned)} constraints are independent")
-
-            # sanity check
-            basis_reduced = np.concatenate(
-                [self.get_vec(A)[:, None] for A in A_reduced], axis=1
-            )
-            __, r, p = la.qr(basis_reduced, pivoting=True, mode="economic")
-            rank_new = np.where(np.abs(np.diag(r)) > EPS)[0][-1] + 1
-            assert rank_new == rank
-        else:
-            A_reduced = A_learned
-        return A_reduced, basis_poly
-
-    def zero_pad_subvector(self, b, var_subset, target_subset=None):
-        """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
+    def convert_b_to_poly(self, b, var_subset):
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
-
-        if target_subset is None:
-            target_subset = self.var_dict
-
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
         dim_P = self.get_dim_P()
 
-        bi_all = np.empty(0)
         poly_all = PolyMatrix(symmetric=False)
+        for p in range(dim_P):
+            block = b[p * dim_X : (p + 1) * (dim_X)]
+            mat = self.create_symmetric(block, dim_x)
+            poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
+            for keyi, keyj in itertools.combinations_with_replacement(var_dict, 2):
+                if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
+                    val = poly_mat.matrix[keyi][keyj]
+                    labels = self.get_labels(p, keyi, keyj)
+                    assert len(labels) == np.size(val)
+                    for l, v in zip(labels, val.flatten()):
+                        if np.any(np.abs(v)) > 1e-10:
+                            poly_all["l", l] = v
+        return poly_all
+
+    def zero_pad_subvector(self, b, var_subset, target_subset=None):
+        """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
+        poly_all = self.convert_b_to_poly(b, var_subset)
+        var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+        if target_subset is None:
+            target_subset = self.var_dict
+        all_dict = self.var_dict_all(target_subset)
+        return poly_all.get_matrix((["l"], all_dict)).toarray()
+
+        dim_P = self.get_dim_P()
+        dim_X = self.get_dim_X(var_subset)
+        dim_x = self.get_dim_x(var_subset)
+
+        poly_all = PolyMatrix(symmetric=False)
+        b_all = np.empty(0)
         for p in range(dim_P):
             block = b[p * dim_X : (p + 1) * (dim_X)]
             mat = self.create_symmetric(block, dim_x)
@@ -361,10 +409,7 @@ class StateLifter(ABC):
 
     def get_basis_list_incremental(
         self,
-        eps: float = EPS,
         plot: bool = False,
-        factor: int = FACTOR,
-        method: str = METHOD,
     ):
         """Learn the constraint matrices."""
         var_subsets = []
@@ -372,24 +417,20 @@ class StateLifter(ABC):
             var_subsets.append(tuple(["l", "x"] + [f"z_{i}" for i in range(k)]))
 
         # keep track of current set of lin. independent constraints
-        dim_Y = self.get_dim_X() * self.get_dim_P()
+        dim_Y = self.get_dim_Y()
         basis_learned = np.empty((0, dim_Y))
         current_rank = 0
 
         basis_list = []
         for var_subset in var_subsets:
-            Y = self.generate_Y(factor=factor, var_subset=var_subset)
+            Y = self.generate_Y(var_subset=var_subset)
 
             # extract subset of known matrices given the current variables
             # sub_A_known = self.extract_A_known(A_known, var_subset)
 
             # TODO(FD) can we enforce lin. independance to previously found
             # matrices at this point?
-            basis_new, S = self.get_basis(
-                Y,
-                method=method,
-                eps=eps,
-            )
+            basis_new, S = self.get_basis(Y)
             corank = basis_new.shape[0]
 
             if corank == 0:
@@ -397,12 +438,12 @@ class StateLifter(ABC):
                 continue
 
             print(f"{var_subset}: {corank} learned matrices found")
-            self.test_S_cutoff(S, corank, eps)
+            self.test_S_cutoff(S, corank)
 
             if plot:
                 from lifters.plotting_tools import plot_singular_values
 
-                plot_singular_values(S, eps=eps)
+                plot_singular_values(S)
 
             # find out which of the constraints are linearly dependant of the others.
             # TODO(FD) sum out constraints to be reduce even more!
@@ -413,7 +454,7 @@ class StateLifter(ABC):
                 basis_learned_test = np.vstack([basis_learned, bi])
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
                 if new_rank == current_rank + 1:
-                    # print(f"b{i} is valid basis vector.")
+                    print(f"b{i} is valid basis vector.")
                     basis_list.append(bi_poly)
                     basis_learned = basis_learned_test
                     current_rank += 1
@@ -428,14 +469,14 @@ class StateLifter(ABC):
     def get_basis_learned(
         self,
         A_known: list = [],
-        eps: float = EPS,
+        eps: float = EPS_SVD,
         plot: bool = False,
         Y: np.ndarray = None,
         factor: int = FACTOR,
         method: str = METHOD,
         normalize: bool = NORMALIZE,
     ) -> dict:
-        dim_Y = self.get_dim_X() * self.get_dim_P()
+        dim_Y = self.get_dim_Y()
 
         A_learned = []
         A_learned += A_known
@@ -492,22 +533,31 @@ class StateLifter(ABC):
                 basis_poly[i, key] = bi_poly["l", key]
         return A_learned, basis_poly
 
-    def augment_basis_list(self, basis_list, verbose=False):
+    def augment_basis_list(self, basis_list, var_subset, n_landmarks=5, verbose=False):
         # given the learned matrices we need to generalize to all landmarks!
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
         new_poly_rows = []
-        for bi_poly in basis_list:
+        for bi in basis_list:
+            # find the number of variables that this touches.
+            bi_poly = self.convert_b_to_poly(bi, var_subset)
+            unique_idx = set()
+            for key in bi_poly.variable_dict_j:
+                vars = key.split(".")
+                for var in vars:
+                    if "_" in var:
+                        i = int(var.split("_")[-1])
+                        unique_idx.add(i)
+
             # if z_0 is in this constraint, repeat the constraint for each landmark.
-            for i, j in itertools.combinations(range(self.n_landmarks), 2):
+            for idx in itertools.combinations(range(n_landmarks), len(unique_idx)):
                 new_poly_row = PolyMatrix(symmetric=False)
-                if verbose and ((i != 0) or (j != 1)):
-                    print(f"should map 0 to {i} and 1 to {j}")
-                assert i != j
                 for key in bi_poly.variable_dict_j:
                     # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
-                    key_ij = key.replace("z_0", f"zi_{i}").replace("z_1", f"zi_{j}")
-                    key_ij = key_ij.replace("p_0", f"pi_{i}").replace("p_1", f"pi_{j}")
+                    key_ij = key
+                    for from_, to_ in zip(range(len(unique_idx)), idx):
+                        key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
+                        key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
                     key_ij = key_ij.replace("zi", "z").replace("pi", "p")
                     if verbose and (key != key_ij):
                         print("changed", key, "to", key_ij)
@@ -536,6 +586,11 @@ class StateLifter(ABC):
             self.parameters = self.sample_parameters()
         return self.parameters
 
+    def get_dim_Y(self, var_subset=None):
+        dim_X = self.get_dim_X(var_subset=var_subset)
+        dim_P = self.get_dim_P()
+        return int(dim_X * dim_P)
+
     def get_dim_X(self, var_subset=None):
         dim_x = self.get_dim_x(var_subset)
         return int(dim_x * (dim_x + 1) / 2)
@@ -544,11 +599,8 @@ class StateLifter(ABC):
         return len(self.get_parameters())
 
     def generate_Y(self, factor=3, ax=None, var_subset=None):
-        dim_X = self.get_dim_X(var_subset=var_subset)
-        dim_P = self.get_dim_P()
-
         # need at least dim_Y different random setups
-        dim_Y = int(dim_X * dim_P)
+        dim_Y = self.get_dim_Y(var_subset)
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
         for seed in range(n_seeds):
@@ -575,7 +627,7 @@ class StateLifter(ABC):
         Y,
         A_known: list = [],
         basis_known: np.ndarray = None,
-        eps=EPS,
+        eps=EPS_SVD,
         method=METHOD,
     ):
         """Generate basis from lifted state matrix Y.
@@ -697,10 +749,14 @@ class StateLifter(ABC):
 
     def test_constraints(self, A_list, tol: float = 1e-7, errors: str = "raise"):
         """
+        :param constraints: can be either list of sparse matrices, or the basis matrix.
         :param errors: "raise" or "print" detected violations.
         """
+        import scipy.sparse as sp
+
         max_violation = -np.inf
         j_bad = []
+
         for j, A in enumerate(A_list):
             t = self.sample_theta()
             p = self.parameters
@@ -752,7 +808,9 @@ class StateLifter(ABC):
         )
 
         A_known = self.get_A_known()
-        A_list = self.get_A_learned(eps=EPS, method="qrp", plot=plot, A_known=A_known)
+        A_list = self.get_A_learned(
+            eps=EPS_SVD, method="qrp", plot=plot, A_known=A_known
+        )
         print(
             f"number of constraints: known {len(A_known)}, redundant {len(A_list) - len(A_known)}, total {len(A_list)}"
         )

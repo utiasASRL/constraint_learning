@@ -64,7 +64,7 @@ def test_with_parameters(d=1):
 
         basis_list_all = lifter.augment_basis_list(basis_list, normalize=NORMALIZE)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
-        label_dict = {l: 1 for l in lifter.get_label_list()}
+        label_dict = {l: 1 for l in lifter.var_list_all()}
         basis_learned = basis_poly_all.get_matrix(
             variables=(basis_poly_all.variable_dict_i, label_dict)
         )

@@ -3,9 +3,11 @@ import matplotlib.pylab as plt
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+from utils.plotting_tools import savefig
 
 MAX_VARS = 3
-NOISE = 1e-5
+N_LANDMARKS = 4
+NOISE = 1e-1
 SEED = 5
 
 ADJUST = True
@@ -28,167 +30,274 @@ def increases_rank(mat, new_row):
 
 
 class Learner(object):
+    """
+    Class to incrementally learn and augment constraint patterns until we reach tightness.
+    """
+
     VARIABLES = [f"z_{i}" for i in range(MAX_VARS)]
 
     def __init__(self, lifter: StateLifter):
         self.lifter = lifter
-        self.variables = ["l", "x"]
         self.var_counter = -1
-        self.poly_matrices = []
 
-    def get_a_current(self, var_dict=None):
-        if var_dict is None:
-            var_dict = self.var_dict
-        if len(self.poly_matrices):
+        self.mat_vars = ["l", "x"]
+
+        # b_vector contains the learned "patterns" of the form:
+        # {variable_tuple: [list of learned b-vectors for this variable subset]}
+        self.b_vectors = {}
+
+        # A_matrices contains the generated Poly matrices (induced from the patterns)
+        self.A_matrices = {}
+
+        # list of dual costs
+        self.dual_costs = []
+        self.solver_vars = None
+
+    @property
+    def mat_var_dict(self):
+        return {k: self.lifter.var_dict[k] for k in self.mat_vars}
+
+    @property
+    def row_var_dict(self):
+        return self.lifter.var_dict_all(self.mat_vars)
+
+    def get_a_current(self, target_mat_var_dict=None):
+        a_list = [
+            self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict))
+            for A_poly in self.A_matrices.values()
+        ]
+        if len(a_list):
+            return np.vstack(a_list)
+        return None
+
+    def get_A_current_from_b(self, target_mat_var_dict=None):
+        if target_mat_var_dict is None:
+            target_mat_var_dict = self.mat_var_dict
+
+        if len(self.b_vectors):
+            A_current = []
+            for mat_var_dict, b_list in self.b_vectors.items():
+                for bi_sub in b_list:
+                    bi = self.lifter.zero_pad_subvector(
+                        bi_sub,
+                        var_subset=mat_var_dict,
+                        target_subset=target_mat_var_dict,
+                    ).flatten()
+                    ai = self.lifter.get_reduced_a(bi, target_mat_var_dict)
+                    Ai_sparse = self.lifter.get_mat(ai, target_mat_var_dict)
+                    Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, target_mat_var_dict)
+                    A_current.append(Ai)
+            return A_current
+        return None
+
+    def get_a_current_from_b(self, target_mat_var_dict=None):
+        if len(self.b_vectors):
+            A_current = self.get_A_current(target_mat_var_dict)
             return np.vstack(
                 [
-                    self.lifter.get_vec(p.get_matrix(var_dict))
-                    for p in self.poly_matrices
+                    self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict))
+                    for A_poly in A_current
                 ]
             )
         return None
 
-    def get_A_current(self, var_dict=None):
-        if var_dict is None:
-            var_dict = self.var_dict
-        return [p.get_matrix(var_dict) for p in self.poly_matrices]
+    def get_b_current(self, target_mat_var_dict=None):
+        if target_mat_var_dict is None:
+            target_mat_var_dict = self.mat_var_dict
+
+        if len(self.b_vectors):
+            bs = []
+            for mat_var_dict, b_list in self.b_vectors.items():
+                for bi in b_list:
+                    bi = self.lifter.zero_pad_subvector(
+                        bi, mat_var_dict, target_mat_var_dict
+                    )
+                    bs.append(bi)
+            return np.vstack(bs)
+        return None
 
     def is_tight(self):
-        return False
         from solvers.common import find_local_minimum, solve_sdp_cvxpy
         from solvers.sparse import solve_lambda
 
-        A_list = self.get_A_current(self.lifter.var_dict)
+        A_list = [
+            A_poly.get_matrix(self.lifter.var_dict)
+            for A_poly in self.A_matrices.values()
+        ]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
 
-        np.random.seed(SEED)
-        Q, y = self.lifter.get_Q(noise=NOISE)
-        qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False)
-        xhat = self.lifter.get_x(qcqp_that)
+        if self.solver_vars is None:
+            np.random.seed(SEED)
+            Q, y = self.lifter.get_Q(noise=NOISE)
+            qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False)
+            xhat = self.lifter.get_x(qcqp_that)
+            self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
-            Q, A_b_list_all, adjust=ADJUST
+            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST
         )  # , rho_hat=qcqp_cost)
+        self.dual_costs.append(info["cost"])
         if info["cost"] is None:
             print("Warning: is problem infeasible?")
             return False
         else:
-            if abs(qcqp_cost - info["cost"]) / qcqp_cost > TOL_REL_GAP:
-                print("Warning: no strong duality?")
-                print(f"qcqp cost: {qcqp_cost}")
-                print(f"dual cost: {info['cost']}")
+            if (
+                abs(self.solver_vars["qcqp_cost"] - info["cost"])
+                / self.solver_vars["qcqp_cost"]
+                > TOL_REL_GAP
+            ):
+                print(
+                    f"no strong duality yet: qcqp cost={self.solver_vars['qcqp_cost']:.2e}, dual cost={info['cost']:.2e}"
+                )
                 return False
             else:
-                print("Strong duality!")
+                print("achieved strong duality")
                 return True
 
         # compute lamdas using optimization
-        __, lamdas = solve_lambda(Q, A_b_list_all, xhat, force_first=1)
+        __, lamdas = solve_lambda(
+            self.solver_vars["Q"], A_b_list_all, self.solver_vars["xhat"], force_first=1
+        )
         if lamdas is None:
             print("Warning: problem doesn't have feasible solution!")
             return False
-
-    @property
-    def var_dict(self):
-        return {k: self.lifter.var_dict[k] for k in self.variables}
 
     def update_variables(self):
         # add new variable to the list of variables to study
         self.var_counter += 1
         if self.var_counter >= len(self.VARIABLES):
             return False
-        self.variables.append(self.VARIABLES[self.var_counter])
+        self.mat_vars.append(self.VARIABLES[self.var_counter])
         return True
 
     def learn_patterns(self, use_known=False):
-        Y = self.lifter.generate_Y(var_subset=self.variables)
+        Y = self.lifter.generate_Y(var_subset=self.mat_vars)
 
-        a_current = self.get_a_current()
-
+        basis_current = self.get_b_current()
         if use_known:
-            A_current = self.get_A_current()
-            basis_new, S = self.lifter.get_basis(Y, A_known=A_current)
-        else:
-            basis_new, S = self.lifter.get_basis(Y)
+            Y = np.vstack([Y, basis_current])
 
+        basis_new, S = self.lifter.get_basis(Y)
         corank = basis_new.shape[0]
 
-        print(f"{self.variables}: {corank} learned matrices found")
+        print(f"{self.mat_vars}: {corank} learned matrices found")
         if corank > 0:
             StateLifter.test_S_cutoff(S, corank)
 
         new_patterns = []
-        for bi_sub in basis_new:
+        for i, bi_sub in enumerate(basis_new):
             # check if this newly learned pattern is linearly independent of previous patterns.
             bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
-            bi, bi_poly = self.lifter.zero_pad_subvector(
-                bi_sub, var_subset=self.var_dict, target_subset=self.var_dict
-            )
 
-            ai = self.lifter.get_reduced_a(bi, var_subset=self.var_dict)
-
-            # if so, add it to the new patterns.
-            if increases_rank(a_current, ai):
-                new_patterns.append(bi_poly)
+            if increases_rank(basis_current, bi_sub):
+                print(f"b{i} is a valid pattern")
+                new_patterns.append(bi_sub)
+            else:
+                print(f"b{i} is linearly dependent")
+        self.b_vectors[tuple(self.mat_vars)] = new_patterns
         return new_patterns
 
-    def augment_patterns(self, new_patterns):
-        new_poly_rows = self.lifter.augment_basis_list(new_patterns)
+    def apply_patterns(self):
+        key = tuple(self.mat_vars)
+        if not key in self.b_vectors:
+            print(f"no patterns learned yet for {key}.")
+            return
 
-        # for each new augmented row, check if it increases the current rank.
-        var_dict = {l: 1 for l in self.lifter.get_label_list(self.variables)}
-        for new_poly_row in new_poly_rows:
-            bi = new_poly_row.get_matrix((["l"], var_dict))
-            ai = self.lifter.get_reduced_a(bi, self.variables)
+        new_patterns = self.b_vectors[key]
 
-            a_current = self.get_a_current()
-            if increases_rank(a_current, ai):
-                Ai_sparse = self.lifter.get_mat(ai, var_dict=self.var_dict)
-                Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.var_dict)
-                self.poly_matrices.append(Ai)
+        for i, new_pattern in enumerate(new_patterns):
+            new_poly_rows = self.lifter.augment_basis_list(
+                [new_pattern], self.mat_var_dict, n_landmarks=self.lifter.n_landmarks
+            )
 
-    def run(self):
+            # For each new augmented row, check if it increases the current rank.
+            # We operate on the full set of landmarks here, and we bring all of the
+            # constraints to A form before checking ranks.
+            all_dict = self.lifter.var_dict_all(self.lifter.var_dict)
+            for j, new_poly_row in enumerate(new_poly_rows):
+                bi = new_poly_row.get_matrix((["l"], all_dict))
+                ai = self.lifter.get_reduced_a(bi, self.lifter.var_dict)
+
+                a_current = self.get_a_current(self.lifter.var_dict)
+                if increases_rank(a_current, ai):
+                    Ai_sparse = self.lifter.get_mat(ai, var_dict=self.lifter.var_dict)
+                    Ai, __ = PolyMatrix.init_from_sparse(
+                        Ai_sparse, self.lifter.var_dict
+                    )
+
+                    # name = f"[{','.join(self.mat_vars)}]:{i}"
+                    name = f"{self.mat_vars[-1]}:b{i}-{j}"
+                    self.A_matrices[name] = Ai
+
+    def run(self, fname_root=""):
         from utils.plotting_tools import plot_basis
         from lifters.plotting_tools import plot_matrices
 
         plot_rows = []
         plot_row_labels = []
+
         while not self.is_tight():
             if not self.update_variables():
-                print("no more variables to add.")
+                print("no more variables to add")
                 break
 
             new_patterns = self.learn_patterns(use_known=False)
             if len(new_patterns) == 0:
-                print("new variables didn't have any effect.")
+                print("new variables didn't have any effect")
                 continue
 
-            plot_rows += new_patterns
-            plot_row_labels += [
-                f"{self.variables}:{i}" for i in range(len(new_patterns))
-            ]
+            self.apply_patterns()
 
-            self.augment_patterns(new_patterns)
+            plot_rows += [
+                self.lifter.convert_b_to_poly(bi, self.mat_vars) for bi in new_patterns
+            ]
+            plot_row_labels += [
+                f"{self.mat_vars}:b{i}" for i in range(len(new_patterns))
+            ]
 
         patterns_poly = PolyMatrix.init_from_row_list(
             plot_rows, row_labels=plot_row_labels
         )
-        fig, ax = plot_basis(patterns_poly, self.lifter)
+        fig, ax = plot_basis(patterns_poly, self.lifter, var_subset=self.mat_vars)
+        if fname_root != "":
+            savefig(fig, fname_root + "_patterns.png")
+
+        A_list = [
+            A_poly.get_matrix(self.lifter.var_dict)
+            for A_poly in self.A_matrices.values()
+        ]
 
         fig, ax = plot_matrices(
-            A_list=[p.get_matrix(self.var_dict) for p in self.poly_matrices],
+            A_list=A_list,
             colorbar=False,
             vmin=-1,
             vmax=1,
+            nticks=3,
+            names=list(self.A_matrices.keys()),
         )
+        if fname_root != "":
+            savefig(fig, fname_root + "_matrices.png")
+
+        fig, ax = plt.subplots()
+        xticks = range(len(self.dual_costs))
+        ax.semilogy(xticks, self.dual_costs)
+        ax.set_xticks(xticks, self.mat_vars[-len(xticks) :])
+        ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
+        if fname_root != "":
+            savefig(fig, fname_root + "_tightness.png")
 
 
 if __name__ == "__main__":
+    # from stereo2d_lifter import Stereo2DLifter
+    # lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
+
     from stereo1d_lifter import Stereo1DLifter
 
-    lifter = Stereo1DLifter(n_landmarks=MAX_VARS, add_parameters=True)
+    lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
+
     learner = Learner(lifter=lifter)
-    learner.run()
+    fname_root = f"_results/{lifter}"
+    learner.run(fname_root=fname_root)
     plt.show()
     print("done")

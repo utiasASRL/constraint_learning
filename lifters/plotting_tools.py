@@ -128,6 +128,7 @@ def plot_matrices(
     vmax=None,
     nticks=None,
     lines=[],
+    names=None,
     title="",
 ):
     num_plots = min(len(A_list), n_matrices)
@@ -136,11 +137,12 @@ def plot_matrices(
     axs = axs.flatten()
     fig.set_size_inches(num_plots, 2)
     for i, (ax, Ai) in enumerate(zip(axs, A_list[start_idx:])):
+        title = names[i] if names else f"${title}_{{{start_idx+i+1}}}$"
         fig, ax, im = plot_matrix(
             Ai,
             vmin,
             vmax,
-            title=f"${title}_{{{start_idx+i+1}}}$",
+            title=title,
             colorbar=colorbar,
             nticks=nticks,
             fig=fig,

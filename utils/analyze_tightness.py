@@ -9,16 +9,9 @@ from lifters.state_lifter import StateLifter
 # assume strong duality when gap is smaller than this
 TOL_REL_GAP = 1e-3  # 1e-10  # was 1e-5
 
-# tolerance for nullspace basis vectors
-EPS_SVD = 1e-5
-
-NORMALIZE = False
-METHOD = "qrp"
-
 # TODO(FD) for some reason this is not helping for 1d problem
 # remove Q[0,0] for optimization, and normalize entries
 ADJUST = True
-
 
 PARAMETER_DICT = {
     "learned": dict(  # fully learned
@@ -47,26 +40,19 @@ def generate_matrices(lifter: StateLifter, param):
         A_known = []
     print(f"adding {len(A_known)} known constraints.")
 
-    # find the patterns of constraints that can easily be generalized to any number of constraints.
     if params["incremental"]:
-        basis_list = lifter.get_basis_list_incremental(
-            eps=EPS_SVD,
-            method=METHOD,
-            plot=False,
-        )
+        # find the patterns of constraints that can easily be generalized to any number of constraints.
+        basis_list = lifter.get_basis_list_incremental()
         # TODO(FD) fix below...
         # basis_ordered, column_keys = basis_small.order_by_sparsity()
         # basis_ordered.matshow(variables_j=var_dict_j)
 
-        # now actually generalize these patterns
-        basis_poly_list = lifter.augment_basis_list(basis_list, normalize=NORMALIZE)
+        # now generalize these patterns
+        basis_poly_list = lifter.augment_basis_list(basis_list)
 
-        all_dict = {l: 1 for l in lifter.get_label_list()}
-        basis_learned = np.vstack(
-            [b.get_matrix((["l"], all_dict)).toarray() for b in basis_poly_list]
-        )
+        # get valid basis from these candidates
+        basis_learned = lifter.get_basis_from_poly_rows(basis_poly_list)
         A_all = lifter.generate_matrices(basis_learned)
-
         A_b_list_all = lifter.get_A_b_list(A_all)
 
     names = [f"A{i}:known" for i in range(len(A_known))]
