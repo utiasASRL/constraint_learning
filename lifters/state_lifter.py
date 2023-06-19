@@ -217,20 +217,16 @@ class StateLifter(ABC):
         labels = []
         size_i = self.var_dict[zi]
         size_j = self.var_dict[zj]
-        if (size_i > 1) or (size_j > 1):
-            if zi == zj:
-                size = int(size_i * (size_i + 1) / 2)
-                # only upper diagonal for i == j
-                key_pairs = itertools.combinations_with_replacement(range(size_i), 2)
-            else:
-                size = size_i * size_j
-                key_pairs = itertools.product(range(size_i), range(size_j))
-            for i, j in key_pairs:
-                labels.append(f"{self.param_dict[p]}.{zi}.{zj}:{i}-{j}")
+        if zi == zj:
+            # only upper diagonal for i == j
+            key_pairs = itertools.combinations_with_replacement(range(size_i), 2)
         else:
-            size = 1
-            labels.append(f"{self.param_dict[p]}.{zi}.{zj}")
-        assert len(labels) == size
+            key_pairs = itertools.product(range(size_i), range(size_j))
+        for i, j in key_pairs:
+            label = f"{p}."
+            label += f"{zi}:{i}." if size_i > 1 else f"{zi}."
+            label += f"{zj}:{j}" if size_j > 1 else f"{zj}"
+            labels.append(label)
         return labels
 
     def var_list_all(self, var_subset=None):
@@ -240,10 +236,10 @@ class StateLifter(ABC):
             itertools.combinations_with_replacement(var_subset, 2)
         )
         label_list = []
-        for p in range(self.get_dim_P()):
+        for key, idx in self.param_dict.items():
             for zi, zj in vectorized_var_list:
-                label_list += self.get_labels(p, zi, zj)
-            assert len(label_list) == (p + 1) * self.get_dim_X(var_subset)
+                label_list += self.get_labels(key, zi, zj)
+            assert len(label_list) == (idx + 1) * self.get_dim_X(var_subset)
         return label_list
 
     def var_dict_all(self, var_subset=None):
@@ -302,7 +298,7 @@ class StateLifter(ABC):
         var_dict = self.var_dict_all()
         poly_row_all = poly_row_sub.get_matrix((["l"], var_dict), output_type="poly")
         vector = np.empty(0)
-        for param in self.param_dict.values():
+        for param in self.param_dict.keys():
             # extract each block corresponding to a bigger matrix
             sub_mat = PolyMatrix(symmetric=True)
             for vari, varj in itertools.combinations_with_replacement(self.var_dict, 2):
@@ -355,24 +351,60 @@ class StateLifter(ABC):
             )
         return A_learned, basis_poly
 
+    def convert_poly_to_a(self, poly_row, var_subset):
+        """Convert poly-row to reduced a.
+
+        poly-row has elements with keys "pk:l.xi:m.xj:n",
+        meaning this element corresponds to the l-th element of parameter i,
+        and the m-n-th element of xj times xk.
+        """
+        var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+        parameters = self.get_parameters()
+
+        poly_mat = PolyMatrix(symmetric=True)
+        for key in poly_row.variable_dict_j:
+            pk_l, keyi_m, keyj_n = key.split(".")
+            # keyi, m = keyi_m.split(":")
+            # keyj, n = keyj_n.split(":")
+            if pk_l[0] == "l":
+                poly_mat[keyi_m, keyj_n] = poly_row["l", key]
+            else:
+                poly_mat[keyi_m, keyj_n] += (
+                    poly_row["l", key] * parameters[self.param_dict[pk_l]]
+                )
+
+        mat_var_list = []
+        for var, size in var_dict.items():
+            if size == 1:
+                mat_var_list.append(var)
+            else:
+                mat_var_list += [f"{var}:{i}" for i in range(size)]
+        mat_sparse = poly_mat.get_matrix({m: 1 for m in mat_var_list})
+        return np.array(mat_sparse[np.triu_indices(mat_sparse.shape[0])]).flatten()
+
     def convert_b_to_poly(self, b, var_subset):
+        """Convert (augmented) b array to poly-row."""
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
         dim_P = self.get_dim_P()
 
+        assert len(b) == self.get_dim_Y(var_subset)
+
         poly_all = PolyMatrix(symmetric=False)
-        for p in range(dim_P):
+        for key, p in self.param_dict.items():
             block = b[p * dim_X : (p + 1) * (dim_X)]
             mat = self.create_symmetric(block, dim_x)
+
             poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
             for keyi, keyj in itertools.combinations_with_replacement(var_dict, 2):
                 if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
                     val = poly_mat.matrix[keyi][keyj]
-                    labels = self.get_labels(p, keyi, keyj)
+                    labels = self.get_labels(key, keyi, keyj)
                     if keyi != keyj:
                         vals = val.flatten()
                     else:
+                        # use get_vec instead?
                         vals = val[np.triu_indices(val.shape[0])]
                     assert len(labels) == len(vals)
                     for l, v in zip(labels, vals):
@@ -383,6 +415,21 @@ class StateLifter(ABC):
 
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
         """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
+        var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+        if target_subset is None:
+            target_subset = self.var_dict
+        dim_X = self.get_dim_X(var_subset)
+        dim_x = self.get_dim_x(var_subset)
+        dim_P = self.get_dim_P()
+        bi_all = np.empty(0)
+        for p in range(dim_P):
+            block = b[p * dim_X : (p + 1) * (dim_X)]
+            mat = self.create_symmetric(block, dim_x)
+            poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
+            mat = poly_mat.get_matrix(target_subset).toarray()
+            bi_all = np.r_[bi_all, mat[np.triu_indices(mat.shape[0])]]
+        return bi_all
+
         poly_all = self.convert_b_to_poly(b, var_subset)
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
         if target_subset is None:
@@ -464,7 +511,8 @@ class StateLifter(ABC):
             # TODO(FD) sum out constraints to be reduce even more!
             for i, bi_sub in enumerate(basis_new):
                 bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
-                bi, bi_poly = self.zero_pad_subvector(bi_sub, var_subset)
+                bi = self.zero_pad_subvector(bi_sub, var_subset)
+                bi_poly = self.convert_b_to_poly(bi_sub, var_subset)
 
                 basis_learned_test = np.vstack([basis_learned, bi])
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
@@ -548,14 +596,26 @@ class StateLifter(ABC):
                 basis_poly[i, key] = bi_poly["l", key]
         return A_learned, basis_poly
 
-    def augment_basis_list(self, basis_list, var_subset, n_landmarks=5, verbose=False):
-        # given the learned matrices we need to generalize to all landmarks!
+    def augment_basis_list(
+        self, basis_list, var_subset, n_landmarks=None, verbose=False
+    ):
+        """
+        Apply the learned patterns in basis_list to all landmarks.
+
+        :param basis_list: list of sparse vectors or list of poly matrices.
+        """
+
+        if n_landmarks is None:
+            n_landmarks = self.n_landmarks
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
         new_poly_rows = []
         for bi in basis_list:
             # find the number of variables that this touches.
-            bi_poly = self.convert_b_to_poly(bi, var_subset)
+            if isinstance(bi, PolyMatrix):
+                bi_poly = bi
+            else:
+                bi_poly = self.convert_b_to_poly(bi, var_subset)
             unique_idx = set()
             for key in bi_poly.variable_dict_j:
                 vars = key.split(".")
@@ -698,6 +758,8 @@ class StateLifter(ABC):
             basis[:, p] = N.T
         else:
             raise ValueError(method)
+
+        basis[np.abs(basis) < 1e-10] = 0.0
         return basis, S
 
     def get_reduced_a(self, bi, var_subset=None):
@@ -768,8 +830,6 @@ class StateLifter(ABC):
         :param constraints: can be either list of sparse matrices, or the basis matrix.
         :param errors: "raise" or "print" detected violations.
         """
-        import scipy.sparse as sp
-
         max_violation = -np.inf
         j_bad = []
 

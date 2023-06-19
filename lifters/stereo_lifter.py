@@ -131,11 +131,11 @@ class StereoLifter(StateLifter, ABC):
     @property
     def param_dict(self):
         if self.param_dict_ is None:
-            self.param_dict_ = {0: "l"}
+            self.param_dict_ = {"l": 0}
             i = 1
             for n in range(self.n_landmarks):
                 for d in range(self.d):
-                    self.param_dict_[i] = f"p_{n}:{d}"
+                    self.param_dict_[f"p_{n}:{d}"] = i
                     i += 1
         return self.param_dict_
 

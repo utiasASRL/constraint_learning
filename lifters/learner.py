@@ -214,11 +214,9 @@ class Learner(object):
             # For each new augmented row, check if it increases the current rank.
             # We operate on the full set of landmarks here, and we bring all of the
             # constraints to A form before checking ranks.
-            all_dict = self.lifter.var_dict_all(self.lifter.var_dict)
+            counter = 0
             for j, new_poly_row in enumerate(new_poly_rows):
-                bi = new_poly_row.get_matrix((["l"], all_dict))
-                ai = self.lifter.get_reduced_a(bi, self.lifter.var_dict)
-
+                ai = lifter.convert_poly_to_a(new_poly_row, self.lifter.var_dict)
                 a_current = self.get_a_current(self.lifter.var_dict)
                 if increases_rank(a_current, ai):
                     Ai_sparse = self.lifter.get_mat(ai, var_dict=self.lifter.var_dict)
@@ -226,9 +224,13 @@ class Learner(object):
                         Ai_sparse, self.lifter.var_dict
                     )
 
+                    self.lifter.test_constraints([Ai_sparse], errors="raise")
+
                     # name = f"[{','.join(self.mat_vars)}]:{i}"
                     name = f"{self.mat_vars[-1]}:b{i}-{j}"
                     self.A_matrices[name] = Ai
+                    counter += 1
+            print(f"pattern b{i}: added {counter} constraints")
 
     def run(self, fname_root=""):
         from utils.plotting_tools import plot_basis
@@ -263,6 +265,15 @@ class Learner(object):
         if fname_root != "":
             savefig(fig, fname_root + "_patterns.png")
 
+        fig, ax = plt.subplots()
+        xticks = range(len(self.dual_costs))
+        ax.semilogy(xticks, self.dual_costs)
+        ax.set_xticks(xticks, self.mat_vars[-len(xticks) :])
+        ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
+        if fname_root != "":
+            savefig(fig, fname_root + "_tightness.png")
+
+        return
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict)
             for A_poly in self.A_matrices.values()
@@ -279,22 +290,14 @@ class Learner(object):
         if fname_root != "":
             savefig(fig, fname_root + "_matrices.png")
 
-        fig, ax = plt.subplots()
-        xticks = range(len(self.dual_costs))
-        ax.semilogy(xticks, self.dual_costs)
-        ax.set_xticks(xticks, self.mat_vars[-len(xticks) :])
-        ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
-        if fname_root != "":
-            savefig(fig, fname_root + "_tightness.png")
-
 
 if __name__ == "__main__":
-    # from stereo2d_lifter import Stereo2DLifter
-    # lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
+    from stereo2d_lifter import Stereo2DLifter
 
-    from stereo1d_lifter import Stereo1DLifter
+    lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, add_parameters=True, level="urT")
 
-    lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
+    # from stereo1d_lifter import Stereo1DLifter
+    # lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
 
     learner = Learner(lifter=lifter)
     fname_root = f"_results/{lifter}"

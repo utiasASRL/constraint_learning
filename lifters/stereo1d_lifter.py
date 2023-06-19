@@ -83,9 +83,9 @@ class Stereo1DLifter(StateLifter):
     @property
     def param_dict(self):
         if self.param_dict_ is None:
-            self.param_dict_ = {0: "l"}
+            self.param_dict_ = {"l": 0}
             for n in range(self.n_landmarks):
-                self.param_dict_[n + 1] = f"p_{n}"
+                self.param_dict_[f"p_{n}"] = n + 1
         return self.param_dict_
 
     def get_grad(self, t, y):

@@ -52,6 +52,8 @@ def test_with_parameters(d=1):
     else:
         raise ValueError(d)
 
+    var_subset = tuple(lifter.var_dict.keys())
+    label_dict = lifter.var_dict_all(var_subset)
     if INCREMENTAL:
         basis_list = lifter.get_basis_list_incremental()
         from utils.plotting_tools import plot_basis
@@ -62,9 +64,8 @@ def test_with_parameters(d=1):
         # wtf, if I remeove this then basis_small is None. If I leave it, it is defined.
         # this has to do with plt.ion(), but I don't know why.
 
-        basis_list_all = lifter.augment_basis_list(basis_list, normalize=NORMALIZE)
+        basis_list_all = lifter.augment_basis_list(basis_list, var_subset=var_subset)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
-        label_dict = {l: 1 for l in lifter.var_list_all()}
         basis_learned = basis_poly_all.get_matrix(
             variables=(basis_poly_all.variable_dict_i, label_dict)
         )
@@ -72,7 +73,7 @@ def test_with_parameters(d=1):
     else:
         A_learned, basis_poly = lifter.get_A_learned(normalize=NORMALIZE)
         basis_learned = basis_poly.get_matrix(
-            variables=(basis_poly.variable_dict_i, label_list)
+            variables=(basis_poly.variable_dict_i, label_dict)
         )
 
     # first, test that the learned constraints actually work on the original setup.
@@ -87,7 +88,7 @@ def test_with_parameters(d=1):
         lifter.test_constraints(A_learned, errors="raise")
 
 
-def test_learning():
+def test_b_to_a():
     add_parameters = True
     n_landmarks = 1  # z_0 only
 
@@ -121,7 +122,10 @@ def test_learning():
             assert abs(ai_sub @ x_sub) < 1e-10
 
             # put back in all other variables.
-            bi_all, bi_poly = lifter.zero_pad_subvector(bi_sub, var_subset)
+
+            bi_all = lifter.zero_pad_subvector(
+                bi_sub, var_subset, target_subset=lifter.var_dict
+            )
             # bi_all = lifter.get_vector_dense(bi_poly)
 
             if var_subset == tuple(lifter.var_dict.keys()):
@@ -173,8 +177,49 @@ def test_learning():
             assert abs(ai_all @ x_all) < 1e-10
 
 
+def test_zero_padding():
+    add_parameters = True
+    n_landmarks = 1  # z_0 only
+    lifter = Stereo2DLifter(
+        n_landmarks=n_landmarks, add_parameters=add_parameters, level="no"
+    )
+    from poly_matrix.poly_matrix import PolyMatrix
+
+    for var_subset in [("l", "x"), ("l", "x", "z_0")]:
+        var_dict = {k: lifter.var_dict[k] for k in var_subset}
+        # get new patterns for this subset.
+        Y = lifter.generate_Y(var_subset=var_subset)
+        basis_new, S = lifter.get_basis(Y)
+        for i, bi_sub in enumerate(basis_new[:10, :]):
+            ai_sub = lifter.get_reduced_a(bi_sub, var_subset)
+
+            # enerate list of poly matrices from this pattern.
+            new_patterns = lifter.augment_basis_list([bi_sub], var_subset=var_subset)
+            for new_pattern in new_patterns:
+                # generate Ai from poly_row.
+                ai_test = lifter.convert_poly_to_a(new_pattern, var_subset)
+                Ai = lifter.get_mat(ai_test, var_dict=var_dict)
+                # bi = new_pattern.get_matrix((["l"], row_var_dict))
+                # Ai = lifter.get_mat(lifter.get_reduced_a(bi, lifter.var_dict))
+                try:
+                    lifter.test_constraints([Ai])
+                except:
+                    b_poly_test = lifter.convert_b_to_poly(bi_sub, var_subset)
+                    print(b_poly_test)
+
+                    Ai_sub = lifter.get_mat(ai_sub, var_dict=var_dict)
+                    Ai_poly, __ = PolyMatrix.init_from_sparse(Ai_sub, var_dict)
+                    Ai_poly.matshow(var_dict)
+
+                    fig, ax = plt.subplots()
+                    ax.matshow(Ai.toarray())
+                    plt.show()
+                    raise
+
+
 if __name__ == "__main__":
-    test_learning()
+    test_zero_padding()
+    test_b_to_a()
     test_with_parameters(d=1)
     test_canonical_operations()
     print("all tests passed")
