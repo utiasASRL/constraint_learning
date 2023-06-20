@@ -1,9 +1,11 @@
-import matplotlib.pylab as plt
+from lifters.plotting_tools import import_plt
 import numpy as np
 
 from lifters.plotting_tools import savefig, add_colorbar
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+
+plt = import_plt()
 
 
 def plot_basis(
@@ -40,7 +42,7 @@ def plot_basis(
         cax.set_yticklabels(yticks)
     scale = 0.2
     fig.set_size_inches(len(variables_j) * scale, len(variables_i) * scale)
-    for p in range(1, lifter.get_dim_P()):
+    for p in range(1, lifter.get_dim_P(var_subset)):
         ax.axvline(p * lifter.get_dim_X(var_subset) - 0.5, color="red")
     if fname_root != "":
         savefig(fig, fname_root + f"_basis.png")

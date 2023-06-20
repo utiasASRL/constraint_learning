@@ -70,9 +70,9 @@ class StateLifter(ABC):
     def var_dict(self):
         return self.var_dict_
 
-    @property
-    def param_dict(self):
-        return self.param_dict_
+    @abstractmethod
+    def get_param_dict(self):
+        pass
 
     # the property decorator creates by default read-only attributes.
     # can create a @dim_x.setter function to make it also writeable.
@@ -232,11 +232,13 @@ class StateLifter(ABC):
     def var_list_all(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict.keys()
+        param_dict = self.get_param_dict(var_subset)
+
         vectorized_var_list = list(
             itertools.combinations_with_replacement(var_subset, 2)
         )
         label_list = []
-        for key, idx in self.param_dict.items():
+        for key, idx in param_dict.items():
             for zi, zj in vectorized_var_list:
                 label_list += self.get_labels(key, zi, zj)
             assert len(label_list) == (idx + 1) * self.get_dim_X(var_subset)
@@ -298,7 +300,7 @@ class StateLifter(ABC):
         var_dict = self.var_dict_all()
         poly_row_all = poly_row_sub.get_matrix((["l"], var_dict), output_type="poly")
         vector = np.empty(0)
-        for param in self.param_dict.keys():
+        for param in self.get_param_dict().keys():
             # extract each block corresponding to a bigger matrix
             sub_mat = PolyMatrix(symmetric=True)
             for vari, varj in itertools.combinations_with_replacement(self.var_dict, 2):
@@ -359,7 +361,8 @@ class StateLifter(ABC):
         and the m-n-th element of xj times xk.
         """
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
-        parameters = self.get_parameters()
+        parameters = self.get_parameters(var_subset)
+        param_dict = self.get_param_dict(var_subset)
 
         poly_mat = PolyMatrix(symmetric=True)
         for key in poly_row.variable_dict_j:
@@ -370,7 +373,7 @@ class StateLifter(ABC):
                 poly_mat[keyi_m, keyj_n] = poly_row["l", key]
             else:
                 poly_mat[keyi_m, keyj_n] += (
-                    poly_row["l", key] * parameters[self.param_dict[pk_l]]
+                    poly_row["l", key] * parameters[param_dict[pk_l]]
                 )
 
         mat_var_list = []
@@ -387,13 +390,15 @@ class StateLifter(ABC):
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
-        dim_P = self.get_dim_P()
+        dim_P = self.get_dim_P(var_subset)
 
         assert len(b) == self.get_dim_Y(var_subset)
 
         poly_all = PolyMatrix(symmetric=False)
-        for key, p in self.param_dict.items():
+        param_dict = self.get_param_dict(var_subset)
+        for key, p in param_dict.items():
             block = b[p * dim_X : (p + 1) * (dim_X)]
+            assert len(block) == dim_X
             mat = self.create_symmetric(block, dim_x)
 
             poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
@@ -420,16 +425,13 @@ class StateLifter(ABC):
             target_subset = self.var_dict
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
-        dim_P = self.get_dim_P()
+        dim_P = self.get_dim_P(var_subset)
         bi_all = np.empty(0)
 
-        # can call this function with "a" vector (equivalent to b without parameters)
-        if len(b) == dim_X:
-            b = self.augment_using_zero_padding(b)
         # default is that b is an augmented vector (with parameters)
-        else:
-            dim_P = self.get_dim_P()
-            assert len(b) == dim_X * dim_P
+        if len(b) != dim_X * dim_P:
+            # can call this function with "a" vector (equivalent to b without parameters)
+            b = self.augment_using_zero_padding(b)
 
         for p in range(dim_P):
             block = b[p * dim_X : (p + 1) * (dim_X)]
@@ -437,6 +439,15 @@ class StateLifter(ABC):
             poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
             mat = poly_mat.get_matrix(target_subset).toarray()
             bi_all = np.r_[bi_all, mat[np.triu_indices(mat.shape[0])]]
+
+        # if we request more parameters than what b has, we simply add
+        # blocks of zeros in the end.
+        dim_P_target = self.get_dim_P(target_subset)
+        dim_X_target = self.get_dim_X(target_subset)
+        for __ in range(dim_P, dim_P_target):
+            bi_all = np.r_[bi_all, np.zeros(dim_X_target)]
+
+        assert len(bi_all) == self.get_dim_Y(target_subset)
         return bi_all
 
         poly_all = self.convert_b_to_poly(b, var_subset)
@@ -666,6 +677,15 @@ class StateLifter(ABC):
         """Default behavior: has no effect. Can add things like landmark coordintaes here, to learn dependencies."""
         return [1.0]
 
+    @property
+    def add_parameters(self):
+        return self.add_parameters_
+
+    @add_parameters.setter
+    def add_parameters(self, newval):
+        self.parameters = None
+        self.add_parameters_ = newval
+
     def get_parameters(self):
         if self.parameters is None:
             self.parameters = self.sample_parameters()
@@ -673,15 +693,15 @@ class StateLifter(ABC):
 
     def get_dim_Y(self, var_subset=None):
         dim_X = self.get_dim_X(var_subset=var_subset)
-        dim_P = self.get_dim_P()
+        dim_P = self.get_dim_P(var_subset=var_subset)
         return int(dim_X * dim_P)
 
     def get_dim_X(self, var_subset=None):
         dim_x = self.get_dim_x(var_subset)
         return int(dim_x * (dim_x + 1) / 2)
 
-    def get_dim_P(self):
-        return len(self.get_parameters())
+    def get_dim_P(self, var_subset=None):
+        return len(self.get_parameters(var_subset))
 
     def generate_Y(self, factor=3, ax=None, var_subset=None):
         # need at least dim_Y different random setups
@@ -692,7 +712,7 @@ class StateLifter(ABC):
             np.random.seed(seed)
 
             theta = self.sample_theta()
-            parameters = self.sample_parameters()
+            parameters = self.sample_parameters(var_subset)
 
             if seed < 10 and ax is not None:
                 if np.ndim(self.theta) == 1:
@@ -781,14 +801,14 @@ class StateLifter(ABC):
             # bi can be a scipy sparse matrix,
             len_b = bi.shape[1]
 
-        n_params = self.get_dim_P()
+        n_params = self.get_dim_P(var_subset)
         dim_X = self.get_dim_X(var_subset)
         n_parts = len_b / dim_X
         assert (
             n_parts == n_params
         ), f"{len_b} does not not split in dim_P={n_params} parts of size dim_X={dim_X}"
 
-        parameters = self.get_parameters()
+        parameters = self.get_parameters(var_subset)
         ai = np.zeros(dim_X)
         for i, p in enumerate(parameters):
             if isinstance(bi, np.ndarray):
@@ -844,7 +864,7 @@ class StateLifter(ABC):
 
         for j, A in enumerate(A_list):
             t = self.sample_theta()
-            p = self.parameters
+            p = self.get_parameters()
             x = self.get_x(t, p)
 
             constraint_violation = abs(x.T @ A @ x)

@@ -1,12 +1,24 @@
+def import_plt():
+    import matplotlib.pylab as plt
+    import shutil
+
+    usetex = True if shutil.which("latex") else False
+    plt.rcParams.update(
+        {
+            "text.usetex": usetex,
+            "font.family": "DejaVu Sans",
+            "font.size": 12,
+        }
+    )
+    plt.rc("text.latex", preamble=r"\usepackage{bm}")
+    return plt
+
+
 import os
 
-import matplotlib.pylab as plt
 import numpy as np
 
-
-def get_dirname():
-    dirname = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "_plots"))
-    return dirname
+plt = import_plt()
 
 
 def partial_plot_and_save(lifter, Q, A_list, fname_root="", appendix="", title="A"):

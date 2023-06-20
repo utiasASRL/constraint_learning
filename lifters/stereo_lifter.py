@@ -7,6 +7,10 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils import get_rot_matrix
 
 
+def get_landmark_indices(var_subset):
+    return [int(v.split("_")[-1]) for v in var_subset if v.startswith("z_")]
+
+
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
     alpha = theta[d:]
@@ -128,18 +132,19 @@ class StereoLifter(StateLifter, ABC):
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
 
-    @property
-    def param_dict(self):
-        if self.param_dict_ is None:
-            self.param_dict_ = {"l": 0}
-            if self.add_parameters:
-                i = 1
-                # row-wise flatten.
-                for n in range(self.n_landmarks):
-                    for d in range(self.d):
-                        self.param_dict_[f"p_{n}:{d}"] = i
-                        i += 1
-        return self.param_dict_
+    def get_param_dict(self, var_subset=None):
+        if var_subset is None:
+            return self.param_dict_
+        param_dict_ = {"l": 0}
+        if self.add_parameters:
+            i = 1
+            # row-wise flatten (same as .flatten())
+            n_landmarks = get_landmark_indices(var_subset)
+            for n in n_landmarks:
+                for d in range(self.d):
+                    param_dict_[f"p_{n}:{d}"] = i
+                    i += 1
+        return param_dict_
 
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
@@ -150,16 +155,20 @@ class StereoLifter(StateLifter, ABC):
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
-        self.parameters = self.get_parameters()
+        self.parameters = [1.0] + list(self.landmarks.flatten())
 
     def generate_random_theta(self):
         n_angles = 1 if self.d == 2 else 3
         return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
 
-    def get_parameters(self):
+    def get_parameters(self, var_subset=None):
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        landmarks = get_landmark_indices(var_subset)
         if self.add_parameters:
             # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            return np.r_[1.0, self.landmarks.flatten()]
+            return np.r_[1.0, self.landmarks[landmarks, :].flatten()]
         else:
             return np.array([1.0])
 
@@ -183,7 +192,8 @@ class StereoLifter(StateLifter, ABC):
             C, r = get_C_r_from_xtheta(theta, self.d)
 
         if self.add_parameters:
-            landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
+            n_landmarks = len(get_landmark_indices(var_subset))
+            landmarks = np.array(parameters[1:]).reshape((n_landmarks, self.d))
         else:
             landmarks = self.landmarks
 
@@ -265,9 +275,13 @@ class StereoLifter(StateLifter, ABC):
     def sample_theta(self):
         return self.generate_random_theta().flatten()
 
-    def sample_parameters(self):
+    def sample_parameters(self, var_subset=None):
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        landmark_indices = get_landmark_indices(var_subset)
         if self.add_parameters:
-            return [1.0] + list(np.random.rand(self.n_landmarks, self.d).flatten())
+            return [1.0] + list(np.random.rand(len(landmark_indices), self.d).flatten())
         else:
             return [1.0]
 

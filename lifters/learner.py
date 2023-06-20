@@ -1,17 +1,21 @@
 import numpy as np
-import matplotlib.pylab as plt
+
+from utils.plotting_tools import import_plt
+
+plt = import_plt()
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.plotting_tools import savefig
 
-MAX_VARS = 0
-N_LANDMARKS = 4
 NOISE = 1e-2
 SEED = 5
 
 ADJUST = True
 TOL_REL_GAP = 1e-3
+
+# threshold for SVD
+EPS_SVD = 1e-5
 
 
 def increases_rank(mat, new_row):
@@ -34,11 +38,9 @@ class Learner(object):
     Class to incrementally learn and augment constraint patterns until we reach tightness.
     """
 
-    VARIABLES = ["x"] + [f"z_{i}" for i in range(MAX_VARS)]
-
-    def __init__(self, lifter: StateLifter):
+    def __init__(self, lifter: StateLifter, variable_list: list):
         self.lifter = lifter
-        self.var_counter = -1
+        self.variable_iter = iter(variable_list)
 
         self.mat_vars = ["l"]
 
@@ -50,6 +52,7 @@ class Learner(object):
         self.A_matrices = {}
 
         # list of dual costs
+        self.ranks = []
         self.dual_costs = []
         self.solver_vars = None
 
@@ -137,6 +140,8 @@ class Learner(object):
         X, info = solve_sdp_cvxpy(
             self.solver_vars["Q"], A_b_list_all, adjust=ADJUST
         )  # , rho_hat=qcqp_cost)
+        eigs = np.linalg.eigvalsh(X)[::-1]
+        self.ranks.append(eigs)
         self.dual_costs.append(info["cost"])
         if info["cost"] is None:
             print("Warning: is problem infeasible?")
@@ -152,7 +157,9 @@ class Learner(object):
                 )
                 return False
             else:
-                print("achieved strong duality")
+                print(
+                    f"achieved strong duality: qcqp cost={self.solver_vars['qcqp_cost']:.2e}, dual cost={info['cost']:.2e}"
+                )
                 return True
 
         # compute lamdas using optimization
@@ -165,11 +172,11 @@ class Learner(object):
 
     def update_variables(self):
         # add new variable to the list of variables to study
-        self.var_counter += 1
-        if self.var_counter >= len(self.VARIABLES):
+        try:
+            self.mat_vars = next(self.variable_iter)
+            return True
+        except StopIteration:
             return False
-        self.mat_vars.append(self.VARIABLES[self.var_counter])
-        return True
 
     def learn_patterns(self, use_known=False):
         Y = self.lifter.generate_Y(var_subset=self.mat_vars)
@@ -178,17 +185,23 @@ class Learner(object):
         if use_known and basis_current is not None:
             Y = np.vstack([Y, basis_current])
 
-        basis_new, S = self.lifter.get_basis(Y)
+        basis_new, S = self.lifter.get_basis(Y, eps=EPS_SVD)
         corank = basis_new.shape[0]
 
         print(f"{self.mat_vars}: {corank} learned matrices found")
         if corank > 0:
-            StateLifter.test_S_cutoff(S, corank)
+            StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
 
         new_patterns = []
         for i, bi_sub in enumerate(basis_new):
             # check if this newly learned pattern is linearly independent of previous patterns.
             bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
+
+            # sanity check
+            ai = self.lifter.get_reduced_a(bi_sub, var_subset=self.mat_vars)
+            Ai_sparse = self.lifter.get_mat(ai, var_dict=self.mat_var_dict)
+            Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.mat_var_dict)
+            self.lifter.test_constraints([Ai_sparse], errors="raise")
 
             if increases_rank(basis_current, bi_sub):
                 print(f"b{i} is a valid pattern")
@@ -221,10 +234,12 @@ class Learner(object):
 
                     try:
                         self.lifter.test_constraints([Ai_sparse], errors="raise")
-                    except:
+                    except ValueError as e:
                         print(
-                            f"Warning: skipping matrix {j} of pattern b{i} because high error."
+                            f"Warning: skipping matrix {j} of pattern b{i} because high error"
                         )
+                        print(e)
+                        # Ai.matshow(self.lifter.var_dict)
                         continue
 
                     # name = f"[{','.join(self.mat_vars)}]:{i}"
@@ -232,29 +247,25 @@ class Learner(object):
                     self.A_matrices[name] = Ai
                     counter += 1
             if counter > 0:
-                print(f"pattern b{i}: added {counter} constraints")
+                print(
+                    f"pattern b{i}: added {counter}/{len(new_poly_rows)} new constraints"
+                )
                 valid_list.append(i)
+            elif counter == 0:
+                print(f"   pattern b{i}: no new constraints")
         return valid_list
 
     def run(self, fname_root=""):
         from utils.plotting_tools import plot_basis
-        from lifters.plotting_tools import plot_matrices
 
         plot_rows = []
         plot_row_labels = []
-
-        # do the first round without parameters, to find state-only-dependent constraints.
-        self.lifter.add_parameters = False
 
         while not self.is_tight():
             # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
                 break
-
-            # make sure we use parameters as soon as we add z variables
-            if "z_0" in self.mat_vars:
-                self.lifter.add_parameters = True
 
             # learn new patterns, orthogonal to the ones found so far.
             new_patterns = self.learn_patterns(use_known=True)
@@ -281,42 +292,111 @@ class Learner(object):
         if fname_root != "":
             savefig(fig, fname_root + "_patterns.png")
 
+    def save_tightness(self, fname_root):
+        labels = self.mat_vars[-len(self.dual_costs) :]
+
         fig, ax = plt.subplots()
         xticks = range(len(self.dual_costs))
         ax.semilogy(xticks, self.dual_costs)
-        ax.set_xticks(xticks, self.mat_vars[-len(xticks) :])
+        ax.set_xticks(xticks, labels)
         ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
         if fname_root != "":
             savefig(fig, fname_root + "_tightness.png")
 
-        return
+        ratios = [e[0] / e[1] for e in self.ranks]
+        fig, ax = plt.subplots()
+        xticks = range(len(ratios))
+        ax.semilogy(xticks, ratios)
+        ax.set_xticks(xticks, labels)
+        if fname_root != "":
+            savefig(fig, fname_root + "_ratios.png")
+
+        fig, ax = plt.subplots()
+        labels = self.mat_vars[-len(self.ranks) :]
+        for eig, label in zip(self.ranks, labels):
+            ax.semilogy(eig, label=label)
+        ax.legend(loc="upper right")
+        if fname_root != "":
+            savefig(fig, fname_root + "_eigs.png")
+
+    def save_matrices(self, fname_root):
+        from lifters.plotting_tools import plot_matrices
+
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict)
             for A_poly in self.A_matrices.values()
         ]
-
+        names = [
+            f"{k}\n{i}/{len(A_list)}" for i, k in enumerate(self.A_matrices.keys())
+        ]
         fig, ax = plot_matrices(
             A_list=A_list,
             colorbar=False,
             vmin=-1,
             vmax=1,
             nticks=3,
-            names=list(self.A_matrices.keys()),
+            names=names,
         )
         if fname_root != "":
             savefig(fig, fname_root + "_matrices.png")
 
 
 if __name__ == "__main__":
-    from stereo2d_lifter import Stereo2DLifter
+    d = 2
 
-    lifter = Stereo2DLifter(n_landmarks=N_LANDMARKS, level="urT")
+    if d == 1:
+        from stereo1d_lifter import Stereo1DLifter
 
-    # from stereo1d_lifter import Stereo1DLifter
-    # lifter = Stereo1DLifter(n_landmarks=N_LANDMARKS, add_parameters=True)
+        max_vars = 2
+        n_landmarks = 10
+        variable_list = [
+            ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
+        ]
+        lifter = Stereo1DLifter(n_landmarks=n_landmarks, add_parameters=True)
+        learner = Learner(lifter=lifter, variable_list=variable_list)
 
-    learner = Learner(lifter=lifter)
-    fname_root = f"_results/{lifter}"
-    learner.run(fname_root=fname_root)
-    plt.show()
-    print("done")
+        fname_root = f"_results/{lifter}"
+        learner.run(fname_root=fname_root)
+        learner.save_tightness(fname_root)
+        # learner.save_matrices(fname_root)
+        plt.show()
+        print("done")
+    elif d == 2:
+        from stereo2d_lifter import Stereo2DLifter
+
+        n_landmarks = 4
+        max_vars = 2
+
+        # one-shot approach: learn all matrices.
+        variable_list = [
+            ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
+        ]
+
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks, level="urT", add_parameters=True
+        )
+        try:
+            import pickle
+
+            with open(f"{lifter}_learner.pkl", "rb") as f:
+                learner = pickle.load(f)
+        except FileNotFoundError:
+            learner = Learner(lifter=lifter, variable_list=variable_list)
+
+            fname_root = f"_results/{lifter}"
+            learner.run(fname_root=fname_root)
+            learner.save_tightness(fname_root)
+            plt.show()
+            print("done")
+
+            with open(f"{lifter}_learner.pkl", "rb") as f:
+                pickle.dump(learner, f)
+
+        variable_list = [
+            ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(n_landmarks + 1)
+        ]
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks, level="urT", add_parameters=False
+        )
+        learner = Learner(lifter=lifter, variable_list=variable_list)
+        learner.run()
