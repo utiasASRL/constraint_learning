@@ -62,8 +62,6 @@ class StateLifter(ABC):
         self.param_dict_ = None
         self.theta_ = None
 
-        # fixing seed for testing purposes
-        np.random.seed(1)
         self.generate_random_setup()
 
     @property

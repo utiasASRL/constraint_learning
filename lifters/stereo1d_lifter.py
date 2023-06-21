@@ -1,6 +1,7 @@
 import numpy as np
 
 from lifters.state_lifter import StateLifter
+from lifters.stereo_lifter import get_landmark_indices
 
 
 class Stereo1DLifter(StateLifter):
@@ -33,16 +34,22 @@ class Stereo1DLifter(StateLifter):
                 return
         return x_try
 
-    def sample_parameters(self):
+    def sample_parameters(self, var_subset=None):
+        if var_subset is None:
+            var_subset = self.var_dict
+        indices = get_landmark_indices(var_subset)
         if self.add_parameters:
-            parameters_ = [1.0] + list(np.random.rand(self.n_landmarks))
+            parameters_ = [1.0] + list(np.random.rand(len(indices)))
         else:
             parameters_ = [1.0]
         return parameters_
 
-    def get_parameters(self):
+    def get_parameters(self, var_subset=None):
+        if var_subset is None:
+            var_subset = self.var_dict
+        indices = get_landmark_indices(var_subset)
         if self.add_parameters:
-            return [1.0] + list(self.landmarks)
+            return [1.0] + list(self.landmarks[indices])
         else:
             return [1.0]
 
@@ -80,13 +87,14 @@ class Stereo1DLifter(StateLifter):
         vars = ["l", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
-    @property
-    def param_dict(self):
-        if self.param_dict_ is None:
-            self.param_dict_ = {"l": 0}
-            for n in range(self.n_landmarks):
-                self.param_dict_[f"p_{n}"] = n + 1
-        return self.param_dict_
+    def get_param_dict(self, var_subset=None):
+        if var_subset is None:
+            var_subset = self.var_dict
+        param_dict_ = {"l": 0}
+        indices = get_landmark_indices(var_subset)
+        for n in indices:
+            param_dict_[f"p_{n}"] = n + 1
+        return param_dict_
 
     def get_grad(self, t, y):
         raise NotImplementedError("get_grad not implement yet")

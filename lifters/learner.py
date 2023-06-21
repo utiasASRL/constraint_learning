@@ -48,6 +48,8 @@ class Learner(object):
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables>)
         self.b_tuples = []
         self.b_current_ = None
+        # PolyMatrix summarizing all valid patterns (for plotting and debugging mostly)
+        self.patterns_poly = None
 
         # A_matrices contains the generated Poly matrices (induced from the patterns),
         # elements are of the form: (name, <poly matrix>)
@@ -67,7 +69,8 @@ class Learner(object):
     def row_var_dict(self):
         return self.lifter.var_dict_all(self.mat_vars)
 
-    def get_a_current(self, target_mat_var_dict=None):
+    def get_a_current(self):
+        target_mat_var_dict = self.lifter.var_dict
         if self.a_current_ is None:
             a_list = [
                 self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict))
@@ -132,13 +135,14 @@ class Learner(object):
         ]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         X, info = self._test_tightness(A_b_list_all)
-        eigs = np.linalg.eigvalsh(X)[::-1]
-        self.ranks.append(eigs)
         self.dual_costs.append(info["cost"])
         if info["cost"] is None:
+            self.ranks.append(np.zeros(A_list[0].shape[0]))
             print("Warning: is problem infeasible?")
             return False
         else:
+            eigs = np.linalg.eigvalsh(X)[::-1]
+            self.ranks.append(eigs)
             return self.duality_gap_is_zero(info["cost"], verbose=True)
 
     def generate_minimal_subset(self, reorder=False):
@@ -230,12 +234,10 @@ class Learner(object):
         basis_new, S = self.lifter.get_basis(Y, eps=EPS_SVD)
         corank = basis_new.shape[0]
 
-        print(f"{self.mat_vars}: {corank} learned matrices found")
         if corank > 0:
             StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
 
         new_patterns = []
-        counter = 0
         for i, bi_sub in enumerate(basis_new):
             # check if this newly learned pattern is linearly independent of previous patterns.
             bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
@@ -246,10 +248,19 @@ class Learner(object):
             Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.mat_var_dict)
             self.lifter.test_constraints([Ai_sparse], errors="raise")
 
-            if increases_rank(basis_current, bi_sub):
-                counter += 1
+            ai_full = self.lifter.get_vec(Ai_sparse)
+            a_current = self.get_a_current()
+            if increases_rank(
+                a_current, ai_full
+            ):  # if increases_rank(basis_current, bi_sub):
                 new_patterns.append(bi_sub)
-        print(f"found {counter}/{basis_new.shape[0]} independent patterns")
+
+                name = f"{self.mat_vars[-1]}:b{i}"
+
+                self.A_matrices.append((name, Ai))
+        print(
+            f"{self.mat_vars}: found {len(new_patterns)}/{basis_new.shape[0]} independent patterns"
+        )
         return new_patterns
 
     def apply_patterns(self, new_patterns):
@@ -278,8 +289,8 @@ class Learner(object):
             # constraints to A form before checking ranks.
             counter = 0
             for j, new_poly_row in enumerate(new_poly_rows):
-                ai = lifter.convert_poly_to_a(new_poly_row, self.lifter.var_dict)
-                a_current = self.get_a_current(self.lifter.var_dict)
+                ai = self.lifter.convert_poly_to_a(new_poly_row, self.lifter.var_dict)
+                a_current = self.get_a_current()
                 if increases_rank(a_current, ai):
                     Ai_sparse = self.lifter.get_mat(ai, var_dict=self.lifter.var_dict)
                     Ai, __ = PolyMatrix.init_from_sparse(
@@ -301,12 +312,11 @@ class Learner(object):
                     self.A_matrices.append((name, Ai))
                     counter += 1
             if counter > 0:
-                print(
-                    f"pattern b{i}: added {counter}/{len(new_poly_rows)} new constraints"
-                )
+                # print(f"pattern b{i}: added {counter}/{len(new_poly_rows)} new constraints")
                 valid_list.append(i)
             elif counter == 0:
-                print(f"   pattern b{i}: no new constraints")
+                pass
+                # print(f"   pattern b{i}: no new constraints")
         return valid_list
 
     def run(self):
@@ -323,38 +333,76 @@ class Learner(object):
                 continue
 
             # apply the pattern to all landmarks
-            valid_idx = self.apply_patterns(new_patterns)
+            self.apply_patterns(new_patterns)
             self.b_tuples += [
-                ((i, tuple(self.mat_vars)), new_patterns[i]) for i in valid_idx
+                ((i, self.mat_vars), p) for i, p in enumerate(new_patterns)
             ]
 
-    def save_patterns(self, b_tuples=None, fname_root=""):
-        from utils.plotting_tools import plot_basis
+        self.generate_patterns_poly()
+        print(self.get_sorted_patterns_poly())
 
+    def get_sorted_patterns_poly(self):
+        import pandas as pd
+
+        series = []
+        for i in self.patterns_poly.variable_dict_i:
+            data = {j: float(val) for j, val in self.patterns_poly.matrix[i].items()}
+            series.append(
+                pd.Series(
+                    data,
+                    index=self.patterns_poly.variable_dict_j,
+                    dtype="Sparse[object]",
+                )
+            )
+        df = pd.DataFrame(series, dtype="Sparse[object]")
+
+        def sort_fun(series):
+            return series.isna()
+
+        df.dropna(axis=1, how="all", inplace=True)
+        df.sort_values(
+            key=sort_fun,
+            by=list(df.columns),
+            axis=0,
+            na_position="last",
+            inplace=True,
+        )
+        return df
+
+    def generate_patterns_poly(self, b_tuples=None):
         if b_tuples is None:
             b_tuples = self.b_tuples
 
         plot_rows = []
         plot_row_labels = []
         j = -1
+        old_mat_vars = ""
         for key, new_pattern in b_tuples:
             i, mat_vars = key
             plot_rows.append(self.lifter.convert_b_to_polyrow(new_pattern, mat_vars))
-            if i == 0:
+            if mat_vars != old_mat_vars:
                 j += 1
                 plot_row_labels.append(f"{j}{mat_vars}:b{i}")
+                old_mat_vars = mat_vars
             else:
                 plot_row_labels.append(f"{j}:b{i}")
 
-        patterns_poly = PolyMatrix.init_from_row_list(
+        self.patterns_poly = PolyMatrix.init_from_row_list(
             plot_rows, row_labels=plot_row_labels
         )
+
+    def save_patterns(self, b_tuples=None, fname_root=""):
+        from utils.plotting_tools import plot_basis
+
+        if self.patterns_poly is None:
+            self.generate_patterns_poly(b_tuples)
+
         fig, ax = plot_basis(
-            patterns_poly, self.lifter, var_subset=self.mat_vars, discrete=True
+            self.patterns_poly, self.lifter, var_subset=self.mat_vars, discrete=True
         )
-        plt.show()
         if fname_root != "":
             savefig(fig, fname_root + "_patterns.pdf")
+        return fig, ax
 
     def save_tightness(self, fname_root):
         labels = self.mat_vars[-len(self.dual_costs) :]
@@ -403,67 +451,20 @@ class Learner(object):
 
 
 if __name__ == "__main__":
-    d = 2
+    from stereo1d_lifter import Stereo1DLifter
 
-    if d == 1:
-        from stereo1d_lifter import Stereo1DLifter
+    max_vars = 2
+    n_landmarks = 10
+    variable_list = [
+        ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
+    ]
+    lifter = Stereo1DLifter(n_landmarks=n_landmarks, add_parameters=True)
+    learner = Learner(lifter=lifter, variable_list=variable_list)
 
-        max_vars = 2
-        n_landmarks = 10
-        variable_list = [
-            ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
-        ]
-        lifter = Stereo1DLifter(n_landmarks=n_landmarks, add_parameters=True)
-        learner = Learner(lifter=lifter, variable_list=variable_list)
-
-        fname_root = f"_results/{lifter}"
-        learner.run()
-        learner.save_patterns(fname_root)
-        learner.save_tightness(fname_root)
-        # learner.save_matrices(fname_root)
-        plt.show()
-        print("done")
-    elif d == 2:
-        from stereo2d_lifter import Stereo2DLifter
-
-        n_landmarks = 4
-        max_vars = 2
-
-        # one-shot approach: learn all matrices.
-        # variable_list = [
-        #     ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
-        # ]
-
-        lifter = Stereo2DLifter(
-            n_landmarks=n_landmarks, level="urT", add_parameters=False
-        )
-        fname_root = f"_results/{lifter}_oneshot"
-        try:
-            import pickle
-
-            with open(fname_root + ".pkl", "rb") as f:
-                learner = pickle.load(f)
-
-            assert isinstance(learner, Learner)
-            # learner.save_tightness(fname_root)
-            # learner.save_patterns(fname_root)
-
-            minimal_subset = learner.generate_minimal_subset(reorder=False)
-            learner.save_patterns(
-                b_tuples=minimal_subset, fname_root=""  # fname_root + "_subset"
-            )
-            print("done")
-
-        except FileNotFoundError:
-            print(f"running experiment {fname_root}")
-            variable_list = [
-                ["l", "x"] + [f"z_{i}" for i in range(j)]
-                for j in range(n_landmarks + 1)
-            ]
-            learner = Learner(lifter=lifter, variable_list=variable_list)
-            learner.run()
-            learner.save_tightness(fname_root="")
-            learner.save_patterns(fname_root="")
-            with open(fname_root + ".pkl", "wb") as f:
-                pickle.dump(learner, f)
-            print(f"saved as {fname_root}.pkl")
+    fname_root = f"_results/{lifter}"
+    learner.run()
+    learner.save_patterns(fname_root)
+    learner.save_tightness(fname_root)
+    # learner.save_matrices(fname_root)
+    plt.show()
+    print("done")
