@@ -140,6 +140,12 @@ def solve_sdp_cvxpy(
         objective = cp.Maximize(b @ y)
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
         constraint = LHS << Q_here
+
+        cost = None
+        X = None
+        H = None
+        yvals = None
+
         cprob = cp.Problem(objective, [constraint])
         try:
             cprob.solve(
@@ -147,26 +153,16 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except:
-            print(f"Solver {solver} failed! solving again with verbose option.")
-            from copy import deepcopy
+            if verbose:
+                print(f"Solver {solver} failed! solving again with verbose option.")
+                from copy import deepcopy
 
-            o_here = deepcopy(opts)
-            o_here["verbose"] = True
-            try:
+                o_here = deepcopy(opts)
+                o_here["verbose"] = True
                 cprob.solve(
                     solver=solver,
                     **o_here,
                 )
-            except:
-                cost = None
-                X = None
-                H = None
-                yvals = None
-            else:
-                cost = cprob.value
-                X = constraint.dual_value
-                H = Q_here - LHS.value
-                yvals = [x.value for x in y]
         else:
             cost = cprob.value
             X = constraint.dual_value

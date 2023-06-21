@@ -385,12 +385,11 @@ class StateLifter(ABC):
         mat_sparse = poly_mat.get_matrix({m: 1 for m in mat_var_list})
         return np.array(mat_sparse[np.triu_indices(mat_sparse.shape[0])]).flatten()
 
-    def convert_b_to_poly(self, b, var_subset):
+    def convert_b_to_polyrow(self, b, var_subset) -> PolyMatrix:
         """Convert (augmented) b array to poly-row."""
         var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
         dim_X = self.get_dim_X(var_subset)
         dim_x = self.get_dim_x(var_subset)
-        dim_P = self.get_dim_P(var_subset)
 
         assert len(b) == self.get_dim_Y(var_subset)
 
@@ -415,7 +414,6 @@ class StateLifter(ABC):
                     for l, v in zip(labels, vals):
                         if np.any(np.abs(v)) > 1e-10:
                             poly_all["l", l] = v
-
         return poly_all
 
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
@@ -444,47 +442,18 @@ class StateLifter(ABC):
         # blocks of zeros in the end.
         dim_P_target = self.get_dim_P(target_subset)
         dim_X_target = self.get_dim_X(target_subset)
-        for __ in range(dim_P, dim_P_target):
-            bi_all = np.r_[bi_all, np.zeros(dim_X_target)]
+        bi_all = np.r_[bi_all, np.zeros(dim_X_target * (dim_P_target - dim_P))]
 
         assert len(bi_all) == self.get_dim_Y(target_subset)
+
+        # below doesn't pass. this would make for a cleaner implementation, consider fixing.
+        # poly_row = self.convert_b_to_polyrow(b, var_subset)
+        # row_target_dict = self.var_dict_all(target_subset)
+        # bi_all_test = poly_row.get_matrix(
+        #    (["l"], row_target_dict), output_type="dense"
+        # ).flatten()
+        # np.testing.assert_allclose(bi_all, bi_all_test)
         return bi_all
-
-        poly_all = self.convert_b_to_poly(b, var_subset)
-        var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
-        if target_subset is None:
-            target_subset = self.var_dict
-        all_dict = self.var_dict_all(target_subset)
-        return poly_all.get_matrix((["l"], all_dict)).toarray()
-
-        dim_P = self.get_dim_P()
-        dim_X = self.get_dim_X(var_subset)
-        dim_x = self.get_dim_x(var_subset)
-
-        poly_all = PolyMatrix(symmetric=False)
-        b_all = np.empty(0)
-        for p in range(dim_P):
-            block = b[p * dim_X : (p + 1) * (dim_X)]
-            mat = self.create_symmetric(block, dim_x)
-            poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
-
-            # TODO(FD) implement below using sparse matrices?
-            mat = poly_mat.get_matrix(target_subset).toarray()
-            bi_all = np.r_[bi_all, mat[np.triu_indices(mat.shape[0])]]
-
-            for keyi, keyj in itertools.combinations_with_replacement(
-                poly_mat.variable_dict_i, 2
-            ):
-                if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
-                    val = poly_mat.matrix[keyi][keyj]
-                    labels = self.get_labels(p, keyi, keyj)
-                    assert len(labels) == np.size(val)
-                    for l, v in zip(labels, val.flatten()):
-                        if np.any(np.abs(v)) > 1e-10:
-                            poly_all["l", l] = v
-
-        assert len(bi_all) == self.get_dim_X(target_subset) * self.get_dim_P()
-        return bi_all, poly_all
 
     def get_incremental_vars(self):
         return tuple(["l", "x"] + [f"z_{i}" for i in range(MAX_N_SUBSETS)])
@@ -532,7 +501,7 @@ class StateLifter(ABC):
             for i, bi_sub in enumerate(basis_new):
                 bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
                 bi = self.zero_pad_subvector(bi_sub, var_subset)
-                bi_poly = self.convert_b_to_poly(bi_sub, var_subset)
+                bi_poly = self.convert_b_to_polyrow(bi_sub, var_subset)
 
                 basis_learned_test = np.vstack([basis_learned, bi])
                 new_rank = np.linalg.matrix_rank(basis_learned_test, tol=1e-10)
@@ -635,7 +604,7 @@ class StateLifter(ABC):
             if isinstance(bi, PolyMatrix):
                 bi_poly = bi
             else:
-                bi_poly = self.convert_b_to_poly(bi, var_subset)
+                bi_poly = self.convert_b_to_polyrow(bi, var_subset)
             unique_idx = set()
             for key in bi_poly.variable_dict_j:
                 vars = key.split(".")

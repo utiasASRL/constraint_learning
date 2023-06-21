@@ -204,7 +204,7 @@ def test_zero_padding():
                 try:
                     lifter.test_constraints([Ai])
                 except:
-                    b_poly_test = lifter.convert_b_to_poly(bi_sub, var_subset)
+                    b_poly_test = lifter.convert_b_to_polyrow(bi_sub, var_subset)
                     print(b_poly_test)
 
                     Ai_sub = lifter.get_mat(ai_sub, var_dict=var_dict)
