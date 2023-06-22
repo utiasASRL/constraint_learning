@@ -1,10 +1,11 @@
 from abc import ABC, abstractproperty
+import itertools
 
 import numpy as np
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils import get_rot_matrix
+from utils import get_rot_matrix, upper_triangular
 
 
 def get_landmark_indices(var_subset):
@@ -64,22 +65,25 @@ class StereoLifter(StateLifter, ABC):
         "u@r",
         "uuT",
         "urT",
-        "urT-diag",
-        "urT-off",
     ]
+    PARAM_LEVELS = ["no", "p", "ppT"]
 
-    def __init__(self, n_landmarks, d, level="no", add_parameters=False):
+    def __init__(self, n_landmarks, d, level="no", param_level="no"):
         assert level in self.LEVELS, f"level ({level}) not in {self.LEVELS}"
         self.d = d
+
+        assert level in self.LEVELS
         self.level = level
+
+        assert param_level in self.PARAM_LEVELS
+        self.param_level = param_level
+
         self.n_landmarks = n_landmarks
 
-        self.add_parameters = add_parameters
         self.parameters = None
 
         M = self.n_landmarks * self.d  # u, v, z (3d) or u, z (2d)
         L = self.get_level_dims(n=self.n_landmarks)[level]
-
         super().__init__(theta_shape=(self.d**2 + self.d,), M=M, L=L)
 
     def get_level_dims(self, n=1):
@@ -88,16 +92,18 @@ class StereoLifter(StateLifter, ABC):
         """
         return {
             "no": 0,
-            "r@r": 1,  # x**2 + y**2
-            "r2": self.d,  # x**2, y**2
-            "rrT": self.d**2,  # x**2, y**2, xy
             "u@u": n,  # ...
             "u2": n * self.d,
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
-            "urT-diag": n * self.d,
-            "urT-off": n * int(self.d * (self.d - 1) / 2),
+        }
+
+    def get_param_dims(self, n=1):
+        return {
+            "no": 0,
+            "p": int(n * self.d),
+            "ppT": int(n * self.d * (n * self.d + 1) / 2),
         }
 
     @abstractproperty
@@ -135,16 +141,24 @@ class StereoLifter(StateLifter, ABC):
     def get_param_dict(self, var_subset=None):
         if var_subset is None:
             return self.param_dict_
-        param_dict_ = {"l": 0}
-        if self.add_parameters:
-            i = 1
-            # row-wise flatten (same as .flatten())
-            n_landmarks = get_landmark_indices(var_subset)
-            for n in n_landmarks:
-                for d in range(self.d):
-                    param_dict_[f"p_{n}:{d}"] = i
-                    i += 1
-        return param_dict_
+
+        if self.param_level == "no":
+            return {"l": 0}
+
+        landmarks = get_landmark_indices(var_subset)
+        params = ["l"] + [f"p_{i}:{d}" for i in landmarks for d in range(self.d)]
+        if self.param_level == "p":
+            return {p: i for i, p in enumerate(params)}
+        elif self.param_level == "ppT":
+            param_dict = {}
+            for i, (pi, pj) in enumerate(
+                itertools.combinations_with_replacement(params, 2)
+            ):
+                if pi == pj == "l":
+                    param_dict["l"] = i
+                else:
+                    param_dict[f"{pi}.{pj}"] = i
+            return param_dict
 
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
@@ -155,7 +169,7 @@ class StereoLifter(StateLifter, ABC):
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
-        self.parameters = [1.0] + list(self.landmarks.flatten())
+        self.parameters = np.r_[1.0, self.landmarks.flatten()]
 
     def generate_random_theta(self):
         n_angles = 1 if self.d == 2 else 3
@@ -166,11 +180,12 @@ class StereoLifter(StateLifter, ABC):
             var_subset = self.var_dict
 
         landmarks = get_landmark_indices(var_subset)
-        if self.add_parameters:
-            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            return np.r_[1.0, self.landmarks[landmarks, :].flatten()]
+        if self.param_level == "no":
+            return [1.0]
         else:
-            return np.array([1.0])
+            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
+            parameters = self.landmarks[landmarks, :].flatten()
+            return np.r_[1.0, parameters]
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -191,9 +206,8 @@ class StereoLifter(StateLifter, ABC):
         elif len(theta) == 12:
             C, r = get_C_r_from_xtheta(theta, self.d)
 
-        if self.add_parameters:
-            n_landmarks = len(get_landmark_indices(var_subset))
-            landmarks = np.array(parameters[1:]).reshape((n_landmarks, self.d))
+        if self.param_level != "no":
+            landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
         else:
             landmarks = self.landmarks
 
@@ -225,18 +239,34 @@ class StereoLifter(StateLifter, ABC):
                 elif self.level == "urT":
                     # this works
                     x_data += list(np.outer(u, r).flatten())
-                elif self.level == "urT-off":
-                    # this works
-                    x_data += list(np.outer(u, r)[np.triu_indices(self.d - 1)])
-                elif self.level == "urT-diag":
-                    # this works
-                    x_data += list(np.diag(np.outer(u, r)))
-                else:
-                    raise ValueError(self.level)
 
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
+
+    def get_p(self, parameters=None, var_subset=None):
+        """
+        :param parameters: list of all parameters
+        :param var_subset: subset of variables tat we care about (will extract corresponding parameters)
+        """
+        if parameters is None:
+            parameters = self.parameters
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        if self.param_level == "no":
+            return np.array([1.0])
+
+        landmarks = get_landmark_indices(var_subset)
+        if len(landmarks):
+            all_p = parameters[1:].reshape((self.n_landmarks, self.d))
+            sub_p = np.r_[1.0, all_p[landmarks, :].flatten()]
+            if self.param_level == "p":
+                return sub_p
+            elif self.param_level == "ppT":
+                return upper_triangular(sub_p)
+        else:
+            return np.array([1.0])
 
     def get_A_known(self, add_known_redundant=False):
         # C = [ c1
@@ -275,15 +305,12 @@ class StereoLifter(StateLifter, ABC):
     def sample_theta(self):
         return self.generate_random_theta().flatten()
 
-    def sample_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        landmark_indices = get_landmark_indices(var_subset)
-        if self.add_parameters:
-            return [1.0] + list(np.random.rand(len(landmark_indices), self.d).flatten())
-        else:
+    def sample_parameters(self):
+        if self.param_level == "no":
             return [1.0]
+        else:
+            parameters = np.random.rand(self.n_landmarks, self.d).flatten()
+            return np.r_[1.0, parameters]
 
     def get_Q(self, noise: float = 1e-3) -> tuple:
         return self._get_Q(noise=noise)
@@ -334,4 +361,4 @@ class StereoLifter(StateLifter, ABC):
 
     def __repr__(self):
         level_str = str(self.level).replace(".", "-")
-        return f"stereo{self.d}d_{level_str}"
+        return f"stereo{self.d}d_{level_str}_{self.param_level}"

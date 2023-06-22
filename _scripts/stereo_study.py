@@ -42,35 +42,29 @@ def find_minimal_constraints(lifter, fname_root):
 
 if __name__ == "__main__":
     n_landmarks = 3
-
-    for seed in range(2):
-        # lifter = Stereo2DLifter(n_landmarks=n_landmarks, level="urT", add_parameters=False)
-        # fname_root = f"_results/{lifter}_oneshot"
-        # find_minimal_constraints(lifter, fname_root)
-
-        max_vars = 1  # n_landmarks
-        variable_list = [
-            ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
-        ]
-        # parameter_dict = {"without": False}
-        parameter_dict = {"with": True, "without": False}
-        for name, add_parameters in parameter_dict.items():
+    max_vars = 2  # n_landmarks
+    n_seeds = 1
+    variable_list = [
+        ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
+    ]
+    # parameter_dict = {"without": False}
+    # parameter_levels = ["no", "p", "ppT"]  # , "p"]  # ["no", "p", "ppT"]
+    parameter_levels = ["no", "p", "ppT"]
+    for seed in range(n_seeds):
+        for param_level in parameter_levels:
             np.random.seed(seed)
             lifter = Stereo2DLifter(
-                n_landmarks=n_landmarks, level="urT", add_parameters=add_parameters
+                n_landmarks=n_landmarks, level="urT", param_level=param_level
             )
-            print(lifter.landmarks)
             learner = Learner(lifter=lifter, variable_list=variable_list)
 
-            fname_root = f"_results/{lifter}_{name}_seed{seed}"
+            fname_root = f"_results/{lifter}_seed{seed}"
             learner.run()
 
             df = learner.get_sorted_df()
-            title = f"{name} parameters, {variable_list[-1]}, seed {seed}"
+            title = f"{param_level} parameters, {variable_list[-1]}, seed {seed}"
             fig, ax = learner.save_df(df, fname_root=fname_root, title=title)
-
-            # fig, ax = learner.save_patterns(fname_root=fname_root)
-            # ax.set_title(f"{name} parameters, {variable_list[-1]}, seed {seed}")
+            # fig, ax = learner.save_patterns(fname_root=fname_root, title=title)
 
             matrix_symbols = set(learner.patterns_poly.get_matrix().data.round(4))
             param_symbols = set(lifter.landmarks[:max_vars, :].flatten().round(4))
@@ -90,8 +84,10 @@ if __name__ == "__main__":
             print(lifter.landmarks)
             print(inexplained)
             print(len(inexplained))
+            print(f"=============")
+            # {variable_list} {name} parameters: found {len(learner.A_matrices)} constraints ==============="
 
-            print(
-                f"============= {variable_list} {name} parameters: found {len(learner.A_matrices)} constraints ==============="
-            )
+    import matplotlib.pylab as plt
+
+    plt.show()
     print("done")

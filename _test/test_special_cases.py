@@ -12,7 +12,9 @@ n_poses = 5
 
 
 def test_equivalent_lifters():
+    np.random.seed(1)
     l1 = RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
+    np.random.seed(1)
     l2 = RangeOnlySLAM2Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
 
     np.random.seed(1)

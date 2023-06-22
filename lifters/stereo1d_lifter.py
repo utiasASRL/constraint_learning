@@ -5,13 +5,16 @@ from lifters.stereo_lifter import get_landmark_indices
 
 
 class Stereo1DLifter(StateLifter):
-    def __init__(self, n_landmarks, add_parameters=False):
+    PARAM_LEVELS = ["no", "p"]
+
+    def __init__(self, n_landmarks, param_level="no"):
         self.n_landmarks = n_landmarks
         self.d = 1
         self.W = 1.0
         self.theta_ = None
         self.parameters = None
-        self.add_parameters = add_parameters
+        assert param_level in self.PARAM_LEVELS
+        self.param_level = param_level
         super().__init__(theta_shape=(1,), M=n_landmarks)
 
     @property
@@ -34,13 +37,10 @@ class Stereo1DLifter(StateLifter):
                 return
         return x_try
 
-    def sample_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-        indices = get_landmark_indices(var_subset)
-        if self.add_parameters:
-            parameters_ = [1.0] + list(np.random.rand(len(indices)))
-        else:
+    def sample_parameters(self):
+        if self.param_level == "p":
+            parameters_ = np.r_[1.0, np.random.rand(self.n_landmarks)]
+        elif self.param_level == "no":
             parameters_ = [1.0]
         return parameters_
 
@@ -48,10 +48,10 @@ class Stereo1DLifter(StateLifter):
         if var_subset is None:
             var_subset = self.var_dict
         indices = get_landmark_indices(var_subset)
-        if self.add_parameters:
-            return [1.0] + list(self.landmarks[indices])
-        else:
-            return [1.0]
+        if self.param_level == "p":
+            return np.r_[1.0, self.landmarks[indices]]
+        elif self.param_level == "no":
+            return np.array([1.0])
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -73,14 +73,36 @@ class Stereo1DLifter(StateLifter):
                 x_data.append(float(theta))
             elif "z" in key:
                 idx = int(key.split("_")[-1])
-                if self.add_parameters:
-                    assert parameters is not None
+                if self.param_level == "p":
                     x_data.append(float(1 / (theta - parameters[idx + 1])))
-                else:
+                elif self.param_level == "no":
                     x_data.append(float(1 / (theta - self.landmarks[idx])))
             else:
                 raise ValueError("unknown key in get_x", key)
         return np.array(x_data)
+
+    def get_p(self, parameters=None, var_subset=None):
+        """
+        :param parameters: list of all parameters
+        :param var_subset: subset of variables tat we care about (will extract corresponding parameters)
+        """
+        if parameters is None:
+            parameters = self.parameters
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        if self.param_level == "no":
+            return np.array([1.0])
+
+        landmarks = get_landmark_indices(var_subset)
+        if len(landmarks):
+            sub_p = np.r_[1.0, parameters[1:][landmarks]]
+            if self.param_level == "p":
+                return sub_p
+            else:
+                raise ValueError(self.param_level)
+        else:
+            return np.array([1.0])
 
     @property
     def var_dict(self):
@@ -167,7 +189,4 @@ class Stereo1DLifter(StateLifter):
         return None, "didn't converge", None
 
     def __repr__(self):
-        if self.add_parameters:
-            return "stereo1d_params"
-        else:
-            return "stereo1d"
+        return f"stereo1d_{self.param_level}"

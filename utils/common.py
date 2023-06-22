@@ -9,6 +9,10 @@ def get_fname(name, extension="pkl"):
     )
 
 
+def upper_triangular(p):
+    return np.outer(p, p)[np.triu_indices(len(p))]
+
+
 def get_rot_matrix(rot):
     from scipy.spatial.transform import Rotation as R
 

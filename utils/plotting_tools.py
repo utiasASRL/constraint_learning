@@ -10,14 +10,11 @@ plt = import_plt()
 
 def plot_basis(
     basis_poly: PolyMatrix,
-    lifter: StateLifter,
-    var_subset: dict = None,
-    fname_root="",
-    discrete=True,
+    variables_j: dict,
+    fname_root: str = "",
+    discrete: bool = True,
 ):
     variables_i = basis_poly.generate_variable_dict_i()
-    variables_j = lifter.var_dict_all(var_subset)
-
     if discrete:
         import matplotlib as mpl
 
@@ -41,8 +38,6 @@ def plot_basis(
     if yticks is not None:
         cax.set_yticklabels(yticks)
     fig.set_size_inches(15, 15 * len(variables_i) / len(variables_j))
-    for p in range(1, lifter.get_dim_P(var_subset)):
-        ax.axvline(p * lifter.get_dim_X(var_subset) - 0.5, color="red")
     if fname_root != "":
         savefig(fig, fname_root + f"_basis.png")
     return fig, ax

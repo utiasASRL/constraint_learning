@@ -10,11 +10,11 @@ def change_dimensions(a, y, x):
 
 
 class Stereo2DLifter(StereoLifter):
-    def __init__(self, n_landmarks, level="no", add_parameters=False):
+    def __init__(self, n_landmarks, level="no", param_level="no"):
         self.W = np.stack([np.eye(2)] * n_landmarks)
         self.M_matrix_ = None
         super().__init__(
-            n_landmarks=n_landmarks, level=level, add_parameters=add_parameters, d=2
+            n_landmarks=n_landmarks, level=level, param_level=param_level, d=2
         )
 
     @property

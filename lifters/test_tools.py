@@ -15,7 +15,7 @@ Lifters = {
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
     Stereo1DLifter: dict(n_landmarks=n_landmarks),
-    Stereo1DLifter: dict(n_landmarks=n_landmarks, add_parameters=True),
+    Stereo1DLifter: dict(n_landmarks=n_landmarks, param_level="p"),
     # Stereo2DLifter: dict(n_landmarks=n_landmarks),
     # Stereo3DLifter: dict(n_landmarks=n_landmarks),
     # RangeOnlySLAM1Lifter: dict(

@@ -18,8 +18,8 @@ solver_options = {
         "verbose": VERBOSE,
         "mosek_params": {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-12,  # was 1e-8
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-12,  # was 1e-8
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,  # was 1e-12
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,  # was 1e-12
             # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,  # was 1e-10
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
@@ -84,7 +84,7 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
 def solve_sdp_cvxpy(
     Q,
     A_b_list,
-    adjust=False,
+    adjust=True,
     solver=SOLVER,
     primal=False,
     verbose=True,

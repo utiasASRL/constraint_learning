@@ -10,7 +10,7 @@ NORMALIZE = True
 
 def test_canonical_operations():
     n_landmarks = 1  # z_0 and z_1
-    lifter = Stereo2DLifter(n_landmarks=n_landmarks, add_parameters=True, level="no")
+    lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
 
     var_subset = "x"
     # fmt: off
@@ -32,7 +32,7 @@ def test_canonical_operations():
     # fmt: on
     ai = lifter.get_vec(Ai_sub)
     # zero-pad to emulate an augmented basis vector
-    bi = lifter.augment_using_zero_padding(ai)
+    bi = lifter.augment_using_zero_padding(ai, var_subset=var_subset)
 
     ai_test = lifter.get_reduced_a(bi, var_subset=var_subset)
 
@@ -46,9 +46,9 @@ def test_canonical_operations():
 def test_with_parameters(d=1):
     n_landmarks = 2  # z_0 and z_1
     if d == 1:
-        lifter = Stereo1DLifter(n_landmarks=n_landmarks, add_parameters=True)
+        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
     elif d == 2:
-        lifter = Stereo2DLifter(n_landmarks=n_landmarks, add_parameters=True)
+        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p")
     else:
         raise ValueError(d)
 
@@ -60,7 +60,6 @@ def test_with_parameters(d=1):
         from poly_matrix.poly_matrix import PolyMatrix
 
         basis_poly = PolyMatrix.init_from_row_list(basis_list)
-        plot_basis(basis_poly, lifter)
         # wtf, if I remeove this then basis_small is None. If I leave it, it is defined.
         # this has to do with plt.ion(), but I don't know why.
 
@@ -89,12 +88,9 @@ def test_with_parameters(d=1):
 
 
 def test_b_to_a():
-    add_parameters = True
     n_landmarks = 1  # z_0 only
 
-    lifter = Stereo2DLifter(
-        n_landmarks=n_landmarks, add_parameters=add_parameters, level="no"
-    )
+    lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
 
     for var_subset in [("l", "x"), ("l", "x", "z_0")]:
         Y = lifter.generate_Y(var_subset=var_subset)
@@ -108,14 +104,14 @@ def test_b_to_a():
             x_sub = lifter.get_vec(np.outer(x, x))
 
             # test that bi_sub @ x_aug holds (including parameters in x_aug)
-            x_sub_aug = lifter.augment_using_parameters(x_sub)
-            # x_sub_aug is of the form
-            # [l, l.x, l.z, l.vech(xx'), l.vech(xz'), l.vech(zz'), p0, p0.l.x, ...]
-            for j, p in enumerate(lifter.get_parameters()):
-                assert abs(x_sub_aug[j * lifter.get_dim_X(var_subset)] - p) < 1e-10
+            x_sub_aug = lifter.augment_using_parameters(x_sub, var_subset=var_subset)
 
             assert len(x_sub_aug) == len(bi_sub)
             assert abs(bi_sub @ x_sub_aug) < 1e-10
+            # x_sub_aug is of the form
+            # [l, l.x, l.z, l.vech(xx'), l.vech(xz'), l.vech(zz'), p0, p0.l.x, ...]
+            for j, p in enumerate(lifter.get_p(var_subset=var_subset)):
+                assert abs(x_sub_aug[j * lifter.get_dim_X(var_subset)] - p) < 1e-10
 
             # test that ai @ x holds (summing out parameters)
             ai_sub = lifter.get_reduced_a(bi_sub, var_subset=var_subset)
@@ -178,11 +174,8 @@ def test_b_to_a():
 
 
 def test_zero_padding():
-    add_parameters = True
     n_landmarks = 1  # z_0 only
-    lifter = Stereo2DLifter(
-        n_landmarks=n_landmarks, add_parameters=add_parameters, level="no"
-    )
+    lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
     from poly_matrix.poly_matrix import PolyMatrix
 
     for var_subset in [("l", "x"), ("l", "x", "z_0")]:

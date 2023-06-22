@@ -313,7 +313,7 @@ def test_vec_mat():
             np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
 
 
-def test_parameters(self):
+def test_parameters():
     for lifter in all_lifters():
         A_learned = lifter.get_A_learned()
 

@@ -73,7 +73,9 @@ class Learner(object):
     @property
     def patterns_poly(self):
         if self.patterns_poly_ is None:
-            self.patterns_poly_ = self.generate_patterns_poly()
+            self.patterns_poly_ = self.generate_patterns_poly(
+                factor_out_parameters=True
+            )
         return self.patterns_poly_
 
     def get_a_current(self):
@@ -136,21 +138,23 @@ class Learner(object):
             )
         return res
 
-    def is_tight(self):
+    def is_tight(self, verbose=True):
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict) for __, A_poly in self.A_matrices
         ]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
-        X, info = self._test_tightness(A_b_list_all)
+        X, info = self._test_tightness(A_b_list_all, verbose=True)
         self.dual_costs.append(info["cost"])
         if info["cost"] is None:
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print("Warning: is problem infeasible?")
+            max_error, bad_list = self.lifter.test_constraints(A_list)
+            print("Maximum error:", max_error)
             return False
         else:
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
-            return self.duality_gap_is_zero(info["cost"], verbose=True)
+            return self.duality_gap_is_zero(info["cost"], verbose=verbose)
 
     def generate_minimal_subset(self, reorder=False):
         from solvers.sparse import solve_lambda
@@ -219,7 +223,7 @@ class Learner(object):
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
-            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST, verbose=False
+            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST, verbose=verbose
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -253,7 +257,11 @@ class Learner(object):
             ai = self.lifter.get_reduced_a(bi_sub, var_subset=self.mat_vars)
             Ai_sparse = self.lifter.get_mat(ai, var_dict=self.mat_var_dict)
             Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.mat_var_dict)
-            self.lifter.test_constraints([Ai_sparse], errors="raise")
+
+            err, bad_idx = self.lifter.test_constraints([Ai_sparse], errors="print")
+            if len(bad_idx):
+                print(f"constraint matrix {i} as high error: {err}")
+                continue
 
             ai_full = self.lifter.get_vec(Ai_sparse)
             a_current = self.get_a_current()
@@ -275,7 +283,7 @@ class Learner(object):
         valid_list = []
 
         for i, new_pattern in enumerate(new_patterns):
-            if (not self.lifter.add_parameters) and any(
+            if (self.lifter.param_level == "no") and any(
                 ["z" in var for var in self.mat_vars]
             ):
                 # if we did not add parameters, then each learned constraint only applies to
@@ -326,8 +334,8 @@ class Learner(object):
                 # print(f"   pattern b{i}: no new constraints")
         return valid_list
 
-    def run(self):
-        while not self.is_tight():
+    def run(self, verbose=False):
+        while not self.is_tight(verbose=verbose):
             # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
@@ -382,7 +390,7 @@ class Learner(object):
         )
         return df_sorted
 
-    def generate_patterns_poly(self, b_tuples=None):
+    def generate_patterns_poly(self, b_tuples=None, factor_out_parameters=False):
         if b_tuples is None:
             b_tuples = self.b_tuples
 
@@ -392,7 +400,13 @@ class Learner(object):
         old_mat_vars = ""
         for key, new_pattern in b_tuples:
             i, mat_vars = key
-            plot_rows.append(self.lifter.convert_b_to_polyrow(new_pattern, mat_vars))
+            if factor_out_parameters:
+                ai = self.lifter.get_reduced_a(new_pattern, mat_vars)
+                poly_row = self.lifter.convert_a_to_polyrow(ai, mat_vars)
+            else:
+                poly_row = self.lifter.convert_b_to_polyrow(new_pattern, mat_vars)
+
+            plot_rows.append(poly_row)
             if mat_vars != old_mat_vars:
                 j += 1
                 plot_row_labels.append(f"{j}{mat_vars}:b{i}")
@@ -403,8 +417,11 @@ class Learner(object):
         patterns_poly = PolyMatrix.init_from_row_list(
             plot_rows, row_labels=plot_row_labels
         )
+
         # make sure variable_dict_j is ordered correctly.
-        patterns_poly.variable_dict_j = self.lifter.var_dict_all(mat_vars)
+        patterns_poly.variable_dict_j = self.lifter.var_dict_all(
+            mat_vars, with_parameters=not factor_out_parameters
+        )
         return patterns_poly
 
     def save_df(self, df, fname_root="", title=""):
@@ -415,9 +432,11 @@ class Learner(object):
         for i, row in df.iterrows():
             for k, val in row[~row.isna()].items():
                 poly_matrix[i, k] = val
-        fig, ax = plot_basis(
-            poly_matrix, self.lifter, var_subset=self.mat_vars, discrete=True
+
+        variables_j = self.lifter.var_dict_all(
+            var_subset=self.mat_vars, with_parameters=False
         )
+        fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
         ax.set_title(title)
 
         # below works too, incase above takes too long.
@@ -441,9 +460,10 @@ class Learner(object):
         if patterns_poly is None:
             patterns_poly = self.patterns_poly
 
-        fig, ax = plot_basis(
-            self.patterns_poly, self.lifter, var_subset=self.mat_vars, discrete=True
-        )
+        variables_j = self.lifter.var_dict_all(self.mat_vars)
+        fig, ax = plot_basis(self.patterns_poly, variables_j=variables_j, discrete=True)
+        for p in range(1, lifter.get_dim_P(self.mat_vars)):
+            ax.axvline(p * lifter.get_dim_X(self.mat_vars) - 0.5, color="red")
 
         ax.set_title(title)
         if fname_root != "":
@@ -508,7 +528,7 @@ if __name__ == "__main__":
     variable_list = [
         ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
     ]
-    lifter = Stereo1DLifter(n_landmarks=n_landmarks, add_parameters=True)
+    lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
     learner = Learner(lifter=lifter, variable_list=variable_list)
 
     fname_root = f"_results/{lifter}"
