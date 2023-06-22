@@ -42,16 +42,25 @@ def find_minimal_constraints(lifter, fname_root):
 
 if __name__ == "__main__":
     n_landmarks = 3
-    max_vars = 2  # n_landmarks
+    max_vars = 3  # n_landmarks
     n_seeds = 1
+
+    # doesn't get to tightness
     variable_list = [
         ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
     ]
+
+    # gets to tightness!
+    variable_list = [
+        ["l"] + [f"z_{i}" for i in range(j)] for j in range(1, max_vars + 1)
+    ]
+
     # parameter_dict = {"without": False}
     # parameter_levels = ["no", "p", "ppT"]  # , "p"]  # ["no", "p", "ppT"]
     parameter_levels = ["no", "p", "ppT"]
     for seed in range(n_seeds):
         for param_level in parameter_levels:
+            print(f"============= parameters {param_level} ================")
             np.random.seed(seed)
             lifter = Stereo2DLifter(
                 n_landmarks=n_landmarks, level="urT", param_level=param_level
@@ -63,29 +72,11 @@ if __name__ == "__main__":
 
             df = learner.get_sorted_df()
             title = f"{param_level} parameters, {variable_list[-1]}, seed {seed}"
-            fig, ax = learner.save_df(df, fname_root=fname_root, title=title)
-            # fig, ax = learner.save_patterns(fname_root=fname_root, title=title)
-
-            matrix_symbols = set(learner.patterns_poly.get_matrix().data.round(4))
-            param_symbols = set(lifter.landmarks[:max_vars, :].flatten().round(4))
-
-            lm = lifter.landmarks[:max_vars, :]
-            lm_outer = np.outer(lm, lm)[np.triu_indices(lm.shape[1])].round(4)
-            param_symbols_higher = set(lm_outer).union(-lm_outer)
-            constants = np.array(
-                [np.sqrt(2), 1.0, 1 / np.sqrt(2), 1 / 2, 1 / 3, 1 / 4, 1 / 5, 1 / 6]
-            ).round(4)
-            param_symbols_higher = (
-                param_symbols_higher.union(param_symbols)
-                .union(set(constants))
-                .union(set(-constants))
+            learner.save_df(df, fname_root=fname_root, title=title)
+            learner.save_tightness(fname_root=fname_root, title=title)
+            learner.save_patterns(
+                fname_root=fname_root, title=title, with_parameters=False
             )
-            inexplained = sorted(matrix_symbols.difference(param_symbols_higher))
-            print(lifter.landmarks)
-            print(inexplained)
-            print(len(inexplained))
-            print(f"=============")
-            # {variable_list} {name} parameters: found {len(learner.A_matrices)} constraints ==============="
 
     import matplotlib.pylab as plt
 

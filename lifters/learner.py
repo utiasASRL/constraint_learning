@@ -138,7 +138,7 @@ class Learner(object):
             )
         return res
 
-    def is_tight(self, verbose=True):
+    def is_tight(self, verbose=False):
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict) for __, A_poly in self.A_matrices
         ]
@@ -256,11 +256,13 @@ class Learner(object):
             # sanity check
             ai = self.lifter.get_reduced_a(bi_sub, var_subset=self.mat_vars)
             Ai_sparse = self.lifter.get_mat(ai, var_dict=self.mat_var_dict)
-            Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.mat_var_dict)
+            Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.lifter.var_dict)
 
             err, bad_idx = self.lifter.test_constraints([Ai_sparse], errors="print")
             if len(bad_idx):
-                print(f"constraint matrix {i} as high error: {err}")
+                print(
+                    f"constraint matrix pattern b{i} has high error: {err:.2e}, not adding it to patterns"
+                )
                 continue
 
             ai_full = self.lifter.get_vec(Ai_sparse)
@@ -312,14 +314,13 @@ class Learner(object):
                         Ai_sparse, self.lifter.var_dict
                     )
 
-                    try:
-                        self.lifter.test_constraints([Ai_sparse], errors="raise")
-                    except ValueError as e:
+                    error, bad_idx = self.lifter.test_constraints(
+                        [Ai_sparse], errors="ignore"
+                    )
+                    if len(bad_idx):
                         print(
-                            f"Warning: skipping matrix {j} of pattern b{i} because high error"
+                            f"skipping matrix {j} of pattern b{i} because high error {error:.2e}"
                         )
-                        print(e)
-                        # Ai.matshow(self.lifter.var_dict)
                         continue
 
                     # name = f"[{','.join(self.mat_vars)}]:{i}"
@@ -454,16 +455,19 @@ class Learner(object):
             savefig(fig, fname_root + "_patterns-sorted.png")
         return fig, ax
 
-    def save_patterns(self, patterns_poly=None, fname_root="", title=""):
+    def save_patterns(self, fname_root="", title="", with_parameters=False):
         from utils.plotting_tools import plot_basis
 
-        if patterns_poly is None:
-            patterns_poly = self.patterns_poly
-
-        variables_j = self.lifter.var_dict_all(self.mat_vars)
-        fig, ax = plot_basis(self.patterns_poly, variables_j=variables_j, discrete=True)
-        for p in range(1, lifter.get_dim_P(self.mat_vars)):
-            ax.axvline(p * lifter.get_dim_X(self.mat_vars) - 0.5, color="red")
+        patterns_poly = self.generate_patterns_poly(
+            factor_out_parameters=not with_parameters
+        )
+        variables_j = self.lifter.var_dict_all(
+            self.mat_vars, with_parameters=with_parameters
+        )
+        fig, ax = plot_basis(patterns_poly, variables_j=variables_j, discrete=True)
+        if with_parameters:
+            for p in range(1, self.lifter.get_dim_P(self.mat_vars)):
+                ax.axvline(p * self.lifter.get_dim_X(self.mat_vars) - 0.5, color="red")
 
         ax.set_title(title)
         if fname_root != "":
@@ -533,7 +537,7 @@ if __name__ == "__main__":
 
     fname_root = f"_results/{lifter}"
     learner.run()
-    learner.save_patterns(fname_root)
+    learner.save_patterns(with_parameters=True, fname_root=fname_root)
     learner.save_tightness(fname_root)
     # learner.save_matrices(fname_root)
     plt.show()

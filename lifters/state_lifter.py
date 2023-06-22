@@ -865,10 +865,10 @@ class StateLifter(ABC):
                     raise ValueError(msg)
                 elif errors == "print":
                     print(msg)
+                elif errors == "ignore":
+                    pass
                 else:
                     raise ValueError(errors)
-            # else:
-            #    print(f"no violation at {j}")
         return max_violation, j_bad
 
     def get_A0(self, var_subset=None):
