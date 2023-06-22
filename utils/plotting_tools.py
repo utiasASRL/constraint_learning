@@ -40,8 +40,7 @@ def plot_basis(
     cax = add_colorbar(fig, ax, im)
     if yticks is not None:
         cax.set_yticklabels(yticks)
-    scale = 0.2
-    fig.set_size_inches(len(variables_j) * scale, len(variables_i) * scale)
+    fig.set_size_inches(15, 15 * len(variables_i) / len(variables_j))
     for p in range(1, lifter.get_dim_P(var_subset)):
         ax.axvline(p * lifter.get_dim_X(var_subset) - 0.5, color="red")
     if fname_root != "":

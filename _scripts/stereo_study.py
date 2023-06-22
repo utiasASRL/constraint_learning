@@ -52,8 +52,8 @@ if __name__ == "__main__":
         variable_list = [
             ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
         ]
-        parameter_dict = {"without": False}
-        # parameter_dict = {"with": True, "without": False}
+        # parameter_dict = {"without": False}
+        parameter_dict = {"with": True, "without": False}
         for name, add_parameters in parameter_dict.items():
             np.random.seed(seed)
             lifter = Stereo2DLifter(
@@ -64,8 +64,13 @@ if __name__ == "__main__":
 
             fname_root = f"_results/{lifter}_{name}_seed{seed}"
             learner.run()
-            fig, ax = learner.save_patterns(fname_root=fname_root)
-            ax.set_title(f"{name} parameters, {variable_list[-1]}, seed {seed}")
+
+            df = learner.get_sorted_df()
+            title = f"{name} parameters, {variable_list[-1]}, seed {seed}"
+            fig, ax = learner.save_df(df, fname_root=fname_root, title=title)
+
+            # fig, ax = learner.save_patterns(fname_root=fname_root)
+            # ax.set_title(f"{name} parameters, {variable_list[-1]}, seed {seed}")
 
             matrix_symbols = set(learner.patterns_poly.get_matrix().data.round(4))
             param_symbols = set(lifter.landmarks[:max_vars, :].flatten().round(4))
@@ -89,3 +94,4 @@ if __name__ == "__main__":
             print(
                 f"============= {variable_list} {name} parameters: found {len(learner.A_matrices)} constraints ==============="
             )
+    print("done")

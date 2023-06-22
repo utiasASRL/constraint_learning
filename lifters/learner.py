@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from utils.plotting_tools import import_plt
 
@@ -49,7 +50,7 @@ class Learner(object):
         self.b_tuples = []
         self.b_current_ = None
         # PolyMatrix summarizing all valid patterns (for plotting and debugging mostly)
-        self.patterns_poly = None
+        self.patterns_poly_ = None
 
         # A_matrices contains the generated Poly matrices (induced from the patterns),
         # elements are of the form: (name, <poly matrix>)
@@ -68,6 +69,12 @@ class Learner(object):
     @property
     def row_var_dict(self):
         return self.lifter.var_dict_all(self.mat_vars)
+
+    @property
+    def patterns_poly(self):
+        if self.patterns_poly_ is None:
+            self.patterns_poly_ = self.generate_patterns_poly()
+        return self.patterns_poly_
 
     def get_a_current(self):
         target_mat_var_dict = self.lifter.var_dict
@@ -338,12 +345,7 @@ class Learner(object):
                 ((i, self.mat_vars), p) for i, p in enumerate(new_patterns)
             ]
 
-        self.generate_patterns_poly()
-        print(self.get_sorted_patterns_poly())
-
-    def get_sorted_patterns_poly(self):
-        import pandas as pd
-
+    def get_sorted_df(self):
         series = []
         for i in self.patterns_poly.variable_dict_i:
             data = {j: float(val) for j, val in self.patterns_poly.matrix[i].items()}
@@ -351,23 +353,34 @@ class Learner(object):
                 pd.Series(
                     data,
                     index=self.patterns_poly.variable_dict_j,
-                    dtype="Sparse[object]",
+                    dtype="Sparse[float]",
                 )
             )
-        df = pd.DataFrame(series, dtype="Sparse[object]")
+        df = pd.DataFrame(
+            series, dtype="Sparse[float]", index=self.patterns_poly.variable_dict_i
+        )
 
         def sort_fun(series):
-            return series.isna()
+            # This is a bit complicated because we don't want the order to change
+            # because of the values, only isna() should matter.
+            # To make this work, we temporarily change the non-nan values to the order in which they appear
+            index = pd.MultiIndex.from_product([[0], series.index])
+            series.index = index
+            scipy_sparse = series.sparse.to_coo()[0]
+            # don't start at 0 because it's considered empty by scipy
+            scipy_sparse.data = np.arange(1, 1 + scipy_sparse.nnz)
+            pd_sparse = pd.Series.sparse.from_coo(scipy_sparse, dense_index=True)
+            return pd_sparse
 
         df.dropna(axis=1, how="all", inplace=True)
-        df.sort_values(
+        df_sorted = df.sort_values(
             key=sort_fun,
             by=list(df.columns),
             axis=0,
             na_position="last",
-            inplace=True,
+            inplace=False,
         )
-        return df
+        return df_sorted
 
     def generate_patterns_poly(self, b_tuples=None):
         if b_tuples is None:
@@ -387,24 +400,57 @@ class Learner(object):
             else:
                 plot_row_labels.append(f"{j}:b{i}")
 
-        self.patterns_poly = PolyMatrix.init_from_row_list(
+        patterns_poly = PolyMatrix.init_from_row_list(
             plot_rows, row_labels=plot_row_labels
         )
+        # make sure variable_dict_j is ordered correctly.
+        patterns_poly.variable_dict_j = self.lifter.var_dict_all(mat_vars)
+        return patterns_poly
 
-    def save_patterns(self, b_tuples=None, fname_root=""):
+    def save_df(self, df, fname_root="", title=""):
         from utils.plotting_tools import plot_basis
 
-        if self.patterns_poly is None:
-            self.generate_patterns_poly(b_tuples)
+        # convert to poly matrix for plotting purposes only.
+        poly_matrix = PolyMatrix(symmetric=False)
+        for i, row in df.iterrows():
+            for k, val in row[~row.isna()].items():
+                poly_matrix[i, k] = val
+        fig, ax = plot_basis(
+            poly_matrix, self.lifter, var_subset=self.mat_vars, discrete=True
+        )
+        ax.set_title(title)
+
+        # below works too, incase above takes too long.
+        # from utils.plotting_tools import add_colorbar
+        # fig, ax = plt.subplots()
+        # h_w_ratio = len(df) / len(df.columns)
+        # fig.set_size_inches(10, 10 * h_w_ratio)  # w, h
+        # im = ax.pcolormesh(df.values.astype(float))
+        # ax.set_xticks(range(1, 1 + len(df.columns)), df.columns, rotation=90)
+        # ax.xaxis.tick_top()
+        # ax.set_yticks(range(len(df.index)), df.index)
+        # add_colorbar(fig, ax, im)
+
+        if fname_root != "":
+            savefig(fig, fname_root + "_patterns-sorted.png")
+        return fig, ax
+
+    def save_patterns(self, patterns_poly=None, fname_root="", title=""):
+        from utils.plotting_tools import plot_basis
+
+        if patterns_poly is None:
+            patterns_poly = self.patterns_poly
 
         fig, ax = plot_basis(
             self.patterns_poly, self.lifter, var_subset=self.mat_vars, discrete=True
         )
+
+        ax.set_title(title)
         if fname_root != "":
-            savefig(fig, fname_root + "_patterns.pdf")
+            savefig(fig, fname_root + "_patterns.png")
         return fig, ax
 
-    def save_tightness(self, fname_root):
+    def save_tightness(self, fname_root, title=""):
         labels = self.mat_vars[-len(self.dual_costs) :]
 
         fig, ax = plt.subplots()
@@ -412,6 +458,7 @@ class Learner(object):
         ax.semilogy(xticks, self.dual_costs)
         ax.set_xticks(xticks, labels)
         ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
+        ax.set_title(title)
         if fname_root != "":
             savefig(fig, fname_root + "_tightness.png")
 
@@ -420,6 +467,7 @@ class Learner(object):
         xticks = range(len(ratios))
         ax.semilogy(xticks, ratios)
         ax.set_xticks(xticks, labels)
+        ax.set_title(title)
         if fname_root != "":
             savefig(fig, fname_root + "_ratios.png")
 
@@ -428,17 +476,18 @@ class Learner(object):
         for eig, label in zip(self.ranks, labels):
             ax.semilogy(eig, label=label)
         ax.legend(loc="upper right")
+        ax.set_title(title)
         if fname_root != "":
             savefig(fig, fname_root + "_eigs.png")
 
-    def save_matrices(self, fname_root):
+    def save_matrices(self, fname_root, title=""):
         from lifters.plotting_tools import plot_matrices
 
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict) for __, A_poly in self.A_matrices
         ]
         names = [f"{k}\n{i}/{len(A_list)}" for i, (k, __) in enumerate(self.A_matrices)]
-        fig, ax = plot_matrices(
+        fig, axs = plot_matrices(
             A_list=A_list,
             colorbar=False,
             vmin=-1,
@@ -446,6 +495,7 @@ class Learner(object):
             nticks=3,
             names=names,
         )
+        fig.suptitle(title)
         if fname_root != "":
             savefig(fig, fname_root + "_matrices.png")
 
