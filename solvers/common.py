@@ -159,10 +159,13 @@ def solve_sdp_cvxpy(
 
                 o_here = deepcopy(opts)
                 o_here["verbose"] = True
-                cprob.solve(
-                    solver=solver,
-                    **o_here,
-                )
+                try:
+                    cprob.solve(
+                        solver=solver,
+                        **o_here,
+                    )
+                except:
+                    pass
         else:
             cost = cprob.value
             X = constraint.dual_value

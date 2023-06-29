@@ -12,6 +12,19 @@ def get_fname(name, extension="pkl"):
 def upper_triangular(p):
     return np.outer(p, p)[np.triu_indices(len(p))]
 
+def increases_rank(mat, new_row):
+    # TODO(FD) below is not the most efficient way of checking lin. indep.
+    new_row = new_row.flatten()
+    if mat is None:
+        return True
+    mat_test = np.vstack([mat, new_row[None, :]])
+    new_rank = np.linalg.matrix_rank(mat_test)
+
+    # if the new matrix is not full row-rank then the new row was
+    # actually linealy dependent.
+    if new_rank == mat_test.shape[0]:
+        return True
+    return False
 
 def get_rot_matrix(rot):
     from scipy.spatial.transform import Rotation as R

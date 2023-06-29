@@ -139,6 +139,13 @@ class StereoLifter(StateLifter, ABC):
         return self.var_dict_
 
     def get_param_dict(self, var_subset=None):
+        r"""
+        Give the current subset of variables, extract the parameter dictionary to use. 
+        Example: var_subset = ['l', 'z_0']
+        - if param_level == 'no': {'l': 0}
+        - if param_level == 'p': {'l': 0, 'p_0:0': 1, ..., 'p_0:d-1': d}
+        - if param_level == 'ppT': {'l': 0, 'p_0:0.p_0:0': 1, ..., 'p_0:d-1:.p_0:d-1': 1}
+        """
         if var_subset is None:
             return self.param_dict_
 
@@ -171,9 +178,9 @@ class StereoLifter(StateLifter, ABC):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
 
-    def generate_random_theta(self):
+    def generate_random_theta(self, factor=1.0):
         n_angles = 1 if self.d == 2 else 3
-        return np.r_[np.random.rand(self.d), np.random.rand(n_angles) * 2 * np.pi]
+        return np.r_[np.random.rand(self.d)*factor, np.random.rand(n_angles) * 2 * np.pi]
 
     def get_parameters(self, var_subset=None):
         if var_subset is None:
@@ -302,8 +309,8 @@ class StereoLifter(StateLifter, ABC):
                 A_known.append(A.get_matrix(self.var_dict))
         return A_known
 
-    def sample_theta(self):
-        return self.generate_random_theta().flatten()
+    def sample_theta(self, factor=1.0):
+        return self.generate_random_theta(factor=factor).flatten()
 
     def sample_parameters(self):
         if self.param_level == "no":

@@ -3,6 +3,7 @@ import matplotlib.pylab as plt
 
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
+from poly_matrix.poly_matrix import PolyMatrix
 
 INCREMENTAL = True
 NORMALIZE = True
@@ -24,7 +25,6 @@ def test_canonical_operations():
             [0,  0,  0,  0,  0, 0],
         ]
     )
-    from poly_matrix.poly_matrix import PolyMatrix
     Ai_poly = PolyMatrix(symmetric=True)
     Ai_poly["x", "x"] = Ai_sub 
     Ai = Ai_poly.get_matrix(lifter.var_dict)
@@ -42,47 +42,74 @@ def test_canonical_operations():
     Ai_test = lifter.get_mat(ai_test, var_dict={var_subset: 6})
     np.testing.assert_allclose(Ai.toarray(), Ai_test.toarray())
 
-
-def test_with_parameters(d=1):
+def test_learned_constraints(d=2, param_level="ppT"):
     n_landmarks = 2  # z_0 and z_1
     if d == 1:
-        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
+        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level=param_level)
     elif d == 2:
-        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p")
+        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level=param_level, level="urT")
     else:
         raise ValueError(d)
 
-    var_subset = tuple(lifter.var_dict.keys())
-    label_dict = lifter.var_dict_all(var_subset)
-    if INCREMENTAL:
-        basis_list = lifter.get_basis_list_incremental()
-        from utils.plotting_tools import plot_basis
-        from poly_matrix.poly_matrix import PolyMatrix
+    var_subset = ["l", "z_0", "z_1"]
+    label_dict = lifter.var_dict_row(var_subset)
 
-        basis_poly = PolyMatrix.init_from_row_list(basis_list)
-        # wtf, if I remeove this then basis_small is None. If I leave it, it is defined.
-        # this has to do with plt.ion(), but I don't know why.
+    basis_row_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, eps_sparse=1e-8, plot=True)
+    basis_list = [basis_row.get_matrix((["l"], label_dict)) for basis_row in basis_row_list]
+    A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
+
+    # first, test that the learned constraints actually work on the original setup.
+    np.random.seed(0)
+    lifter.test_constraints(A_learned, errors="print")
+
+    # then, with parameters, we can regenerate new learned variables for each new random setup.
+    for i in range(0, 10):
+        print(f"---- {i} -----")
+        np.random.seed(i)
+        lifter.generate_random_setup()
+        A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
+        lifter.test_constraints(A_learned, errors="print")
+
+def test_learned_constraints_augment(d=2, param_level="ppT"):
+    n_landmarks = 2  # z_0 and z_1
+    if d == 1:
+        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level=param_level)
+    elif d == 2:
+        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level=param_level, level="urT")
+    else:
+        raise ValueError(d)
+
+    if INCREMENTAL:
+        var_subset = ["l", "z_0", "z_1"]
+        label_dict = lifter.var_dict_row(var_subset)
+
+        basis_list = lifter.get_basis_list(var_subset, eps=1e-6, plot=True)
 
         basis_list_all = lifter.augment_basis_list(basis_list, var_subset=var_subset)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
+
         basis_learned = basis_poly_all.get_matrix(
             variables=(basis_poly_all.variable_dict_i, label_dict)
         )
-        A_learned = lifter.generate_matrices(basis_learned)
+        A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
     else:
+        var_subset = list(lifter.var_dict.keys())
+        label_dict = lifter.var_dict_row(var_subset)
+
         A_learned, basis_poly = lifter.get_A_learned(normalize=NORMALIZE)
         basis_learned = basis_poly.get_matrix(
             variables=(basis_poly.variable_dict_i, label_dict)
         )
 
     # first, test that the learned constraints actually work on the original setup.
+    np.random.seed(0)
     lifter.test_constraints(A_learned, errors="raise")
 
     # then, with parameters, we can regenerate new learned variables for each new random setup.
     for i in range(10):
         np.random.seed(i)
         lifter.generate_random_setup()
-        A_learned = lifter.generate_matrices(basis_learned)
+        A_learned = lifter.generate_matrices(basis_learned, var_dict=var_subset)
 
         lifter.test_constraints(A_learned, errors="raise")
 
@@ -176,7 +203,6 @@ def test_b_to_a():
 def test_zero_padding():
     n_landmarks = 1  # z_0 only
     lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
-    from poly_matrix.poly_matrix import PolyMatrix
 
     for var_subset in [("l", "x"), ("l", "x", "z_0")]:
         var_dict = {k: lifter.var_dict[k] for k in var_subset}
@@ -211,8 +237,9 @@ def test_zero_padding():
 
 
 if __name__ == "__main__":
-    test_zero_padding()
-    test_b_to_a()
-    test_with_parameters(d=1)
-    test_canonical_operations()
+    #test_zero_padding()
+    #test_b_to_a()
+    #test_learned_constraints_augment(d=1, param_level="p")
+    test_learned_constraints(d=2, param_level="ppT")
+    #test_canonical_operations()
     print("all tests passed")

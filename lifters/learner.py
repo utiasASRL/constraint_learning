@@ -18,20 +18,7 @@ TOL_REL_GAP = 1e-3
 # threshold for SVD
 EPS_SVD = 1e-5
 
-
-def increases_rank(mat, new_row):
-    # TODO(FD) below is not the most efficient way of checking lin. indep.
-    new_row = new_row.flatten()
-    if mat is None:
-        return True
-    mat_test = np.vstack([mat, new_row[None, :]])
-    new_rank = np.linalg.matrix_rank(mat_test)
-
-    # if the new matrix is not full row-rank then the new row was
-    # actually linealy dependent.
-    if new_rank == mat_test.shape[0]:
-        return True
-    return False
+from lifters.utils import increases_rank
 
 
 class Learner(object):
@@ -68,7 +55,7 @@ class Learner(object):
 
     @property
     def row_var_dict(self):
-        return self.lifter.var_dict_all(self.mat_vars)
+        return self.lifter.var_dict_row(self.mat_vars)
 
     @property
     def patterns_poly(self):
@@ -96,6 +83,13 @@ class Learner(object):
         return self.a_current_
 
     def get_b_current(self, target_mat_var_dict=None):
+        """
+        Extract basis vectors that depend on a subset of the currently used parameters (keys in target_mat_var_dict).
+
+        example:  
+            - b_tuples contains("l", "x", "z_0"): list of learned constraints for this subset
+            - target: ("l", "x")
+        """
         if target_mat_var_dict is None:
             target_mat_var_dict = self.mat_var_dict
 
@@ -103,7 +97,8 @@ class Learner(object):
         b_list = []
         for (i, mat_vars), bi in self.b_tuples:
             bi = self.lifter.zero_pad_subvector(bi, mat_vars, target_mat_var_dict)
-            b_list.append(bi)
+            if bi is not None:
+                b_list.append(bi)
         if len(b_list):
             self.b_current_ = np.vstack(b_list)
 
@@ -148,7 +143,7 @@ class Learner(object):
         if info["cost"] is None:
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print("Warning: is problem infeasible?")
-            max_error, bad_list = self.lifter.test_constraints(A_list)
+            max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum error:", max_error)
             return False
         else:
@@ -238,15 +233,18 @@ class Learner(object):
     def learn_patterns(self, use_known=False):
         Y = self.lifter.generate_Y(var_subset=self.mat_vars)
 
-        basis_current = self.get_b_current()
-        if use_known and basis_current is not None:
-            Y = np.vstack([Y, basis_current])
+        if use_known:
+            basis_current = self.get_b_current()
+            if basis_current is not None:
+                Y = np.vstack([Y, basis_current])
 
         basis_new, S = self.lifter.get_basis(Y, eps=EPS_SVD)
         corank = basis_new.shape[0]
 
         if corank > 0:
             StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
+
+        print(f"{self.mat_vars}: found {corank} candidate patterns...", end="")
 
         new_patterns = []
         for i, bi_sub in enumerate(basis_new):
@@ -275,9 +273,7 @@ class Learner(object):
                 name = f"{self.mat_vars[-1]}:b{i}"
 
                 self.A_matrices.append((name, Ai))
-        print(
-            f"{self.mat_vars}: found {len(new_patterns)}/{basis_new.shape[0]} independent patterns"
-        )
+        print(f"...{len(new_patterns)} are independent.")
         return new_patterns
 
     def apply_patterns(self, new_patterns):
@@ -335,7 +331,7 @@ class Learner(object):
                 # print(f"   pattern b{i}: no new constraints")
         return valid_list
 
-    def run(self, verbose=False):
+    def run(self, use_known=True, verbose=False):
         while not self.is_tight(verbose=verbose):
             # add one more variable to the list of variables to vary
             if not self.update_variables():
@@ -343,7 +339,7 @@ class Learner(object):
                 break
 
             # learn new patterns, orthogonal to the ones found so far.
-            new_patterns = self.learn_patterns(use_known=True)
+            new_patterns = self.learn_patterns(use_known=use_known)
             if len(new_patterns) == 0:
                 print("new variables didn't have any effect")
                 continue
@@ -420,12 +416,12 @@ class Learner(object):
         )
 
         # make sure variable_dict_j is ordered correctly.
-        patterns_poly.variable_dict_j = self.lifter.var_dict_all(
+        patterns_poly.variable_dict_j = self.lifter.var_dict_row(
             mat_vars, with_parameters=not factor_out_parameters
         )
         return patterns_poly
 
-    def save_df(self, df, fname_root="", title=""):
+    def save_sorted_patterns(self, df, fname_root="", title=""):
         from utils.plotting_tools import plot_basis
 
         # convert to poly matrix for plotting purposes only.
@@ -434,7 +430,7 @@ class Learner(object):
             for k, val in row[~row.isna()].items():
                 poly_matrix[i, k] = val
 
-        variables_j = self.lifter.var_dict_all(
+        variables_j = self.lifter.var_dict_row(
             var_subset=self.mat_vars, with_parameters=False
         )
         fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
@@ -456,12 +452,16 @@ class Learner(object):
         return fig, ax
 
     def save_patterns(self, fname_root="", title="", with_parameters=False):
+        if variable_list is not None:
+            labels = variable_list
+        else:
+            labels = self.mat_vars[-len(self.dual_costs) :]
         from utils.plotting_tools import plot_basis
 
         patterns_poly = self.generate_patterns_poly(
             factor_out_parameters=not with_parameters
         )
-        variables_j = self.lifter.var_dict_all(
+        variables_j = self.lifter.var_dict_row(
             self.mat_vars, with_parameters=with_parameters
         )
         fig, ax = plot_basis(patterns_poly, variables_j=variables_j, discrete=True)
@@ -474,8 +474,12 @@ class Learner(object):
             savefig(fig, fname_root + "_patterns.png")
         return fig, ax
 
-    def save_tightness(self, fname_root, title=""):
-        labels = self.mat_vars[-len(self.dual_costs) :]
+    def save_tightness(self, fname_root, title="", variable_list=None):
+        if variable_list is not None:
+            labels = [["l"]] + variable_list
+            labels = labels[:len(self.dual_costs)]
+        else:
+            labels = self.mat_vars[-len(self.dual_costs) :]
 
         fig, ax = plt.subplots()
         xticks = range(len(self.dual_costs))
@@ -486,6 +490,15 @@ class Learner(object):
         if fname_root != "":
             savefig(fig, fname_root + "_tightness.png")
 
+        fig, ax = plt.subplots()
+        for eig, label in zip(self.ranks, labels):
+            ax.semilogy(eig, label=label)
+        ax.legend(loc="upper right")
+        ax.set_title(title)
+        if fname_root != "":
+            savefig(fig, fname_root + "_eigs.png")
+
+        return
         ratios = [e[0] / e[1] for e in self.ranks]
         fig, ax = plt.subplots()
         xticks = range(len(ratios))
@@ -494,15 +507,6 @@ class Learner(object):
         ax.set_title(title)
         if fname_root != "":
             savefig(fig, fname_root + "_ratios.png")
-
-        fig, ax = plt.subplots()
-        labels = self.mat_vars[-len(self.ranks) :]
-        for eig, label in zip(self.ranks, labels):
-            ax.semilogy(eig, label=label)
-        ax.legend(loc="upper right")
-        ax.set_title(title)
-        if fname_root != "":
-            savefig(fig, fname_root + "_eigs.png")
 
     def save_matrices(self, fname_root, title=""):
         from lifters.plotting_tools import plot_matrices
