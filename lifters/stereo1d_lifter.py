@@ -116,7 +116,7 @@ class Stereo1DLifter(StateLifter):
 
         indices = self.get_variable_indices(var_subset)
         for n in indices:
-            param_dict_[f"p_{n}"] = n+1
+            param_dict_[f"p_{n}"] = n + 1
         return param_dict_
 
     def get_grad(self, t, y):

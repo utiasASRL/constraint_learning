@@ -86,7 +86,7 @@ class Learner(object):
         """
         Extract basis vectors that depend on a subset of the currently used parameters (keys in target_mat_var_dict).
 
-        example:  
+        example:
             - b_tuples contains("l", "x", "z_0"): list of learned constraints for this subset
             - target: ("l", "x")
         """
@@ -477,7 +477,7 @@ class Learner(object):
     def save_tightness(self, fname_root, title="", variable_list=None):
         if variable_list is not None:
             labels = [["l"]] + variable_list
-            labels = labels[:len(self.dual_costs)]
+            labels = labels[: len(self.dual_costs)]
         else:
             labels = self.mat_vars[-len(self.dual_costs) :]
 

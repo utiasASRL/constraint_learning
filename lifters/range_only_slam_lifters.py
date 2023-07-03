@@ -140,7 +140,6 @@ class RangeOnlyLifter(StateLifter):
                     landmarks[:, 2] = -landmarks[:, 2]
         return landmarks
 
-
     def get_positions_and_landmarks(self, theta):
         """
         --> in 2d, will optimize for landmarks_theta = [a1_x, a2_x, a2_y, ...]
@@ -200,6 +199,7 @@ class RangeOnlyLifter(StateLifter):
 
     def get_J(self, t, y):
         import scipy.sparse as sp
+
         N = self.n_positions * self.n_landmarks
 
         J = sp.csr_array(
@@ -337,4 +337,3 @@ class RangeOnlyLifter(StateLifter):
                 line = np.c_[pos, pos + e]  # 2 x self.d
                 ax.plot(*line, **kwargs)
                 j += self.d
-

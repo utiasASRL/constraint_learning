@@ -31,7 +31,7 @@ METHOD = "qrp"
 NORMALIZE = False  # normalize learned Ai or not, (True)
 FACTOR = 2.0  # how much to oversample (>= 1)
 
-# can we find a cheaper way to achieve what the below does? 
+# can we find a cheaper way to achieve what the below does?
 N_CLEANING_STEPS = 1
 
 # number of scalable elements to add.
@@ -62,7 +62,9 @@ class StateLifter(BaseClass):
                 print(S[-corank], eps, S[-corank - 1])
 
     def get_level_dims(self, n=1):
-        assert self.level == "no", "Need to overwrite get_level_dims to use level different than 'no'"
+        assert (
+            self.level == "no"
+        ), "Need to overwrite get_level_dims to use level different than 'no'"
         return 0
 
     @property
@@ -95,7 +97,7 @@ class StateLifter(BaseClass):
 
     def get_var_dict(self, var_subset=None):
         if var_subset is not None:
-            return {k:v for k, v in self.var_dict.items() if k in var_subset}
+            return {k: v for k, v in self.var_dict.items() if k in var_subset}
         return self.var_dict
 
     def get_p(self, parameters=None, var_subset=None):
@@ -142,7 +144,9 @@ class StateLifter(BaseClass):
                 mat[range(mat.shape[0]), range(mat.shape[0])] /= np.sqrt(2)
         return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
 
-    def get_mat(self, vec, sparse=False, trunc_tol=EPS_SPARSE, var_dict=None, correct=True):
+    def get_mat(
+        self, vec, sparse=False, trunc_tol=EPS_SPARSE, var_dict=None, correct=True
+    ):
         """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
 
         In particular, this means that we divide the off-diagonal elements by sqrt(2).
@@ -192,10 +196,8 @@ class StateLifter(BaseClass):
                 # undo operation for diagonal
                 Ai[range(dim_x), range(dim_x)] *= np.sqrt(2)
             else:
-                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz 
-                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz 
-
-            
+                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz
+                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz
 
         if var_dict is None:
             return Ai
@@ -213,18 +215,20 @@ class StateLifter(BaseClass):
         else:
             sub_A_known = []
         for A in A_known:
-            A_poly, var_dict = PolyMatrix.init_from_sparse(
-                A, self.var_dict
-            )
+            A_poly, var_dict = PolyMatrix.init_from_sparse(A, self.var_dict)
 
             assert len(A_poly.get_variables()) > 0
 
             # if all of the non-zero elements of A_poly are in var_subset,
             # we can use this matrix.
             if np.all([v in var_subset for v in A_poly.get_variables()]):
-                Ai = A_poly.get_matrix(self.get_var_dict(var_subset), output_type=output_type)
+                Ai = A_poly.get_matrix(
+                    self.get_var_dict(var_subset), output_type=output_type
+                )
                 if output_type == "dense":
-                    ai  = self.augment_using_zero_padding(self.get_vec(Ai, correct=True), var_subset)
+                    ai = self.augment_using_zero_padding(
+                        self.get_vec(Ai, correct=True), var_subset
+                    )
                     sub_A_known = np.r_[sub_A_known, ai[None, :]]
                 else:
                     sub_A_known.append(Ai)
@@ -271,15 +275,13 @@ class StateLifter(BaseClass):
                         for dj in djs:
                             keyj = f"{zj}:{dj}" if sizej > 1 else f"{zj}"
                             label_list.append(f"{key}-{keyi}.{keyj}")
-            #for zi, zj in vectorized_var_list:
-                #label_list += self.get_labels(key, zi, zj)
+            # for zi, zj in vectorized_var_list:
+            # label_list += self.get_labels(key, zi, zj)
             assert len(label_list) == (idx + 1) * self.get_dim_X(var_subset)
         return label_list
 
     def var_dict_row(self, var_subset=None):
-        return {
-            l: 1 for l in self.var_list_row(var_subset)
-        }
+        return {l: 1 for l in self.var_list_row(var_subset)}
 
     def get_basis_from_poly_rows(self, basis_poly_list, var_subset=None):
         var_dict = self.get_var_dict(var_subset=var_subset)
@@ -315,6 +317,7 @@ class StateLifter(BaseClass):
         # there are still residual dependent vectors which only appear
         # after summing out the parameters. we want to remove those.
         import scipy.linalg as la
+
         __, r, p = la.qr(basis_learned, pivoting=True, mode="economic")
         rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
         if rank < len(basis_learned.shape[0]):
@@ -366,7 +369,7 @@ class StateLifter(BaseClass):
                 A_known=A_known,
                 eps_svd=eps,
                 plot=plot,
-                method=method
+                method=method,
             )
             basis_list_all = self.augment_basis_list(basis_list, normalize=normalize)
             basis_learned = self.get_basis_from_poly_rows(basis_list_all)
@@ -377,11 +380,10 @@ class StateLifter(BaseClass):
                 A_known=A_known,
                 eps_svd=eps,
                 plot=plot,
-                method=method
+                method=method,
             )
             A_learned = self.generate_matrices(basis_list, normalize=normalize)
         return A_learned
-
 
     def convert_poly_to_a(self, poly_row, var_subset=None):
         """Convert poly-row to reduced a.
@@ -414,7 +416,9 @@ class StateLifter(BaseClass):
         mat_sparse = poly_mat.get_matrix({m: 1 for m in mat_var_list})
         return np.array(mat_sparse[np.triu_indices(mat_sparse.shape[0])]).flatten()
 
-    def convert_a_to_polyrow(self, a, var_subset=None, eps_sparse=EPS_SPARSE) -> PolyMatrix:
+    def convert_a_to_polyrow(
+        self, a, var_subset=None, eps_sparse=EPS_SPARSE
+    ) -> PolyMatrix:
         """Convert a array to poly-row."""
         if var_subset is None:
             var_subset = self.var_dict
@@ -451,7 +455,6 @@ class StateLifter(BaseClass):
                 poly_row["l", key] = val
         return poly_row
 
-
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
         b_row = self.convert_b_to_polyrow(b, var_subset)
         target_row_dict = self.var_dict_row(var_subset=target_subset)
@@ -461,7 +464,6 @@ class StateLifter(BaseClass):
             return self.zero_pad_subvector_old(b, var_subset, target_subset)
         else:
             return None
-        
 
     def zero_pad_subvector_old(self, b, var_subset, target_subset=None):
         """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
@@ -510,9 +512,9 @@ class StateLifter(BaseClass):
         plot: bool = False,
         eps_svd: float = EPS_SVD,
         eps_sparse: float = EPS_SPARSE,
-        method: str = METHOD
+        method: str = METHOD,
     ):
-        """ Generate list of PolyRow basis vectors  """
+        """Generate list of PolyRow basis vectors"""
         basis_list = []
 
         Y = self.generate_Y(var_subset=var_subset)
@@ -522,7 +524,7 @@ class StateLifter(BaseClass):
             for i in range(A_known.shape[0]):
                 basis_list.append(self.convert_b_to_polyrow(A_known[i], var_subset))
 
-        for i in range(N_CLEANING_STEPS+1):
+        for i in range(N_CLEANING_STEPS + 1):
             # TODO(FD) can we enforce lin. independance to previously found
             # matrices at this point?
             basis_new, S = self.get_basis(Y, eps_svd=eps_svd, method=method)
@@ -534,10 +536,10 @@ class StateLifter(BaseClass):
             print(f"{var_subset}: {corank} learned matrices found")
             self.test_S_cutoff(S, corank, eps=eps_svd)
 
-            errors = np.abs(basis_new @ Y.T) # Nb x n x n x Ns = Nb x Ns
+            errors = np.abs(basis_new @ Y.T)  # Nb x n x n x Ns = Nb x Ns
             bad_bins = np.unique(np.argmax(errors, axis=1))
             if plot:
-                fig, ax =plt.subplots()
+                fig, ax = plt.subplots()
                 ax.semilogy(np.min(errors, axis=1))
                 ax.semilogy(np.max(errors, axis=1))
                 ax.semilogy(np.median(errors, axis=1))
@@ -547,6 +549,7 @@ class StateLifter(BaseClass):
 
         if plot:
             from lifters.plotting_tools import plot_singular_values
+
             plot_singular_values(S, eps=eps_svd)
 
         # find out which of the constraints are linearly dependant of the others.
@@ -774,8 +777,10 @@ class StateLifter(BaseClass):
         A_list = []
         for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict)
-            #Ai = self.create_symmetric(ai, size=self.get_dim_x(var_dict))
-            Ai = self.get_mat(ai, sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict, correct=True)
+            # Ai = self.create_symmetric(ai, size=self.get_dim_x(var_dict))
+            Ai = self.get_mat(
+                ai, sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict, correct=True
+            )
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
@@ -833,7 +838,7 @@ class StateLifter(BaseClass):
 
     def get_param_idx_dict(self, var_subset=None):
         """
-        Give the current subset of variables, extract the parameter dictionary to use. 
+        Give the current subset of variables, extract the parameter dictionary to use.
         Example: var_subset = ['l', 'z_0']
         - if param_level == 'no': {'l': 0}
         - if param_level == 'p': {'l': 0, 'p_0:0': 1, ..., 'p_0:d-1': d}
@@ -848,7 +853,7 @@ class StateLifter(BaseClass):
         elif self.param_level == "ppT":
             i = 0
             param_dict = {}
-            for (pi, pj) in itertools.combinations_with_replacement(param_keys, 2):
+            for pi, pj in itertools.combinations_with_replacement(param_keys, 2):
                 if pi == pj == "l":
                     param_dict["l"] = i
                 else:

@@ -7,7 +7,6 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils import get_rot_matrix, upper_triangular
 
 
-
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
     alpha = theta[d:]
@@ -86,7 +85,6 @@ class StereoLifter(StateLifter, ABC):
     def M_matrix(self):
         return
 
-
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
         return np.c_[
@@ -100,7 +98,9 @@ class StereoLifter(StateLifter, ABC):
 
     def generate_random_theta(self, factor=1.0):
         n_angles = 1 if self.d == 2 else 3
-        return np.r_[np.random.rand(self.d)*factor, np.random.rand(n_angles) * 2 * np.pi]
+        return np.r_[
+            np.random.rand(self.d) * factor, np.random.rand(n_angles) * 2 * np.pi
+        ]
 
     def get_parameters(self, var_subset=None):
         if var_subset is None:
@@ -170,7 +170,6 @@ class StereoLifter(StateLifter, ABC):
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
-
 
     def get_A_known(self, add_known_redundant=False):
         # C = [ c1

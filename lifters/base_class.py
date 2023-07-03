@@ -6,9 +6,10 @@ import numpy as np
 class BaseClass(ABC):
     LEVELS = ["no"]
     PARAM_LEVELS = ["no"]
+
     def __init__(self, level="no", param_level="no"):
         assert level in self.LEVELS
-        self.level=level
+        self.level = level
 
         assert param_level in self.PARAM_LEVELS
         self.param_level = param_level
@@ -30,12 +31,12 @@ class BaseClass(ABC):
 
     @abstractproperty
     def var_dict(self):
-        """ Return key,size pairs of all variables. """
+        """Return key,size pairs of all variables."""
         return
 
     @abstractmethod
     def get_param_idx_dict(self, var_subset=None):
-        """ Return key,index pairs of all parameters touched by var_subset"""
+        """Return key,index pairs of all parameters touched by var_subset"""
         return
 
     @abstractmethod

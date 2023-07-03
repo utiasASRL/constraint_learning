@@ -8,8 +8,9 @@ import numpy as np
 SOLVER_KWARGS = dict(
     # method="Nelder-Mead",
     method="BFGS"  # the only one that almost always converges
-    #method="Powell"
+    # method="Powell"
 )
+
 
 class RangeOnlyLocLifter(StateLifter):
     """Range-only localization
@@ -17,7 +18,9 @@ class RangeOnlyLocLifter(StateLifter):
     - level "no" uses substitution z_i=||p_i||^2=x_i^2 + y_i^2
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
+
     LEVELS = ["no", "quad"]
+
     def __init__(self, n_positions, n_landmarks, d, W=None, level="no"):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
@@ -37,6 +40,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
+
             diag_idx = diag_indices(self.n_positions)
 
         for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
@@ -52,8 +56,8 @@ class RangeOnlyLocLifter(StateLifter):
                     )
                 elif self.level == "quad":
                     res_dict = {
-                            "l": y[n, k] - np.linalg.norm(ak) ** 2,
-                            f"x{n}": 2 * ak.reshape((1, -1)),
+                        "l": y[n, k] - np.linalg.norm(ak) ** 2,
+                        f"x{n}": 2 * ak.reshape((1, -1)),
                     }
                     res_dict.update({f"z{n}:{i}": -1 for i in diag_idx})
                     self.ls_problem.add_residual(res_dict)
@@ -93,6 +97,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
+
             diag_idx = diag_indices(self.n_positions)
 
         A_list = []
@@ -109,6 +114,7 @@ class RangeOnlyLocLifter(StateLifter):
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         from utils.common import upper_triangular
+
         if var_subset is None:
             var_subset = self.var_dict
         if theta is None:
@@ -123,12 +129,11 @@ class RangeOnlyLocLifter(StateLifter):
 
         for n in range(self.n_positions):
             if self.level == "no":
-                x_data.append(np.linalg.norm(positions[n])**2)
+                x_data.append(np.linalg.norm(positions[n]) ** 2)
             elif self.level == "quad":
                 x_data += list(upper_triangular(positions[n]))
         assert len(x_data) == self.N + self.M + 1
         return np.array(x_data)
-
 
     def get_J_lifting(self, t):
         pos = t.reshape((-1, self.d))
@@ -147,11 +152,11 @@ class RangeOnlyLocLifter(StateLifter):
                 if self.d == 3:
                     x, y, z = pos[n]
                     jj += [0, 0, 1, 0, 2, 1, 1, 2, 2]
-                    data += [2*x, y, x, z, x, 2*y, z, y, 2*z]
+                    data += [2 * x, y, x, z, x, 2 * y, z, y, 2 * z]
                 elif self.d == 2:
                     x, y = pos[n]
                     jj += [0, 0, 1, 1]
-                    data += [2*x, y, x, 2*y]
+                    data += [2 * x, y, x, 2 * y]
         J_lifting = sp.csr_array(
             (data, (ii, jj)),
             shape=(self.M, self.N),
@@ -163,7 +168,7 @@ class RangeOnlyLocLifter(StateLifter):
         hessians = []
         for n in range(self.M):
             if self.level == "no":
-                idx = range(n*self.d, (n + 1)*self.d)
+                idx = range(n * self.d, (n + 1) * self.d)
                 hessian = sp.csr_array(
                     ([2] * self.d, (idx, idx)),
                     shape=(self.N, self.N),
@@ -172,53 +177,23 @@ class RangeOnlyLocLifter(StateLifter):
             elif self.level == "quad":
                 hessians += self.fixed_hessian_list
         return hessians
-    
+
     @property
     def fixed_hessian_list(self):
         if self.d == 2:
             return [
-                np.array(
-                    [[2, 0], 
-                     [0, 0]]),
-                np.array(
-                    [[0, 1], 
-                     [1, 0]]),
-                np.array(
-                    [[0, 0], 
-                     [0, 2]])
+                np.array([[2, 0], [0, 0]]),
+                np.array([[0, 1], [1, 0]]),
+                np.array([[0, 0], [0, 2]]),
             ]
         elif self.d == 3:
             return [
-                np.array(
-                    [[2, 0, 0],
-                     [0, 0, 0]
-                     [0, 0, 0]]
-                ),
-                np.array(
-                    [[0, 1, 0],
-                     [1, 0, 0]
-                     [0, 0, 0]]
-                ),
-                np.array(
-                    [[0, 0, 1],
-                     [0, 0, 0]
-                     [1, 0, 0]]
-                ),
-                np.array(
-                    [[0, 0, 0],
-                     [0, 2, 0]
-                     [0, 0, 0]]
-                ),
-                np.array(
-                    [[0, 0, 0],
-                     [0, 0, 1]
-                     [0, 1, 0]]
-                ),
-                np.array(
-                    [[0, 0, 0],
-                     [0, 0, 0]
-                     [0, 0, 2]]
-                ),
+                np.array([[2, 0, 0], [0, 0, 0][0, 0, 0]]),
+                np.array([[0, 1, 0], [1, 0, 0][0, 0, 0]]),
+                np.array([[0, 0, 1], [0, 0, 0][1, 0, 0]]),
+                np.array([[0, 0, 0], [0, 2, 0][0, 0, 0]]),
+                np.array([[0, 0, 0], [0, 0, 1][0, 1, 0]]),
+                np.array([[0, 0, 0], [0, 0, 0][0, 0, 2]]),
             ]
 
     def get_cost(self, t, y):
@@ -227,15 +202,15 @@ class RangeOnlyLocLifter(StateLifter):
 
         :param t: (positions, landmarks) tuple
         """
-        
+
         positions = t.reshape(self.n_positions, -1)
 
         y_current = (
-            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2) ** 2
+            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
+            ** 2
         )
         cost = np.sum(self.W * (y - y_current) ** 2)
         return cost
-
 
     def get_grad(self, t, y):
         """get gradient"""
@@ -273,9 +248,7 @@ class RangeOnlyLocLifter(StateLifter):
         # N x K matrix
         positions = self.theta.reshape(self.n_positions, -1)
         y_gt = (
-            np.linalg.norm(
-                self.landmarks[None, :, :] - positions[:, None, :], axis=2
-            )
+            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
             ** 2
         )
         y = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
@@ -317,7 +290,6 @@ class RangeOnlyLocLifter(StateLifter):
         msg = sol.message + f"(# iterations: {sol.nit})"
         return that, msg, cost
 
-
     @property
     def var_dict(self):
         var_dict = {"l": 1}
@@ -325,9 +297,15 @@ class RangeOnlyLocLifter(StateLifter):
         if self.level == "no":
             var_dict.update({f"z{n}": 1 for n in range(self.n_positions)})
         elif self.level == "quad":
-            # x^2, xy, y^2, 
+            # x^2, xy, y^2,
             for n in range(self.n_positions):
-                var_dict.update({f"z{n}:{d}": 1 for n in range(self.n_positions) for d in range(self.size_z)})
+                var_dict.update(
+                    {
+                        f"z{n}:{d}": 1
+                        for n in range(self.n_positions)
+                        for d in range(self.size_z)
+                    }
+                )
         return var_dict
 
     @property
@@ -343,7 +321,7 @@ class RangeOnlyLocLifter(StateLifter):
         if self.level == "no":
             return self.n_positions
         elif self.level == "quad":
-            return self.n_positions * self.d * (self.d+1)/2
+            return self.n_positions * self.d * (self.d + 1) / 2
 
     def __repr__(self):
         return f"rangeonlyloc{self.d}d_{self.level}"
