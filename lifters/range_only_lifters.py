@@ -1,9 +1,12 @@
+import matplotlib.pylab as plt
+import numpy as np
+from scipy.optimize import minimize
+import scipy.sparse as sp
+
+plt.ion()
+
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
-
-import scipy.sparse as sp
-from scipy.optimize import minimize
-import numpy as np
 
 SOLVER_KWARGS = dict(
     # method="Nelder-Mead",
@@ -40,8 +43,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
-
-            diag_idx = diag_indices(self.n_positions)
+            diag_idx = diag_indices(self.d)
 
         for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
             if self.W[n, k] > 0:
@@ -97,8 +99,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
-
-            diag_idx = diag_indices(self.n_positions)
+            diag_idx = diag_indices(self.d)
 
         A_list = []
         for n in range(self.n_positions):
@@ -141,24 +142,26 @@ class RangeOnlyLocLifter(StateLifter):
         jj = []
         data = []
 
+        idx = 0
         for n in range(self.n_positions):
             if self.level == "no":
                 ii += [n] * self.d
                 jj += list(range(n * self.d, (n + 1) * self.d))
                 data += list(2 * pos[n])
             elif self.level == "quad":
-                ii += list(range(n * self.size_z, (n + 1) * self.size_z))
                 # it seemed easier to do this manually that programtically
                 if self.d == 3:
                     x, y, z = pos[n]
-                    jj += [0, 0, 1, 0, 2, 1, 1, 2, 2]
+                    jj += [n * self.d + j for j in [0, 0, 1, 0, 2, 1, 1, 2, 2]]
                     data += [2 * x, y, x, z, x, 2 * y, z, y, 2 * z]
+                    ii += [idx + i for i in [0, 1, 1, 2, 2, 3, 4,4, 5]]
                 elif self.d == 2:
                     x, y = pos[n]
-                    jj += [0, 0, 1, 1]
+                    jj += [n * self.d + j for j in [0, 0, 1, 1]]
                     data += [2 * x, y, x, 2 * y]
-        J_lifting = sp.csr_array(
-            (data, (ii, jj)),
+                    ii += [idx + i for i in [0, 1, 1, 2]]
+                idx += self.size_z
+        J_lifting = sp.csr_array( (data, (ii, jj)),
             shape=(self.M, self.N),
         )
         return J_lifting
@@ -166,16 +169,22 @@ class RangeOnlyLocLifter(StateLifter):
     def get_hess_lifting(self, t):
         """return list of the hessians of the M lifting functions."""
         hessians = []
-        for n in range(self.M):
+        for n in range(self.n_positions):
+            idx = range(n * self.d, (n + 1) * self.d)
             if self.level == "no":
-                idx = range(n * self.d, (n + 1) * self.d)
                 hessian = sp.csr_array(
                     ([2] * self.d, (idx, idx)),
                     shape=(self.N, self.N),
                 )
                 hessians.append(hessian)
             elif self.level == "quad":
-                hessians += self.fixed_hessian_list
+                for h in self.fixed_hessian_list:
+                    ii, jj = np.meshgrid(idx, idx)
+                    hessian = sp.csr_array(
+                        (h.flatten(), (ii.flatten(), jj.flatten())),
+                        shape=(self.N, self.N),
+                    )
+                    hessians.append(hessian)
         return hessians
 
     @property
@@ -188,12 +197,12 @@ class RangeOnlyLocLifter(StateLifter):
             ]
         elif self.d == 3:
             return [
-                np.array([[2, 0, 0], [0, 0, 0][0, 0, 0]]),
-                np.array([[0, 1, 0], [1, 0, 0][0, 0, 0]]),
-                np.array([[0, 0, 1], [0, 0, 0][1, 0, 0]]),
-                np.array([[0, 0, 0], [0, 2, 0][0, 0, 0]]),
-                np.array([[0, 0, 0], [0, 0, 1][0, 1, 0]]),
-                np.array([[0, 0, 0], [0, 0, 0][0, 0, 2]]),
+                np.array([[2, 0, 0], [0, 0, 0], [0, 0, 0]]),
+                np.array([[0, 1, 0], [1, 0, 0], [0, 0, 0]]),
+                np.array([[0, 0, 1], [0, 0, 0], [1, 0, 0]]),
+                np.array([[0, 0, 0], [0, 2, 0], [0, 0, 0]]),
+                np.array([[0, 0, 0], [0, 0, 1], [0, 1, 0]]),
+                np.array([[0, 0, 0], [0, 0, 0], [0, 0, 2]]),
             ]
 
     def get_cost(self, t, y):
@@ -310,7 +319,10 @@ class RangeOnlyLocLifter(StateLifter):
 
     @property
     def size_z(self):
-        return int(self.d * (self.d + 1) / 2)
+        if self.level == "no":
+            return self.d
+        else:
+            return int(self.d * (self.d + 1) / 2)
 
     @property
     def N(self):
@@ -321,7 +333,7 @@ class RangeOnlyLocLifter(StateLifter):
         if self.level == "no":
             return self.n_positions
         elif self.level == "quad":
-            return self.n_positions * self.d * (self.d + 1) / 2
+            return int(self.n_positions * self.d * (self.d + 1) / 2)
 
     def __repr__(self):
         return f"rangeonlyloc{self.d}d_{self.level}"

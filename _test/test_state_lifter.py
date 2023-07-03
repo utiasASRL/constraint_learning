@@ -304,11 +304,9 @@ def test_vec_mat():
             A_test = lifter.get_mat(a, sparse=True)
             np.testing.assert_allclose(A.toarray(), A_test.toarray())
 
-            
             a_poly = lifter.convert_a_to_polyrow(a)
             a_test = lifter.convert_poly_to_a(a_poly)
             np.testing.assert_allclose(a, a_test)
-
 
         A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
         for A_l, A_k in zip(A_learned, A_known):

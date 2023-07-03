@@ -11,14 +11,12 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 d = 2
 n_landmarks = 4
 n_poses = 4
-Lifters = {
+Lifters = [
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
     # Stereo2DLifter: dict(n_landmarks=n_landmarks),
-    # RangeOnlyLocLifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no"),
-    RangeOnlyLocLifter: dict(
-        n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad"
-    ),
+    (RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no")),
+    (RangeOnlyLocLifter, dict( n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad")),
     # Stereo1DLifter: dict(n_landmarks=n_landmarks),
     # Stereo1DLifter: dict(n_landmarks=n_landmarks, param_level="p"),
     # Stereo3DLifter: dict(n_landmarks=n_landmarks),
@@ -29,11 +27,11 @@ Lifters = {
     #    n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="outer"
     # ),
     # RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
-}
+]
 
 
 # Below, we always reset seeds to make sure tests are reproducible.
 def all_lifters():
-    for Lifter, kwargs in Lifters.items():
+    for Lifter, kwargs in Lifters:
         np.random.seed(1)
         yield Lifter(**kwargs)

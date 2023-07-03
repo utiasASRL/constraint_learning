@@ -17,7 +17,7 @@ def diag_indices(n):
     # given the half kronecker product, return diagonal elements
     z = np.empty((n, n))
     z[np.triu_indices(n)] = range(int(n * (n+1)/2))
-    return np.diag(z)
+    return np.diag(z).astype(int)
 
 def increases_rank(mat, new_row):
     # TODO(FD) below is not the most efficient way of checking lin. indep.
