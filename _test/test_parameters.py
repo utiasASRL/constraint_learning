@@ -3,6 +3,7 @@ import matplotlib.pylab as plt
 
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 INCREMENTAL = True
@@ -73,7 +74,7 @@ def test_learned_constraints(d=2, param_level="ppT"):
 def test_learned_constraints_augment(d=2, param_level="ppT"):
     n_landmarks = 2  # z_0 and z_1
     if d == 1:
-        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level=param_level)
+        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
     elif d == 2:
         lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level=param_level, level="urT")
     else:
@@ -83,7 +84,7 @@ def test_learned_constraints_augment(d=2, param_level="ppT"):
         var_subset = ["l", "z_0", "z_1"]
         label_dict = lifter.var_dict_row(var_subset)
 
-        basis_list = lifter.get_basis_list(var_subset, eps=1e-6, plot=True)
+        basis_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, plot=True)
 
         basis_list_all = lifter.augment_basis_list(basis_list, var_subset=var_subset)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
@@ -205,7 +206,7 @@ def test_zero_padding():
     lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
 
     for var_subset in [("l", "x"), ("l", "x", "z_0")]:
-        var_dict = {k: lifter.var_dict[k] for k in var_subset}
+        var_dict = lifter.get_var_dict(var_subset)
         # get new patterns for this subset.
         Y = lifter.generate_Y(var_subset=var_subset)
         basis_new, S = lifter.get_basis(Y)
@@ -237,9 +238,10 @@ def test_zero_padding():
 
 
 if __name__ == "__main__":
-    #test_zero_padding()
-    #test_b_to_a()
-    #test_learned_constraints_augment(d=1, param_level="p")
+    test_zero_padding()
+    test_b_to_a()
+    test_learned_constraints_augment(d=1, param_level="p")
+    test_learned_constraints_augment(d=2, param_level="ppT")
     test_learned_constraints(d=2, param_level="ppT")
-    #test_canonical_operations()
+    test_canonical_operations()
     print("all tests passed")

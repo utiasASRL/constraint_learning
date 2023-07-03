@@ -3,7 +3,7 @@ import itertools
 import matplotlib.pylab as plt
 import numpy as np
 
-from lifters.range_only_lifters import RangeOnlyLifter
+from lifters.range_only_slam_lifters import RangeOnlyLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
 from poly_matrix.poly_matrix import PolyMatrix
 
@@ -31,6 +31,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
     """
 
     LEVELS = [
+        "no",
         "inner",
         "outer",
     ]
@@ -50,25 +51,6 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
         super().__init__(
             n_positions, n_landmarks, d, edges=edges, remove_gauge=remove_gauge
         )
-
-    @property
-    def M(self):
-        M = self.n_positions + self.n_landmarks + len(self.edges)
-        if self.level == "outer":
-            M *= self.d**2
-        return M
-
-    @property
-    def N(self):
-        if self.remove_gauge == "hard":
-            if self.d == 2:
-                # a1_x, a2, a3, ...
-                return self.n_positions * self.d + (self.n_landmarks - 2) * self.d + 1
-            else:
-                # a1_x, a2_x, a2_y, a3, a4, ...
-                return self.n_positions * self.d + (self.n_landmarks - 3) * self.d + 3
-        else:
-            return (self.n_positions + self.n_landmarks) * self.d
 
     @property
     def base_var_dict(self):
@@ -120,11 +102,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             x_data += [list(np.kron(a, a)) for a in landmarks]
             x_data += [list(np.kron(positions[n], landmarks[k])) for n, k in self.edges]
         x = np.concatenate(x_data, axis=0)
-        assert len(x) == self.N + self.M + 1
         return x
-
-    def generate_random_setup(self):
-        self.generate_random_landmarks()
 
     def sample_theta(self):
         positions = self.sample_random_positions()
@@ -145,7 +123,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                 self.ls_problem.add_residual(
                     {"l": y[n, k], f"tau{n}": -1, f"alpha{k}": -1, f"e{n}{k}": 2}
                 )
-            else:
+            elif self.level == "outer":
                 # d_nk**2 - ||t_n||**2 + 2t_n@a_k - ||a_k||**2
                 #   l       -I @ tau_n  +2I @ e_nk  -I @ alpha_k
                 self.ls_problem.add_residual(

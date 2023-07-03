@@ -22,11 +22,6 @@ def test_hess_finite_diff():
             except NotImplementedError:
                 print("get_hess not implemented?")
                 return
-            except Exception as e:
-                raise e
-                print(e)
-                print("get_hess not implemented?")
-                continue
 
             n = len(theta)
             I = np.eye(n) * eps
@@ -231,16 +226,17 @@ def test_constraints():
         test_with_tol(A_known, tol=1e-10)
 
         methods = ["qrp", "svd", "qr"]
-        rank = None
+        num_learned = None
         for method in methods:
             np.random.seed(0)
-            A_learned, __ = lifter.get_A_learned(factor=2, eps=1e-7, method=method)
+            A_learned = lifter.get_A_learned(eps=1e-7, method=method)
             test_with_tol(A_learned, tol=1e-4)
 
-            if rank is None:
-                rank = len(A_learned)
+            # make sure each method finds the same number of matrices
+            if num_learned is None:
+                num_learned = len(A_learned)
             else:
-                assert len(A_learned) == rank
+                assert len(A_learned) == num_learned
 
 
 def compare_solvers():
@@ -308,7 +304,13 @@ def test_vec_mat():
             A_test = lifter.get_mat(a, sparse=True)
             np.testing.assert_allclose(A.toarray(), A_test.toarray())
 
-        A_learned, __ = lifter.get_A_learned(A_known=A_known, normalize=False)
+            
+            a_poly = lifter.convert_a_to_polyrow(a)
+            a_test = lifter.convert_poly_to_a(a_poly)
+            np.testing.assert_allclose(a, a_test)
+
+
+        A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
         for A_l, A_k in zip(A_learned, A_known):
             np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
 

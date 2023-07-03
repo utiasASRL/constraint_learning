@@ -1,7 +1,6 @@
 import numpy as np
 
 from lifters.state_lifter import StateLifter
-from lifters.stereo_lifter import get_landmark_indices
 
 
 class Stereo1DLifter(StateLifter):
@@ -11,11 +10,7 @@ class Stereo1DLifter(StateLifter):
         self.n_landmarks = n_landmarks
         self.d = 1
         self.W = 1.0
-        self.theta_ = None
-        self.parameters = None
-        assert param_level in self.PARAM_LEVELS
-        self.param_level = param_level
-        super().__init__(theta_shape=(1,), M=n_landmarks)
+        super().__init__(param_level=param_level)
 
     @property
     def theta(self):
@@ -26,6 +21,9 @@ class Stereo1DLifter(StateLifter):
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks)
         self.parameters = self.get_parameters()
+
+    def generate_random_theta(self):
+        self.theta = self.sample_theta()
 
     def sample_theta(self):
         x_try = np.random.rand(1)
@@ -47,7 +45,7 @@ class Stereo1DLifter(StateLifter):
     def get_parameters(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
-        indices = get_landmark_indices(var_subset)
+        indices = self.get_variable_indices(var_subset)
         if self.param_level == "p":
             return np.r_[1.0, self.landmarks[indices]]
         elif self.param_level == "no":
@@ -94,7 +92,7 @@ class Stereo1DLifter(StateLifter):
         if self.param_level == "no":
             return np.array([1.0])
 
-        landmarks = get_landmark_indices(var_subset)
+        landmarks = self.get_variable_indices(var_subset)
         if len(landmarks):
             sub_p = np.r_[1.0, parameters[1:][landmarks]]
             if self.param_level == "p":
@@ -109,13 +107,16 @@ class Stereo1DLifter(StateLifter):
         vars = ["l", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
-    def get_param_dict(self, var_subset=None):
+    def get_param_idx_dict(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
         param_dict_ = {"l": 0}
-        indices = get_landmark_indices(var_subset)
+        if self.param_level == "no":
+            return param_dict_
+
+        indices = self.get_variable_indices(var_subset)
         for n in indices:
-            param_dict_[f"p_{n}"] = n + 1
+            param_dict_[f"p_{n}"] = n+1
         return param_dict_
 
     def get_grad(self, t, y):

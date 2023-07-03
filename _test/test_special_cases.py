@@ -1,3 +1,7 @@
+"""
+TODO: SLAM is currently not supported and therefore these tests are not being kept up to date.
+"""
+
 import matplotlib.pylab as plt
 import numpy as np
 
@@ -11,7 +15,7 @@ n_landmarks = 5
 n_poses = 5
 
 
-def test_equivalent_lifters():
+def old_test_equivalent_lifters():
     np.random.seed(1)
     l1 = RangeOnlySLAM1Lifter(n_positions=n_poses, n_landmarks=n_landmarks, d=d)
     np.random.seed(1)
@@ -57,7 +61,7 @@ def test_levels():
         lifter_3d.get_x()
 
 
-def test_gauge():
+def old_test_gauge():
     import itertools
 
     # TODO(FD): understand why 3D needs 5 landmarks and positions
@@ -107,7 +111,7 @@ def test_gauge():
 
 
 if __name__ == "__main__":
-    test_equivalent_lifters()
-    test_gauge()
+    #test_equivalent_lifters()
+    #test_gauge()
     test_levels()
     print("all tests passed")

@@ -1,6 +1,6 @@
 from lifters.plotting_tools import *
 from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
-from lifters.range_only_lifters import RangeOnlyLifter
+from lifters.range_only_slam_lifters import RangeOnlyLifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
