@@ -15,10 +15,12 @@ def change_dimensions(a, y):
 
 
 class Stereo3DLifter(StereoLifter):
-    def __init__(self, n_landmarks, level="no"):
-        self.W = np.stack([np.eye(4)] * n_landmarks)
+    def __init__(self, n_landmarks, level="no", param_level="no"):
+        self.W = np.stack([np.eye(2)] * n_landmarks)
         self.M_matrix_ = None
-        super().__init__(n_landmarks=n_landmarks, level=level, d=3)
+        super().__init__(
+            n_landmarks=n_landmarks, level=level, param_level=param_level, d=3
+        )
 
     @property
     def M_matrix(self):

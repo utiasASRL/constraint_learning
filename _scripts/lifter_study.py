@@ -1,9 +1,11 @@
 import pickle
 
 import numpy as np
+import matplotlib.pylab as plt
 
 from lifters.learner import Learner
 from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 
@@ -41,30 +43,43 @@ def find_minimal_constraints(lifter, fname_root):
 
 if __name__ == "__main__":
     import itertools
-    n_landmarks = 20
-    n_positions = 10
     max_vars = 2  # n_landmarks
-    seeds = range(10) 
-    seeds = [1]
+    #seeds = range(10) 
+    seeds = [0]
+    d = 2
 
-    #level = "urT" # for stereo
+    n_landmarks = 10
+    lifter_type = "stereo"
+    level = "urT" # for stereo
+    parameter_levels = ["ppT"] #["no", "p", "ppT"]
+
+    #n_landmarks = 30
+    #n_positions = 10
+    #lifter_type = "range"
     #level = "no" # for range-only
-    level = "quad" # for range-only
+    #level = "quad" # for range-only
+    #parameter_levels = ["no"]
 
-    #parameter_levels = ["ppT"] #["no", "p", "ppT"]
-
-    parameter_levels = ["no"] 
     for seed, param_level in itertools.product(seeds, parameter_levels):
         print(f"============= seed {seed} parameters {param_level} ================")
         np.random.seed(seed)
-        #lifter = Stereo2DLifter(
-        #    n_landmarks=n_landmarks, level="urT", param_level=param_level
-        #)
-        lifter = RangeOnlyLocLifter(n_positions=n_positions, n_landmarks=n_landmarks, d=2, level=level, W=None)
+        if lifter_type == "stereo":
+            if d == 2:
+                lifter = Stereo2DLifter(
+                    n_landmarks=n_landmarks, level=level, param_level=param_level
+                )
+            elif d == 3:
+                lifter = Stereo3DLifter(
+                    n_landmarks=n_landmarks, level=level, param_level=param_level
+                )
+        elif lifter_type == "range":
+            lifter = RangeOnlyLocLifter(n_positions=n_positions, n_landmarks=n_landmarks, d=d, level=level, W=None)
+        else:
+            raise ValueError(lifter_type)
         learner = Learner(lifter=lifter, variable_list=lifter.VARIABLE_LIST)
 
         fname_root = f"_results/{lifter}_seed{seed}"
-        learner.run(verbose=True)
+        learner.run(verbose=True, use_known=False)
 
         df = learner.get_sorted_df()
         title = f"{param_level} parameters, {level} level, seed {seed}"
@@ -73,8 +88,6 @@ if __name__ == "__main__":
         #learner.save_patterns(
         #    fname_root=fname_root, title=title, with_parameters=False
         #)
-
-    import matplotlib.pylab as plt
 
     plt.show()
     print("done")

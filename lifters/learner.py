@@ -17,11 +17,12 @@ SEED = 5
 
 ADJUST = True
 TOL_REL_GAP = 1e-3
+TOL_RANK_ONE = 1e5
 
 # threshold for SVD
 EPS_SVD = 1e-5
 
-N_CLEANING_STEPS = 1 # set to 0 for no effect
+N_CLEANING_STEPS = 2 # set to 0 for no effect
 
 class Learner(object):
     """
@@ -126,14 +127,23 @@ class Learner(object):
         )
         if not verbose:
             return res
-        elif res:
-            print(
-                f"achieved strong duality: qcqp cost={self.solver_vars['qcqp_cost']:.2e}, dual cost={dual_cost:.2e}"
-            )
-        elif not res:
-            print(
-                f"no strong duality yet: qcqp cost={self.solver_vars['qcqp_cost']:.2e}, dual cost={dual_cost:.2e}"
-            )
+
+        if res:
+            print(f"achieved weak tightness:")
+        else:
+            print(f"no weak tightness yet:")
+        print(f"qcqp cost={self.solver_vars['qcqp_cost']:.4e}, dual cost={dual_cost:.4e}")
+        return res
+
+    def is_rank_one(self, eigs, verbose=False):
+        res = eigs[0] / eigs[1] > TOL_RANK_ONE
+        if not verbose: 
+            return res
+        if res:
+            print("achieved strong tightness:")
+        else:
+            print("no strong tightness yet:")
+        print(f"first two eigenvalues: {eigs[0]:.2e}, {eigs[1]:.2e}, ratio:{eigs[0] / eigs[1]:.2e}")
         return res
 
     def is_tight(self, verbose=False):
@@ -153,7 +163,10 @@ class Learner(object):
         else:
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
-            return self.duality_gap_is_zero(info["cost"], verbose=verbose)
+
+            weak_tightness = self.duality_gap_is_zero(info["cost"], verbose=verbose)
+            strong_tightness = self.is_rank_one(eigs, verbose=verbose)
+            return strong_tightness
 
     def generate_minimal_subset(self, reorder=False):
         from solvers.sparse import solve_lambda
@@ -235,14 +248,14 @@ class Learner(object):
             return False
 
     def learn_patterns(self, use_known=False):
-        Y = self.lifter.generate_Y(var_subset=self.mat_vars)
+        Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=1.5)
 
         if use_known:
             basis_current = self.get_b_current()
             if basis_current is not None:
                 Y = np.vstack([Y, basis_current])
 
-        print(f"{self.mat_vars}:", end="")
+        print(f"{self.mat_vars}: Y {Y.shape}", end="")
         for i in range(N_CLEANING_STEPS + 1):
             # TODO(FD) can we enforce lin. independance to previously found
             # matrices at this point?
