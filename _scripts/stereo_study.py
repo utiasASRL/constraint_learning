@@ -4,13 +4,12 @@ import numpy as np
 
 from lifters.learner import Learner
 from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 
 
 def find_minimal_constraints(lifter, fname_root):
     """
     Find the set of minimal constraints required for tightness, using the one-shot approach.
-
-
     """
     try:
         with open(fname_root + ".pkl", "rb") as f:
@@ -42,44 +41,35 @@ def find_minimal_constraints(lifter, fname_root):
 
 if __name__ == "__main__":
     import itertools
-    n_landmarks = 3
+    n_landmarks = 20
+    n_positions = 10
     max_vars = 2  # n_landmarks
     seeds = range(10) 
     seeds = [1]
 
-    # doesn't get to tightness
-    variable_list = [
-        ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(max_vars + 1)
-    ]
+    #level = "urT" # for stereo
+    #level = "no" # for range-only
+    level = "quad" # for range-only
 
-    # gets to tightness!
-    variable_list = [
-        ["l"] + [f"z_{i}" for i in range(j)] for j in range(1, max_vars + 1)
-    ]
+    #parameter_levels = ["ppT"] #["no", "p", "ppT"]
 
-    variable_list = [
-        #["l", "x"], 
-        #["l", "z_0"], 
-        #["l", "x", "z_0"], 
-        ["l", "z_0", "z_1"]
-    ]
-
-    parameter_levels = ["ppT"] #["no", "p", "ppT"]
+    parameter_levels = ["no"] 
     for seed, param_level in itertools.product(seeds, parameter_levels):
         print(f"============= seed {seed} parameters {param_level} ================")
         np.random.seed(seed)
-        lifter = Stereo2DLifter(
-            n_landmarks=n_landmarks, level="urT", param_level=param_level
-        )
-        learner = Learner(lifter=lifter, variable_list=variable_list)
+        #lifter = Stereo2DLifter(
+        #    n_landmarks=n_landmarks, level="urT", param_level=param_level
+        #)
+        lifter = RangeOnlyLocLifter(n_positions=n_positions, n_landmarks=n_landmarks, d=2, level=level, W=None)
+        learner = Learner(lifter=lifter, variable_list=lifter.VARIABLE_LIST)
 
         fname_root = f"_results/{lifter}_seed{seed}"
         learner.run(verbose=True)
 
         df = learner.get_sorted_df()
-        title = f"{param_level} parameters, {variable_list}, seed {seed}"
+        title = f"{param_level} parameters, {level} level, seed {seed}"
         learner.save_sorted_patterns(df, fname_root=fname_root, title=title)
-        learner.save_tightness(fname_root=fname_root, title=title, variable_list=variable_list)
+        learner.save_tightness(fname_root=fname_root, title=title)
         #learner.save_patterns(
         #    fname_root=fname_root, title=title, with_parameters=False
         #)

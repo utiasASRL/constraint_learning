@@ -40,8 +40,8 @@ MAX_N_SUBSETS = 2
 
 class StateLifter(BaseClass):
     @staticmethod
-    def get_variable_indices(var_subset):
-        return [int(v.split("_")[-1]) for v in var_subset if v.startswith("z_")]
+    def get_variable_indices(var_subset, variable="z"):
+        return [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
 
     @staticmethod
     def create_symmetric(triu_vector, size):
@@ -94,6 +94,8 @@ class StateLifter(BaseClass):
             self.var_dict_.update(self.base_var_dict)
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
+
+
 
     def get_var_dict(self, var_subset=None):
         if var_subset is not None:
@@ -250,14 +252,17 @@ class StateLifter(BaseClass):
             labels.append(label)
         return labels
 
-    def var_list_row(self, var_subset=None):
+    def var_list_row(self, var_subset=None, force_parameters_off=False):
         if var_subset is None:
             var_subset = list(self.var_dict.keys())
         elif type(var_subset) == dict:
             var_subset = list(var_subset.keys())
 
         label_list = []
-        param_dict = self.get_param_idx_dict(var_subset)
+        if force_parameters_off:
+            param_dict = {"l": 0}
+        else:
+            param_dict = self.get_param_idx_dict(var_subset)
         for idx, key in enumerate(param_dict.keys()):
             for i in range(len(var_subset)):
                 zi = var_subset[i]
@@ -280,8 +285,8 @@ class StateLifter(BaseClass):
             assert len(label_list) == (idx + 1) * self.get_dim_X(var_subset)
         return label_list
 
-    def var_dict_row(self, var_subset=None):
-        return {l: 1 for l in self.var_list_row(var_subset)}
+    def var_dict_row(self, var_subset=None, force_parameters_off=False):
+        return {l: 1 for l in self.var_list_row(var_subset, force_parameters_off=force_parameters_off)}
 
     def get_basis_from_poly_rows(self, basis_poly_list, var_subset=None):
         var_dict = self.get_var_dict(var_subset=var_subset)
@@ -535,17 +540,12 @@ class StateLifter(BaseClass):
                 return basis_list
             print(f"{var_subset}: {corank} learned matrices found")
             self.test_S_cutoff(S, corank, eps=eps_svd)
-
-            errors = np.abs(basis_new @ Y.T)  # Nb x n x n x Ns = Nb x Ns
-            bad_bins = np.unique(np.argmax(errors, axis=1))
-            if plot:
-                fig, ax = plt.subplots()
-                ax.semilogy(np.min(errors, axis=1))
-                ax.semilogy(np.max(errors, axis=1))
-                ax.semilogy(np.median(errors, axis=1))
-                ax.semilogy(S[-corank:])
-
-            Y = np.delete(Y, bad_bins, axis=0)
+            bad_bins = self.clean_Y(basis_new, Y, S[-corank:], plot)
+            if len(bad_bins) > 0:
+                print(f"deleting {len(bad_bins)}")
+                Y = np.delete(Y, bad_bins, axis=0)
+            else:
+                break
 
         if plot:
             from lifters.plotting_tools import plot_singular_values
@@ -596,16 +596,18 @@ class StateLifter(BaseClass):
                         i = int(var_base.split("_")[-1])
                         unique_idx.add(i)
 
+            variable_indices = self.get_variable_indices(self.var_dict)
             # if z_0 is in this constraint, repeat the constraint for each landmark.
-            for idx in itertools.combinations(range(n_landmarks), len(unique_idx)):
+            for idx in itertools.combinations(variable_indices, len(unique_idx)):
                 new_poly_row = PolyMatrix(symmetric=False)
                 for key in bi_poly.variable_dict_j:
                     # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
                     key_ij = key
                     for from_, to_ in zip(range(len(unique_idx)), idx):
+                        key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
                         key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
                         key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
-                    key_ij = key_ij.replace("zi", "z").replace("pi", "p")
+                    key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x")
                     if verbose and (key != key_ij):
                         print("changed", key, "to", key_ij)
                     new_poly_row["l", key_ij] = bi_poly["l", key]
@@ -659,6 +661,19 @@ class StateLifter(BaseClass):
             p = self.get_p(parameters=parameters, var_subset=var_subset)
             Y[seed, :] = np.kron(p, self.get_vec(X))
         return Y
+
+    def clean_Y(self, basis_new, Y, s, plot=False):
+        errors = np.abs(basis_new @ Y.T)  # Nb x n x n x Ns = Nb x Ns
+        if np.all(errors < 1e-10):
+            return []
+        bad_bins = np.unique(np.argmax(errors, axis=1))
+        if plot:
+            fig, ax = plt.subplots()
+            ax.semilogy(np.min(errors, axis=1))
+            ax.semilogy(np.max(errors, axis=1))
+            ax.semilogy(np.median(errors, axis=1))
+            ax.semilogy(s)
+        return bad_bins 
 
     def get_basis(
         self,

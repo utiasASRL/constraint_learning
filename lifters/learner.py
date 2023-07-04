@@ -1,13 +1,16 @@
+import time
+
 import numpy as np
 import pandas as pd
 
-from utils.plotting_tools import import_plt
 
+from utils.plotting_tools import import_plt
 plt = import_plt()
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.plotting_tools import savefig
+from utils.common import increases_rank
 
 NOISE = 1e-2
 SEED = 5
@@ -18,8 +21,7 @@ TOL_REL_GAP = 1e-3
 # threshold for SVD
 EPS_SVD = 1e-5
 
-from lifters.utils import increases_rank
-
+N_CLEANING_STEPS = 1 # set to 0 for no effect
 
 class Learner(object):
     """
@@ -47,6 +49,7 @@ class Learner(object):
         # list of dual costs
         self.ranks = []
         self.dual_costs = []
+        self.variable_list = []
         self.solver_vars = None
 
     @property
@@ -140,6 +143,7 @@ class Learner(object):
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         X, info = self._test_tightness(A_b_list_all, verbose=True)
         self.dual_costs.append(info["cost"])
+        self.variable_list.append(self.mat_vars)
         if info["cost"] is None:
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print("Warning: is problem infeasible?")
@@ -238,13 +242,21 @@ class Learner(object):
             if basis_current is not None:
                 Y = np.vstack([Y, basis_current])
 
-        basis_new, S = self.lifter.get_basis(Y, eps=EPS_SVD)
-        corank = basis_new.shape[0]
-
-        if corank > 0:
-            StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
-
-        print(f"{self.mat_vars}: found {corank} candidate patterns...", end="")
+        print(f"{self.mat_vars}:", end="")
+        for i in range(N_CLEANING_STEPS + 1):
+            # TODO(FD) can we enforce lin. independance to previously found
+            # matrices at this point?
+            basis_new, S = self.lifter.get_basis(Y, eps_svd=EPS_SVD)
+            corank = basis_new.shape[0]
+            print(f"found {corank} candidate patterns...", end="")
+            if corank > 0:
+                StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
+            bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
+            if len(bad_idx) > 0:
+                print(f"deleting {len(bad_idx)} and trying again...", end="")
+                Y = np.delete(Y, bad_idx, axis=0)
+            else:
+                break
 
         new_patterns = []
         for i, bi_sub in enumerate(basis_new):
@@ -274,6 +286,9 @@ class Learner(object):
 
                 self.A_matrices.append((name, Ai))
         print(f"...{len(new_patterns)} are independent.")
+        self.b_tuples += [
+            ((i, self.mat_vars), p) for i, p in enumerate(new_patterns)
+        ]
         return new_patterns
 
     def apply_patterns(self, new_patterns):
@@ -281,9 +296,7 @@ class Learner(object):
         valid_list = []
 
         for i, new_pattern in enumerate(new_patterns):
-            if (self.lifter.param_level == "no") and any(
-                ["z" in var for var in self.mat_vars]
-            ):
+            if False: # need to figure out if we need something here.
                 # if we did not add parameters, then each learned constraint only applies to
                 # one specific landmark, and we can't add any augmented constraints
                 # (they will all be invalid and rejected anyways)
@@ -332,23 +345,31 @@ class Learner(object):
         return valid_list
 
     def run(self, use_known=True, verbose=False):
-        while not self.is_tight(verbose=verbose):
+        while 1:
             # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
                 break
 
             # learn new patterns, orthogonal to the ones found so far.
+            t1 = time.time()
             new_patterns = self.learn_patterns(use_known=use_known)
             if len(new_patterns) == 0:
                 print("new variables didn't have any effect")
                 continue
+            print(f"pattern learning:   {time.time() - t1:.3f}s")
 
             # apply the pattern to all landmarks
+            t1 = time.time()
             self.apply_patterns(new_patterns)
-            self.b_tuples += [
-                ((i, self.mat_vars), p) for i, p in enumerate(new_patterns)
-            ]
+            print(f"applying patterns:  {time.time() - t1:.3f}s")
+
+            t1 = time.time()
+            is_tight = self.is_tight(verbose=verbose)
+            print(f"checking tightness: {time.time() - t1:.3f}s")
+            if is_tight: 
+                break
+
 
     def get_sorted_df(self):
         series = []
@@ -417,7 +438,7 @@ class Learner(object):
 
         # make sure variable_dict_j is ordered correctly.
         patterns_poly.variable_dict_j = self.lifter.var_dict_row(
-            mat_vars, with_parameters=not factor_out_parameters
+            mat_vars, force_parameters_off=not factor_out_parameters
         )
         return patterns_poly
 
@@ -431,7 +452,7 @@ class Learner(object):
                 poly_matrix[i, k] = val
 
         variables_j = self.lifter.var_dict_row(
-            var_subset=self.mat_vars, with_parameters=False
+            var_subset=self.mat_vars, force_parameters_off=True
         )
         fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
         ax.set_title(title)
@@ -452,10 +473,6 @@ class Learner(object):
         return fig, ax
 
     def save_patterns(self, fname_root="", title="", with_parameters=False):
-        if variable_list is not None:
-            labels = variable_list
-        else:
-            labels = self.mat_vars[-len(self.dual_costs) :]
         from utils.plotting_tools import plot_basis
 
         patterns_poly = self.generate_patterns_poly(
@@ -474,16 +491,12 @@ class Learner(object):
             savefig(fig, fname_root + "_patterns.png")
         return fig, ax
 
-    def save_tightness(self, fname_root, title="", variable_list=None):
-        if variable_list is not None:
-            labels = [["l"]] + variable_list
-            labels = labels[: len(self.dual_costs)]
-        else:
-            labels = self.mat_vars[-len(self.dual_costs) :]
+    def save_tightness(self, fname_root, title=""):
+        labels = self.variable_list
 
         fig, ax = plt.subplots()
         xticks = range(len(self.dual_costs))
-        ax.semilogy(xticks, self.dual_costs)
+        ax.semilogy(xticks, self.dual_costs, marker="o")
         ax.set_xticks(xticks, labels)
         ax.axhline(self.solver_vars["qcqp_cost"], color="k", ls=":")
         ax.set_title(title)
@@ -542,7 +555,6 @@ if __name__ == "__main__":
     fname_root = f"_results/{lifter}"
     learner.run()
     learner.save_patterns(with_parameters=True, fname_root=fname_root)
-    learner.save_tightness(fname_root)
     # learner.save_matrices(fname_root)
     plt.show()
     print("done")

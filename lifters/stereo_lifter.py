@@ -62,6 +62,19 @@ class StereoLifter(StateLifter, ABC):
         "urT",
     ]
     PARAM_LEVELS = ["no", "p", "ppT"]
+    MAX_VARS = 4
+    # no tightness
+    VARIABLE_LIST = [
+        ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(MAX_VARS + 1)
+    ]
+    # tightness sometimes
+    VARIABLE_LIST = [
+        ["l"] + [f"z_{i}" for i in range(j)] for j in range(1, MAX_VARS + 1)
+        #["l", "x"], 
+        #["l", "z_0"], 
+        #["l", "x", "z_0"], 
+        #["l", "z_0", "z_1"]
+    ]
 
     def __init__(self, n_landmarks, d, level="no", param_level="no"):
         self.d = d

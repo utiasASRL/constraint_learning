@@ -23,7 +23,12 @@ class RangeOnlyLocLifter(StateLifter):
     """
 
     LEVELS = ["no", "quad"]
-
+    VARIABLE_LIST = [
+        ["l"],
+        ["l", "x_0"],
+        ["l", "x_0", "z_0"],
+        ["l", "x_0", "x_1", "z_0", "z_1"],
+    ]
     def __init__(self, n_positions, n_landmarks, d, W=None, level="no"):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
@@ -33,37 +38,8 @@ class RangeOnlyLocLifter(StateLifter):
             assert W.shape == (n_landmarks, n_positions)
             self.W = W
         else:
-            self.W = np.ones((n_landmarks, n_positions))
+            self.W = np.ones((n_positions, n_landmarks))
         super().__init__(level=level)
-
-    def get_Q_from_y(self, y):
-        import itertools
-
-        self.ls_problem = LeastSquaresProblem()
-
-        if self.level == "quad":
-            from utils.common import diag_indices
-            diag_idx = diag_indices(self.d)
-
-        for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
-            if self.W[n, k] > 0:
-                ak = self.landmarks[k]
-                if self.level == "no":
-                    self.ls_problem.add_residual(
-                        {
-                            "l": y[n, k] - np.linalg.norm(ak) ** 2,
-                            f"x{n}": 2 * ak.reshape((1, -1)),
-                            f"z{n}": -1,
-                        }
-                    )
-                elif self.level == "quad":
-                    res_dict = {
-                        "l": y[n, k] - np.linalg.norm(ak) ** 2,
-                        f"x{n}": 2 * ak.reshape((1, -1)),
-                    }
-                    res_dict.update({f"z{n}:{i}": -1 for i in diag_idx})
-                    self.ls_problem.add_residual(res_dict)
-        return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
@@ -104,12 +80,13 @@ class RangeOnlyLocLifter(StateLifter):
         A_list = []
         for n in range(self.n_positions):
             A = PolyMatrix()
-            A[f"x{n}", f"x{n}"] = np.eye(self.d)
+            A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
             if self.level == "no":
-                A["l", f"z{n}"] = -0.5
+                A["l", f"z_{n}"] = -0.5
             elif self.level == "quad":
-                for i in diag_idx:
-                    A["l", f"z{n}:{i}"] = -0.5
+                mat = np.zeros((1, self.size_z))
+                mat[0, diag_idx] = -0.5
+                A["l", f"z_{n}"] = mat
             A_list.append(A.get_matrix(self.var_dict))
         return A_list
 
@@ -125,15 +102,20 @@ class RangeOnlyLocLifter(StateLifter):
 
         positions = theta.reshape(self.n_positions, -1)
 
-        x_data = [1.0]
-        x_data += list(theta)
-
-        for n in range(self.n_positions):
-            if self.level == "no":
-                x_data.append(np.linalg.norm(positions[n]) ** 2)
-            elif self.level == "quad":
-                x_data += list(upper_triangular(positions[n]))
-        assert len(x_data) == self.N + self.M + 1
+        x_data = [] 
+        for key in var_subset:
+            if key == "l":
+                x_data.append(1.0)
+            elif "x" in key:
+                n = int(key.split("_")[-1])
+                x_data += list(positions[n])
+            elif "z" in key:
+                n = int(key.split("_")[-1])
+                if self.level == "no":
+                    x_data.append(np.linalg.norm(positions[n]) ** 2)
+                elif self.level == "quad":
+                    x_data += list(upper_triangular(positions[n]))
+        assert len(x_data) == self.get_dim_x(var_subset)
         return np.array(x_data)
 
     def get_J_lifting(self, t):
@@ -253,6 +235,38 @@ class RangeOnlyLocLifter(StateLifter):
             hess += 2 * factor * h
         return hess
 
+    def get_Q_from_y(self, y):
+        import itertools
+
+        self.ls_problem = LeastSquaresProblem()
+
+        if self.level == "quad":
+            from utils.common import diag_indices
+            diag_idx = diag_indices(self.d)
+
+        for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
+            if self.W[n, k] > 0:
+                ak = self.landmarks[k]
+                if self.level == "no":
+                    self.ls_problem.add_residual(
+                        {
+                            "l": y[n, k] - np.linalg.norm(ak) ** 2,
+                            f"x_{n}": 2 * ak.reshape((1, -1)),
+                            f"z_{n}": -1,
+                        }
+                    )
+                elif self.level == "quad":
+                    mat = np.zeros((1, self.size_z))
+                    mat[0, diag_idx] = -1
+                    res_dict = {
+                        "l": y[n, k] - np.linalg.norm(ak) ** 2,
+                        f"x_{n}": 2 * ak.reshape((1, -1)),
+                        f"z_{n}": mat
+                    }
+                    self.ls_problem.add_residual(res_dict)
+        return self.ls_problem.get_Q().get_matrix(self.var_dict)
+
+
     def get_Q(self, noise: float = 1e-3) -> tuple:
         # N x K matrix
         positions = self.theta.reshape(self.n_positions, -1)
@@ -302,19 +316,11 @@ class RangeOnlyLocLifter(StateLifter):
     @property
     def var_dict(self):
         var_dict = {"l": 1}
-        var_dict.update({f"x{n}": self.d for n in range(self.n_positions)})
+        var_dict.update({f"x_{n}": self.d for n in range(self.n_positions)})
         if self.level == "no":
-            var_dict.update({f"z{n}": 1 for n in range(self.n_positions)})
+            var_dict.update({f"z_{n}": 1 for n in range(self.n_positions)})
         elif self.level == "quad":
-            # x^2, xy, y^2,
-            for n in range(self.n_positions):
-                var_dict.update(
-                    {
-                        f"z{n}:{d}": 1
-                        for n in range(self.n_positions)
-                        for d in range(self.size_z)
-                    }
-                )
+            var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
         return var_dict
 
     @property
