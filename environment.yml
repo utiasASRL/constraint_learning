@@ -19,6 +19,7 @@ dependencies:
     - black>=23.1.0
 
     - pip:
+      - sparseqr
       - asrl-pylgmath>=1.0.3
       - -e poly_matrix # build local poly_matrix submodule
       - -e .  # build local lifting package

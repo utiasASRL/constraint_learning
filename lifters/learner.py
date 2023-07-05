@@ -2,6 +2,7 @@ import time
 
 import numpy as np
 import pandas as pd
+import scipy.sparse as sp
 
 
 from utils.plotting_tools import import_plt
@@ -17,10 +18,12 @@ SEED = 5
 
 ADJUST = True
 TOL_REL_GAP = 1e-3
-TOL_RANK_ONE = 1e5
+TOL_RANK_ONE = 1e8
 
 # threshold for SVD
 EPS_SVD = 1e-5
+# threshold to consider matrix element zero
+EPS_SPARSE = 1e-12
 
 N_CLEANING_STEPS = 2 # set to 0 for no effect
 
@@ -29,9 +32,11 @@ class Learner(object):
     Class to incrementally learn and augment constraint patterns until we reach tightness.
     """
 
-    def __init__(self, lifter: StateLifter, variable_list: list):
+    def __init__(self, lifter: StateLifter, variable_list: list, apply_patterns:bool=True):
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
+
+        self.apply_patterns_to_others = apply_patterns
 
         self.mat_vars = ["l"]
 
@@ -69,21 +74,28 @@ class Learner(object):
             )
         return self.patterns_poly_
 
-    def get_a_current(self):
+    def get_a_current(self, sparse=False):
         target_mat_var_dict = self.lifter.var_dict
         if self.a_current_ is None:
             a_list = [
-                self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict))
+                self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict), sparse=sparse)
                 for __, A_poly in self.A_matrices
             ]
             if len(a_list):
-                self.a_current_ = np.vstack(a_list)
+                if sparse:
+                    self.a_current_ = sp.vstack(a_list)
+                else:
+                    self.a_current_ = np.vstack(a_list)
         elif self.a_current_.shape[0] < len(self.A_matrices):
             a_list = [
-                self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict))
+                self.lifter.get_vec(A_poly.get_matrix(target_mat_var_dict), sparse=sparse)
                 for __, A_poly in self.A_matrices[self.a_current_.shape[0] :]
             ]
-            self.a_current_ = np.vstack([self.a_current_] + a_list)
+            if len(a_list):
+                if sparse:
+                    self.a_current_ = sp.vstack([self.a_current_] + a_list)
+                else:
+                    self.a_current_ = np.vstack([self.a_current_] + a_list)
         return self.a_current_
 
     def get_b_current(self, target_mat_var_dict=None):
@@ -168,8 +180,9 @@ class Learner(object):
             strong_tightness = self.is_rank_one(eigs, verbose=verbose)
             return strong_tightness
 
-    def generate_minimal_subset(self, reorder=False):
+    def generate_minimal_subset(self, reorder=False, ax_cost=None, ax_eigs=None):
         from solvers.sparse import solve_lambda
+        from matplotlib.ticker import MaxNLocator
 
         A_list = [
             A_poly.get_matrix(self.lifter.var_dict) for __, A_poly in self.A_matrices
@@ -194,34 +207,86 @@ class Learner(object):
             sorted_idx = range(len(self.A_matrices))
         A_b_list = [(self.lifter.get_A0(), 1.0)]
 
+        A_matrices_sorted = []
         dual_costs = []
+        ranks = []
         tightness_counter = 0
+        rank_idx = None
+        cost_idx = None
         for i, idx in enumerate(sorted_idx):
-            Ai_sparse = self.A_matrices[idx][1].get_matrix(self.lifter.var_dict)
+
+            name, Ai_poly = self.A_matrices[idx]
+            Ai_sparse = Ai_poly.get_matrix(self.lifter.var_dict)
+
             A_b_list += [(Ai_sparse, 0.0)]
             X, info = self._test_tightness(A_b_list, verbose=False)
             dual_cost = info["cost"]
             # dual_cost = 1e-10
             dual_costs.append(dual_cost)
             if dual_cost is None:
+                ranks.append(np.zeros(A_b_list[0].shape[0]))
                 print(f"{i}/{len(sorted_idx)}: solver error")
-            elif self.duality_gap_is_zero(dual_cost):
-                print(f"{i}/{len(sorted_idx)}: tight")
+                continue
+
+            eigs = np.linalg.eigvalsh(X)[::-1]
+            ranks.append(eigs)
+            if self.duality_gap_is_zero(dual_cost):
+                if cost_idx is None:
+                    cost_idx = i
+                    print(f"{i}/{len(sorted_idx)}: cost-tight")
+            else:
+                pass
+                #print(f"{i}/{len(sorted_idx)}: not cost-tight yet")
+
+            if self.is_rank_one(eigs):
+                if rank_idx is None:
+                    rank_idx = i
+                    print(f"{i}/{len(sorted_idx)}: rank-tight")
                 tightness_counter += 1
             else:
-                print(f"{i}/{len(sorted_idx)}: not tight yet")
+                pass
+                #print(f"{i}/{len(sorted_idx)}: not rank-tight yet")
+
+            # add all necessary constraints to the list.
+            if tightness_counter <= 1:
+                A_matrices_sorted.append((name, Ai_poly))
+
             if tightness_counter > 10:
                 break
 
-        plt.figure()
-        plt.axhline(self.solver_vars["qcqp_cost"], color="k")
-        plt.scatter(range(len(dual_costs)), dual_costs)
-        plt.show()
+        if ax_cost is not None:
+            ax_cost.semilogy(range(len(dual_costs)), dual_costs, marker="o")
+        ax_cost.xaxis.set_major_locator(MaxNLocator(integer=True))
+        ax_cost.set_xlabel("number of added constraints")
+        ax_cost.set_ylabel("cost")
+        ax_cost.grid(True)
 
-        # b_tuples constains all of A_matrices in this case, and has the same ordering.
-        # TODO(FD): this only works when we don't do incremental learning -- make this more explicit
-        # or improve the implementation.
-        return [self.b_tuples[idx] for idx in sorted_idx[:i]]
+        if ax_eigs is not None:
+            cmap = plt.get_cmap("viridis", len(ranks))
+            for i, eig in enumerate(ranks):
+                label = None
+                color=cmap(i)
+                if i == len(ranks) // 2:
+                    label="..."
+                if i == 0:
+                    label=f"{i+1}"
+                if i == len(ranks) - 1:
+                    label=f"{i+1}"
+                if i == cost_idx: 
+                    label=f"{i+1}: cost-tight"
+                    color="red"
+                if i == rank_idx: 
+                    label=f"{i+1}: rank-tight"
+                    color="black"
+                ax_eigs.semilogy(eig, color=color, label=label)
+
+            # make sure these two are in foreground
+            ax_eigs.semilogy(ranks[cost_idx], color="red")
+            ax_eigs.semilogy(ranks[rank_idx], color="black")
+        ax_eigs.set_xlabel("index")
+        ax_eigs.set_ylabel("eigenvalue")
+        ax_eigs.grid(True)
+        return A_matrices_sorted
 
     def _test_tightness(self, A_b_list_all, verbose=False):
         from solvers.common import find_local_minimum, solve_sdp_cvxpy
@@ -247,7 +312,7 @@ class Learner(object):
         except StopIteration:
             return False
 
-    def learn_patterns(self, use_known=False):
+    def learn_patterns(self, use_known=False, plot=False):
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=1.5)
 
         if use_known:
@@ -257,19 +322,34 @@ class Learner(object):
 
         print(f"{self.mat_vars}: Y {Y.shape}", end="")
         for i in range(N_CLEANING_STEPS + 1):
-            # TODO(FD) can we enforce lin. independance to previously found
-            # matrices at this point?
             basis_new, S = self.lifter.get_basis(Y, eps_svd=EPS_SVD)
+            basis_new[np.abs(basis_new) < EPS_SPARSE] = 0.0
             corank = basis_new.shape[0]
             print(f"found {corank} candidate patterns...", end="")
             if corank > 0:
                 StateLifter.test_S_cutoff(S, corank, eps=EPS_SVD)
             bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
+
+            if plot:
+                from lifters.plotting_tools import plot_singular_values
+                if len(bad_idx):
+                    plot_singular_values(S, eps=EPS_SVD, label=f"run {i}")
+                else:
+                    plot_singular_values(S, eps=EPS_SVD)
+
             if len(bad_idx) > 0:
                 print(f"deleting {len(bad_idx)} and trying again...", end="")
                 Y = np.delete(Y, bad_idx, axis=0)
             else:
                 break
+
+        if basis_new.shape[0]:
+            A_matrices_new, patterns_new = self.get_independent_subset(basis_new)
+            self.A_matrices = [(f"b{i}:{j}", Aj) for j, Aj in enumerate(A_matrices_new)]
+            self.b_tuples = [((i, self.mat_vars), p) for i, p in enumerate(patterns_new)]
+        else:
+            patterns_new = []
+        return patterns_new
 
         new_patterns = []
         for i, bi_sub in enumerate(basis_new):
@@ -288,8 +368,8 @@ class Learner(object):
                 )
                 continue
 
-            ai_full = self.lifter.get_vec(Ai_sparse)
-            a_current = self.get_a_current()
+            ai_full = self.lifter.get_vec(Ai_sparse, sparse=True)
+            a_current = self.get_a_current(sparse=True)
             if increases_rank(
                 a_current, ai_full
             ):  # if increases_rank(basis_current, bi_sub):
@@ -304,10 +384,9 @@ class Learner(object):
         ]
         return new_patterns
 
-    def apply_patterns(self, new_patterns):
-        # list of constraint indices that were not redundant after summing out parameters.
-        valid_list = []
 
+    def apply_patterns(self, new_patterns):
+        new_poly_rows_all = []
         for i, new_pattern in enumerate(new_patterns):
             if False: # need to figure out if we need something here.
                 # if we did not add parameters, then each learned constraint only applies to
@@ -322,81 +401,135 @@ class Learner(object):
                     self.mat_var_dict,
                     n_landmarks=self.lifter.n_landmarks,
                 )
+                new_poly_rows_all += new_poly_rows
+        A_matrices_new, __ = self.get_independent_subset(new_poly_rows_all)
+        self.A_matrices = [(f"b{i}:{j}", Aj) for j, Aj in enumerate(A_matrices_new)]
 
-            # For each new augmented row, check if it increases the current rank.
-            # We operate on the full set of landmarks here, and we bring all of the
-            # constraints to A form before checking ranks.
-            counter = 0
-            for j, new_poly_row in enumerate(new_poly_rows):
-                ai = self.lifter.convert_poly_to_a(new_poly_row, self.lifter.var_dict)
-                a_current = self.get_a_current()
-                if increases_rank(a_current, ai):
-                    Ai_sparse = self.lifter.get_mat(ai, var_dict=self.lifter.var_dict)
-                    Ai, __ = PolyMatrix.init_from_sparse(
-                        Ai_sparse, self.lifter.var_dict
-                    )
+    def get_independent_subset(self, new_poly_rows):
+        """
 
-                    error, bad_idx = self.lifter.test_constraints(
-                        [Ai_sparse], errors="ignore"
-                    )
-                    if len(bad_idx):
-                        print(
-                            f"skipping matrix {j} of pattern b{i} because high error {error:.2e}"
-                        )
-                        continue
+        """
+        import sparseqr as sqr
+        # We operate on the full set of landmarks here, and we bring all of the
+        # constraints to A form before checking ranks.
+        a_new = None #np.empty((len(new_poly_rows), a_current.shape[1]))
 
-                    # name = f"[{','.join(self.mat_vars)}]:{i}"
-                    name = f"{self.mat_vars[-1]}:b{i}-{j}"
-                    self.A_matrices.append((name, Ai))
-                    counter += 1
-            if counter > 0:
-                # print(f"pattern b{i}: added {counter}/{len(new_poly_rows)} new constraints")
-                valid_list.append(i)
-            elif counter == 0:
-                pass
-                # print(f"   pattern b{i}: no new constraints")
-        return valid_list
+        for j, new_poly_row in enumerate(new_poly_rows):
+            if isinstance(new_poly_row, PolyMatrix):
+                ai = self.lifter.convert_poly_to_a(new_poly_row, self.lifter.var_dict, sparse=True)
+            else:
+                ai = self.lifter.get_reduced_a(new_poly_row, self.mat_vars, sparse=True)
+                Ai_sparse = self.lifter.get_mat(ai, var_dict=self.mat_var_dict)
+                ai = self.lifter.get_vec(Ai_sparse, sparse=True)
+            if a_new is None:
+                a_new = ai
+            else:
+                a_new = sp.vstack([a_new, ai])
+        
+        # find which constraints are lin. dep.
+        a_current = self.get_a_current(sparse=True)
+        if a_current is None:
+            A_vec = a_new.T
+        else:
+            A_vec = sp.vstack([a_current, a_new]).T
 
-    def run(self, use_known=True, verbose=False):
+        # Use sparse rank revealing QR
+        # We "solve" a least squares problem to get the rank and permutations
+        # This is the cheapest way to use sparse QR, since it does not require
+        # explicit construction of the Q matrix. We can't do this with qr function
+        # because the "just return R" option is not exposed.
+        Z,R,E,rank = sqr.rz(A_vec, np.zeros((A_vec.shape[0],1)), tolerance=EPS_SVD)
+        # Sort the diagonal values. Note that SuiteSparse uses AMD/METIS ordering 
+        # to acheive sparsity.
+        r_vals = np.abs(R.diagonal())
+        sort_inds = np.argsort(r_vals)[::-1]
+        if rank < A_vec.shape[1]:
+            # indices of constraints to remove
+            print(f"keeping {rank}/{len(E)} templates")
+            #print("indices that should be kept:", )
+        keep_idx = E[sort_inds[:rank]]
+
+        Z,R,E,rank_full = sqr.rz(A_vec[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=EPS_SVD)
+        assert rank_full == rank
+
+        # ==== find the pivot elements of matrix r ====
+        # sanity check: all elements from previously found basis are lin.indep.
+        A_matrices_new = []
+        patterns_new = []
+        for j in keep_idx:
+            ai = A_vec[:, j].T # 1 x N
+            Ai_sparse = self.lifter.get_mat(ai, var_dict=self.lifter.var_dict)
+            Ai, __ = PolyMatrix.init_from_sparse(
+                Ai_sparse, self.lifter.var_dict
+            )
+            error, bad_idx = self.lifter.test_constraints(
+                [Ai_sparse], errors="ignore"
+            )
+            if len(bad_idx):
+                print(
+                    f"skipping matrix {j} of because high error {error:.2e}"
+                )
+                continue
+            A_matrices_new.append(Ai)
+            patterns_new.append(self.lifter.convert_a_to_polyrow(ai))
+        return A_matrices_new, patterns_new
+
+    def run(self, use_known=True, verbose=False, plot=False):
+        times = []
         while 1:
             # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
                 break
 
+            time_dict = {"variables": self.mat_vars}
+
             # learn new patterns, orthogonal to the ones found so far.
             t1 = time.time()
-            new_patterns = self.learn_patterns(use_known=use_known)
+            new_patterns = self.learn_patterns(use_known=use_known, plot=plot)
             if len(new_patterns) == 0:
                 print("new variables didn't have any effect")
                 continue
-            print(f"pattern learning:   {time.time() - t1:.3f}s")
+            ttot = time.time() - t1
+            time_dict["learn templates"] = ttot
+            print(f"pattern learning:   {ttot:.3f}s")
 
             # apply the pattern to all landmarks
-            t1 = time.time()
-            self.apply_patterns(new_patterns)
-            print(f"applying patterns:  {time.time() - t1:.3f}s")
+            if self.apply_patterns_to_others:
+                t1 = time.time()
+                self.apply_patterns(new_patterns)
+                ttot = time.time() - t1
+                time_dict["apply templates"] = ttot
+                print(f"applying patterns:  {ttot:.3f}s")
 
             t1 = time.time()
             is_tight = self.is_tight(verbose=verbose)
-            print(f"checking tightness: {time.time() - t1:.3f}s")
+            ttot = time.time() - t1
+            time_dict["check tightness"] = ttot
+            print(f"checking tightness: {ttot:.3f}s")
+            times.append(time_dict)
             if is_tight: 
                 break
+        return times
+            
 
 
-    def get_sorted_df(self):
+    def get_sorted_df(self, patterns_poly=None):
+        if patterns_poly is None:
+            patterns_poly = self.patterns_poly
+
         series = []
-        for i in self.patterns_poly.variable_dict_i:
-            data = {j: float(val) for j, val in self.patterns_poly.matrix[i].items()}
+        for i in patterns_poly.variable_dict_i:
+            data = {j: float(val) for j, val in patterns_poly.matrix[i].items()}
             series.append(
                 pd.Series(
                     data,
-                    index=self.patterns_poly.variable_dict_j,
+                    index=patterns_poly.variable_dict_j,
                     dtype="Sparse[float]",
                 )
             )
         df = pd.DataFrame(
-            series, dtype="Sparse[float]", index=self.patterns_poly.variable_dict_i
+            series, dtype="Sparse[float]", index=patterns_poly.variable_dict_i
         )
 
         def sort_fun(series):
@@ -440,7 +573,8 @@ class Learner(object):
             plot_rows.append(poly_row)
             if mat_vars != old_mat_vars:
                 j += 1
-                plot_row_labels.append(f"{j}{mat_vars}:b{i}")
+                plot_row_labels.append(f"{j}:b{i}")
+                #plot_row_labels.append(f"{j}{mat_vars}:b{i}")
                 old_mat_vars = mat_vars
             else:
                 plot_row_labels.append(f"{j}:b{i}")
@@ -455,18 +589,22 @@ class Learner(object):
         )
         return patterns_poly
 
-    def save_sorted_patterns(self, df, fname_root="", title=""):
+    def save_sorted_patterns(self, df, fname_root="", title="", drop_zero=False):
         from utils.plotting_tools import plot_basis
 
         # convert to poly matrix for plotting purposes only.
         poly_matrix = PolyMatrix(symmetric=False)
+        keys = set()
         for i, row in df.iterrows():
             for k, val in row[~row.isna()].items():
                 poly_matrix[i, k] = val
+                keys.add(k)
 
         variables_j = self.lifter.var_dict_row(
             var_subset=self.mat_vars, force_parameters_off=True
         )
+        if drop_zero:
+            variables_j = {k:v for k, v in variables_j.items() if k in keys}
         fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
         ax.set_title(title)
 
@@ -492,7 +630,7 @@ class Learner(object):
             factor_out_parameters=not with_parameters
         )
         variables_j = self.lifter.var_dict_row(
-            self.mat_vars, with_parameters=with_parameters
+            self.mat_vars, force_parameters_off=not with_parameters
         )
         fig, ax = plot_basis(patterns_poly, variables_j=variables_j, discrete=True)
         if with_parameters:
@@ -552,6 +690,28 @@ class Learner(object):
         fig.suptitle(title)
         if fname_root != "":
             savefig(fig, fname_root + "_matrices.png")
+
+    def save_matrices_poly(self, A_matrices=None, fname_root="", title="", reduced_mode=False):
+        if A_matrices is None:
+            A_matrices = self.A_matrices
+
+        n_rows = len(A_matrices) // 10 + 1
+        n_cols = min(len(A_matrices), 10)
+        fig, axs = plt.subplots(n_rows, n_cols, squeeze=False)
+        fig.set_size_inches(5*n_cols/n_rows, 5)
+        axs = axs.flatten()
+        for i, (name, A_poly) in enumerate(A_matrices):
+            if reduced_mode:
+                sorted_i = sorted(A_poly.variable_dict_i.keys())
+            else:
+                sorted_i = self.lifter.var_dict
+            A_poly.matshow(ax=axs[i], variables=sorted_i, reduced_ticks=True)
+            axs[i].set_yticks([])
+        for ax in axs[i+1:]:
+            ax.axis("off")
+        if fname_root != "":
+            savefig(fig, fname_root + "_matrices-poly.png")
+        return fig, axs
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ class RangeOnlyLocLifter(StateLifter):
         ["l", "x_0", "z_0"],
         ["l", "x_0", "x_1", "z_0", "z_1"],
     ]
-    def __init__(self, n_positions, n_landmarks, d, W=None, level="no"):
+    def __init__(self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
@@ -39,6 +39,8 @@ class RangeOnlyLocLifter(StateLifter):
             self.W = W
         else:
             self.W = np.ones((n_positions, n_landmarks))
+
+        self.variable_list = self.VARIABLE_LIST if not variable_list else variable_list
         super().__init__(level=level)
 
     def generate_random_setup(self):

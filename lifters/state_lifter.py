@@ -37,6 +37,38 @@ N_CLEANING_STEPS = 1
 # number of scalable elements to add.
 MAX_N_SUBSETS = 2
 
+def ravel_multi_index_triu(index_tuple, shape):
+    """ Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
+    ii, jj = index_tuple
+
+    triu_mask = jj>=ii
+    i_upper = ii[triu_mask]
+    j_upper = jj[triu_mask]
+    flat_indices = []
+    for i, j in zip(i_upper, j_upper):
+        # for i == 0: idx = j
+        # for i == 1: idx = shape[0] + j
+        # for i == 2: idx = shape[0] + shape[0]-1 + j
+        idx = np.sum(range(shape[0] - i, shape[0])) + j
+        flat_indices.append(idx)
+    return flat_indices
+
+def unravel_multi_index_triu(flat_indices, shape):
+    """ Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
+    i_upper = []
+    j_upper = []
+
+    # for 4 x 4, this would give [4, 7, 9, 11]
+    cutoffs = np.cumsum(list(range(1, shape[0]+1))[::-1])
+    for idx in flat_indices:
+        i = np.where(idx < cutoffs)[0][0]
+        if i == 0:
+            j = idx
+        else:
+            j = idx - cutoffs[i-1] + i
+        i_upper.append(i)
+        j_upper.append(j)
+    return np.array(i_upper), np.array(j_upper)
 
 class StateLifter(BaseClass):
     @staticmethod
@@ -44,12 +76,63 @@ class StateLifter(BaseClass):
         return [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
 
     @staticmethod
-    def create_symmetric(triu_vector, size):
-        mat = np.zeros((size, size))
-        mat[np.triu_indices(size)] = triu_vector
-        mat += mat.T
-        mat[range(size), range(size)] /= 2.0
-        return mat
+    def create_symmetric(vec, correct=False, trunc_tol=EPS_SPARSE, sparse=False):
+
+        def get_dim_x(len_vec):
+            return int(0.5 * (-1 + np.sqrt(1 + 8 * len_vec)))
+
+        try:
+            # vec is dense
+            len_vec = len(vec)
+            dim_x = get_dim_x(len_vec)
+            triu = np.triu_indices(n=dim_x)
+            mask = np.abs(vec) > trunc_tol
+            triu_i_nnz = triu[0][mask]
+            triu_j_nnz = triu[1][mask]
+            vec_nnz = vec[mask]
+        except:
+            # vec is sparse
+            len_vec = vec.shape[1]
+            dim_x = get_dim_x(len_vec)
+            ii, jj = vec.nonzero() # vec is 1 x jj
+            triu_i_nnz, triu_j_nnz = unravel_multi_index_triu(jj, (dim_x, dim_x))
+            vec_nnz = np.array(vec[ii, jj]).flatten()
+
+        #assert dim_x == self.get_dim_x(var_dict)
+
+        if sparse:
+            offdiag = triu_i_nnz != triu_j_nnz
+            diag = triu_i_nnz == triu_j_nnz
+            triu_i = triu_i_nnz[offdiag]
+            triu_j = triu_j_nnz[offdiag]
+            diag_i = triu_i_nnz[diag]
+            if correct:
+                # divide off-diagonal elements by sqrt(2)
+                vec_nnz_off = vec_nnz[offdiag] / np.sqrt(2)
+            else:
+                vec_nnz_off = vec_nnz[offdiag]
+            vec_nnz_diag = vec_nnz[diag]
+            Ai = sp.csr_array(
+                (
+                    np.r_[vec_nnz_diag, vec_nnz_off, vec_nnz_off],
+                    (np.r_[diag_i, triu_i, triu_j], np.r_[diag_i, triu_j, triu_i]),
+                ),
+                (dim_x, dim_x),
+            )
+        else:
+            Ai = np.zeros((dim_x, dim_x))
+
+            if correct:
+                # divide all elements by sqrt(2)
+                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz / np.sqrt(2)
+                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz / np.sqrt(2)
+                # undo operation for diagonal
+                Ai[range(dim_x), range(dim_x)] *= np.sqrt(2)
+            else:
+                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz
+                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz
+        return Ai
+
 
     @staticmethod
     def test_S_cutoff(S, corank, eps=EPS_SVD):
@@ -95,8 +178,6 @@ class StateLifter(BaseClass):
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
 
-
-
     def get_var_dict(self, var_subset=None):
         if var_subset is not None:
             return {k: v for k, v in self.var_dict.items() if k in var_subset}
@@ -126,7 +207,7 @@ class StateLifter(BaseClass):
         else:
             return np.array([1.0])
 
-    def get_vec(self, mat, correct=True):
+    def get_vec(self, mat, correct=True, sparse=False):
         """Convert NxN Symmetric matrix to (N+1)N/2 vectorized version that preserves inner product.
 
         :param mat: (spmatrix or ndarray) symmetric matrix
@@ -144,7 +225,16 @@ class StateLifter(BaseClass):
             else:
                 mat *= np.sqrt(2.0)
                 mat[range(mat.shape[0]), range(mat.shape[0])] /= np.sqrt(2)
-        return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
+        if sparse:
+            #flat_indices = np.ravel_multi_index([i_upper, j_upper], mat.shape)
+            ii, jj = mat.nonzero()
+            triu_mask = jj>=ii
+            flat_indices = ravel_multi_index_triu([ii[triu_mask], jj[triu_mask]], mat.shape)
+            data = np.array(mat[ii[triu_mask], jj[triu_mask]]).flatten()  
+            vec_size = int( mat.shape[0] * (mat.shape[0] + 1) / 2)
+            return sp.csr_matrix((data, ([0] * len(flat_indices), flat_indices)), (1, vec_size))
+        else:
+            return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
 
     def get_mat(
         self, vec, sparse=False, trunc_tol=EPS_SPARSE, var_dict=None, correct=True
@@ -157,49 +247,13 @@ class StateLifter(BaseClass):
         :return: symmetric matrix filled with vec.
         """
         # len(vec) = k = n(n+1)/2 -> dim_x = n =
-        try:
-            len_vec = len(vec)
-        except:
-            len_vec = vec.shape[1]
-        dim_x = int(0.5 * (-1 + np.sqrt(1 + 8 * len_vec)))
-        assert dim_x == self.get_dim_x(var_dict)
+        if var_dict is None:
+            pass
+        elif not type(var_dict) is dict:
+            var_dict = {k:v for k,v in self.var_dict.items() if k in var_dict}
 
-        triu = np.triu_indices(n=dim_x)
-        mask = np.abs(vec) > trunc_tol
-        triu_i_nnz = triu[0][mask]
-        triu_j_nnz = triu[1][mask]
-        vec_nnz = vec[mask]
-        if sparse:
-            offdiag = triu_i_nnz != triu_j_nnz
-            diag = triu_i_nnz == triu_j_nnz
-            triu_i = triu_i_nnz[offdiag]
-            triu_j = triu_j_nnz[offdiag]
-            diag_i = triu_i_nnz[diag]
-            if correct:
-                # divide off-diagonal elements by sqrt(2)
-                vec_nnz_off = vec_nnz[offdiag] / np.sqrt(2)
-            else:
-                vec_nnz_off = vec_nnz[offdiag]
-            vec_nnz_diag = vec_nnz[diag]
-            Ai = sp.csr_array(
-                (
-                    np.r_[vec_nnz_diag, vec_nnz_off, vec_nnz_off],
-                    (np.r_[diag_i, triu_i, triu_j], np.r_[diag_i, triu_j, triu_i]),
-                ),
-                (dim_x, dim_x),
-            )
-        else:
-            Ai = np.zeros((dim_x, dim_x))
-
-            if correct:
-                # divide all elements by sqrt(2)
-                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz / np.sqrt(2)
-                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz / np.sqrt(2)
-                # undo operation for diagonal
-                Ai[range(dim_x), range(dim_x)] *= np.sqrt(2)
-            else:
-                Ai[triu_i_nnz, triu_j_nnz] = vec_nnz
-                Ai[triu_j_nnz, triu_i_nnz] = vec_nnz
+        Ai = self.create_symmetric(vec, correct=correct, trunc_tol=trunc_tol, sparse=sparse)
+        assert Ai.shape[0] == self.get_dim_x(var_dict)
 
         if var_dict is None:
             return Ai
@@ -319,20 +373,6 @@ class StateLifter(BaseClass):
         print(f"left with {basis_reduced.shape} total constraints")
         return basis_reduced
 
-        # there are still residual dependent vectors which only appear
-        # after summing out the parameters. we want to remove those.
-        import scipy.linalg as la
-
-        __, r, p = la.qr(basis_learned, pivoting=True, mode="economic")
-        rank = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-        if rank < len(basis_learned.shape[0]):
-            # sanity check
-            basis_learned = basis_learned[p[:rank], :]
-            __, r, p = la.qr(basis_learned, pivoting=True, mode="economic")
-            rank_new = np.where(np.abs(np.diag(r)) > EPS_SVD)[0][-1] + 1
-            assert rank_new == rank
-        return basis_learned
-
     def get_vector_dense(self, poly_row_sub):
         # complete the missing variables
         var_dict = self.var_dict_row()
@@ -349,7 +389,7 @@ class StateLifter(BaseClass):
                             self.var_dict[vari], self.var_dict[varj]
                         )
                     else:
-                        mat = self.create_symmetric(val, self.var_dict[vari])
+                        mat = self.create_symmetric(val, correct=False)
                         sub_mat[vari, varj] = mat
                 elif val != 0:
                     sub_mat[vari, varj] = val
@@ -390,7 +430,7 @@ class StateLifter(BaseClass):
             A_learned = self.generate_matrices(basis_list, normalize=normalize)
         return A_learned
 
-    def convert_poly_to_a(self, poly_row, var_subset=None):
+    def convert_poly_to_a(self, poly_row, var_subset=None, sparse=False):
         """Convert poly-row to reduced a.
 
         poly-row has elements with keys "pk:l.xi:m.xj:n",
@@ -419,20 +459,24 @@ class StateLifter(BaseClass):
             else:
                 mat_var_list += [f"{var}:{i}" for i in range(size)]
         mat_sparse = poly_mat.get_matrix({m: 1 for m in mat_var_list})
-        return np.array(mat_sparse[np.triu_indices(mat_sparse.shape[0])]).flatten()
+        return self.get_vec(mat_sparse, correct=False, sparse=sparse)
 
     def convert_a_to_polyrow(
-        self, a, var_subset=None, eps_sparse=EPS_SPARSE
+        self, a, var_subset=None, 
     ) -> PolyMatrix:
         """Convert a array to poly-row."""
         if var_subset is None:
             var_subset = self.var_dict
         var_dict = self.get_var_dict(var_subset)
-        dim_x = self.get_dim_x(var_subset)
         dim_X = self.get_dim_X(var_subset)
-        assert len(a) == dim_X
 
-        mat = self.create_symmetric(a, dim_x)
+        try:
+            dim_a = len(a) 
+        except:
+            dim_a = a.shape[1]
+        assert dim_a == dim_X
+
+        mat = self.create_symmetric(a, sparse=True)
         poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
         poly_row = PolyMatrix(symmetric=False)
         for keyi, keyj in itertools.combinations_with_replacement(var_dict, 2):
@@ -446,7 +490,7 @@ class StateLifter(BaseClass):
                     vals = val[np.triu_indices(val.shape[0])]
                 assert len(labels) == len(vals)
                 for l, v in zip(labels, vals):
-                    if np.any(np.abs(v) > eps_sparse):
+                    if np.any(np.abs(v) > EPS_SPARSE):
                         poly_row["l", l] = v
         return poly_row
 
@@ -489,7 +533,7 @@ class StateLifter(BaseClass):
         bi_all = np.zeros(self.get_dim_Y(target_subset))
         for p, key in enumerate(param_dict.keys()):
             block = b[p * dim_X : (p + 1) * (dim_X)]
-            mat_small = self.create_symmetric(block, dim_x)
+            mat_small = self.create_symmetric(block)
             poly_mat, __ = PolyMatrix.init_from_sparse(mat_small, var_dict)
             mat_target = poly_mat.get_matrix(target_subset).toarray()
 
@@ -737,7 +781,7 @@ class StateLifter(BaseClass):
             raise ValueError(method)
         return basis, S
 
-    def get_reduced_a(self, bi, var_subset=None):
+    def get_reduced_a(self, bi, var_subset=None, sparse=False):
         """
         Extract first block of bi by summing over other blocks times the parameters.
         """
@@ -764,7 +808,10 @@ class StateLifter(BaseClass):
                 ai += p * bi[i * dim_X : (i + 1) * dim_X]
             else:
                 ai += p * bi[0, i * dim_X : (i + 1) * dim_X].toarray().flatten()
-        return ai
+        if sparse: 
+            return sp.csr_array(ai[None, :]) 
+        else:
+            return ai
 
     def augment_using_zero_padding(self, ai, var_subset=None):
         n_parameters = self.get_dim_P(var_subset=var_subset)

@@ -20,12 +20,17 @@ def diag_indices(n):
     return np.diag(z).astype(int)
 
 def increases_rank(mat, new_row):
+    import scipy.sparse as sp
     # TODO(FD) below is not the most efficient way of checking lin. indep.
-    new_row = new_row.flatten()
     if mat is None:
         return True
-    mat_test = np.vstack([mat, new_row[None, :]])
-    new_rank = np.linalg.matrix_rank(mat_test)
+    try:
+        new_row = new_row.flatten()
+        mat_test = np.vstack([mat, new_row[None, :]])
+        new_rank = np.linalg.matrix_rank(mat_test)
+    except:
+        raise ValueError("don't use this function, it's inefficient.")
+        return True
 
     # if the new matrix is not full row-rank then the new row was
     # actually linealy dependent.

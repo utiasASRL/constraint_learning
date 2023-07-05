@@ -179,13 +179,15 @@ def plot_matrices(
     return fig, axs
 
 
-def plot_singular_values(S, eps=None):
+def plot_singular_values(S, eps=None, label="singular values"):
     fig, ax = plt.subplots()
     fig.set_size_inches(4, 2)
-    ax.semilogy(S, marker="o", label="singular values")
+    ax.semilogy(S, marker="o", label=label)
     if eps is not None:
         ax.axhline(eps, color="C1", label="threshold")
     ax.grid()
+    ax.set_xlabel("index")
+    ax.set_ylabel("magnitude of singular values")
     ax.legend(loc="upper right")
     return fig, ax
 

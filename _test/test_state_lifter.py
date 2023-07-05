@@ -3,7 +3,31 @@ import numpy as np
 
 from lifters.poly_lifters import PolyLifter
 from lifters.test_tools import all_lifters
+from lifters.state_lifter import unravel_multi_index_triu, ravel_multi_index_triu
 
+def test_ravel():
+    shape = (5, 5)
+    for i in range(shape[0]):
+        idx = np.array([i])
+        flat_idx = ravel_multi_index_triu([idx, idx], shape=shape)
+        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
+
+        assert idx == i_test[0]
+        assert idx == j_test[0]
+
+    for seed in range(100):
+        np.random.seed(seed)
+        i = np.random.randint(low=0, high=shape[0]-1, size=1)
+        j = np.random.randint(low=i, high=shape[0]-1, size=1)
+
+        print(i,j)
+        flat_idx = ravel_multi_index_triu([i, j], shape=shape)
+        print(flat_idx)
+        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
+        print(i_test, j_test)
+
+        assert i == i_test[0]
+        assert j == j_test[0]
 
 def test_hess_finite_diff():
     for lifter in all_lifters():
@@ -322,6 +346,7 @@ if __name__ == "__main__":
     import sys
     import warnings
 
+    test_ravel()
     test_vec_mat()
 
     # import pytest
