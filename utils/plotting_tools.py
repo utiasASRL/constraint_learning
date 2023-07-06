@@ -2,11 +2,36 @@ from lifters.plotting_tools import import_plt
 import numpy as np
 
 from lifters.plotting_tools import savefig, add_colorbar
-from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 plt = import_plt()
 
+
+def add_rectangles(ax, dict_sizes, color="red"):
+    from matplotlib.patches import Rectangle
+    cumsize = 0
+    xticks = []
+    xticklabels = []
+    for key, size in dict_sizes.items():
+        cumsize += size
+        xticks.append(cumsize-0.5)
+        xticklabels.append(key)
+        ax.add_patch(Rectangle((-0.5, -0.5), cumsize, cumsize, ec=color, fc="none"))
+        #ax.annotate(text=key, xy=(cumsize, 1), color='red', weight="bold")
+    ax.set_xticks(xticks, xticklabels)
+    ax.tick_params(axis='x', colors='red') 
+    ax.set_yticks([])
+
+def initialize_discrete_cbar(values):
+    import matplotlib as mpl
+    values = sorted(list(np.unique(values.round(3))) + [0])
+    cmap = plt.get_cmap("viridis", len(values))
+    cmap.set_over((1.0, 0.0, 0.0))
+    cmap.set_under((0.0, 0.0, 1.0))
+    bounds = [values[0] - 0.005] + [v + 0.005 for v in values]
+    colorbar_yticks = [""] + list(values)
+    norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+    return cmap, norm, colorbar_yticks
 
 def plot_basis(
     basis_poly: PolyMatrix,
@@ -15,29 +40,23 @@ def plot_basis(
     discrete: bool = True,
 ):
     variables_i = basis_poly.generate_variable_dict_i()
+
     if discrete:
-        import matplotlib as mpl
-
         values = basis_poly.get_matrix((variables_i, variables_j)).data
-        values = sorted(list(np.unique(values.round(2))) + [0])
-
-        cmap = plt.get_cmap("viridis", len(values))
-        cmap.set_over((1.0, 0.0, 0.0))
-        cmap.set_under((0.0, 0.0, 1.0))
-        bounds = [values[0] - 0.005] + [v + 0.005 for v in values]
-        yticks = [""] + list(values)
-        norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
+        cmap, norm, colorbar_yticks = initialize_discrete_cbar(values)
     else:
         cmap = plt.get_cmap("viridis")
         norm = None
-        yticks = None
+        colorbar_yticks = None
+
+    # reduced_ticks below has no effect because all variables in variables_j are of size 1.
     fig, ax, im = basis_poly.matshow(
-        variables_i=variables_i, variables_j=variables_j, cmap=cmap, norm=norm
+        variables_i=variables_i, variables_j=variables_j, cmap=cmap, norm=norm, #reduced_ticks=True
     )
-    cax = add_colorbar(fig, ax, im)
-    if yticks is not None:
-        cax.set_yticklabels(yticks)
     fig.set_size_inches(15, 15 * len(variables_i) / len(variables_j))
+    cax = add_colorbar(fig, ax, im)
+    if colorbar_yticks is not None:
+        cax.set_yticklabels(colorbar_yticks)
     if fname_root != "":
         savefig(fig, fname_root + f"_basis.png")
     return fig, ax

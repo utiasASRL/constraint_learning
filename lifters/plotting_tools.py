@@ -64,11 +64,14 @@ def partial_plot_and_save(lifter, Q, A_list, fname_root="", appendix="", title="
             savefig(fig, f"{fname_root}/Q_{lifter}{appendix}.png")
 
 
-def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True):
+def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True, size=None):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="5%", pad=0.05)
+    if size is None:
+        w, h = fig.get_size_inches()
+        size = f"{5*h/w}%"
+    cax = divider.append_axes("right", size=size, pad=0.05)
     if title is not None:
         cax.set_ylabel(title)
 
@@ -179,12 +182,15 @@ def plot_matrices(
     return fig, axs
 
 
-def plot_singular_values(S, eps=None, label="singular values"):
-    fig, ax = plt.subplots()
+def plot_singular_values(S, eps=None, label="singular values", ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = plt.gcf()
     fig.set_size_inches(4, 2)
     ax.semilogy(S, marker="o", label=label)
     if eps is not None:
-        ax.axhline(eps, color="C1", label="threshold")
+        ax.axhline(eps, color="C1")
     ax.grid()
     ax.set_xlabel("index")
     ax.set_ylabel("magnitude of singular values")

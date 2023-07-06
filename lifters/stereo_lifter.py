@@ -71,6 +71,10 @@ class StereoLifter(StateLifter, ABC):
     #VARIABLE_LIST = [
         #["l"] + [f"z_{i}" for i in range(j)] for j in range(1, MAX_VARS + 1)
     #]
+    LEVEL_NAMES = {
+        "no": "$\\boldsymbol{u}_n$",
+        "urT": "$\\boldsymbol{u}\\boldsymbol{t}^\\top_n$",
+    }
     VARIABLE_LIST = [
         ["l", "z_0"], 
         ["l", "z_0", "z_1"],
@@ -79,9 +83,13 @@ class StereoLifter(StateLifter, ABC):
         ["l", "x", "z_0"],
         ["l", "x", "z_0", "z_1"]
     ]
-    def __init__(self, n_landmarks, d, level="no", param_level="no"):
+    def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
         self.d = d
         self.n_landmarks = n_landmarks
+        if variable_list is not None:
+            self.variable_list = variable_list
+        else:
+            self.variable_list = self.VARIABLE_LIST
         super().__init__(level=level, param_level=param_level)
 
     def get_level_dims(self, n=1):

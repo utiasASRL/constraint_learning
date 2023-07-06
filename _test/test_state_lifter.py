@@ -7,6 +7,8 @@ from lifters.state_lifter import unravel_multi_index_triu, ravel_multi_index_tri
 
 def test_ravel():
     shape = (5, 5)
+
+    # test diagonal elements
     for i in range(shape[0]):
         idx = np.array([i])
         flat_idx = ravel_multi_index_triu([idx, idx], shape=shape)
@@ -15,16 +17,14 @@ def test_ravel():
         assert idx == i_test[0]
         assert idx == j_test[0]
 
+    # test random elements
     for seed in range(100):
         np.random.seed(seed)
         i = np.random.randint(low=0, high=shape[0]-1, size=1)
         j = np.random.randint(low=i, high=shape[0]-1, size=1)
 
-        print(i,j)
         flat_idx = ravel_multi_index_triu([i, j], shape=shape)
-        print(flat_idx)
         i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
-        print(i_test, j_test)
 
         assert i == i_test[0]
         assert j == j_test[0]
@@ -127,7 +127,6 @@ def test_grad_finite_diff():
             plt.title(f"grad {lifter}")
             plt.loglog(eps_list, errors)
             plt.show()
-            # assert  < 1e-7
 
 
 def test_cost_noisy():

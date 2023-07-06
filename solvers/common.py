@@ -177,6 +177,10 @@ def solve_sdp_cvxpy(
         yvals[0] = yvals[0] * scale + offset
         H *= scale
         H[0, 0] += offset
+
+        X = constraint.dual_value
+        H = Q_here - LHS.value
+        yvals = [x.value for x in y]
     info = {"H": H, "yvals": yvals, "cost": cost}
     return X, info
 

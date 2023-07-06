@@ -9,13 +9,13 @@ from utils.common import increases_rank
 from utils.common import upper_triangular
 from lifters.base_class import BaseClass
 
-from poly_matrix import PolyMatrix
+from poly_matrix import PolyMatrix, unroll
 
 # consider singular value zero below this
 EPS_SVD = 1e-8
 
 # set elements below this threshold to zero.
-EPS_SPARSE = 1e-10
+EPS_SPARSE = 1e-9
 
 # tolerance for feasibility error of learned constraints
 EPS_ERROR = 1e-8
@@ -94,6 +94,8 @@ class StateLifter(BaseClass):
             # vec is sparse
             len_vec = vec.shape[1]
             dim_x = get_dim_x(len_vec)
+            vec.data[np.abs(vec.data) < EPS_SPARSE] = 0
+            vec.eliminate_zeros()
             ii, jj = vec.nonzero() # vec is 1 x jj
             triu_i_nnz, triu_j_nnz = unravel_multi_index_triu(jj, (dim_x, dim_x))
             vec_nnz = np.array(vec[ii, jj]).flatten()
@@ -178,6 +180,16 @@ class StateLifter(BaseClass):
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
 
+    @property
+    def var_dict_unroll(self):
+        return unroll(self.var_dict)
+
+    def get_var_dict_unroll(self, var_subset=None):
+        if var_subset is not None:
+            var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+            return unroll(var_dict)
+        return self.var_dict_unroll
+
     def get_var_dict(self, var_subset=None):
         if var_subset is not None:
             return {k: v for k, v in self.var_dict.items() if k in var_subset}
@@ -257,10 +269,15 @@ class StateLifter(BaseClass):
 
         if var_dict is None:
             return Ai
+
         # if var_dict is not None, then Ai corresponds to the subblock
         # defined by var_dict, of the full constraint matrix.
-        Ai_poly, __ = PolyMatrix.init_from_sparse(Ai, var_dict)
-        return Ai_poly.get_matrix(self.var_dict)
+        Ai_poly, __ = PolyMatrix.init_from_sparse(Ai, var_dict, unfold=True)
+        
+        from poly_matrix.poly_matrix import augment
+        augment_var_dict = augment(self.var_dict)
+        all_var_dict = {key[2]:1 for key in augment_var_dict.values()}
+        return Ai_poly.get_matrix(all_var_dict)
 
     def get_A_known(self) -> list:
         return []
@@ -809,7 +826,9 @@ class StateLifter(BaseClass):
             else:
                 ai += p * bi[0, i * dim_X : (i + 1) * dim_X].toarray().flatten()
         if sparse: 
-            return sp.csr_array(ai[None, :]) 
+            ai_sparse = sp.csr_array(ai[None, :]) 
+            ai_sparse.eliminate_zeros()
+            return ai_sparse
         else:
             return ai
 
@@ -867,23 +886,26 @@ class StateLifter(BaseClass):
         j_bad = []
 
         for j, A in enumerate(A_list):
-            t = self.sample_theta()
-            p = self.get_parameters()
-            x = self.get_x(t, p)
 
-            constraint_violation = abs(x.T @ A @ x)
-            max_violation = max(max_violation, constraint_violation)
-            if constraint_violation > tol:
-                msg = f"big violation at {j}: {constraint_violation:.1e}"
-                j_bad.append(j)
-                if errors == "raise":
-                    raise ValueError(msg)
-                elif errors == "print":
-                    print(msg)
-                elif errors == "ignore":
-                    pass
-                else:
-                    raise ValueError(errors)
+            for i in range(10):
+                np.random.seed(i)
+                t = self.sample_theta()
+                p = self.get_parameters()
+                x = self.get_x(t, p)
+
+                constraint_violation = abs(x.T @ A @ x)
+                max_violation = max(max_violation, constraint_violation)
+                if constraint_violation > tol:
+                    msg = f"big violation at {j}: {constraint_violation:.1e}"
+                    j_bad.append(j)
+                    if errors == "raise":
+                        raise ValueError(msg)
+                    elif errors == "print":
+                        print(msg)
+                    elif errors == "ignore":
+                        pass
+                    else:
+                        raise ValueError(errors)
         return max_violation, j_bad
 
     def get_A0(self, var_subset=None):

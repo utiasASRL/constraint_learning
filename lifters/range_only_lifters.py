@@ -23,6 +23,10 @@ class RangeOnlyLocLifter(StateLifter):
     """
 
     LEVELS = ["no", "quad"]
+    LEVEL_NAMES = {
+        "no": "$z_n$",
+        "quad": "$\\boldsymbol{y}_n$",
+    }
     VARIABLE_LIST = [
         ["l"],
         ["l", "x_0"],
