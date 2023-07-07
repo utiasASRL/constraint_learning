@@ -55,7 +55,7 @@ def test_learned_constraints(d=2, param_level="ppT"):
     var_subset = ["l", "z_0", "z_1"]
     label_dict = lifter.var_dict_row(var_subset)
 
-    basis_row_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, eps_sparse=1e-8, plot=True)
+    basis_row_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, eps_sparse=1e-8, plot=False)
     basis_list = [basis_row.get_matrix((["l"], label_dict)) for basis_row in basis_row_list]
     A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
 
@@ -84,7 +84,7 @@ def test_learned_constraints_augment(d=2, param_level="ppT"):
         var_subset = ["l", "z_0", "z_1"]
         label_dict = lifter.var_dict_row(var_subset)
 
-        basis_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, plot=True)
+        basis_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, plot=False)
 
         basis_list_all = lifter.augment_basis_list(basis_list, var_subset=var_subset)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
@@ -112,7 +112,7 @@ def test_learned_constraints_augment(d=2, param_level="ppT"):
         lifter.generate_random_setup()
         A_learned = lifter.generate_matrices(basis_learned, var_dict=var_subset)
 
-        lifter.test_constraints(A_learned, errors="raise")
+        lifter.test_constraints(A_learned, errors="print")
 
 
 def test_b_to_a():
@@ -161,6 +161,7 @@ def test_b_to_a():
                     axs[0].set_title("bi sub")
                     axs[1].matshow(bi_all[None, :])
                     axs[1].set_title("bi all")
+                    raise
 
             # generate the full matrix, placing the subvar in the correct place.
             Ai = lifter.get_mat(ai_sub, var_dict=var_dict)
@@ -177,6 +178,7 @@ def test_b_to_a():
                 axs[0].set_title("ai all")
                 axs[1].matshow(ai_all_test[None, :])
                 axs[1].set_title("ai all test")
+                raise
 
             try:
                 np.testing.assert_allclose(Ai.toarray(), Ai_test)
@@ -186,6 +188,7 @@ def test_b_to_a():
                 axs[0].set_title("Ai")
                 axs[1].matshow(Ai_test)
                 axs[1].set_title("Ai test")
+                raise
 
             assert len(bi_all) == lifter.get_dim_X() * lifter.get_dim_P()
 

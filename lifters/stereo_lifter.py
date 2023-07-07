@@ -4,7 +4,7 @@ import numpy as np
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils import get_rot_matrix, upper_triangular
+from utils.common import get_rot_matrix
 
 
 def get_C_r_from_theta(theta, d):

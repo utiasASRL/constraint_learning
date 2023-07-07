@@ -5,7 +5,7 @@ import numpy as np
 import matplotlib.pylab as plt
 import matplotlib
 
-matplotlib.use('Agg')
+#matplotlib.use('Agg')
 plt.ioff()
 
 from lifters.learner import Learner
@@ -21,9 +21,13 @@ def plot_scalability(df):
     df.drop(inplace=True, columns=["variables"])
     df_plot = df.melt(id_vars=["N"], value_vars=df.columns, value_name="time [s]", var_name="operation")
     fig, ax = plt.subplots()
-    sns.lineplot(df_plot, x="N", y="time [s]", hue="operation", ax=ax)
-    ax.set_yscale("log")
-    ax.set_xscale("log")
+    if len(df_plot.N.unique()) == 1:
+        sns.lineplot(df_plot, x="operation", y="time [s]", ax=ax)
+        ax.set_yscale("log")
+    else:
+        sns.lineplot(df_plot, x="N", y="time [s]", hue="operation", ax=ax)
+        ax.set_yscale("log")
+        ax.set_xscale("log")
     ax.xaxis.set_major_locator(MaxNLocator(integer=True))
     return fig, ax 
 
@@ -79,19 +83,19 @@ def run_oneshot_experiment(learner, fname_root, plots, tightness="rank"):
         fig, ax = learner.save_matrices_sparsity(learner.A_matrices)
         savefig(fig, fname_root + "_matrices-sparsity.png")
 
-    if "patterns" in plots:
-        patterns_poly = learner.generate_patterns_poly(factor_out_parameters=True)
+    if "templates" in plots:
+        templates_poly = learner.generate_templates_poly(factor_out_parameters=True)
         add_columns = {
             "required": idx_subset_original,
             "required (reordered)": idx_subset_reorder,
         }
-        df = learner.get_sorted_df(patterns_poly=patterns_poly, add_columns=add_columns)
+        df = learner.get_sorted_df(templates_poly=templates_poly, add_columns=add_columns)
         #df.sort_values(by="required", axis=0, inplace=True)
         title = f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
-        fig, ax = learner.save_sorted_patterns(df, title=title, drop_zero=True)
+        fig, ax = learner.save_sorted_templates(df, title=title, drop_zero=True)
         w, h = fig.get_size_inches()
         fig.set_size_inches(5*w/h, 5)
-        savefig(fig, fname_root + "_patterns.png")
+        savefig(fig, fname_root + "_templates.png")
 
 def range_only_tightness():
     """
@@ -107,7 +111,7 @@ def range_only_tightness():
         variable_list = [["l"] + [f"x_{i}" for i in range(n_positions)] + [f"z_{i}" for i in range(n_positions)]]
         np.random.seed(seed)
         lifter = RangeOnlyLocLifter(n_positions=n_positions, n_landmarks=n_landmarks, d=d, level=level, W=None, variable_list=variable_list)
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, apply_patterns=False)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, apply_templates=False)
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(learner, fname_root, plots)
 
@@ -152,8 +156,8 @@ def stereo_tightness():
     n_landmarks = 4
     d = 2
     seed = 0
-    #plots = ["tightness", "svd", "matrices", "patterns"]
-    plots = ["matrices", "patterns"]
+    #plots = ["tightness", "svd", "matrices", "templates"]
+    plots = ["matrices", "templates"]
     levels = ["no", "urT"]
 
     #parameter_levels = ["ppT"] #["no", "p", "ppT"]
@@ -172,7 +176,7 @@ def stereo_tightness():
                 n_landmarks=n_landmarks, level=level, param_level=param_level, variable_list=variable_list
             )
 
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, apply_patterns=False)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, apply_templates=False)
         fname_root = f"_results/{lifter}_seed{seed}"
 
         run_oneshot_experiment(learner, fname_root, plots, tightness="cost")
@@ -182,17 +186,17 @@ def stereo_scalability():
     """
     Deteremine how the range-only problem sclaes with nubmer of positions.
     """
-    n_landmarks_list = [4, 5, 6] 
+    n_landmarks_list = [15] #[5, 10, 15] 
     #n_positions_list = np.logspace(0.1, 2, 10).astype(int)
     level = "urT" 
     param_level = "ppT"
 
     d = 2
-    n_seeds = 3
+    n_seeds = 1
     variable_list = None
     df_data = []
     for seed, n_landmarks in itertools.product(range(n_seeds), n_landmarks_list):
-        print(f"===== {n_landmarks} ====")
+        print(f"================== N={n_landmarks} ======================")
         np.random.seed(seed)
         if d == 2:
             lifter = Stereo2DLifter(n_landmarks=n_landmarks, level=level, param_level=param_level, variable_list=variable_list)
@@ -201,7 +205,8 @@ def stereo_scalability():
         fname_root = f"_results/{lifter}"
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
-        times = learner.run(verbose=True, use_known=False, plot=False)
+        # just use cost tightness because rank tightness was not achieved even in toy example
+        times = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
         for t_dict in times:
             t_dict["N"] = n_landmarks
             df_data.append(t_dict)
@@ -221,4 +226,12 @@ if __name__ == "__main__":
     #stereo_tightness()
     #range_only_tightness()
     #range_only_scalability()
+
+    #import cProfile
+    #cProfile.run('stereo_scalability()')
+
     stereo_scalability()
+
+    #with open("temp.pkl", "rb") as f:
+    #    learner = pickle.load(f)
+    #learner.apply_templates()
