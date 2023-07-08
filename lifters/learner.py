@@ -21,6 +21,8 @@ NOISE_SEED = 5
 ADJUST_Q = True  # rescale Q matrix
 PRIMAL = False # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
+FACTOR = 1.5 # oversampling factor.
+
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e8
 
@@ -150,11 +152,8 @@ class Learner(object):
     def is_tight(self, verbose=False, tightness="rank"):
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
-        X, info = self._test_tightness(A_b_list_all, verbose=True)
+        X, info = self._test_tightness(A_b_list_all, verbose=False)
 
-        final_cost = np.trace(self.solver_vars["Q"] @ X) 
-        if abs(final_cost - info["cost"]) >= 1e-10:
-            print(f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}")
 
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
@@ -186,6 +185,10 @@ class Learner(object):
 
             return False
         else:
+            final_cost = np.trace(self.solver_vars["Q"] @ X) 
+            if abs(final_cost - info["cost"]) >= 1e-10:
+                print(f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}")
+
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
 
@@ -309,7 +312,7 @@ class Learner(object):
             return False
 
     def learn_templates(self, use_known=False, plot=False, data_dict=None):
-        Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=1.5)
+        Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
 
         if use_known:
             basis_current = self.get_b_current()
@@ -320,10 +323,13 @@ class Learner(object):
             fig, ax = plt.subplots()
 
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
+            print(f"cleaning step {i}/{self.lifter.N_CLEANING_STEPS}...")
             basis_new, S = self.lifter.get_basis(Y)
+            print(f"...done")
             corank = basis_new.shape[0]
             if corank > 0:
                 self.lifter.test_S_cutoff(S, corank)
+
             bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
 
             if plot:
@@ -434,10 +440,6 @@ class Learner(object):
             if rank < A_vec.shape[1]:
                 print(f"clean_constraints: keeping {rank}/{len(E)}")
             bad_idx = list(E[sort_inds[rank:]])
-
-            good_idx = list(E[sort_inds[:rank]])
-            for idx in good_idx:
-                self.constraints[idx].value = r_vals[idx]
 
             # Sanity check, removed because too expensive. It almost always passed anyways.
             # Z, R, E, rank_full = sqr.rz(A_vec[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=1e-10)

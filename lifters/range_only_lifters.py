@@ -66,7 +66,7 @@ class RangeOnlyLocLifter(StateLifter):
             parameters = self.landmarks[landmarks, :].flatten()
             return np.r_[1.0, parameters]
 
-    def sample_parameters(self):
+    def sample_parameters(self, *args, **kwargs):
         if self.param_level == "no":
             return [1.0]
         else:

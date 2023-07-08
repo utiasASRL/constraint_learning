@@ -18,8 +18,8 @@ solver_options = {
         "verbose": VERBOSE,
         "mosek_params": {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-12,  # was 1e-8
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-12,  # was 1e-8
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-10,  # was 1e-8
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-10,  # was 1e-8
             #"MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,  # was 1e-10
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
@@ -102,6 +102,7 @@ def solve_sdp_cvxpy(
         _type_: (X, cost_out): solution matrix and output cost.
     """
     opts = solver_options[solver]
+    opts["verbose"] = verbose
 
     if tol:
         adjust_tol([opts], tol)

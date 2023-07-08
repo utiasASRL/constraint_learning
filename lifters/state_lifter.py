@@ -69,7 +69,7 @@ class StateLifter(BaseClass):
     FACTOR = 2.0  
 
     # number of times we remove bad samples from data matrix
-    N_CLEANING_STEPS = 3
+    N_CLEANING_STEPS = 1 # was 3
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
