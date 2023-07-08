@@ -237,6 +237,8 @@ class StateLifter(BaseClass):
         if sparse:
             #flat_indices = np.ravel_multi_index([i_upper, j_upper], mat.shape)
             ii, jj = mat.nonzero()
+            if len(ii) == 0:
+                raise ValueError("got empty matrix")
             triu_mask = jj>=ii
             flat_indices = ravel_multi_index_triu([ii[triu_mask], jj[triu_mask]], mat.shape)
             data = np.array(mat[ii[triu_mask], jj[triu_mask]]).flatten()  
@@ -682,12 +684,12 @@ class StateLifter(BaseClass):
         return basis_list
 
     def augment_basis_list(
-        self, basis_list, var_subset, n_landmarks=None, verbose=False
+        self, basis_list, n_landmarks=None, verbose=False
     ):
         """
         Apply the learned patterns in basis_list to all landmarks.
 
-        :param basis_list: list of sparse vectors or list of poly matrices.
+        :param basis_list: list of poly matrices.
         """
 
         if n_landmarks is None:
@@ -695,12 +697,8 @@ class StateLifter(BaseClass):
 
         # TODO(FD) generalize below; but for now, this is easier to debug and understand.
         new_poly_rows = []
-        for bi in basis_list:
+        for bi_poly in basis_list:
             # find the number of variables that this touches.
-            if isinstance(bi, PolyMatrix):
-                bi_poly = bi
-            else:
-                bi_poly = self.convert_b_to_polyrow(bi, var_subset)
             unique_idx = set()
             for key in bi_poly.variable_dict_j:
                 param, var_keys = key.split("-")
