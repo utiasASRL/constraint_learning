@@ -546,7 +546,7 @@ class Learner(object):
             for key, idx_list in add_columns.items():
                 try:
                     data[key] = idx_list.index(i)
-                except ValueError:
+                except Exception: 
                     data[key] = -1
             series.append(
                 pd.Series(
@@ -604,7 +604,7 @@ class Learner(object):
         )
         return templates_poly
 
-    def save_sorted_templates(self, df, fname_root="", title="", drop_zero=False):
+    def save_sorted_templates(self, df, fname_root="", title="", drop_zero=False, simplify=True):
         from utils.plotting_tools import plot_basis
 
         # convert to poly matrix for plotting purposes only.
@@ -639,22 +639,14 @@ class Learner(object):
                         )
                     )
         ax.set_yticklabels([])
-        new_xticks = [
-            f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
-        ]
-        ax.set_xticklabels(new_xticks)
-
-        # below works too, incase above takes too long.
-        # from utils.plotting_tools import add_colorbar
-        # fig, ax = plt.subplots()
-        # h_w_ratio = len(df) / len(df.columns)
-        # fig.set_size_inches(10, 10 * h_w_ratio)  # w, h
-        # im = ax.pcolormesh(df.values.astype(float))
-        # ax.set_xticks(range(1, 1 + len(df.columns)), df.columns, rotation=90)
-        # ax.xaxis.tick_top()
-        # ax.set_yticks(range(len(df.index)), df.index)
-        # add_colorbar(fig, ax, im)
-
+        ax.set_yticks([])
+        if simplify:
+            ax.set_xticklabels([])
+        else:
+            new_xticks = [
+                f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
+            ]
+            ax.set_xticklabels(new_xticks)
         if fname_root != "":
             savefig(fig, fname_root + "_templates-sorted.png")
         return fig, ax
@@ -728,7 +720,10 @@ class Learner(object):
         im0 = axs[0].matshow(
             1 - A_agg.toarray(), vmin=0, vmax=1, cmap="gray"
         )  # 1 (white) is empty, 0 (black) is nonempty
-        im1 = axs[1].matshow(Q)
+
+        import matplotlib
+        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=np.min(Q), vmax=np.max(Q))
+        im1 = axs[1].matshow(Q, norm=norm)
 
         for ax in axs:
             add_rectangles(ax, self.lifter.var_dict)

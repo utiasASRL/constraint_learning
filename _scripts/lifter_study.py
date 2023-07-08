@@ -5,14 +5,13 @@ import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 
-# import matplotlib
-# matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 plt.ioff()
 
 from lifters.learner import Learner
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
 from utils.plotting_tools import savefig
 
 n_landmarks_list = [5, 10, 15]
@@ -69,9 +68,10 @@ def save_tightness_order(learner: Learner, fname_root=""):
     df_current = learner.df_tight[learner.df_tight.lifter == str(learner.lifter)]
 
     fig_cost, ax_cost = plt.subplots()
-    ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k")
+    ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k", label="QCQP cost")
     for reorder, df in df_current.groupby("reorder"):
-        ax_cost.semilogy(range(len(df)), df["dual cost"])
+        label = "dual cost, sorted by dual values" if reorder else "dual cost, original ordering"
+        ax_cost.semilogy(range(len(df)), df["dual cost"], label=label)
 
         fig_eigs, ax_eigs = plt.subplots()
         fig_eigs.set_size_inches(5, 5)
@@ -121,7 +121,6 @@ def save_tightness_order(learner: Learner, fname_root=""):
             savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.png")
 
     ax_cost.legend(
-        ["QCQP cost", "dual cost, original ordering", "dual cost, new ordering"],
         loc="lower right",
     )
     ax_cost.xaxis.set_major_locator(MaxNLocator(integer=True))
@@ -141,7 +140,7 @@ def tightness_study(learner: Learner, tightness="rank", original=False):
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(reorder=True, tightness=tightness)
     if not original:
-        return [], idx_subset_reorder
+        return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(reorder=False, tightness=tightness)
     return idx_subset_original, idx_subset_reorder
@@ -163,15 +162,21 @@ def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank",
         save_tightness_order(learner, fname_root)
 
     if "matrices" in plots:
-        A_matrices = [learner.constraints[i].A_poly_ for i in learner.df.idx_subset_original]
+        if idx_subset_reorder is not None:
+            A_matrices = [learner.constraints[i].A_poly_ for i in idx_subset_reorder]
+            fig, ax = learner.save_matrices_poly(A_matrices=A_matrices[:5])
+            w, h = fig.get_size_inches()
+            fig.set_size_inches(5 * w / h, 5)
+            savefig(fig, fname_root + "_matrices.png")
 
-        fig, ax = learner.save_matrices_poly(A_matrices=A_matrices[:5])
-        w, h = fig.get_size_inches()
-        fig.set_size_inches(5 * w / h, 5)
-        savefig(fig, fname_root + "_matrices.png")
+            A_matrices = [learner.constraints[i].A_poly_ for i in idx_subset_reorder]
+            fig, ax = learner.save_matrices_sparsity(A_matrices)
+            savefig(fig, fname_root + "_matrices-sparsity-reorder.png")
 
-        fig, ax = learner.save_matrices_sparsity(A_matrices)
-        savefig(fig, fname_root + "_matrices-sparsity.png")
+        if idx_subset_original is not None:
+            A_matrices = [learner.constraints[i].A_poly_ for i in idx_subset_original]
+            fig, ax = learner.save_matrices_sparsity(A_matrices)
+            savefig(fig, fname_root + "_matrices-sparsity-original.png")
 
     if "templates" in plots:
         templates_poly = learner.generate_templates_poly(factor_out_parameters=True)
@@ -186,83 +191,11 @@ def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank",
         title = (
             f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
         )
-        fig, ax = learner.save_sorted_templates(df, title=title, drop_zero=True)
+        fig, ax = learner.save_sorted_templates(df, title=title, drop_zero=True, simplify=True)
         w, h = fig.get_size_inches()
         fig.set_size_inches(5 * w / h, 5)
         savefig(fig, fname_root + "_templates.png")
 
-
-def range_only_tightness():
-    """
-    Find the set of minimal constraints required for tightness for range-only problem.
-    """
-    n_landmarks = 10
-    d = 3
-    seed = 0
-    plots = []  # ["svd", "matrices"]
-
-    for level in ["no", "quad"]:
-        n_positions = 2 if level == "quad" else 4
-        variable_list = [
-            ["l"]
-            + [f"x_{i}" for i in range(n_positions)]
-            + [f"z_{i}" for i in range(n_positions)]
-        ]
-        np.random.seed(seed)
-        lifter = RangeOnlyLocLifter(
-            n_positions=n_positions,
-            n_landmarks=n_landmarks,
-            d=d,
-            level=level,
-            W=None,
-            variable_list=variable_list,
-        )
-        learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
-        )
-        fname_root = f"_results/{lifter}_seed{seed}"
-        run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
-
-
-def range_only_scalability():
-    """
-    Deteremine how the range-only problem sclaes with nubmer of positions.
-    """
-    n_landmarks = 10
-    n_positions_list = [3, 4, 5]
-    # n_positions_list = np.logspace(0.1, 2, 10).astype(int)
-    # level = "no" # for range-only
-    level = "no"  # for range-only
-    d = 3
-
-    for level in ["quad", "no"]:
-        n_seeds = 10
-        variable_list = None
-        df_data = []
-        for seed, n_positions in itertools.product(range(n_seeds), n_positions_list):
-            print(f"===== {n_positions} ====")
-            np.random.seed(seed)
-            lifter = RangeOnlyLocLifter(
-                n_positions=n_positions,
-                n_landmarks=n_landmarks,
-                d=d,
-                level=level,
-                W=None,
-                variable_list=variable_list,
-            )
-            fname_root = f"_results/{lifter}"
-            learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-
-            times = learner.run(verbose=True, use_known=False, plot=False)
-            for t_dict in times:
-                t_dict["N"] = n_positions
-                df_data.append(t_dict)
-
-        df = pd.DataFrame(df_data)
-
-        fig, ax = plot_scalability(df)
-        fig.set_size_inches(5, 5)
-        savefig(fig, fname_root + "_scalability.png")
 
 
 def stereo_tightness(d=2):
@@ -276,7 +209,8 @@ def stereo_tightness(d=2):
     seed = 0
     # plots = ["tightness", "svd", "matrices", "templates"]
     #plots = ["matrices", "templates"]
-    plots = ["svd", "tightness"]
+    #plots = ["matrices", "templates", "svd", "tightness"]
+    plots = ["matrices"]
     levels = ["no", "urT"]
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
@@ -307,7 +241,7 @@ def stereo_tightness(d=2):
         fname_root = f"_results/{lifter}_seed{seed}"
 
         if d == 2:
-            run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
+            run_oneshot_experiment(learner, fname_root, plots, tightness="cost", add_original=True)
         elif d == 3:
             run_oneshot_experiment(learner, fname_root, plots, tightness="cost", add_original=False)
 
@@ -484,8 +418,6 @@ if __name__ == "__main__":
     #    warnings.simplefilter("error")
     stereo_tightness(d=2)
     stereo_tightness(d=3)
-    # range_only_tightness()
-    # range_only_scalability()
 
     # import cProfile
     # cProfile.run('stereo_scalability()')
