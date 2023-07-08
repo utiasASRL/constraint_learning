@@ -60,54 +60,96 @@ def save_table(df, tex_name):
     df_tab.style.to_latex(tex_name)
     print(f"saved table as {tex_name}")
 
+def save_tightness_order(learner: Learner, fname_root=""):
+    from matplotlib.ticker import MaxNLocator
 
-def tightness_study(learner: Learner, fname_root="", plot=True, tightness="rank"):
-    """investigate tightness before and after reordering"""
-    if plot:
-        fig_cost, ax_cost = plt.subplots()
-        ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k")
-        fig_cost.set_size_inches(5, 5)
+    if learner.df_tight is None:
+        print(f"no tightness data for {learner.lifter}")
+        return
+    df_current = learner.df_tight[learner.df_tight.lifter == str(learner.lifter)]
 
-        fig_eigs1, ax_eigs1 = plt.subplots()
-        fig_eigs1.set_size_inches(5, 5)
+    fig_cost, ax_cost = plt.subplots()
+    ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k")
+    for reorder, df in df_current.groupby("reorder"):
+        ax_cost.semilogy(range(len(df)), df["dual cost"])
 
-        fig_eigs2, ax_eigs2 = plt.subplots()
-        fig_eigs2.set_size_inches(5, 5)
-    else:
-        ax_cost = ax_eigs1 = ax_eigs2 = None
-    idx_subset_original = learner.generate_minimal_subset(
-        reorder=False, ax_cost=ax_cost, ax_eigs=ax_eigs1, tightness=tightness
+        fig_eigs, ax_eigs = plt.subplots()
+        fig_eigs.set_size_inches(5, 5)
+
+        cmap = plt.get_cmap("viridis", len(df))
+
+        cost_tight = np.where(df.cost_tight.values == True)[0]
+        cost_idx = cost_tight[0] if len(cost_tight) else None
+        rank_tight = np.where(df.rank_tight.values == True)[0]
+        rank_idx = rank_tight[0] if len(rank_tight) else None
+
+        for i in range(len(df)):
+            eig = df.iloc[i].eigs
+            label = None
+            color = cmap(i)
+            if i == len(df) // 2:
+                label = "..."
+            if i == 0:
+                label = f"{i+1}"
+            if i == len(df) - 1:
+                label = f"{i+1}"
+            if i == cost_idx:
+                label = f"{i+1}: cost-tight"
+                color = "red"
+            if i == rank_idx:
+                label = f"{i+1}: rank-tight"
+                color = "black"
+            ax_eigs.semilogy(eig, color=color, label=label)
+
+        # make sure these two are in foreground
+        if cost_idx is not None:
+            ax_eigs.semilogy(df.iloc[cost_idx].eigs, color="red")
+        if rank_idx is not None:
+            ax_eigs.semilogy(df.iloc[rank_idx].eigs, color="black")
+        ax_eigs.set_xlabel("index")
+        ax_eigs.set_ylabel("eigenvalue")
+        ax_eigs.grid(True)
+
+        if reorder:
+            name = "sorted"
+            ax_eigs.set_title("sorted by dual values")
+        else:
+            name = "original"
+            ax_eigs.set_title("original order")
+        ax_eigs.legend(loc="upper right", title="number of added\n constraints")
+        if fname_root != "":
+            savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.png")
+
+    ax_cost.legend(
+        ["QCQP cost", "dual cost, original ordering", "dual cost, new ordering"],
+        loc="lower right",
     )
+    ax_cost.xaxis.set_major_locator(MaxNLocator(integer=True))
+    ax_cost.set_xlabel("number of added constraints")
+    ax_cost.set_ylabel("cost")
+    fig_cost.set_size_inches(5, 5)
 
-    # fig, ax = plt.subplots()
-    idx_subset_reorder = learner.generate_minimal_subset(
-        reorder=True,
-        ax_cost=ax_cost,
-        ax_eigs=ax_eigs2,
-        # ax_lambda=ax,
-        tightness=tightness,
-    )
-    # ax.axvline(len(idx_subset_reorder))
 
-    if plot:
-        ax_cost.legend(
-            ["QCQP cost", "dual cost, original ordering", "dual cost, new ordering"],
-            loc="lower right",
-        )
-        ax_eigs1.legend(loc="upper right", title="number of added\n constraints")
-        ax_eigs1.set_title("original order")
-        ax_eigs2.legend(loc="upper right", title="number of added\n constraints")
-        ax_eigs2.set_title("sorted by dual values")
+    ax_cost.grid(True)
 
-    if plot and fname_root != "":
+    if fname_root != "":
         savefig(fig_cost, fname_root + "_tightness-cost.png")
-        savefig(fig_eigs1, fname_root + "_tightness-eigs-original.png")
-        savefig(fig_eigs2, fname_root + "_tightness-eigs-sorted.png")
+    return
+
+def tightness_study(learner: Learner, tightness="rank", original=False):
+    """investigate tightness before and after reordering"""
+    print("reordering...")
+    idx_subset_reorder = learner.generate_minimal_subset(reorder=True, tightness=tightness)
+    if not original:
+        return [], idx_subset_reorder
+    print("original ordering...")
+    idx_subset_original = learner.generate_minimal_subset(reorder=False, tightness=tightness)
     return idx_subset_original, idx_subset_reorder
 
 
-def run_oneshot_experiment(learner, fname_root, plots, tightness="rank"):
-    learner.run(verbose=True, use_known=False, plot=True)
+
+def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank", add_original=True):
+    learner.run(verbose=True, use_known=False, plot=True, tightness=tightness)
 
     if "svd" in plots:
         fig = plt.gcf()
@@ -116,20 +158,19 @@ def run_oneshot_experiment(learner, fname_root, plots, tightness="rank"):
         fig.set_size_inches(5, 5)
         savefig(fig, fname_root + "_svd.png")
 
-    idx_subset_original, idx_subset_reorder = tightness_study(
-        learner, plot="tightness" in plots, fname_root=fname_root, tightness=tightness
-    )
+    idx_subset_original, idx_subset_reorder = tightness_study(learner, tightness=tightness, original=add_original)
+    if "tightness" in plots:
+        save_tightness_order(learner, fname_root)
 
     if "matrices" in plots:
-        A_matrices = [learner.constraints[i].A_poly() for i in idx_subset_original]
+        A_matrices = [learner.constraints[i].A_poly_ for i in learner.df.idx_subset_original]
+
         fig, ax = learner.save_matrices_poly(A_matrices=A_matrices[:5])
         w, h = fig.get_size_inches()
         fig.set_size_inches(5 * w / h, 5)
         savefig(fig, fname_root + "_matrices.png")
 
-        fig, ax = learner.save_matrices_sparsity(
-            [c.A_poly() for c in learner.constraints]
-        )
+        fig, ax = learner.save_matrices_sparsity(A_matrices)
         savefig(fig, fname_root + "_matrices-sparsity.png")
 
     if "templates" in plots:
@@ -180,7 +221,7 @@ def range_only_tightness():
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"_results/{lifter}_seed{seed}"
-        run_oneshot_experiment(learner, fname_root, plots)
+        run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
 
 
 def range_only_scalability():
@@ -224,15 +265,18 @@ def range_only_scalability():
         savefig(fig, fname_root + "_scalability.png")
 
 
-def stereo_tightness():
+def stereo_tightness(d=2):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
     """
-    n_landmarks = 4
-    d = 2
+    if d == 2:
+        n_landmarks = 3
+    elif d == 3:
+        n_landmarks = 4
     seed = 0
     # plots = ["tightness", "svd", "matrices", "templates"]
-    plots = ["matrices", "templates"]
+    #plots = ["matrices", "templates"]
+    plots = ["svd", "tightness"]
     levels = ["no", "urT"]
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
@@ -262,13 +306,15 @@ def stereo_tightness():
         )
         fname_root = f"_results/{lifter}_seed{seed}"
 
-        run_oneshot_experiment(learner, fname_root, plots, tightness="cost")
+        if d == 2:
+            run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
+        elif d == 3:
+            run_oneshot_experiment(learner, fname_root, plots, tightness="cost", add_original=False)
 
 
-def stereo_scalability_new():
+def stereo_scalability_new(d=2):
     import time
 
-    d = 2
     level = "urT"
     param_level = "ppT"
 
@@ -368,18 +414,17 @@ def stereo_scalability_new():
     save_table(df, tex_name)
 
 
-def stereo_scalability():
+def stereo_scalability(d=2):
     """
     Deteremine how the range-only problem sclaes with nubmer of positions.
     """
     # n_positions_list = np.logspace(0.1, 2, 10).astype(int)
-    n_landmarks_list = [3, 4, 5]
+    n_landmarks_list = [4, 5, 6]
 
     level = "urT"
     param_level = "no"
     # param_level = "ppT"
 
-    d = 2
     # variable_list = None
     df_data = []
     for seed, n_landmarks in itertools.product(range(n_seeds), n_landmarks_list):
@@ -437,15 +482,16 @@ if __name__ == "__main__":
 
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    # stereo_tightness()
+    stereo_tightness(d=2)
+    stereo_tightness(d=3)
     # range_only_tightness()
     # range_only_scalability()
 
     # import cProfile
     # cProfile.run('stereo_scalability()')
 
-    stereo_scalability()
-    stereo_scalability_new()
+    #stereo_scalability(d=3)
+    #stereo_scalability_new()
 
     # with open("temp.pkl", "rb") as f:
     #    learner = pickle.load(f)

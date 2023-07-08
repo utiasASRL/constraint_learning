@@ -15,11 +15,11 @@ def change_dimensions(a, y):
 
 
 class Stereo3DLifter(StereoLifter):
-    def __init__(self, n_landmarks, level="no", param_level="no"):
-        self.W = np.stack([np.eye(2)] * n_landmarks)
+    def __init__(self, n_landmarks, level="no", param_level="no", variable_list=None):
+        self.W = np.stack([np.eye(4)] * n_landmarks)
         self.M_matrix_ = None
         super().__init__(
-            n_landmarks=n_landmarks, level=level, param_level=param_level, d=3
+            n_landmarks=n_landmarks, level=level, param_level=param_level, d=3, variable_list=variable_list
         )
 
     @property
@@ -49,10 +49,10 @@ class Stereo3DLifter(StereoLifter):
         p_w, y = change_dimensions(a, y)
 
         if len(t) == 6:
-            theta = get_xtheta_from_theta(t, 3)
+            xtheta = get_xtheta_from_theta(t, 3)
         else:
-            theta = t
-        T = get_T(theta, 3)
+            xtheta = t
+        T = get_T(xtheta, 3)
 
         cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
         return cost
@@ -69,15 +69,20 @@ class Stereo3DLifter(StereoLifter):
         a = self.landmarks
         p_w, y = change_dimensions(a, y)
         if len(t_init) == 6:
-            theta_init = get_xtheta_from_theta(t_init, 3)
+            xtheta_init = get_xtheta_from_theta(t_init, 3)
         else:
-            theta_init = t_init
-        T_init = get_T(theta_init, 3)
+            xtheta_init = t_init
+        T_init = get_T(xtheta_init, 3)
 
         success, T_hat, cost = local_solver(
             T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose
         )
         x_hat = get_xtheta_from_T(T_hat)
+
+        x = self.get_x(theta=x_hat)
+        Q = self.get_Q_from_y(y[:, :, 0])
+        cost_Q = x.T @ Q @ x
+        assert abs(cost_Q - cost) < 1e-8
 
         if success:
             return x_hat, "converged", cost

@@ -3,8 +3,10 @@ Temporary copy of Ben's code, to get the local solver
 """
 import numpy as np
 
-M = np.array([[1, 0, 1], [1, 0, -1]]).reshape((2, 3))
-
+f_u = 484.5
+c_u = 322
+b = 0.24
+M = np.array([[f_u, c_u, f_u * b / 2], [f_u, c_u, -f_u * b / 2]])
 
 def forward_exact(T, p_w, M):
     assert T.shape == (3, 3)

@@ -1,4 +1,5 @@
 import time
+from copy import deepcopy
 
 import numpy as np
 import pandas as pd
@@ -15,10 +16,10 @@ from utils.plotting_tools import savefig
 from utils.constraint import Constraint
 
 
-NOISE_LEVEL = 1e-2
 NOISE_SEED = 5
 
 ADJUST_Q = True  # rescale Q matrix
+PRIMAL = False # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e8
@@ -53,6 +54,7 @@ class Learner(object):
         self.index_tested = set()
 
         # list of dual costs
+        self.df_tight = None
         self.ranks = []
         self.dual_costs = []
         self.variable_list = []
@@ -113,12 +115,13 @@ class Learner(object):
             self.b_current_ = np.vstack(b_list)
         return self.b_current_
 
+    def check_violation(self, dual_cost):
+        primal_cost = self.solver_vars["qcqp_cost"]
+        return (dual_cost - primal_cost) / primal_cost > TOL_REL_GAP
+
     def duality_gap_is_zero(self, dual_cost, verbose=False):
-        res = (
-            abs(self.solver_vars["qcqp_cost"] - dual_cost)
-            / self.solver_vars["qcqp_cost"]
-            < TOL_REL_GAP
-        )
+        primal_cost = self.solver_vars["qcqp_cost"]
+        res = (primal_cost - dual_cost) / primal_cost < TOL_REL_GAP
         if not verbose:
             return res
 
@@ -148,13 +151,39 @@ class Learner(object):
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         X, info = self._test_tightness(A_b_list_all, verbose=True)
+
+        final_cost = np.trace(self.solver_vars["Q"] @ X) 
+        if abs(final_cost - info["cost"]) >= 1e-10:
+            print(f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}")
+
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
+
         if info["cost"] is None:
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print("Warning: is problem infeasible?")
             max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum error:", max_error)
+            return False
+        elif self.check_violation(info["cost"]):
+            self.ranks.append(np.zeros(A_list[0].shape[0]))
+            print(f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}")
+            print("Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints.")
+            max_error, bad_list = self.lifter.test_constraints(A_list, errors="raise")
+            print("Maximum feasibility error at random x:", max_error)
+
+            print("It can also mean that we are not sampling enough of the space close to the true solution.")
+            tol = 1e-10
+            xhat = self.solver_vars["xhat"]
+            max_error = -np.inf
+            for Ai in A_list:
+                error = xhat.T @ Ai @ xhat
+                assert abs(error) < tol, error
+
+                errorX = np.trace(X @ Ai)
+                max_error = max(errorX, max_error)
+            print(f"Maximum feasibility error at solution x: {max_error}")
+
             return False
         else:
             eigs = np.linalg.eigvalsh(X)[::-1]
@@ -166,16 +195,8 @@ class Learner(object):
                 tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
             return tightness_val
 
-    def generate_minimal_subset(
-        self,
-        reorder=False,
-        ax_cost=None,
-        ax_eigs=None,
-        ax_lambda=None,
-        tightness="rank",
-    ):
+    def generate_minimal_subset(self, reorder=False, tightness="rank"):
         from solvers.sparse import solve_lambda
-        from matplotlib.ticker import MaxNLocator
 
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
@@ -190,58 +211,64 @@ class Learner(object):
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
-                return range(len(self.A_matrices))
+                return None
+            print("found valid lamdas")
 
             # order constraints by importance
             sorted_idx = np.argsort(np.abs(lamdas[1:]))[::-1]
-            if ax_lambda is not None:
-                ax_lambda.semilogy(np.abs(lamdas[1:][sorted_idx]))
         else:
-            sorted_idx = range(len(self.A_matrices))
+            lamdas = np.zeros(len(self.constraints))
+            sorted_idx = range(len(self.constraints))
         A_b_list = [(self.lifter.get_A0(), 1.0)]
 
+        df_data = []
+
         minimal_indices = []
-        dual_costs = []
-        ranks = []
         tightness_counter = 0
+
         rank_idx = None
         cost_idx = None
+        new_data = {"lifter": str(self.lifter), "reorder": reorder}
         for i, idx in enumerate(sorted_idx):
-            # name, Ai_poly = self.A_matrices[idx]
-            # Ai_sparse = Ai_poly.get_matrix(self.lifter.var_dict_unroll)
+            new_data.update({"idx": idx, "lamda": lamdas[idx], "value": self.constraints[idx].value})
             Ai_sparse = A_list[idx]
 
             A_b_list += [(Ai_sparse, 0.0)]
             X, info = self._test_tightness(A_b_list, verbose=False)
+
             dual_cost = info["cost"]
             # dual_cost = 1e-10
-            dual_costs.append(dual_cost)
+            new_data["dual cost"] = dual_cost
             if dual_cost is None:
-                ranks.append(np.zeros(Ai_sparse.shape[0]))
+                new_data["eigs"] = np.zeros(Ai_sparse.shape[0])
                 print(f"{i}/{len(sorted_idx)}: solver error")
                 continue
 
-            eigs = np.linalg.eigvalsh(X)[::-1]
-            ranks.append(eigs)
             if self.duality_gap_is_zero(dual_cost):
                 if cost_idx is None:
                     cost_idx = i
                     print(f"{i}/{len(sorted_idx)}: cost-tight")
+                new_data["cost_tight"] = True
                 if tightness == "cost":
                     tightness_counter += 1
             else:
-                pass
-                # print(f"{i}/{len(sorted_idx)}: not cost-tight yet")
+                new_data["cost_tight"] = False
+                print(f"{i}/{len(sorted_idx)}: not cost-tight yet: {dual_cost:.3e}, {self.solver_vars['qcqp_cost']:.3e}")
 
+            eigs = np.linalg.eigvalsh(X)[::-1]
+            new_data["eigs"] = eigs
             if self.is_rank_one(eigs):
                 if rank_idx is None:
                     rank_idx = i
                     print(f"{i}/{len(sorted_idx)}: rank-tight")
+                new_data["rank_tight"] = True
                 if tightness == "rank":
                     tightness_counter += 1
             else:
-                pass
+                new_data["rank_tight"] = False
                 # print(f"{i}/{len(sorted_idx)}: not rank-tight yet")
+
+            df_data.append(deepcopy(new_data))
 
             # add all necessary constraints to the list.
             if tightness_counter <= 1:
@@ -250,40 +277,11 @@ class Learner(object):
             if tightness_counter > 10:
                 break
 
-        if ax_cost is not None:
-            ax_cost.semilogy(range(len(dual_costs)), dual_costs, marker="o")
-            ax_cost.xaxis.set_major_locator(MaxNLocator(integer=True))
-            ax_cost.set_xlabel("number of added constraints")
-            ax_cost.set_ylabel("cost")
-            ax_cost.grid(True)
-
-        if ax_eigs is not None:
-            cmap = plt.get_cmap("viridis", len(ranks))
-            for i, eig in enumerate(ranks):
-                label = None
-                color = cmap(i)
-                if i == len(ranks) // 2:
-                    label = "..."
-                if i == 0:
-                    label = f"{i+1}"
-                if i == len(ranks) - 1:
-                    label = f"{i+1}"
-                if i == cost_idx:
-                    label = f"{i+1}: cost-tight"
-                    color = "red"
-                if i == rank_idx:
-                    label = f"{i+1}: rank-tight"
-                    color = "black"
-                ax_eigs.semilogy(eig, color=color, label=label)
-
-            # make sure these two are in foreground
-            if cost_idx is not None:
-                ax_eigs.semilogy(ranks[cost_idx], color="red")
-            if rank_idx is not None:
-                ax_eigs.semilogy(ranks[rank_idx], color="black")
-            ax_eigs.set_xlabel("index")
-            ax_eigs.set_ylabel("eigenvalue")
-            ax_eigs.grid(True)
+        if self.df_tight is None:
+            self.df_tight = pd.DataFrame(df_data)
+        else:
+            df_tight = pd.DataFrame(df_data)
+            self.df_tight = pd.concat([self.df_tight, df_tight], axis=0)
         return minimal_indices
 
     def _test_tightness(self, A_b_list_all, verbose=False):
@@ -291,14 +289,14 @@ class Learner(object):
 
         if self.solver_vars is None:
             np.random.seed(NOISE_SEED)
-            Q, y = self.lifter.get_Q(noise=NOISE_LEVEL)
+            Q, y = self.lifter.get_Q()
             qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False)
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
-            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST_Q, verbose=verbose
+            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST_Q, verbose=verbose, primal=PRIMAL
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -411,18 +409,15 @@ class Learner(object):
 
         Second use case: After applying the templates to as many variable pairs as we wish, we call this function again,
         to make sure all the matrices going into the SDP are in fact linearly independent.
-
         """
         n_before = len(self.constraints)
-        if not remove_dependent:
-            bad_idx = []
-        else:
+        self.constraints += new_constraints
+
+        if remove_dependent:
             t1 = time.time()
             # find which constraints are lin. dep.
-            a_prev_list = self.get_a_current()
-            a_new_list = self.get_a_row_list(constraints=new_constraints)
-            a_current = a_prev_list + a_new_list
-            A_vec = sp.vstack(a_current).T
+            a_current = self.get_a_current()
+            A_vec = sp.vstack(a_current, format="coo").T
 
             # Use sparse rank revealing QR
             # We "solve" a least squares problem to get the rank and permutations
@@ -440,13 +435,15 @@ class Learner(object):
                 print(f"clean_constraints: keeping {rank}/{len(E)}")
             bad_idx = list(E[sort_inds[rank:]])
 
+            good_idx = list(E[sort_inds[:rank]])
+            for idx in good_idx:
+                self.constraints[idx].value = r_vals[idx]
+
             # Sanity check, removed because too expensive. It almost always passed anyways.
             # Z, R, E, rank_full = sqr.rz(A_vec[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=1e-10)
             # if rank_full != rank:
             #     print(f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}.")
             print(f"time to find independent {time.time() - t1:.3f}s")
-
-        self.constraints += new_constraints
 
         if remove_dependent:
             if len(bad_idx):
@@ -586,9 +583,9 @@ class Learner(object):
             mat_vars = constraint.mat_var_dict
             i = constraint.index
             if factor_out_parameters:
-                plot_rows.append(constraint.polyrow_a(self.lifter))
+                plot_rows.append(constraint.polyrow_a_)
             else:
-                plot_rows.append(constraint.polyrow_b(self.lifter))
+                plot_rows.append(constraint.polyrow_b_)
             if mat_vars != old_mat_vars:
                 j += 1
                 plot_row_labels.append(f"{j}:b{i}")
@@ -719,7 +716,7 @@ class Learner(object):
         sorted_i = self.lifter.var_dict_unroll
         agg_ii = []
         agg_jj = []
-        for i, (name, A_poly) in enumerate(A_matrices):
+        for i, A_poly in enumerate(A_matrices):
             A_sparse = A_poly.get_matrix(variables=sorted_i)
             ii, jj = A_sparse.nonzero()
             agg_ii += list(ii)
@@ -756,7 +753,7 @@ class Learner(object):
         fig, axs = plt.subplots(n_rows, n_cols, squeeze=False)
         fig.set_size_inches(5 * n_cols / n_rows, 5)
         axs = axs.flatten()
-        for i, (name, A_poly) in enumerate(A_matrices):
+        for i, A_poly in enumerate(A_matrices):
             if reduced_mode:
                 sorted_i = sorted(A_poly.variable_dict_i.keys())
             else:

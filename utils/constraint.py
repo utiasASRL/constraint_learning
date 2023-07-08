@@ -4,8 +4,9 @@ from poly_matrix.poly_matrix import PolyMatrix
 import numpy as np
 
 class Constraint(object):
-    def __init__(self, index=0, polyrow_a=None, polyrow_b=None, A_poly=None, A_sparse=None, b=None, a=None, a_full=None, b_full=None, mat_var_dict=None):
+    def __init__(self, index=0, value=0, polyrow_a=None, polyrow_b=None, A_poly=None, A_sparse=None, b=None, a=None, a_full=None, b_full=None, mat_var_dict=None):
         self.index = index 
+        self.value = value
         self.mat_var_dict=mat_var_dict
 
         self.b_ = b
@@ -24,7 +25,8 @@ class Constraint(object):
         a_full = lifter.get_vec(A_sparse, sparse=True)
         A_poly = lifter.convert_b_to_Apoly(b,  mat_var_dict)
         polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
-        return Constraint(index=index, a=a, b=b, A_sparse=A_sparse, A_poly=A_poly, polyrow_b=polyrow_b, a_full=a_full, mat_var_dict=mat_var_dict)
+        polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
+        return Constraint(index=index, a=a, b=b, A_sparse=A_sparse, A_poly=A_poly, polyrow_b=polyrow_b, polyrow_a=polyrow_a, a_full=a_full, mat_var_dict=mat_var_dict)
 
     @staticmethod
     def init_from_polyrow_b(index:int, polyrow_b:PolyMatrix, lifter:StateLifter):

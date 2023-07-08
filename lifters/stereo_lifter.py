@@ -6,6 +6,7 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.common import get_rot_matrix
 
+NOISE_STD = 1.0 # 1 is too high
 
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
@@ -20,8 +21,11 @@ def get_C_r_from_xtheta(xtheta, d):
     return C, r
 
 
-def get_T(xtheta, d):
-    C, r = get_C_r_from_xtheta(xtheta, d)
+def get_T(xtheta=None, d=None, theta=None):
+    if theta is not None:
+        C, r = get_C_r_from_theta(theta, d)
+    else:
+        C, r = get_C_r_from_xtheta(xtheta, d)
     T = np.zeros((d + 1, d + 1))
     T[:d, :d] = C
     T[:d, d] = r
@@ -116,8 +120,33 @@ class StereoLifter(StateLifter, ABC):
             2 * np.pi * np.random.rand(n_inits, n_angles),
         ]
 
+    def generate_random_landmarks(self, theta=None):
+        if theta is not None:
+            C, r = get_C_r_from_theta(theta, self.d)
+            if self.d == 3:
+                # sample left u, v coordinates in left image, and compute landmark coordinates from that.
+                fu, cu, b = self.M_matrix[0, [0, 2, 3]]
+                fv, cv = self.M_matrix[1, [1, 2]]
+                u = np.random.uniform(0,cu*2,self.n_landmarks)
+                v = np.random.uniform(0,cv*2,self.n_landmarks)
+                z = np.random.uniform(0, 5, self.n_landmarks) 
+                x = 1/fu*(z*(u - cu) - b)
+                y = 1/fv*z*(v - cv)
+                points_cam = np.c_[x, y, z] # N x 3
+            else:
+                # sample left u in left image, and compute landmark coordinates from that.
+                fu, cu, b = self.M_matrix[0, :]
+                u = np.random.uniform(0,cu*2,self.n_landmarks)
+                y = np.random.uniform(1, 5, self.n_landmarks) 
+                x = 1/fu*(y*(u - cu) - b)
+                points_cam = np.c_[x, y]
+            # transform points from  camera to world
+            return (C.T @ (points_cam.T - r[:, None])).T
+        else:
+            return np.random.rand(self.n_landmarks, self.d)
+
     def generate_random_setup(self):
-        self.landmarks = np.random.rand(self.n_landmarks, self.d)
+        self.landmarks = self.generate_random_landmarks(theta=self.theta)
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
 
     def generate_random_theta(self, factor=1.0):
@@ -232,23 +261,22 @@ class StereoLifter(StateLifter, ABC):
     def sample_theta(self, factor=1.0):
         return self.generate_random_theta(factor=factor).flatten()
 
-    def sample_parameters(self):
+    def sample_parameters(self, theta=None):
         if self.param_level == "no":
             return [1.0]
         else:
-            parameters = np.random.rand(self.n_landmarks, self.d).flatten()
+            parameters = self.generate_random_landmarks(theta=theta).flatten()
             return np.r_[1.0, parameters]
 
-    def get_Q(self, noise: float = 1e-3) -> tuple:
+    def get_Q(self, noise: float = NOISE_STD) -> tuple:
         return self._get_Q(noise=noise)
 
     def _get_Q(self, noise: float = 1e-3) -> tuple:
-        from poly_matrix.least_squares_problem import LeastSquaresProblem
-
         xtheta = get_xtheta_from_theta(self.theta, self.d)
         T = get_T(xtheta, self.d)
 
         y = []
+
         for j in range(self.n_landmarks):
             y_gt = T @ np.r_[self.landmarks[j], 1.0]
 
@@ -256,14 +284,24 @@ class StereoLifter(StateLifter, ABC):
             # in 3d: y_gt[2]
             y_gt /= y_gt[self.d - 1]
             y_gt = self.M_matrix @ y_gt
-            y.append(y_gt + np.random.normal(loc=0, scale=noise))
+            y.append(y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt)))
+        Q = self.get_Q_from_y(y)
+        return Q, y
 
-        # in 2d: M[:, [0, 2]]
-        # in 3d: M[:, [0, 1, 3]]
-        M_tilde = np.zeros((self.var_dict["z_0"], self.d))
-        M_tilde[: self.M_matrix.shape[0], :] = self.M_matrix[
-            :, list(range(self.d - 1)) + [self.d]
-        ]
+    def get_Q_from_y(self, y):
+        """
+        The least squares problem reads
+        min_T \sum_{n=0}^{N-1} || y - Mtilde@z || 
+        where the first d elements of z correspond to u, and Mtilde contains the first d-1 and last element of M
+        Mtilde is thus of shape d*2 by dim_z, where dim_z=d+dL (the additional Lasserre variables)
+        y is of length d*2, corresponding to the measured pixel values in left and right image.
+        """
+        from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+        # in 2d: M_tilde is 2 by 6, with first 2 columns: M[:, [0, 2]]
+        # in 3d: M_tilde is 4 by 12, with first 3 columns: M[:, [0, 1, 3]]
+        M_tilde = np.zeros((len(y[0]), self.var_dict["z_0"])) # 4 by dim_z
+        M_tilde[:, :self.d] = self.M_matrix[:, list(range(self.d - 1)) + [self.d]]
 
         # in 2d: M[:, 1]
         # in 3d: M[:, 2]
@@ -271,17 +309,26 @@ class StereoLifter(StateLifter, ABC):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"l": y[j] - m, f"z_{j}": -M_tilde.T})
+            ls_problem.add_residual({"l": (y[j] - m), f"z_{j}": -M_tilde})
+
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
+        # there is precision loss because Q is 
 
         # sanity check
         x = self.get_x()
+
+        # sanity checks. Below is the best conditioned because we don't have to compute B.T @ B, which 
+        # can contain very large values. 
+        B = ls_problem.get_B_matrix(self.var_dict)
+        errors = B @ x
+        cost_test = errors.T @ errors
+
         t = self.theta
         cost_raw = self.get_cost(t, y)
         cost_Q = x.T @ Q.toarray() @ x
         assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
-
-        return Q, y
+        assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
+        return Q
 
     def __repr__(self):
         level_str = str(self.level).replace(".", "-")

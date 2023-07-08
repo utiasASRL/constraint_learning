@@ -18,9 +18,9 @@ solver_options = {
         "verbose": VERBOSE,
         "mosek_params": {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-8,  # was 1e-12
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-8,  # was 1e-12
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": 1e-12,  # was 1e-8
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": 1e-12,  # was 1e-8
+            #"MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": 1e-10,  # was 1e-10
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
@@ -54,9 +54,8 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
 
     ii, jj = (Q == Q.max()).nonzero()
     if (ii[0], jj[0]) != (0, 0) or (len(ii) > 1):
-        print(
-            "Warning: largest element of Q is not unique or not in top-left. Check ordering?"
-        )
+        pass
+        #print("Warning: largest element of Q is not unique or not in top-left. Check ordering?")
 
     Q_mat = deepcopy(Q)
     if offset:
@@ -117,17 +116,22 @@ def solve_sdp_cvxpy(
         constraints = [X >> 0]
         constraints += [cp.trace(A @ X) == b for A, b in A_b_list]
         cprob = cp.Problem(cp.Minimize(cp.trace(Q_here @ X)), constraints)
-        cprob.solve(
-            solver=solver,
-            save_file="solve_cvxpy_primal.ptf",
-            **opts,
-            verbose=verbose,
-        )
-        cost = cprob.value
-        X = X.value
-        # Get Dual Variables
-        H = constraints[0].dual_value
-        yvals = [c.dual_value for c in constraints[1:]]
+        try:
+            cprob.solve(
+                solver=solver,
+                #save_file="solve_cvxpy_primal.ptf",
+                **opts,
+            )
+        except:
+            cost = None
+            X = None
+            H = None
+            yvals = None
+        else:
+            cost = cprob.value
+            X = X.value
+            H = constraints[0].dual_value
+            yvals = [c.dual_value for c in constraints[1:]]
     else:  # Dual
         """
         max < y, b >
@@ -141,37 +145,23 @@ def solve_sdp_cvxpy(
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
         constraint = LHS << Q_here
 
-        cost = None
-        X = None
-        H = None
-        yvals = None
-
         cprob = cp.Problem(objective, [constraint])
         try:
             cprob.solve(
                 solver=solver,
                 **opts,
             )
-        except Exception as e:
-            if verbose:
-                print(e)
-                print(f"Solver {solver} failed! solving again with verbose option.")
-                from copy import deepcopy
-
-                o_here = deepcopy(opts)
-                o_here["verbose"] = True
-                try:
-                    cprob.solve(
-                        solver=solver,
-                        **o_here,
-                    )
-                except:
-                    pass
+        except:
+            cost = None
+            X = None
+            H = None
+            yvals = None
         else:
             cost = cprob.value
             X = constraint.dual_value
             H = Q_here - LHS.value
             yvals = [x.value for x in y]
+
     # reverse Q adjustment
     if cost:
         cost = cost * scale + offset
@@ -179,9 +169,6 @@ def solve_sdp_cvxpy(
         H *= scale
         H[0, 0] += offset
 
-        X = constraint.dual_value
-        H = Q_here - LHS.value
-        yvals = [x.value for x in y]
     info = {"H": H, "yvals": yvals, "cost": cost}
     return X, info
 

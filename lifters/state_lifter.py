@@ -48,7 +48,7 @@ def unravel_multi_index_triu(flat_indices, shape):
 class StateLifter(BaseClass):
 
     # consider singular value zero below this
-    EPS_SVD = 1e-5
+    EPS_SVD = 1e-7
 
     # set elements below this threshold to zero.
     EPS_SPARSE = 1e-9
@@ -69,7 +69,7 @@ class StateLifter(BaseClass):
     FACTOR = 2.0  
 
     # number of times we remove bad samples from data matrix
-    N_CLEANING_STEPS = 1
+    N_CLEANING_STEPS = 3
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
@@ -773,7 +773,7 @@ class StateLifter(BaseClass):
             np.random.seed(seed)
 
             theta = self.sample_theta()
-            parameters = self.sample_parameters()
+            parameters = self.sample_parameters(theta)
 
             if seed < 10 and ax is not None:
                 if np.ndim(self.theta) == 1:
