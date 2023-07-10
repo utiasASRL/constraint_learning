@@ -71,6 +71,9 @@ class StateLifter(BaseClass):
     # number of times we remove bad samples from data matrix
     N_CLEANING_STEPS = 1 # was 3
 
+    # maximum number of iterations of local solver
+    LOCAL_MAXITER = 100
+
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
         return [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]

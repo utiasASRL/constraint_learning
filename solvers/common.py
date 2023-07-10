@@ -1,6 +1,7 @@
 import cvxpy as cp
 import numpy as np
-import scipy.sparse.linalg as spl
+
+from lifters.state_lifter import StateLifter
 
 VERBOSE = False
 SOLVER = "MOSEK"  # first choice
@@ -174,7 +175,7 @@ def solve_sdp_cvxpy(
     return X, info
 
 
-def find_local_minimum(lifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False):
+def find_local_minimum(lifter: StateLifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False):
     local_solutions = []
     costs = []
 

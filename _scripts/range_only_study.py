@@ -9,17 +9,18 @@ from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import run_oneshot_experiment, plot_scalability, run_scalability_new
 
+n_landmarks = 10
+d = 3
+
 def range_only_tightness():
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
-    n_landmarks = 10
-    d = 3
     seed = 0
     plots = ["svd", "matrices", "tightness", "templates"]  # ["svd", "matrices"]
+    n_positions = 3
 
     for level in ["no", "quad"]:
-        n_positions = 2 if level == "quad" else 4
         variable_list = [
             ["l"]
             + [f"x_{i}" for i in range(n_positions)]
@@ -78,40 +79,27 @@ def range_only_scalability():
 
         fig, ax = plot_scalability(df)
         fig.set_size_inches(5, 5)
-        savefig(fig, fname_root + "_scalability.png")
+        savefig(fig, fname_root + "_scalability.pdf")
 
-def range_only_scalability_new(d=2):
-    #n_landmarks_list = [10, 20, 30]
-    n_landmarks = 10
-    n_positions_list = [10]
-    n_seeds = 2
+def range_only_scalability_new():
+    n_positions_list = [10, 15, 20]
+    n_seeds = 3
     level = "quad"
-    param_level = "no"
 
-    d = 3
     n_positions = 3
 
-    # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
     variable_list = None  # use the default one for the first step.
     np.random.seed(0)
     lifter = RangeOnlyLocLifter(
+        d=d,
         n_positions=n_positions,
-        n_landmarks=n_landmarks
+        n_landmarks=n_landmarks,
         level=level,
-        param_level=param_level,
         variable_list=variable_list,
     )
-    learner = learner(lifter=lifter, variable_list=lifter.variable_list)
+    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds)
 
-
-
-def stereo_scalability(d=2):
-    """
-    Deteremine how the range-only problem sclaes with nubmer of positions.
-    """
-    # n_positions_list = np.logspace(0.1, 2, 10).astype(int)
-
 if __name__ == "__main__":
-    #range_only_tightness()
+    range_only_tightness()
     range_only_scalability_new()

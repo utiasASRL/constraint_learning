@@ -8,9 +8,11 @@ plt.ion()
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
 
+NOISE = 1e-2 # std deviation of distance noise
+
 SOLVER_KWARGS = dict(
     # method="Nelder-Mead",
-    method="BFGS"  # the only one that almost always converges
+    method="BFGS",  # the only one that almost always converges
     # method="Powell"
 )
 
@@ -21,6 +23,7 @@ class RangeOnlyLocLifter(StateLifter):
     - level "no" uses substitution z_i=||p_i||^2=x_i^2 + y_i^2
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
+    LOCAL_MAXITER = None
 
     LEVELS = ["no", "quad"]
     LEVEL_NAMES = {
@@ -193,28 +196,34 @@ class RangeOnlyLocLifter(StateLifter):
                 np.array([[0, 0, 0], [0, 0, 0], [0, 0, 2]]),
             ]
 
-    def get_cost(self, t, y):
+    def get_cost(self, t, y, sub_idx=None):
         """
         get cost for given positions, landmarks and noise.
 
         :param t: (positions, landmarks) tuple
         """
 
-        positions = t.reshape(self.n_positions, -1)
-
+        positions = t.reshape((-1, self.d))
         y_current = (
             np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
             ** 2
         )
-        cost = np.sum(self.W * (y - y_current) ** 2)
+        if sub_idx is None:
+            cost = np.sum(self.W * (y - y_current) ** 2)
+        else:
+            cost = np.sum((self.W * (y - y_current))[sub_idx] **2 )
         return cost
 
-    def get_grad(self, t, y):
+    def get_grad(self, t, y, sub_idx=None):
         """get gradient"""
         J = self.get_J(t, y)
         x = self.get_x(t)
         Q = self.get_Q_from_y(y)
-        return 2 * J.T @ Q @ x
+        if sub_idx is None:
+            return 2 * J.T @ Q @ x
+        else:
+            sub_idx_x = self.get_sub_idx_x(sub_idx)
+            return 2 * J.T[:, sub_idx_x] @ Q[sub_idx_x, :][:, sub_idx_x] @ x[sub_idx_x]
 
     def get_J(self, t, y):
         J = sp.csr_array(
@@ -273,7 +282,7 @@ class RangeOnlyLocLifter(StateLifter):
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
 
-    def get_Q(self, noise: float = 1e-3) -> tuple:
+    def get_Q(self, noise: float = NOISE) -> tuple:
         # N x K matrix
         positions = self.theta.reshape(self.n_positions, -1)
         y_gt = (
@@ -292,6 +301,16 @@ class RangeOnlyLocLifter(StateLifter):
         assert abs(cost1 - cost3) < 1e-10
         return Q, y
 
+    def get_sub_idx_x(self, sub_idx, add_z=True): 
+        sub_idx_x = [0] 
+        for idx in sub_idx:
+            sub_idx_x += [1 + idx * self.d + d for d in range(self.d)]
+        if not add_z:
+            return sub_idx_x
+        for idx in sub_idx:
+            sub_idx_x += [1 + self.n_positions * self.d + idx * self.size_z + d for d in range(self.size_z)]
+        return sub_idx_x
+
     def local_solver(
         self, t_init, y, tol=1e-8, verbose=False, solver_kwargs=SOLVER_KWARGS
     ):
@@ -299,6 +318,10 @@ class RangeOnlyLocLifter(StateLifter):
         :param t_init: (positions, landmarks) tuple
         """
 
+        # TODO(FD): split problem into individual points.
+        options={"disp": verbose, "maxiter": self.LOCAL_MAXITER}
+        if self.LOCAL_MAXITER is not None:
+            options["maxiter"] = self.LOCAL_MAXITER
         sol = minimize(
             self.get_cost,
             x0=t_init,
@@ -307,9 +330,10 @@ class RangeOnlyLocLifter(StateLifter):
             # hess=self.get_hess, not used by any solvers.
             **solver_kwargs,
             tol=tol,
-            options={"disp": verbose},  # j, "maxfun": 100},
+            options=options,
         )
         if sol.success:
+            print("RangeOnly local solver:", sol.nit)
             that = sol.x
             rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
             assert abs(rel_error) < 1e-10, rel_error

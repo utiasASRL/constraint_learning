@@ -5,8 +5,9 @@ import numpy as np
 import matplotlib.pylab as plt
 
 import matplotlib
-matplotlib.use('Agg')
-plt.ioff()
+matplotlib.use('TkAgg')
+#matplotlib.use('Agg') # non-interactive
+#plt.ioff()
 
 from experiments import run_scalability_new, run_oneshot_experiment, tightness_study, plot_scalability, save_table
 
@@ -65,15 +66,14 @@ def stereo_tightness(d=2):
 
 
 def stereo_scalability_new(d=2):
-    #n_landmarks_list = [10, 20, 30]
-    n_landmarks_list = [10]
-    n_seeds = 2
+    n_landmarks_list = [10, 15, 20]
+    n_seeds = 3
     level = "urT"
     param_level = "ppT"
 
     n_landmarks = d+1
 
-    # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
+        # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
     variable_list = None  # use the default one for the first step.
     np.random.seed(0)
     if d == 2:
@@ -93,7 +93,6 @@ def stereo_scalability_new(d=2):
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_new(learner, param_list=n_landmarks_list, n_seeds=n_seeds)
-
 
 
 def stereo_scalability(d=2):
@@ -150,26 +149,25 @@ def stereo_scalability(d=2):
 
     fig, ax = plot_scalability(df, log=True)
     fig.set_size_inches(5, 5)
-    savefig(fig, fname_root + "_scalability.png")
+    savefig(fig, fname_root + "_scalability.pdf")
 
     fig, ax = plot_scalability(df, log=True, start="n ")
     fig.set_size_inches(5, 5)
-    savefig(fig, fname_root + "_scalability_n.png")
+    savefig(fig, fname_root + "_scalability_n.pdf")
 
     tex_name = fname_root + "_scalability.tex"
     save_table(df, tex_name)
 
 
 if __name__ == "__main__":
-    import warnings
-
+    # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    #stereo_tightness(d=2)
-    #stereo_tightness(d=3)
 
     #stereo_scalability(d=3)
-    stereo_scalability_new(d=3)
+    stereo_tightness(d=3)
+    stereo_tightness(d=2)
+    stereo_scalability_new(d=2)
 
     # with open("temp.pkl", "rb") as f:
     #    learner = pickle.load(f)

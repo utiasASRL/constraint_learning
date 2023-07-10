@@ -287,15 +287,22 @@ class Learner(object):
             self.df_tight = pd.concat([self.df_tight, df_tight], axis=0)
         return minimal_indices
 
-    def _test_tightness(self, A_b_list_all, verbose=False):
-        from solvers.common import find_local_minimum, solve_sdp_cvxpy
-
-        if self.solver_vars is None:
-            np.random.seed(NOISE_SEED)
-            Q, y = self.lifter.get_Q()
-            qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False)
+    def find_local_solution(self):
+        from solvers.common import find_local_minimum
+        np.random.seed(NOISE_SEED)
+        Q, y = self.lifter.get_Q()
+        qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False, n_inits=1)
+        if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
+            return True
+        return False
+
+    def _test_tightness(self, A_b_list_all, verbose=False):
+        from solvers.common import solve_sdp_cvxpy
+
+        if self.solver_vars is None:
+            self.find_local_solution()
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
@@ -496,7 +503,7 @@ class Learner(object):
             n_new, n_all = self.learn_templates(
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
-            data_dict["n templates"] = n_all
+            data_dict["n learned templates"] = n_all
             if n_new == 0:
                 print("new variables didn't have any effect")
                 continue
@@ -508,10 +515,10 @@ class Learner(object):
             if self.apply_templates_to_others:
                 print(f"------- applying templates ---------")
                 t1 = time.time()
-
                 n_new, n_all = self.apply_templates()
-                data_dict["n templates"] = n_all
                 ttot = time.time() - t1
+
+                data_dict["n applied templates"] = n_all
                 data_dict["t apply templates"] = ttot
                 print(f"time:  {ttot:.3f}s")
 
@@ -724,7 +731,9 @@ class Learner(object):
         )  # 1 (white) is empty, 0 (black) is nonempty
 
         import matplotlib
-        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=np.min(Q), vmax=np.max(Q))
+        vmin = min(-np.max(Q), np.min(Q))
+        vmax = max(np.max(Q), -np.min(Q))
+        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
         im1 = axs[1].matshow(Q, norm=norm)
 
         for ax in axs:
@@ -732,7 +741,7 @@ class Learner(object):
 
         from utils.plotting_tools import add_colorbar
 
-        add_colorbar(fig, axs[1], im1)
+        add_colorbar(fig, axs[1], im1, nticks=3)
         # only for dimensions
         add_colorbar(fig, axs[0], im0, visible=False)
         if fname_root != "":
