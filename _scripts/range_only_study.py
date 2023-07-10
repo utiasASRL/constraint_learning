@@ -9,6 +9,7 @@ from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import run_oneshot_experiment, plot_scalability, run_scalability_new
 
+n_positions = 3
 n_landmarks = 10
 d = 3
 
@@ -18,7 +19,6 @@ def range_only_tightness():
     """
     seed = 0
     plots = ["svd", "matrices", "tightness", "templates"]  # ["svd", "matrices"]
-    n_positions = 3
 
     for level in ["no", "quad"]:
         variable_list = [
@@ -82,24 +82,21 @@ def range_only_scalability():
         savefig(fig, fname_root + "_scalability.pdf")
 
 def range_only_scalability_new():
-    n_positions_list = [10, 15, 20]
-    n_seeds = 3
-    level = "quad"
-
-    n_positions = 3
-
-    variable_list = None  # use the default one for the first step.
-    np.random.seed(0)
-    lifter = RangeOnlyLocLifter(
-        d=d,
-        n_positions=n_positions,
-        n_landmarks=n_landmarks,
-        level=level,
-        variable_list=variable_list,
-    )
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds)
+    n_positions_list = [10, 15, 20, 25, 30]
+    n_seeds = 10
+    for level in ["no", "quad"]: 
+        variable_list = None  # use the default one for the first step.
+        np.random.seed(0)
+        lifter = RangeOnlyLocLifter(
+            d=d,
+            n_positions=n_positions,
+            n_landmarks=n_landmarks,
+            level=level,
+            variable_list=variable_list,
+        )
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, vmin=1e-2, vmax=5)
 
 if __name__ == "__main__":
-    range_only_tightness()
+    #range_only_tightness()
     range_only_scalability_new()

@@ -31,9 +31,9 @@ class RangeOnlyLocLifter(StateLifter):
         "quad": "$\\boldsymbol{y}_n$",
     }
     VARIABLE_LIST = [
-        ["l"],
         ["l", "x_0"],
         ["l", "x_0", "z_0"],
+        ["l", "x_0", "z_0", "z_1"],
         ["l", "x_0", "x_1", "z_0", "z_1"],
     ]
     def __init__(self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None):

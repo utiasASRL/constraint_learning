@@ -66,8 +66,12 @@ def stereo_tightness(d=2):
 
 
 def stereo_scalability_new(d=2):
-    n_landmarks_list = [10, 15, 20]
-    n_seeds = 3
+    if d == 2:
+        n_landmarks_list = [10, 15, 20, 25, 30]
+        n_seeds = 3 #10
+    elif d == 3:
+        n_landmarks_list = [5, 10]
+        n_seeds = 1
     level = "urT"
     param_level = "ppT"
 
@@ -92,7 +96,7 @@ def stereo_scalability_new(d=2):
         )
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    run_scalability_new(learner, param_list=n_landmarks_list, n_seeds=n_seeds)
+    run_scalability_new(learner, param_list=n_landmarks_list, n_seeds=n_seeds, vmin=0.1, vmax=50)
 
 
 def stereo_scalability(d=2):
@@ -165,9 +169,10 @@ if __name__ == "__main__":
     #    warnings.simplefilter("error")
 
     #stereo_scalability(d=3)
-    stereo_tightness(d=3)
-    stereo_tightness(d=2)
     stereo_scalability_new(d=2)
+    stereo_scalability_new(d=3)
+    #stereo_tightness(d=3)
+    #stereo_tightness(d=2)
 
     # with open("temp.pkl", "rb") as f:
     #    learner = pickle.load(f)

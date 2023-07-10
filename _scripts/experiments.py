@@ -45,7 +45,7 @@ def plot_scalability_new(df, log=True, start="t "):
     return fig, ax
 
 
-def plot_scalability(df, log=True, start="t "):
+def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
     import seaborn as sns
     from matplotlib.ticker import MaxNLocator
 
@@ -70,6 +70,8 @@ def plot_scalability(df, log=True, start="t "):
             ax.set_yscale("log")
         #ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         ax.set_xticks(df_plot.N.unique())
+    ax.set_ylim(ymin, ymax)
+    ax.legend(loc="lower right")
     return fig, ax
 
 
@@ -170,7 +172,7 @@ def tightness_study(learner: Learner, tightness="rank", original=False):
     return idx_subset_original, idx_subset_reorder
 
 
-def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1):
+def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1, vmin=None, vmax=None):
     # find which of the constraints are actually necessary
     data_dict = {}
     t1 = time.time()
@@ -187,18 +189,18 @@ def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1):
         "all": range(len(learner.constraints)),
     }
     # just use cost tightness because rank tightness was not achieved even in toy example
-    #t1 = time.time()
-    #idx_subset_original, idx_subset_reorder = tightness_study(
-    #    learner, tightness="cost", original=True
-    #)
-    #data_dict["n req1"] = len(idx_subset_original) if idx_subset_original is not None else None
-    #data_dict["n req2"] = len(idx_subset_reorder) if idx_subset_original is not None else None
-    #data_dict["t determine required"] = time.time() - t1
+    t1 = time.time()
+    idx_subset_original, idx_subset_reorder = tightness_study(
+        learner, tightness="cost", original=True
+    )
+    data_dict["n req1"] = len(idx_subset_original) if idx_subset_original is not None else None
+    data_dict["n req2"] = len(idx_subset_reorder) if idx_subset_original is not None else None
+    data_dict["t determine required"] = time.time() - t1
 
     #if idx_subset_original is not None:
     #    order_dict["original"] = idx_subset_original
-    #if idx_subset_reorder is not None:
-    #    order_dict["sorted"] = idx_subset_reorder
+    if idx_subset_reorder is not None:
+        order_dict["sorted"] = idx_subset_reorder
 
     max_seeds = n_seeds + 5
     for name, new_order in order_dict.items():
@@ -255,7 +257,7 @@ def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1):
                     break
 
         df = pd.DataFrame(df_data)
-        fig, ax = plot_scalability(df, log=True)
+        fig, ax = plot_scalability(df, log=True, ymin=vmin, ymax=vmax)
         fig.set_size_inches(5, 5)
         savefig(fig, fname_root + f"_{name}.pdf")
 
