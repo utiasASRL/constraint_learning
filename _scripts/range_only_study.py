@@ -18,7 +18,7 @@ def range_only_tightness():
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
-    plots = ["svd", "matrices", "tightness", "templates"]  # ["svd", "matrices"]
+    plots = ["svd", "matrices", "matrix", "tightness", "templates"]  # ["svd", "matrices"]
 
     for level in ["no", "quad"]:
         variable_list = [
@@ -98,5 +98,5 @@ def range_only_scalability_new():
         run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, vmin=1e-2, vmax=5)
 
 if __name__ == "__main__":
-    #range_only_tightness()
-    range_only_scalability_new()
+    range_only_tightness()
+    #range_only_scalability_new()

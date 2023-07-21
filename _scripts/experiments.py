@@ -188,7 +188,7 @@ def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1, vmin
     order_dict = {
         "all": range(len(learner.constraints)),
     }
-    # just use cost tightness because rank tightness was not achieved even in toy example
+
     t1 = time.time()
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner, tightness="cost", original=True
@@ -276,7 +276,7 @@ def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank",
         fig = plt.gcf()
         ax = plt.gca()
         ax.legend(loc="lower left")
-        fig.set_size_inches(5, 5)
+        fig.set_size_inches(3, 3)
         savefig(fig, fname_root + "_svd.pdf")
 
     idx_subset_original, idx_subset_reorder = tightness_study(learner, tightness=tightness, original=add_original)
@@ -284,8 +284,11 @@ def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank",
         save_tightness_order(learner, fname_root)
 
     if "matrices" in plots:
-        A_matrices = [c.A_poly_ for c in learner.constraints]
-        fig, ax = learner.save_matrices_poly(A_matrices=A_matrices[:5])
+        A_matrices = [c.A_poly_ for c in learner.constraints if "x:0" in c.A_poly_.adjacency_i]
+        save_individual = False
+        if "matrix" in plots:
+            save_individual = True
+        fig, ax = learner.save_matrices_poly(A_matrices=A_matrices, n_matrices=5, save_individual=save_individual, fname_root=fname_root)
         w, h = fig.get_size_inches()
         fig.set_size_inches(5 * w / h, 5)
         savefig(fig, fname_root + "_matrices.pdf")
@@ -317,5 +320,5 @@ def run_oneshot_experiment(learner:Learner, fname_root, plots, tightness="rank",
         )
         fig, ax = learner.save_sorted_templates(df, title=title, drop_zero=True, simplify=True)
         w, h = fig.get_size_inches()
-        fig.set_size_inches(5 * w / h, 5)
+        fig.set_size_inches(5, 5 * h / w)
         savefig(fig, fname_root + "_templates.pdf")

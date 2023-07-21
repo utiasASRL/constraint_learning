@@ -15,11 +15,12 @@ def add_rectangles(ax, dict_sizes, color="red"):
     for key, size in dict_sizes.items():
         cumsize += size
         xticks.append(cumsize-0.5)
-        xticklabels.append(key)
+        xticklabels.append(f"${key}$")
         ax.add_patch(Rectangle((-0.5, -0.5), cumsize, cumsize, ec=color, fc="none"))
         #ax.annotate(text=key, xy=(cumsize, 1), color='red', weight="bold")
     ax.set_xticks(xticks, xticklabels)
     ax.tick_params(axis='x', colors='red') 
+    ax.xaxis.tick_top()
     ax.set_yticks([])
 
 def initialize_discrete_cbar(values):

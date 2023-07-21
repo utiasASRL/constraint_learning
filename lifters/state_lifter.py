@@ -434,7 +434,7 @@ class StateLifter(BaseClass):
                 plot=plot,
                 method=method,
             )
-            basis_list_all = self.augment_basis_list(basis_list, normalize=normalize)
+            basis_list_all = self.apply_templates(basis_list, normalize=normalize)
             basis_learned = self.get_basis_from_poly_rows(basis_list_all)
             A_learned = self.generate_matrices(basis_learned, normalize=normalize)
         else:
@@ -686,7 +686,58 @@ class StateLifter(BaseClass):
                     current_basis = np.r_[current_basis, ai[None, :]]
         return basis_list
 
-    def augment_basis_list(
+    def apply_template(
+        self, bi_poly, n_landmarks=None, verbose=False
+    ):
+        if n_landmarks is None:
+            n_landmarks = self.n_landmarks
+
+        new_poly_rows = []
+        # find the number of variables that this constraint touches.
+        unique_idx = set()
+        for key in bi_poly.variable_dict_j:
+            param, var_keys = key.split("-")
+            vars = var_keys.split(".")
+            vars += param.split(".")
+            for var in vars:
+                var_base = var.split(":")[0]
+                if "_" in var_base:
+                    i = int(var_base.split("_")[-1])
+                    unique_idx.add(i)
+
+        if len(unique_idx) == 0:
+            return []
+
+        variable_indices = self.get_variable_indices(self.var_dict)
+        # if z_0 is in this constraint, repeat the constraint for each landmark.
+        for idx in itertools.combinations(variable_indices, len(unique_idx)):
+            new_poly_row = PolyMatrix(symmetric=False)
+            for key in bi_poly.variable_dict_j:
+                # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
+                key_ij = key
+                for from_, to_ in zip(unique_idx, idx):
+                    key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
+                    key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
+                    key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
+                key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x")
+                if verbose and (key != key_ij):
+                    print("changed", key, "to", key_ij)
+
+                try:
+                    params = key_ij.split("-")[0]
+                    pi, pj = params.split(".")
+                    pi, di = pi.split(":")
+                    pj, dj = pj.split(":")
+                    if pi == pj:
+                        if not (int(dj) >= int(di)):
+                            raise IndexError("something went wrong in augment_basis_list")
+                except ValueError as e:
+                    pass
+                new_poly_row["l", key_ij] = bi_poly["l", key]
+            new_poly_rows.append(new_poly_row)
+        return new_poly_rows
+
+    def apply_templates(
         self, basis_list, n_landmarks=None, verbose=False
     ):
         """
@@ -698,50 +749,8 @@ class StateLifter(BaseClass):
         if n_landmarks is None:
             n_landmarks = self.n_landmarks
 
-        # TODO(FD) generalize below; but for now, this is easier to debug and understand.
-        new_poly_rows = []
         for bi_poly in basis_list:
-            # find the number of variables that this touches.
-            unique_idx = set()
-            for key in bi_poly.variable_dict_j:
-                param, var_keys = key.split("-")
-                vars = var_keys.split(".")
-                vars += param.split(".")
-                for var in vars:
-                    var_base = var.split(":")[0]
-                    if "_" in var_base:
-                        i = int(var_base.split("_")[-1])
-                        unique_idx.add(i)
-
-            variable_indices = self.get_variable_indices(self.var_dict)
-            # if z_0 is in this constraint, repeat the constraint for each landmark.
-            for idx in itertools.combinations(variable_indices, len(unique_idx)):
-                new_poly_row = PolyMatrix(symmetric=False)
-                for key in bi_poly.variable_dict_j:
-                    # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
-                    key_ij = key
-                    for from_, to_ in zip(unique_idx, idx):
-                        key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
-                        key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
-                        key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
-                    key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x")
-                    if verbose and (key != key_ij):
-                        print("changed", key, "to", key_ij)
-                    elif key != key_ij:
-                        pass
-
-                    try:
-                        params = key_ij.split("-")[0]
-                        pi, pj = params.split(".")
-                        pi, di = pi.split(":")
-                        pj, dj = pj.split(":")
-                        if pi == pj:
-                            if not (int(dj) >= int(di)):
-                                raise ValueError("something went wrong in augment_basis_list")
-                    except Exception as e:
-                        pass
-                    new_poly_row["l", key_ij] = bi_poly["l", key]
-                new_poly_rows.append(new_poly_row)
+            new_poly_rows += self.apply_template(bi_poly, n_landmarks=n_landmarks, verbose=verbose) 
         return new_poly_rows
 
     def get_vec_around_gt(self, delta: float = 0):

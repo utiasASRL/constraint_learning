@@ -48,7 +48,7 @@ def generate_matrices(lifter: StateLifter, param):
         # basis_ordered.matshow(variables_j=var_dict_j)
 
         # now generalize these patterns
-        basis_poly_list = lifter.augment_basis_list(basis_list)
+        basis_poly_list = lifter.apply_templates(basis_list)
 
         # get valid basis from these candidates
         basis_learned = lifter.get_basis_from_poly_rows(basis_poly_list)

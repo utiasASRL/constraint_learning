@@ -84,7 +84,7 @@ class StereoLifter(StateLifter, ABC):
         ["l", "z_0"], 
         ["l", "x", "z_0"],
         ["l", "z_0", "z_1"],
-        ["l", "x", "z_0", "z_1"]
+        ["l", "x", "z_0", "z_1"],
         ["l", "z_0", "z_1", "z_2"],
     ]
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):

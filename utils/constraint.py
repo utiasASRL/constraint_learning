@@ -18,6 +18,9 @@ class Constraint(object):
         self.b_full_ = b_full
         self.a_full_ = a_full
 
+        # list of applied constraints derived from this constraint.
+        self.applied_list = []
+
     @staticmethod
     def init_from_b(index:int, b:np.ndarray, mat_var_dict:dict, lifter:StateLifter):
         a = lifter.get_reduced_a(b, mat_var_dict, sparse=True)

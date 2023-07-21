@@ -21,18 +21,11 @@ def stereo_tightness(d=2):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
     """
-    if d == 2:
-        n_landmarks = 3
-    elif d == 3:
-        n_landmarks = 4
+    n_landmarks = d + 1
     seed = 0
-    # plots = ["tightness", "svd", "matrices", "templates"]
-    #plots = ["matrices", "templates"]
-    #plots = ["matrices", "templates", "svd", "tightness"]
-    plots = ["matrices"]
-    levels = ["no", "urT"]
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
+    levels = ["urT"]
     param_level = "no"
     for level in levels:
         print(f"============= seed {seed} level {level} ================")
@@ -40,6 +33,13 @@ def stereo_tightness(d=2):
 
         variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
         if d == 2:
+
+            plots = ["tightness"]#, "matrix"]
+            tightness = "rank"
+
+            #plots = ["matrices", "templates", "svd"]
+            #tightness = "cost"
+
             lifter = Stereo2DLifter(
                 n_landmarks=n_landmarks,
                 level=level,
@@ -47,6 +47,13 @@ def stereo_tightness(d=2):
                 variable_list=variable_list,
             )
         elif d == 3:
+
+            plots = ["tightness"]
+            tightness = "cost"
+
+            #plots = ["matrices", "templates", "svd"]
+            #tightness = "cost"
+
             lifter = Stereo3DLifter(
                 n_landmarks=n_landmarks,
                 level=level,
@@ -58,12 +65,7 @@ def stereo_tightness(d=2):
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"_results/{lifter}_seed{seed}"
-
-        if d == 2:
-            run_oneshot_experiment(learner, fname_root, plots, tightness="cost", add_original=True)
-        elif d == 3:
-            run_oneshot_experiment(learner, fname_root, plots, tightness="cost", add_original=False)
-
+        run_oneshot_experiment(learner, fname_root, plots, tightness=tightness, add_original=True)
 
 def stereo_scalability_new(d=2):
     if d == 2:
@@ -169,7 +171,7 @@ if __name__ == "__main__":
     #    warnings.simplefilter("error")
 
     #stereo_scalability(d=3)
-    stereo_scalability_new(d=2)
+    #stereo_scalability_new(d=2)
     stereo_scalability_new(d=3)
     #stereo_tightness(d=3)
     #stereo_tightness(d=2)

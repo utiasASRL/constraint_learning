@@ -86,7 +86,7 @@ def test_learned_constraints_augment(d=2, param_level="ppT"):
 
         basis_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, plot=False)
 
-        basis_list_all = lifter.augment_basis_list(basis_list, var_subset=var_subset)
+        basis_list_all = lifter.apply_templates(basis_list, var_subset=var_subset)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
 
         basis_learned = basis_poly_all.get_matrix(
@@ -217,7 +217,7 @@ def test_zero_padding():
             ai_sub = lifter.get_reduced_a(bi_sub, var_subset)
 
             # enerate list of poly matrices from this pattern.
-            new_patterns = lifter.augment_basis_list([bi_sub], var_subset=var_subset)
+            new_patterns = lifter.apply_templates([bi_sub], var_subset=var_subset)
             for new_pattern in new_patterns:
                 # generate Ai from poly_row.
                 ai_test = lifter.convert_poly_to_a(new_pattern, var_subset)
