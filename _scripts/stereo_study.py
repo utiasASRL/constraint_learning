@@ -228,12 +228,14 @@ def stereo_3d_study():
     savefig(fig,fname)
 
     fig, ax = plt.subplots()
+    fig.set_size_inches(5, 5)
     colors = {n:f"C{i}" for i, n in enumerate(n_landmark_list)}
     for n, df_ in df.groupby("n_landmarks"):
         df_plot = df_[df_.cost == "ratio"]
         label = f"{n:.0f}"
         ax.loglog(df_plot.noise, df_plot.value, label=label)
-    ax.legend(bbox_to_anchor=[1.0, 1.0], loc="upper left", title="number of landmarks")
+    #ax.legend(bbox_to_anchor=[1.0, 1.0], loc="upper left", title="number of \n landmarks")
+    ax.legend(loc="lower right", title="number of \n landmarks")
     ax.set_xlabel("noise")
     ax.set_ylabel("relative duality gap")
     fname = f"_results/stereo3d_seed{seed}_study_absratio.pdf"
