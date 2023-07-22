@@ -686,6 +686,22 @@ class StateLifter(BaseClass):
                     current_basis = np.r_[current_basis, ai[None, :]]
         return basis_list
 
+    def apply_templates(
+        self, basis_list, n_landmarks=None, verbose=False
+    ):
+        """
+        Apply the learned patterns in basis_list to all landmarks.
+
+        :param basis_list: list of poly matrices.
+        """
+
+        if n_landmarks is None:
+            n_landmarks = self.n_landmarks
+
+        new_poly_rows = []
+        for bi_poly in basis_list:
+            new_poly_rows += self.apply_template(bi_poly, n_landmarks=n_landmarks, verbose=verbose) 
+        return new_poly_rows
     def apply_template(
         self, bi_poly, n_landmarks=None, verbose=False
     ):
@@ -735,22 +751,6 @@ class StateLifter(BaseClass):
                     pass
                 new_poly_row["l", key_ij] = bi_poly["l", key]
             new_poly_rows.append(new_poly_row)
-        return new_poly_rows
-
-    def apply_templates(
-        self, basis_list, n_landmarks=None, verbose=False
-    ):
-        """
-        Apply the learned patterns in basis_list to all landmarks.
-
-        :param basis_list: list of poly matrices.
-        """
-
-        if n_landmarks is None:
-            n_landmarks = self.n_landmarks
-
-        for bi_poly in basis_list:
-            new_poly_rows += self.apply_template(bi_poly, n_landmarks=n_landmarks, verbose=verbose) 
         return new_poly_rows
 
     def get_vec_around_gt(self, delta: float = 0):

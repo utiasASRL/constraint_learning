@@ -282,8 +282,10 @@ class RangeOnlyLocLifter(StateLifter):
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
 
-    def get_Q(self, noise: float = NOISE) -> tuple:
+    def get_Q(self, noise: float = None) -> tuple:
         # N x K matrix
+        if noise is None:
+            noise = NOISE
         positions = self.theta.reshape(self.n_positions, -1)
         y_gt = (
             np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)

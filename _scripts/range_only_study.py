@@ -36,7 +36,7 @@ def range_only_tightness():
             variable_list=variable_list,
         )
         learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
+            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False, noise=
         )
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)

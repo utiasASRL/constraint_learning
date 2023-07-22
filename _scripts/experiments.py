@@ -87,7 +87,7 @@ def save_table(df, tex_name):
 def save_tightness_order(learner: Learner, fname_root=""):
     from matplotlib.ticker import MaxNLocator
 
-    if learner.df_tight is None:
+    if (learner.df_tight is None) or (len(learner.df_tight) == 0):
         print(f"no tightness data for {learner.lifter}")
         return
     df_current = learner.df_tight[learner.df_tight.lifter == str(learner.lifter)]
@@ -172,30 +172,44 @@ def tightness_study(learner: Learner, tightness="rank", original=False):
     return idx_subset_original, idx_subset_reorder
 
 
-def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1, vmin=None, vmax=None):
-    # find which of the constraints are actually necessary
-    data_dict = {}
-    t1 = time.time()
-    data = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
-    data_dict["t learn templates"] = time.time() - t1
-    data_dict.update({k:val for k, val in data[-1].items() if k in ["rank Y", "corank Y", "n learned templates", "n applied templates"]})
-
-    df = pd.DataFrame(data)
-    fig, ax = plot_scalability_new(df, start="t ")
+def run_scalability_new(learner: Learner, param_list: list, n_seeds: int=1, vmin=None, vmax=None, recompute=False):
+    import pickle
+    fname = f"{learner.lifter}.pkl"
     fname_root = f"_results/scalability_{learner.lifter}"
-    savefig(fig, fname_root + f"_small.pdf")
+
+    try:
+        assert not recompute, "forcing to recompute"
+        with open(fname, "rb") as f:
+            learner = pickle.load(f)
+            data_dict = pickle.load(f)
+    except (AssertionError, FileNotFoundError) as e:
+        print(e)
+        # find which of the constraints are actually necessary
+        data_dict = {}
+        t1 = time.time()
+        data = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
+        data_dict["t learn templates"] = time.time() - t1
+        data_dict.update({k:val for k, val in data[-1].items() if k in ["rank Y", "corank Y", "n learned templates", "n applied templates"]})
+
+        df = pd.DataFrame(data)
+        fig, ax = plot_scalability_new(df, start="t ")
+        savefig(fig, fname_root + f"_small.pdf")
+
+        with open(fname, "wb") as f:
+            pickle.dump(learner, f)
+            pickle.dump(data_dict, f)
+        print("wrote intermediate as", fname)
 
     order_dict = {
         "all": range(len(learner.constraints)),
     }
-
     t1 = time.time()
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner, tightness="cost", original=True
     )
+    data_dict["t determine required"] = time.time() - t1
     data_dict["n req1"] = len(idx_subset_original) if idx_subset_original is not None else None
     data_dict["n req2"] = len(idx_subset_reorder) if idx_subset_original is not None else None
-    data_dict["t determine required"] = time.time() - t1
 
     #if idx_subset_original is not None:
     #    order_dict["original"] = idx_subset_original

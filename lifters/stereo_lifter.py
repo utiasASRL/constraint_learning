@@ -6,7 +6,7 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.common import get_rot_matrix
 
-NOISE_STD = 1.0 # 1 is too high
+NOISE = 0.5 # 
 
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
@@ -64,6 +64,7 @@ class StereoLifter(StateLifter, ABC):
         "u@r",
         "uuT",
         "urT",
+        "u1u2rT"
     ]
     PARAM_LEVELS = ["no", "p", "ppT"]
     MAX_VARS = 4
@@ -78,6 +79,7 @@ class StereoLifter(StateLifter, ABC):
     LEVEL_NAMES = {
         "no": "$\\boldsymbol{u}_n$",
         "urT": "$\\boldsymbol{u}\\boldsymbol{t}^\\top_n$",
+        "u1u2rT": "$\\boldsymbol{u}_1\\boldsymbol{u}_2\\boldsymbol{t}^\\top_n$",
     }
     VARIABLE_LIST = [
         ["l", "x"], 
@@ -107,6 +109,7 @@ class StereoLifter(StateLifter, ABC):
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
+            "u1u2rT": n * 2 * self.d**2,
         }
 
     @abstractproperty
@@ -219,6 +222,9 @@ class StereoLifter(StateLifter, ABC):
                 elif self.level == "urT":
                     # this works
                     x_data += list(np.outer(u, r).flatten())
+                elif self.level == "u1u2rT":
+                    x_data += list(np.outer(u, r).flatten())
+                    x_data += list(np.outer(u**2, r).flatten())
 
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
@@ -268,10 +274,14 @@ class StereoLifter(StateLifter, ABC):
             parameters = self.generate_random_landmarks(theta=theta).flatten()
             return np.r_[1.0, parameters]
 
-    def get_Q(self, noise: float = NOISE_STD) -> tuple:
+    def get_Q(self, noise: float = None) -> tuple:
+        if noise is None:
+            noise = NOISE
         return self._get_Q(noise=noise)
 
-    def _get_Q(self, noise: float = 1e-3) -> tuple:
+    def _get_Q(self, noise: float = None) -> tuple:
+        if noise is None:
+            noise = NOISE
         xtheta = get_xtheta_from_theta(self.theta, self.d)
         T = get_T(xtheta, self.d)
 

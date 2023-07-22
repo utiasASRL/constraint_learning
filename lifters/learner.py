@@ -15,6 +15,8 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils.plotting_tools import savefig
 from utils.constraint import Constraint
 
+# parameter of SDP solver
+TOL = 1e-10
 
 NOISE_SEED = 5
 
@@ -33,8 +35,9 @@ class Learner(object):
     """
 
     def __init__(
-        self, lifter: StateLifter, variable_list: list, apply_templates: bool = True
+        self, lifter: StateLifter, variable_list: list, apply_templates: bool = True, noise:float = None
     ):
+        self.noise = noise
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
 
@@ -82,17 +85,6 @@ class Learner(object):
     @property
     def A_matrices(self):
         return [c.A_sparse_ for c in self.constraints]
-
-    def get_a_row_list(self, constraints):
-        a_row_list = [constraint.a_full_ for constraint in constraints]
-        # a_row_list = [constraint.a_full_ for constraint in constraints]
-        return a_row_list
-
-    def get_a_current(self):
-        if len(self.a_current_) < len(self.constraints):
-            a_new = self.get_a_row_list(self.constraints[len(self.a_current_) :])
-            self.a_current_ += a_new
-        return self.a_current_
 
     def get_b_current(self, target_mat_var_dict=None):
         """
@@ -169,7 +161,7 @@ class Learner(object):
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print(f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}")
             print("Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints.")
-            max_error, bad_list = self.lifter.test_constraints(A_list, errors="raise")
+            max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum feasibility error at random x:", max_error)
 
             print("It can also mean that we are not sampling enough of the space close to the true solution.")
@@ -178,10 +170,11 @@ class Learner(object):
             max_error = -np.inf
             for Ai in A_list:
                 error = xhat.T @ Ai @ xhat
-                assert abs(error) < tol, error
 
                 errorX = np.trace(X @ Ai)
                 max_error = max(errorX, max_error)
+                if abs(error) > tol:
+                    print(f"Feasibility error too high! xAx:{error:.2e}, <X,A>:{errorX:.2e}")
             print(f"Maximum feasibility error at solution x: {max_error}")
 
             return False
@@ -291,7 +284,7 @@ class Learner(object):
     def find_local_solution(self):
         from solvers.common import find_local_minimum
         np.random.seed(NOISE_SEED)
-        Q, y = self.lifter.get_Q()
+        Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False, n_inits=1)
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
@@ -307,7 +300,7 @@ class Learner(object):
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
-            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST_Q, verbose=verbose, primal=PRIMAL
+            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST_Q, verbose=verbose, primal=PRIMAL, tol=TOL
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -330,8 +323,9 @@ class Learner(object):
         if plot:
             fig, ax = plt.subplots()
 
+        print(f"data matrix Y has shape {Y.shape} ")
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
-            print(f"cleaning step {i}/{self.lifter.N_CLEANING_STEPS}...")
+            print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
             basis_new, S = self.lifter.get_basis(Y)
             print(f"...done")
             corank = basis_new.shape[0]
@@ -358,7 +352,6 @@ class Learner(object):
             data_dict["rank Y"] = Y.shape[1] - corank
             data_dict["corank Y"] = corank
 
-        print(f"found {basis_new.shape[0]} templates from data matrix Y {Y.shape} ")
         if basis_new.shape[0]:
             templates = [
                 Constraint.init_from_b(
@@ -370,12 +363,18 @@ class Learner(object):
                 for i, b in enumerate(basis_new)
             ]
             self.constraint_index += basis_new.shape[0]
-            self.templates += templates
-            return self.clean_constraints(
+
+            print(f"found {len(templates)} candidate templates")
+            indep_templates = self.clean_constraints(
                 new_constraints=templates,
+                before_constraints=self.templates,
                 remove_dependent=True,
                 remove_imprecise=False,
             )
+            n_all = len(indep_templates)
+            n_new = n_all - len(self.templates)
+            self.templates = indep_templates
+            return n_new, n_all
         return 0, len(self.constraints)
 
     # @profile
@@ -402,17 +401,24 @@ class Learner(object):
                 new_constraints += template.applied_list
                 self.constraint_index += len(new_constraints)
 
+        if not len(new_constraints):
+            return 0, len(self.constraints)
+
         # determine which of these constraints are actually independent, after reducing them to ai.
-        n_new, n_all = self.clean_constraints(
+        indep_constraints = self.clean_constraints(
             new_constraints=new_constraints,
+            before_constraints=self.constraints,
             remove_dependent=True,
             remove_imprecise=False,
         )
+        n_all = len(indep_constraints)
+        n_new = n_all - len(self.constraints)
+        self.constraints = indep_constraints
         return n_new, n_all
 
     # @profile
     def clean_constraints(
-        self, new_constraints, remove_dependent=True, remove_imprecise=False
+        self, new_constraints, before_constraints, remove_dependent=True, remove_imprecise=True
     ):
         """
         This function is used in two different ways.
@@ -423,14 +429,10 @@ class Learner(object):
         Second use case: After applying the templates to as many variable pairs as we wish, we call this function again,
         to make sure all the matrices going into the SDP are in fact linearly independent.
         """
-        n_before = len(self.constraints)
-        self.constraints += new_constraints
-
+        constraints = before_constraints + new_constraints
         if remove_dependent:
-            t1 = time.time()
             # find which constraints are lin. dep.
-            a_current = self.get_a_current()
-            A_vec = sp.vstack(a_current, format="coo").T
+            A_vec = sp.vstack([constraint.a_full_ for constraint in constraints], format="coo").T
 
             # make sure that matrix is tall (we have less constraints than number of dimensions of x)
             if A_vec.shape[0] < A_vec.shape[1]:
@@ -449,47 +451,38 @@ class Learner(object):
             r_vals = np.abs(R.diagonal())
             sort_inds = np.argsort(r_vals)[::-1]
             if rank < A_vec.shape[1]:
-                print(f"clean_constraints: keeping {rank}/{A_vec.shape[1]}")
+                print(f"clean_constraints: keeping {rank}/{A_vec.shape[1]} independent")
 
             bad_idx = list(range(A_vec.shape[1]))
-            for good_idx in sorted(E[sort_inds[:rank]])[::-1]:
+            keep_idx = sorted(E[sort_inds[:rank]])[::-1]
+            for good_idx in keep_idx:
                 del bad_idx[good_idx]
             #bad_idx = list(E[sort_inds[rank:]])
 
             # Sanity check, removed because too expensive. It almost always passed anyways.
-            # Z, R, E, rank_full = sqr.rz(A_vec[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=1e-10)
-            # if rank_full != rank:
-            #     print(f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}.")
+            Z, R, E, rank_full = sqr.rz(A_vec.tocsc()[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=1e-10)
+            if rank_full != rank:
+                print(f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}.")
 
-        if remove_dependent:
             if len(bad_idx):
                 for idx in sorted(bad_idx)[::-1]:
-                    del self.constraints[idx]
-                    del a_current[idx]
-                assert len(self.constraints) == rank
+                    del constraints[idx]
+                assert len(constraints) == rank
 
         if remove_imprecise:
-            t1 = time.time()
             error, bad_idx = self.lifter.test_constraints(
-                [
-                    c.A_sparse_
-                    for c in self.constraints
-                    if c.index not in self.index_tested
-                ],
+                [c.A_sparse_ for c in constraints if c.index not in self.index_tested],
                 errors="ignore",
                 n_seeds=2,
             )
             self.index_tested = self.index_tested.union(
-                [c.index for c in self.constraints]
+                [c.index for c in constraints]
             )
             if len(bad_idx):
                 print(f"removing {bad_idx} because high error, up to {error:.2e}")
                 for idx in list(bad_idx)[::-1]:  # reverse order to not mess up indexing
-                    del self.constraints[idx]
-                    del a_current[idx]
-
-        self.a_current_ = a_current
-        return len(self.constraints) - n_before, len(self.constraints)
+                    del constraints[idx]
+        return constraints
 
     def run(self, use_known=True, verbose=False, plot=False, tightness="rank"):
         data = []
@@ -509,6 +502,7 @@ class Learner(object):
             n_new, n_all = self.learn_templates(
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
+            print(f"found {n_new} independent templates, new total: {n_all} ")
             data_dict["n learned templates"] = n_all
             if n_new == 0:
                 print("new variables didn't have any effect")
@@ -525,6 +519,8 @@ class Learner(object):
 
                 data_dict["n applied templates"] = n_all
                 data_dict["t apply templates"] = ttot
+            else:
+                self.constraints = self.templates
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")

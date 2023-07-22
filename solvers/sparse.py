@@ -44,6 +44,8 @@ def solve_lambda(
 
         constraints = [H >> 0]
         constraints += [H @ xhat == 0]
+        #constraints += [H @ xhat <= 1e-8]
+        #constraints += [H @ xhat >= 1e-8]
 
         cprob = cp.Problem(objective, constraints)
         try:
