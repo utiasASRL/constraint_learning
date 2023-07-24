@@ -209,7 +209,7 @@ def run_scalability_plot(learner: Learner):
         "required (reordered)": idx_subset_reorder,
     }
     df = learner.get_sorted_df(templates_poly=templates_poly, add_columns=add_columns)
-    title = f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
+    title = "" #f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
     fig, ax = learner.save_sorted_templates(
         df, title=title, drop_zero=True, simplify=True
     )
@@ -224,7 +224,8 @@ def run_scalability_new(
     n_seeds: int = 1,
     vmin=None,
     vmax=None,
-    recompute=False,
+    recompute=True,
+    tightness="cost"
 ):
     import pickle
 
@@ -241,7 +242,7 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
+        data = learner.run(verbose=True, use_known=False, plot=False, tightness=tightness)
         orig_dict["t learn templates"] = time.time() - t1
 
         df = pd.DataFrame(data)
@@ -263,7 +264,7 @@ def run_scalability_new(
 
         t1 = time.time()
         idx_subset_original, idx_subset_reorder = tightness_study(
-            learner, tightness="cost", original=True
+            learner, tightness=tightness, original=True,
         )
         orig_dict["t determine required"] = time.time() - t1
         orig_dict["n templates"] = len(learner.constraints)
@@ -275,8 +276,8 @@ def run_scalability_new(
         )
         if idx_subset_reorder is not None:
             order_dict["sorted"] = idx_subset_reorder
-        if idx_subset_original is not None:
-            order_dict["original"] = idx_subset_original
+        #if idx_subset_original is not None:
+        #    order_dict["original"] = idx_subset_original
         order_dict["all"] = range(len(learner.constraints))
 
         max_seeds = n_seeds + 5
@@ -351,7 +352,7 @@ def run_scalability_new(
                     # determine tightness
                     print(f"=========== tightness test: {name} ===============")
                     t1 = time.time()
-                    new_learner.is_tight(verbose=True, tightness="cost")
+                    new_learner.is_tight(verbose=True, tightness=tightness)
                     data_dict["t check tightness"] = time.time() - t1
                     # times = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
                     df_data.append(deepcopy(data_dict))

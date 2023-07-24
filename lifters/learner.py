@@ -674,7 +674,7 @@ class Learner(object):
         keys = set()
         for i, row in df.iterrows():
             for k, val in row[~row.isna()].items():
-                if "order" in k:
+                if "order" in k or "required" in k:
                     continue
                 poly_matrix[i, k] = val
                 keys.add(k)
@@ -702,16 +702,15 @@ class Learner(object):
         old_param = params[0]
         for i, p in enumerate(params):
             if p != old_param:
-                ax.axvline(i, color="red")
+                ax.axvline(i, color="red",linewidth=1.0)
                 ax.annotate(
                     text=f"${p.replace(':0', '^x').replace(':1', '^y').replace('l.','').replace('.','')}$",
-                    xy=[i, 0.5],
-                    fontsize=6,
+                    xy=[i, 0],
+                    fontsize=8,
                     color="red",
                 )
                 old_param = p
         ax.set_title(title)
-
         if "required (reordered)" in df.columns:
             from matplotlib.patches import Rectangle
 
@@ -836,6 +835,7 @@ class Learner(object):
         fig, axs = plt.subplots(n_rows, n_cols, squeeze=False)
         fig.set_size_inches(5 * n_cols / n_rows, 5)
         axs = axs.flatten()
+        i = 0
         for i, A_poly in enumerate(A_matrices):
             if reduced_mode:
                 sorted_i = sorted(A_poly.variable_dict_i.keys())

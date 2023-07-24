@@ -113,9 +113,9 @@ def stereo_scalability_new(d=2):
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_plot(learner)
-    run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, vmin=0.1, vmax=50
-    )
+    #run_scalability_new(
+    #    learner, param_list=n_landmarks_list, n_seeds=n_seeds, vmin=0.1, vmax=50
+    #)
 
 
 def stereo_scalability(d=2):

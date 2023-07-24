@@ -36,7 +36,7 @@ def range_only_tightness():
             variable_list=variable_list,
         )
         learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False, noise=
+            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
@@ -83,7 +83,7 @@ def range_only_scalability():
 
 def range_only_scalability_new():
     n_positions_list = [10, 15, 20, 25, 30]
-    n_seeds = 10
+    n_seeds = 1
     for level in ["no", "quad"]: 
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -95,7 +95,7 @@ def range_only_scalability_new():
             variable_list=variable_list,
         )
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, vmin=1e-2, vmax=5)
+        run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, vmin=1e-2, vmax=5, tightness="rank")
 
 if __name__ == "__main__":
     range_only_tightness()
