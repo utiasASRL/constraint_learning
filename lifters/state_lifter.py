@@ -702,6 +702,7 @@ class StateLifter(BaseClass):
         for bi_poly in basis_list:
             new_poly_rows += self.apply_template(bi_poly, n_landmarks=n_landmarks, verbose=verbose) 
         return new_poly_rows
+
     def apply_template(
         self, bi_poly, n_landmarks=None, verbose=False
     ):

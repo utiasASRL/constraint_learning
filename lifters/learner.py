@@ -21,9 +21,9 @@ TOL = 1e-10
 NOISE_SEED = 5
 
 ADJUST_Q = True  # rescale Q matrix
-PRIMAL = False # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
+PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
-FACTOR = 1.5 # oversampling factor.
+FACTOR = 1.5  # oversampling factor.
 
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e8
@@ -35,7 +35,11 @@ class Learner(object):
     """
 
     def __init__(
-        self, lifter: StateLifter, variable_list: list, apply_templates: bool = True, noise:float = None
+        self,
+        lifter: StateLifter,
+        variable_list: list,
+        apply_templates: bool = True,
+        noise: float = None,
     ):
         self.noise = noise
         self.lifter = lifter
@@ -147,7 +151,6 @@ class Learner(object):
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         X, info = self._test_tightness(A_b_list_all, verbose=False)
 
-
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
 
@@ -159,12 +162,18 @@ class Learner(object):
             return False
         elif self.check_violation(info["cost"]):
             self.ranks.append(np.zeros(A_list[0].shape[0]))
-            print(f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}")
-            print("Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints.")
+            print(
+                f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}"
+            )
+            print(
+                "Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints."
+            )
             max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum feasibility error at random x:", max_error)
 
-            print("It can also mean that we are not sampling enough of the space close to the true solution.")
+            print(
+                "It can also mean that we are not sampling enough of the space close to the true solution."
+            )
             tol = 1e-10
             xhat = self.solver_vars["xhat"]
             max_error = -np.inf
@@ -174,14 +183,18 @@ class Learner(object):
                 errorX = np.trace(X @ Ai)
                 max_error = max(errorX, max_error)
                 if abs(error) > tol:
-                    print(f"Feasibility error too high! xAx:{error:.2e}, <X,A>:{errorX:.2e}")
+                    print(
+                        f"Feasibility error too high! xAx:{error:.2e}, <X,A>:{errorX:.2e}"
+                    )
             print(f"Maximum feasibility error at solution x: {max_error}")
 
             return False
         else:
-            final_cost = np.trace(self.solver_vars["Q"] @ X) 
+            final_cost = np.trace(self.solver_vars["Q"] @ X)
             if abs(final_cost - info["cost"]) >= 1e-10:
-                print(f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}")
+                print(
+                    f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}"
+                )
 
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
@@ -227,7 +240,9 @@ class Learner(object):
         cost_idx = None
         new_data = {"lifter": str(self.lifter), "reorder": reorder}
         for i, idx in enumerate(sorted_idx):
-            new_data.update({"idx": idx, "lamda": lamdas[idx], "value": self.constraints[idx].value})
+            new_data.update(
+                {"idx": idx, "lamda": lamdas[idx], "value": self.constraints[idx].value}
+            )
             Ai_sparse = A_list[idx]
 
             A_b_list += [(Ai_sparse, 0.0)]
@@ -250,7 +265,9 @@ class Learner(object):
                     tightness_counter += 1
             else:
                 new_data["cost_tight"] = False
-                print(f"{i}/{len(sorted_idx)}: not cost-tight yet: {dual_cost:.3e}, {self.solver_vars['qcqp_cost']:.3e}")
+                print(
+                    f"{i}/{len(sorted_idx)}: not cost-tight yet: {dual_cost:.3e}, {self.solver_vars['qcqp_cost']:.3e}"
+                )
 
             eigs = np.linalg.eigvalsh(X)[::-1]
             new_data["eigs"] = eigs
@@ -283,9 +300,12 @@ class Learner(object):
 
     def find_local_solution(self):
         from solvers.common import find_local_minimum
+
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
-        qcqp_that, qcqp_cost = find_local_minimum(self.lifter, y=y, verbose=False, n_inits=1)
+        qcqp_that, qcqp_cost = find_local_minimum(
+            self.lifter, y=y, verbose=False, n_inits=1
+        )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
@@ -300,7 +320,12 @@ class Learner(object):
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
-            self.solver_vars["Q"], A_b_list_all, adjust=ADJUST_Q, verbose=verbose, primal=PRIMAL, tol=TOL
+            self.solver_vars["Q"],
+            A_b_list_all,
+            adjust=ADJUST_Q,
+            verbose=verbose,
+            primal=PRIMAL,
+            tol=TOL,
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -313,6 +338,7 @@ class Learner(object):
             return False
 
     def learn_templates(self, use_known=False, plot=False, data_dict=None):
+        t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
 
         if use_known:
@@ -349,6 +375,8 @@ class Learner(object):
             else:
                 break
         if data_dict is not None:
+            ttot = time.time() - t1
+            data_dict["t learn templates"] = ttot
             data_dict["rank Y"] = Y.shape[1] - corank
             data_dict["corank Y"] = corank
 
@@ -385,12 +413,12 @@ class Learner(object):
             if (not reapply_all) and (template.mat_var_dict != self.mat_var_dict):
                 continue
 
-            if len(template.applied_list) == 0:
+            if reapply_all or (len(template.applied_list) == 0):
                 constraints = self.lifter.apply_template(
                     template.polyrow_b_,
                     n_landmarks=self.lifter.n_landmarks,
                 )
-                template.applied_list += [
+                template.applied_list = [
                     Constraint.init_from_polyrow_b(
                         index=self.constraint_index + i,
                         polyrow_b=new_constraint,
@@ -418,7 +446,11 @@ class Learner(object):
 
     # @profile
     def clean_constraints(
-        self, new_constraints, before_constraints, remove_dependent=True, remove_imprecise=True
+        self,
+        new_constraints,
+        before_constraints,
+        remove_dependent=True,
+        remove_imprecise=True,
     ):
         """
         This function is used in two different ways.
@@ -432,7 +464,9 @@ class Learner(object):
         constraints = before_constraints + new_constraints
         if remove_dependent:
             # find which constraints are lin. dep.
-            A_vec = sp.vstack([constraint.a_full_ for constraint in constraints], format="coo").T
+            A_vec = sp.vstack(
+                [constraint.a_full_ for constraint in constraints], format="coo"
+            ).T
 
             # make sure that matrix is tall (we have less constraints than number of dimensions of x)
             if A_vec.shape[0] < A_vec.shape[1]:
@@ -457,12 +491,18 @@ class Learner(object):
             keep_idx = sorted(E[sort_inds[:rank]])[::-1]
             for good_idx in keep_idx:
                 del bad_idx[good_idx]
-            #bad_idx = list(E[sort_inds[rank:]])
+            # bad_idx = list(E[sort_inds[rank:]])
 
             # Sanity check, removed because too expensive. It almost always passed anyways.
-            Z, R, E, rank_full = sqr.rz(A_vec.tocsc()[:, keep_idx], np.zeros((A_vec.shape[0],1)), tolerance=1e-10)
+            Z, R, E, rank_full = sqr.rz(
+                A_vec.tocsc()[:, keep_idx],
+                np.zeros((A_vec.shape[0], 1)),
+                tolerance=1e-10,
+            )
             if rank_full != rank:
-                print(f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}.")
+                print(
+                    f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}."
+                )
 
             if len(bad_idx):
                 for idx in sorted(bad_idx)[::-1]:
@@ -475,12 +515,12 @@ class Learner(object):
                 errors="ignore",
                 n_seeds=2,
             )
-            self.index_tested = self.index_tested.union(
-                [c.index for c in constraints]
-            )
+            self.index_tested = self.index_tested.union([c.index for c in constraints])
             if len(bad_idx):
                 print(f"removing {bad_idx} because high error, up to {error:.2e}")
-                for idx in list(bad_idx)[::-1]:  # reverse order to not mess up indexing
+                for idx in list(sorted(bad_idx))[
+                    ::-1
+                ]:  # reverse order to not mess up indexing
                     del constraints[idx]
         return constraints
 
@@ -498,7 +538,6 @@ class Learner(object):
 
             print(f"-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
-            t1 = time.time()
             n_new, n_all = self.learn_templates(
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
@@ -507,8 +546,6 @@ class Learner(object):
             if n_new == 0:
                 print("new variables didn't have any effect")
                 continue
-            ttot = time.time() - t1
-            data_dict["t learn templates"] = ttot
 
             # apply the pattern to all landmarks
             if self.apply_templates_to_others:
@@ -549,18 +586,27 @@ class Learner(object):
             templates_poly = self.templates_poly
 
         series = []
+
+        variable_dict_j = list(
+            set(
+                [
+                    l
+                    for i in templates_poly.matrix.keys()
+                    for l in templates_poly.matrix[i].keys()
+                ]
+            )
+        )
         for i, key_i in enumerate(templates_poly.variable_dict_i):
             data = {j: float(val) for j, val in templates_poly.matrix[key_i].items()}
             for key, idx_list in add_columns.items():
                 try:
                     data[key] = idx_list.index(i)
-                except Exception: 
+                except Exception:
                     data[key] = -1
             series.append(
                 pd.Series(
                     data,
-                    index=list(templates_poly.variable_dict_j.keys())
-                    + list(add_columns.keys()),
+                    index=variable_dict_j + list(add_columns.keys()),
                     dtype="Sparse[float]",
                 )
             )
@@ -591,7 +637,13 @@ class Learner(object):
             mat_vars = constraint.mat_var_dict
             i = constraint.index
             if factor_out_parameters:
-                plot_rows.append(constraint.polyrow_a_)
+                if constraint.polyrow_a_ is not None:
+                    plot_rows.append(constraint.polyrow_a_)
+                else:
+                    polyrow_a = self.lifter.convert_a_to_polyrow(
+                        constraint.a, constraint.mat_var_dict
+                    )
+                    plot_rows.append(polyrow_a)
             else:
                 plot_rows.append(constraint.polyrow_b_)
             if mat_vars != old_mat_vars:
@@ -612,7 +664,9 @@ class Learner(object):
         )
         return templates_poly
 
-    def save_sorted_templates(self, df, fname_root="", title="", drop_zero=False, simplify=True):
+    def save_sorted_templates(
+        self, df, fname_root="", title="", drop_zero=False, simplify=True
+    ):
         from utils.plotting_tools import plot_basis
 
         # convert to poly matrix for plotting purposes only.
@@ -620,15 +674,42 @@ class Learner(object):
         keys = set()
         for i, row in df.iterrows():
             for k, val in row[~row.isna()].items():
+                if "order" in k:
+                    continue
                 poly_matrix[i, k] = val
                 keys.add(k)
 
         variables_j = self.lifter.var_dict_row(
-            var_subset=self.mat_vars, force_parameters_off=True
+            var_subset=self.lifter.var_dict, force_parameters_off=False
         )
+        assert keys.issubset(variables_j)
         if drop_zero:
             variables_j = {k: v for k, v in variables_j.items() if k in keys}
         fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
+        ax.set_yticklabels([])
+        ax.set_yticks([])
+        if simplify:
+            ax.set_xticks([])
+            ax.set_xticklabels([])
+        else:
+            new_xticks = [
+                f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
+            ]
+            ax.set_xticklabels(new_xticks)
+
+        # plot a red vertical line at each new block of parameters.
+        params = [v.split("-")[0] for v in variables_j]
+        old_param = params[0]
+        for i, p in enumerate(params):
+            if p != old_param:
+                ax.axvline(i, color="red")
+                ax.annotate(
+                    text=f"${p.replace(':0', '^x').replace(':1', '^y').replace('l.','').replace('.','')}$",
+                    xy=[i, 0.5],
+                    fontsize=6,
+                    color="red",
+                )
+                old_param = p
         ax.set_title(title)
 
         if "required (reordered)" in df.columns:
@@ -646,16 +727,6 @@ class Learner(object):
                             lw=0.0,
                         )
                     )
-        ax.set_yticklabels([])
-        ax.set_yticks([])
-        if simplify:
-            ax.set_xticks([])
-            ax.set_xticklabels([])
-        else:
-            new_xticks = [
-                f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
-            ]
-            ax.set_xticklabels(new_xticks)
         if fname_root != "":
             savefig(fig, fname_root + "_templates-sorted.png")
         return fig, ax
@@ -731,6 +802,7 @@ class Learner(object):
         )  # 1 (white) is empty, 0 (black) is nonempty
 
         import matplotlib
+
         vmin = min(-np.max(Q), np.min(Q))
         vmax = max(np.max(Q), -np.min(Q))
         norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
@@ -749,7 +821,12 @@ class Learner(object):
         return fig, axs
 
     def save_matrices_poly(
-        self, A_matrices=None, n_matrices=5, fname_root="", reduced_mode=False, save_individual=False
+        self,
+        A_matrices=None,
+        n_matrices=5,
+        fname_root="",
+        reduced_mode=False,
+        save_individual=False,
     ):
         if A_matrices is None:
             A_matrices = self.A_matrices
@@ -783,14 +860,14 @@ class Learner(object):
                 add_rectangles(ax, self.lifter.var_dict)
                 cax = add_colorbar(fig, ax, im, size=0.1)
                 cax.set_yticklabels(colorbar_yticks)
-            
+
             if save_individual:
                 savefig(figi, fname_root + f"_matrix{i}.pdf")
         for ax in axs[i + 1 :]:
             ax.axis("off")
 
-        #plt.subplots_adjust(wspace=0.1, hspace=0.1)
-        #if fname_root != "":
+        # plt.subplots_adjust(wspace=0.1, hspace=0.1)
+        # if fname_root != "":
         #    savefig(fig, fname_root + "_matrices-poly.png")
         return fig, axs
 
