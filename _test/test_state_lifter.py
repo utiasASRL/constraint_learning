@@ -94,10 +94,12 @@ def test_grad_finite_diff():
             try:
                 grad = lifter.get_grad(theta, y)
             except NotImplementedError as e:
-                # raise e
-                print(e)
                 print("grad not implemented?")
                 continue
+            else:
+                if grad is None:
+                    print("grad not implemented?")
+                    continue
 
             n = len(theta)
             I = np.eye(n) * eps
@@ -252,7 +254,7 @@ def test_constraints():
         num_learned = None
         for method in methods:
             np.random.seed(0)
-            A_learned = lifter.get_A_learned(eps=1e-7, method=method)
+            A_learned = lifter.get_A_learned(method=method)
             test_with_tol(A_learned, tol=1e-4)
 
             # make sure each method finds the same number of matrices

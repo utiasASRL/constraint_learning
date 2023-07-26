@@ -60,7 +60,7 @@ class BaseClass(ABC):
         return
 
     @abstractmethod
-    def sample_parameters(self):
+    def sample_parameters(self, x=None):
         return
 
     @abstractmethod

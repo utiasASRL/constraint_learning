@@ -35,7 +35,7 @@ class Stereo1DLifter(StateLifter):
                 return
         return x_try
 
-    def sample_parameters(self):
+    def sample_parameters(self, theta=None):
         if self.param_level == "p":
             parameters_ = np.r_[1.0, np.random.rand(self.n_landmarks)]
         elif self.param_level == "no":

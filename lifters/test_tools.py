@@ -14,19 +14,12 @@ n_poses = 4
 Lifters = [
     # Poly4Lifter: dict(),
     # Poly6Lifter: dict(),
-    # Stereo2DLifter: dict(n_landmarks=n_landmarks),
     (RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no")),
     (RangeOnlyLocLifter, dict( n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad")),
-    # Stereo1DLifter: dict(n_landmarks=n_landmarks),
-    # Stereo1DLifter: dict(n_landmarks=n_landmarks, param_level="p"),
-    # Stereo3DLifter: dict(n_landmarks=n_landmarks),
-    # RangeOnlySLAM1Lifter: dict(
-    #    n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="inner"
-    # ),
-    # RangeOnlySLAM1Lifter: dict(
-    #    n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="outer"
-    # ),
-    # RangeOnlySLAM2Lifter: dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d),
+    (Stereo1DLifter, dict(n_landmarks=n_landmarks)),
+    (Stereo1DLifter, dict(n_landmarks=n_landmarks, param_level="p")),
+    (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
+    (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
 
 

@@ -441,7 +441,6 @@ class StateLifter(BaseClass):
             basis_list = self.get_basis_list(
                 var_subset=self.var_dict,
                 A_known=A_known,
-                eps_svd=self.EPS_SVD,
                 plot=plot,
                 method=method,
             )
@@ -653,14 +652,14 @@ class StateLifter(BaseClass):
         for i in range(self.N_CLEANING_STEPS + 1):
             # TODO(FD) can e enforce lin. independance to previously found
             # matrices at this point?
-            basis_new, S = self.get_basis(Y, eps_svd=self.EPS_SVD, method=method)
+            basis_new, S = self.get_basis(Y, method=method)
             corank = basis_new.shape[0]
 
             if corank == 0:
                 print(f"{var_subset}: no new learned matrices found")
                 return basis_list
             print(f"{var_subset}: {corank} learned matrices found")
-            self.test_S_cutoff(S, corank, eps=self.EPS_SVD)
+            self.test_S_cutoff(S, corank)
             bad_bins = self.clean_Y(basis_new, Y, S[-corank:], plot)
             if len(bad_bins) > 0:
                 print(f"deleting {len(bad_bins)}")
@@ -938,9 +937,8 @@ class StateLifter(BaseClass):
         A_list = []
         for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict)
-            # Ai = self.create_symmetric(ai, size=self.get_dim_x(var_dict))
             Ai = self.get_mat(
-                ai, sparse=sparse, trunc_tol=trunc_tol, var_dict=var_dict, correct=True
+                ai, sparse=sparse, var_dict=var_dict, correct=True
             )
             # Normalize the matrix
             if normalize and not sparse:
