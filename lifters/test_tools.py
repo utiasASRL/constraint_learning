@@ -7,19 +7,22 @@ from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.mono_lifter import MonoLifter
 
 d = 2
 n_landmarks = 4
 n_poses = 4
 Lifters = [
-    # Poly4Lifter: dict(),
-    # Poly6Lifter: dict(),
-    (RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no")),
-    (RangeOnlyLocLifter, dict( n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad")),
-    (Stereo1DLifter, dict(n_landmarks=n_landmarks)),
-    (Stereo1DLifter, dict(n_landmarks=n_landmarks, param_level="p")),
-    (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
-    (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
+    #(Poly4Lifter, dict()),
+    #(Poly6Lifter, dict()),
+    (MonoLifter, dict(n_landmarks=n_landmarks, d=d, level="xxT")),
+    (MonoLifter, dict(n_landmarks=n_landmarks, d=d, level="xwT")),
+    #(RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no")),
+    #(RangeOnlyLocLifter, dict( n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad")),
+    #(Stereo1DLifter, dict(n_landmarks=n_landmarks)),
+    #(Stereo1DLifter, dict(n_landmarks=n_landmarks, param_level="p")),
+    #(Stereo2DLifter, dict(n_landmarks=n_landmarks)),
+    #(Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
 
 

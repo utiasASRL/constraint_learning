@@ -193,7 +193,12 @@ def find_local_minimum(lifter: StateLifter, y, delta=1e-3, verbose=False, n_init
             p0, a0 = lifter.get_positions_and_landmarks(t_init)
             ax.scatter(*p0.T, color=f"C{0}", marker="o")
             ax.scatter(*a0.T, color=f"C{0}", marker="x")
-        t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
+
+        try:
+            t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
+        except NotImplementedError:
+            print("Warning: local solver not implemented.")
+            return None, None
 
         # print(msg)
         if t_local is not None:

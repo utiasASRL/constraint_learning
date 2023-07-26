@@ -195,6 +195,18 @@ class StateLifter(BaseClass):
             return {k: v for k, v in self.var_dict.items() if k in var_subset}
         return self.var_dict
 
+    def extract_parameters(self, var_subset, landmarks):
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        landmarks_idx = self.get_variable_indices(var_subset)
+        if self.param_level == "no":
+            return [1.0]
+        else:
+            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
+            parameters = landmarks[landmarks_idx, :].flatten()
+            return np.r_[1.0, parameters]
+
     def get_p(self, parameters=None, var_subset=None):
         """
         :param parameters: list of all parameters

@@ -4,50 +4,9 @@ import numpy as np
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils.common import get_rot_matrix
+from utils.geometry import get_C_r_from_theta, get_C_r_from_xtheta, get_T, get_xtheta_from_theta
 
 NOISE = 0.5 # 
-
-def get_C_r_from_theta(theta, d):
-    r = theta[:d]
-    alpha = theta[d:]
-    C = get_rot_matrix(alpha)
-    return C, r
-
-
-def get_C_r_from_xtheta(xtheta, d):
-    C = xtheta[: d**2].reshape((d, d))
-    r = xtheta[-d:]
-    return C, r
-
-
-def get_T(xtheta=None, d=None, theta=None):
-    if theta is not None:
-        C, r = get_C_r_from_theta(theta, d)
-    else:
-        C, r = get_C_r_from_xtheta(xtheta, d)
-    T = np.zeros((d + 1, d + 1))
-    T[:d, :d] = C
-    T[:d, d] = r
-    T[-1, -1] = 1.0
-    return T
-
-
-def get_xtheta_from_theta(theta, d):
-    pos = theta[:d]
-    alpha = theta[d:]
-    C = get_rot_matrix(alpha)
-    c = C.flatten("C")  # row-wise flatten
-    theta = np.r_[c, pos]
-    return theta
-
-
-def get_xtheta_from_T(T):
-    # T is either 4x4 or 3x3 matrix.
-    C = T[:-1, :-1]
-    r = T[:-1, -1]
-    return np.r_[C.flatten("C"), r]  # row-wise
-
 
 class StereoLifter(StateLifter, ABC):
     """General lifter for stereo localization problem.
@@ -67,15 +26,6 @@ class StereoLifter(StateLifter, ABC):
         "u1u2rT"
     ]
     PARAM_LEVELS = ["no", "p", "ppT"]
-    MAX_VARS = 4
-    # no tightness
-    #VARIABLE_LIST = [
-    #    ["l", "x"] + [f"z_{i}" for i in range(j)] for j in range(MAX_VARS + 1)
-    #]
-    # weak tightness
-    #VARIABLE_LIST = [
-        #["l"] + [f"z_{i}" for i in range(j)] for j in range(1, MAX_VARS + 1)
-    #]
     LEVEL_NAMES = {
         "no": "$\\boldsymbol{u}_n$",
         "urT": "$\\boldsymbol{u}\\boldsymbol{t}^\\top_n$",
@@ -92,11 +42,7 @@ class StereoLifter(StateLifter, ABC):
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
         self.d = d
         self.n_landmarks = n_landmarks
-        if variable_list is not None:
-            self.variable_list = variable_list
-        else:
-            self.variable_list = self.VARIABLE_LIST
-        super().__init__(level=level, param_level=param_level)
+        super().__init__(level=level, param_level=param_level, varialbe_list=variable_list)
 
     def get_level_dims(self, n=1):
         """
@@ -152,23 +98,12 @@ class StereoLifter(StateLifter, ABC):
         self.landmarks = self.generate_random_landmarks(theta=self.theta)
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
 
-    def generate_random_theta(self, factor=1.0):
-        n_angles = 1 if self.d == 2 else 3
-        return np.r_[
-            np.random.rand(self.d) * factor, np.random.rand(n_angles) * 2 * np.pi
-        ]
+    def generate_random_theta(self):
+        from utils.common import generate_random_pose
+        return generate_random_pose(d=self.d)
 
     def get_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        landmarks = self.get_variable_indices(var_subset)
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            parameters = self.landmarks[landmarks, :].flatten()
-            return np.r_[1.0, parameters]
+        return self.extract_parameters(self, var_subset, self.landmarks)
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -275,11 +210,6 @@ class StereoLifter(StateLifter, ABC):
             return np.r_[1.0, parameters]
 
     def get_Q(self, noise: float = None) -> tuple:
-        if noise is None:
-            noise = NOISE
-        return self._get_Q(noise=noise)
-
-    def _get_Q(self, noise: float = None) -> tuple:
         if noise is None:
             noise = NOISE
         xtheta = get_xtheta_from_theta(self.theta, self.d)

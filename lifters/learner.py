@@ -116,6 +116,9 @@ class Learner(object):
 
     def check_violation(self, dual_cost):
         primal_cost = self.solver_vars["qcqp_cost"]
+        if primal_cost is None:
+            print("warning can't check violation, no primal cost.")
+            return False
         return (dual_cost - primal_cost) / primal_cost > TOL_REL_GAP
 
     def duality_gap_is_zero(self, dual_cost, verbose=False):
@@ -310,6 +313,8 @@ class Learner(object):
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
             return True
+
+        self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
         return False
 
     def _test_tightness(self, A_b_list_all, verbose=False):

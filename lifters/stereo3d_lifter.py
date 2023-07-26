@@ -1,8 +1,7 @@
 import numpy as np
 
-from lifters.stereo_lifter import (
-    StereoLifter,
-    get_T,
+from lifters.stereo_lifter import StereoLifter
+from utils.geometry import (get_T,
     get_xtheta_from_T,
     get_xtheta_from_theta,
 )

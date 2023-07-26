@@ -6,18 +6,23 @@ import numpy as np
 class BaseClass(ABC):
     LEVELS = ["no"]
     PARAM_LEVELS = ["no"]
+    VARIABLE_LIST = ["l"]
 
-    def __init__(self, level="no", param_level="no"):
+    def __init__(self, level="no", param_level="no", d=2, variable_list=None):
         assert level in self.LEVELS
         self.level = level
 
         assert param_level in self.PARAM_LEVELS
         self.param_level = param_level
 
-        # variables that get overwritten upon initialization
-        self.var_dict_ = None
-        self.theta_ = None
+        if variable_list is not None:
+            self.variable_list = variable_list
+        else:
+            self.variable_list = self.VARIABLE_LIST
 
+        # variables that get overwritten upon initialization
+        self.theta_ = None
+        self.d = d
         self.generate_random_setup()
 
     @property
@@ -48,7 +53,7 @@ class BaseClass(ABC):
         return
 
     @abstractmethod
-    def generate_random_theta(self, factor=1.0):
+    def generate_random_theta(self):
         pass
 
     @abstractmethod
