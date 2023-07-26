@@ -55,7 +55,7 @@ def test_learned_constraints(d=2, param_level="ppT"):
     var_subset = ["l", "z_0", "z_1"]
     label_dict = lifter.var_dict_row(var_subset)
 
-    basis_row_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, eps_sparse=1e-8, plot=False)
+    basis_row_list = lifter.get_basis_list(var_subset, plot=False)
     basis_list = [basis_row.get_matrix((["l"], label_dict)) for basis_row in basis_row_list]
     A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
 
@@ -84,9 +84,8 @@ def test_learned_constraints_augment(d=2, param_level="ppT"):
         var_subset = ["l", "z_0", "z_1"]
         label_dict = lifter.var_dict_row(var_subset)
 
-        basis_list = lifter.get_basis_list(var_subset, eps_svd=1e-6, plot=False)
-
-        basis_list_all = lifter.apply_templates(basis_list, var_subset=var_subset)
+        basis_list = lifter.get_basis_list(var_subset, plot=False)
+        basis_list_all = lifter.apply_templates(basis_list)
         basis_poly_all = PolyMatrix.init_from_row_list(basis_list_all)
 
         basis_learned = basis_poly_all.get_matrix(
@@ -215,9 +214,10 @@ def test_zero_padding():
         basis_new, S = lifter.get_basis(Y)
         for i, bi_sub in enumerate(basis_new[:10, :]):
             ai_sub = lifter.get_reduced_a(bi_sub, var_subset)
+            bi_poly = lifter.convert_b_to_polyrow(bi_sub, var_subset)
 
             # enerate list of poly matrices from this pattern.
-            new_patterns = lifter.apply_templates([bi_sub], var_subset=var_subset)
+            new_patterns = lifter.apply_template(bi_poly)
             for new_pattern in new_patterns:
                 # generate Ai from poly_row.
                 ai_test = lifter.convert_poly_to_a(new_pattern, var_subset)
