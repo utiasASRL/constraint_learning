@@ -13,10 +13,10 @@ from poly_matrix import PolyMatrix, unroll
 
 
 def ravel_multi_index_triu(index_tuple, shape):
-    """ Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
+    """Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
     ii, jj = index_tuple
 
-    triu_mask = jj>=ii
+    triu_mask = jj >= ii
     i_upper = ii[triu_mask]
     j_upper = jj[triu_mask]
     flat_indices = []
@@ -28,25 +28,26 @@ def ravel_multi_index_triu(index_tuple, shape):
         flat_indices.append(idx)
     return flat_indices
 
+
 def unravel_multi_index_triu(flat_indices, shape):
-    """ Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
+    """Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
     i_upper = []
     j_upper = []
 
     # for 4 x 4, this would give [4, 7, 9, 11]
-    cutoffs = np.cumsum(list(range(1, shape[0]+1))[::-1])
+    cutoffs = np.cumsum(list(range(1, shape[0] + 1))[::-1])
     for idx in flat_indices:
         i = np.where(idx < cutoffs)[0][0]
         if i == 0:
             j = idx
         else:
-            j = idx - cutoffs[i-1] + i
+            j = idx - cutoffs[i - 1] + i
         i_upper.append(i)
         j_upper.append(j)
     return np.array(i_upper), np.array(j_upper)
 
-class StateLifter(BaseClass):
 
+class StateLifter(BaseClass):
     # consider singular value zero below this
     EPS_SVD = 1e-7
 
@@ -63,20 +64,22 @@ class StateLifter(BaseClass):
     METHOD = "qrp"
 
     # normalize learned Ai or not
-    NORMALIZE = False  
+    NORMALIZE = False
 
     # how much to oversample (>= 1)
-    FACTOR = 2.0  
+    FACTOR = 2.0
 
     # number of times we remove bad samples from data matrix
-    N_CLEANING_STEPS = 1 # was 3
+    N_CLEANING_STEPS = 1  # was 3
 
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
-        return [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
+        return [
+            int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")
+        ]
 
     @staticmethod
     def create_symmetric(vec, eps_sparse, correct=False, sparse=False):
@@ -98,11 +101,11 @@ class StateLifter(BaseClass):
             dim_x = get_dim_x(len_vec)
             vec.data[np.abs(vec.data) < eps_sparse] = 0
             vec.eliminate_zeros()
-            ii, jj = vec.nonzero() # vec is 1 x jj
+            ii, jj = vec.nonzero()  # vec is 1 x jj
             triu_i_nnz, triu_j_nnz = unravel_multi_index_triu(jj, (dim_x, dim_x))
             vec_nnz = np.array(vec[ii, jj]).flatten()
 
-        #assert dim_x == self.get_dim_x(var_dict)
+        # assert dim_x == self.get_dim_x(var_dict)
 
         if sparse:
             offdiag = triu_i_nnz != triu_j_nnz
@@ -143,7 +146,9 @@ class StateLifter(BaseClass):
                 assert abs(S[-corank]) / self.EPS_SVD < 1e-1  # 1e-1  1e-10
                 assert abs(S[-corank - 1]) / self.EPS_SVD > 10  # 1e-11 1e-10
             except:
-                print(f"there might be a problem with the chosen threshold {self.EPS_SVD}:")
+                print(
+                    f"there might be a problem with the chosen threshold {self.EPS_SVD}:"
+                )
                 print(S[-corank], self.EPS_SVD, S[-corank - 1])
 
     def get_level_dims(self, n=1):
@@ -250,21 +255,23 @@ class StateLifter(BaseClass):
                 mat *= np.sqrt(2.0)
                 mat[range(mat.shape[0]), range(mat.shape[0])] /= np.sqrt(2)
         if sparse:
-            #flat_indices = np.ravel_multi_index([i_upper, j_upper], mat.shape)
+            # flat_indices = np.ravel_multi_index([i_upper, j_upper], mat.shape)
             ii, jj = mat.nonzero()
             if len(ii) == 0:
                 raise ValueError("got empty matrix")
-            triu_mask = jj>=ii
-            flat_indices = ravel_multi_index_triu([ii[triu_mask], jj[triu_mask]], mat.shape)
-            data = np.array(mat[ii[triu_mask], jj[triu_mask]]).flatten()  
-            vec_size = int( mat.shape[0] * (mat.shape[0] + 1) / 2)
-            return sp.csr_matrix((data, ([0] * len(flat_indices), flat_indices)), (1, vec_size))
+            triu_mask = jj >= ii
+            flat_indices = ravel_multi_index_triu(
+                [ii[triu_mask], jj[triu_mask]], mat.shape
+            )
+            data = np.array(mat[ii[triu_mask], jj[triu_mask]]).flatten()
+            vec_size = int(mat.shape[0] * (mat.shape[0] + 1) / 2)
+            return sp.csr_matrix(
+                (data, ([0] * len(flat_indices), flat_indices)), (1, vec_size)
+            )
         else:
             return np.array(mat[np.triu_indices(n=mat.shape[0])]).flatten()
 
-    def get_mat(
-        self, vec, sparse=False, var_dict=None, correct=True
-    ):
+    def get_mat(self, vec, sparse=False, var_dict=None, correct=True):
         """Convert (N+1)N/2 vectorized matrix to NxN Symmetric matrix in a way that preserves inner products.
 
         In particular, this means that we divide the off-diagonal elements by sqrt(2).
@@ -276,9 +283,11 @@ class StateLifter(BaseClass):
         if var_dict is None:
             pass
         elif not type(var_dict) is dict:
-            var_dict = {k:v for k,v in self.var_dict.items() if k in var_dict}
+            var_dict = {k: v for k, v in self.var_dict.items() if k in var_dict}
 
-        Ai = self.create_symmetric(vec, correct=correct, eps_sparse=self.EPS_SPARSE, sparse=sparse)
+        Ai = self.create_symmetric(
+            vec, correct=correct, eps_sparse=self.EPS_SPARSE, sparse=sparse
+        )
         assert Ai.shape[0] == self.get_dim_x(var_dict)
 
         if var_dict is None:
@@ -287,10 +296,11 @@ class StateLifter(BaseClass):
         # if var_dict is not None, then Ai corresponds to the subblock
         # defined by var_dict, of the full constraint matrix.
         Ai_poly, __ = PolyMatrix.init_from_sparse(Ai, var_dict, unfold=True)
-        
+
         from poly_matrix.poly_matrix import augment
+
         augment_var_dict = augment(self.var_dict)
-        all_var_dict = {key[2]:1 for key in augment_var_dict.values()}
+        all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
 
     def get_A_known(self) -> list:
@@ -371,7 +381,12 @@ class StateLifter(BaseClass):
         return label_list
 
     def var_dict_row(self, var_subset=None, force_parameters_off=False):
-        return {l: 1 for l in self.var_list_row(var_subset, force_parameters_off=force_parameters_off)}
+        return {
+            l: 1
+            for l in self.var_list_row(
+                var_subset, force_parameters_off=force_parameters_off
+            )
+        }
 
     def get_basis_from_poly_rows(self, basis_poly_list, var_subset=None):
         var_dict = self.get_var_dict(var_subset=var_subset)
@@ -420,7 +435,9 @@ class StateLifter(BaseClass):
                             self.var_dict[vari], self.var_dict[varj]
                         )
                     else:
-                        mat = self.create_symmetric(val, eps_sparse=self.EPS_SPARSE, correct=False)
+                        mat = self.create_symmetric(
+                            val, eps_sparse=self.EPS_SPARSE, correct=False
+                        )
                         sub_mat[vari, varj] = mat
                 elif val != 0:
                     sub_mat[vari, varj] = val
@@ -488,15 +505,12 @@ class StateLifter(BaseClass):
 
             jj.append(j)
             data.append(newval.flatten()[0])
-        return sp.csr_array((data, ([0]*len(jj), jj)), (1, self.get_dim_X()))
-
+        return sp.csr_array((data, ([0] * len(jj), jj)), (1, self.get_dim_X()))
 
     def convert_b_to_Apoly(self, new_template, var_dict):
         ai_sub = self.get_reduced_a(new_template, var_dict, sparse=True)
         Ai_sparse = self.get_mat(ai_sub, var_dict=var_dict, sparse=True)
-        Ai, __ = PolyMatrix.init_from_sparse(
-            Ai_sparse, self.var_dict, unfold=True
-        )
+        Ai, __ = PolyMatrix.init_from_sparse(Ai_sparse, self.var_dict, unfold=True)
         return Ai
 
     def convert_polyrow_to_Apoly(self, poly_row, correct=True):
@@ -552,7 +566,9 @@ class StateLifter(BaseClass):
         return self.get_vec(mat_sparse, correct=False, sparse=sparse)
 
     def convert_a_to_polyrow(
-        self, a, var_subset=None, 
+        self,
+        a,
+        var_subset=None,
     ) -> PolyMatrix:
         """Convert a array to poly-row."""
         if var_subset is None:
@@ -561,7 +577,7 @@ class StateLifter(BaseClass):
         dim_X = self.get_dim_X(var_subset)
 
         try:
-            dim_a = len(a) 
+            dim_a = len(a)
         except:
             dim_a = a.shape[1]
         assert dim_a == dim_X
@@ -587,7 +603,9 @@ class StateLifter(BaseClass):
     def convert_b_to_polyrow(self, b, var_subset, tol=1e-10) -> PolyMatrix:
         """Convert (augmented) b array to poly-row."""
         if isinstance(b, PolyMatrix):
-            raise NotImplementedError("can't call convert_b_to_polyrow with PolyMatrix yet.")
+            raise NotImplementedError(
+                "can't call convert_b_to_polyrow with PolyMatrix yet."
+            )
 
         assert len(b) == self.get_dim_Y(var_subset)
         poly_row = PolyMatrix(symmetric=False)
@@ -697,9 +715,7 @@ class StateLifter(BaseClass):
                     current_basis = np.r_[current_basis, ai[None, :]]
         return basis_list
 
-    def apply_templates(
-        self, basis_list, n_landmarks=None, verbose=False
-    ):
+    def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
         """
         Apply the learned patterns in basis_list to all landmarks.
 
@@ -711,12 +727,12 @@ class StateLifter(BaseClass):
 
         new_poly_rows = []
         for bi_poly in basis_list:
-            new_poly_rows += self.apply_template(bi_poly, n_landmarks=n_landmarks, verbose=verbose) 
+            new_poly_rows += self.apply_template(
+                bi_poly, n_landmarks=n_landmarks, verbose=verbose
+            )
         return new_poly_rows
 
-    def apply_template(
-        self, bi_poly, n_landmarks=None, verbose=False
-    ):
+    def apply_template(self, bi_poly, n_landmarks=None, verbose=False):
         if n_landmarks is None:
             n_landmarks = self.n_landmarks
 
@@ -758,7 +774,9 @@ class StateLifter(BaseClass):
                     pj, dj = pj.split(":")
                     if pi == pj:
                         if not (int(dj) >= int(di)):
-                            raise IndexError("something went wrong in augment_basis_list")
+                            raise IndexError(
+                                "something went wrong in augment_basis_list"
+                            )
                 except ValueError as e:
                     pass
                 new_poly_row["l", key_ij] = bi_poly["l", key]
@@ -767,7 +785,6 @@ class StateLifter(BaseClass):
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
-
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
         """
         return self.theta + np.random.normal(size=self.theta.shape, scale=delta)
@@ -824,7 +841,7 @@ class StateLifter(BaseClass):
             ax.semilogy(np.max(errors, axis=1))
             ax.semilogy(np.median(errors, axis=1))
             ax.semilogy(s)
-        return bad_bins 
+        return bad_bins
 
     def get_basis(
         self,
@@ -916,8 +933,8 @@ class StateLifter(BaseClass):
                 ai += p * bi[i * dim_X : (i + 1) * dim_X]
             else:
                 ai += p * bi[0, i * dim_X : (i + 1) * dim_X].toarray().flatten()
-        if sparse: 
-            ai_sparse = sp.csr_array(ai[None, :]) 
+        if sparse:
+            ai_sparse = sp.csr_array(ai[None, :])
             ai_sparse.eliminate_zeros()
             return ai_sparse
         else:
@@ -949,9 +966,7 @@ class StateLifter(BaseClass):
         A_list = []
         for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict)
-            Ai = self.get_mat(
-                ai, sparse=sparse, var_dict=var_dict, correct=True
-            )
+            Ai = self.get_mat(ai, sparse=sparse, var_dict=var_dict, correct=True)
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
@@ -967,7 +982,7 @@ class StateLifter(BaseClass):
             A_list.append(Ai)
         return A_list
 
-    def test_constraints(self, A_list, errors: str = "raise", n_seeds: int=3):
+    def test_constraints(self, A_list, errors: str = "raise", n_seeds: int = 3):
         """
         :param A_list: can be either list of sparse matrices, or poly matrices
         :param errors: "raise" or "print" detected violations.
@@ -976,7 +991,6 @@ class StateLifter(BaseClass):
         j_bad = set()
 
         for j, A in enumerate(A_list):
-            
             if isinstance(A, PolyMatrix):
                 A = A.get_matrix(self.var_dict_unroll)
 

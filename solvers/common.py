@@ -23,8 +23,8 @@ solver_options = {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
             "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
             "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
-            #"MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
-            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,  
+            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
+            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
         },
@@ -58,7 +58,7 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
     ii, jj = (Q == Q.max()).nonzero()
     if (ii[0], jj[0]) != (0, 0) or (len(ii) > 1):
         pass
-        #print("Warning: largest element of Q is not unique or not in top-left. Check ordering?")
+        # print("Warning: largest element of Q is not unique or not in top-left. Check ordering?")
 
     Q_mat = deepcopy(Q)
     if offset:
@@ -123,7 +123,7 @@ def solve_sdp_cvxpy(
         try:
             cprob.solve(
                 solver=solver,
-                #save_file="solve_cvxpy_primal.ptf",
+                # save_file="solve_cvxpy_primal.ptf",
                 **opts,
             )
         except:
@@ -161,10 +161,16 @@ def solve_sdp_cvxpy(
             H = None
             yvals = None
         else:
-            cost = cprob.value
-            X = constraint.dual_value
-            H = Q_here - LHS.value
-            yvals = [x.value for x in y]
+            if cprob.value > -np.inf:
+                cost = cprob.value
+                X = constraint.dual_value
+                H = Q_here - LHS.value
+                yvals = [x.value for x in y]
+            else:
+                cost = None
+                X = None
+                H = None
+                yvals = None
 
     # reverse Q adjustment
     if cost:
@@ -177,7 +183,9 @@ def solve_sdp_cvxpy(
     return X, info
 
 
-def find_local_minimum(lifter: StateLifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False):
+def find_local_minimum(
+    lifter: StateLifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False
+):
     local_solutions = []
     costs = []
 
@@ -195,7 +203,9 @@ def find_local_minimum(lifter: StateLifter, y, delta=1e-3, verbose=False, n_init
             ax.scatter(*a0.T, color=f"C{0}", marker="x")
 
         try:
-            t_local, msg, cost_solver = lifter.local_solver(t_init, y=y, verbose=verbose)
+            t_local, msg, cost_solver = lifter.local_solver(
+                t_init, y=y, verbose=verbose
+            )
         except NotImplementedError:
             print("Warning: local solver not implemented.")
             return None, None

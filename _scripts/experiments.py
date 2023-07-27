@@ -209,7 +209,9 @@ def run_scalability_plot(learner: Learner):
         "required (reordered)": idx_subset_reorder,
     }
     df = learner.get_sorted_df(templates_poly=templates_poly, add_columns=add_columns)
-    title = "" #f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
+    title = (
+        ""  # f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
+    )
     fig, ax = learner.save_sorted_templates(
         df, title=title, drop_zero=True, simplify=True
     )
@@ -225,7 +227,7 @@ def run_scalability_new(
     vmin=None,
     vmax=None,
     recompute=True,
-    tightness="cost"
+    tightness="cost",
 ):
     import pickle
 
@@ -242,7 +244,9 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data = learner.run(verbose=True, use_known=False, plot=False, tightness=tightness)
+        data = learner.run(
+            verbose=True, use_known=False, plot=False, tightness=tightness
+        )
         orig_dict["t learn templates"] = time.time() - t1
 
         df = pd.DataFrame(data)
@@ -264,7 +268,9 @@ def run_scalability_new(
 
         t1 = time.time()
         idx_subset_original, idx_subset_reorder = tightness_study(
-            learner, tightness=tightness, original=True,
+            learner,
+            tightness=tightness,
+            original=True,
         )
         orig_dict["t determine required"] = time.time() - t1
         orig_dict["n templates"] = len(learner.constraints)
@@ -276,7 +282,7 @@ def run_scalability_new(
         )
         if idx_subset_reorder is not None:
             order_dict["sorted"] = idx_subset_reorder
-        #if idx_subset_original is not None:
+        # if idx_subset_original is not None:
         #    order_dict["original"] = idx_subset_original
         order_dict["all"] = range(len(learner.constraints))
 

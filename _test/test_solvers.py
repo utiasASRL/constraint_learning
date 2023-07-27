@@ -5,6 +5,7 @@ from lifters.poly_lifters import PolyLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.test_tools import all_lifters
 
+
 def test_hess_finite_diff():
     for lifter in all_lifters():
         lifter.generate_random_setup()
@@ -132,11 +133,13 @@ def test_cost(noise=0.0):
         # for Stereo3D problem.
         assert abs(cost - costQ) < 1e-6, (cost, costQ)
 
-        if noise == 0 and not (isinstance(lifter, PolyLifter) or isinstance(lifter, MonoLifter)):
+        if noise == 0 and not (
+            isinstance(lifter, PolyLifter) or isinstance(lifter, MonoLifter)
+        ):
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
         elif noise == 0 and isinstance(lifter, MonoLifter):
-            w = lifter.theta[-lifter.n_landmarks:]
+            w = lifter.theta[-lifter.n_landmarks :]
             assert cost == np.sum(w < 0)
 
 
@@ -163,7 +166,12 @@ def test_solvers(n_seeds=1, noise=0.0):
                 continue
             if noise == 0:
                 # test that solution is ground truth with no noise
-                np.testing.assert_allclose(theta_hat, theta_gt)
+                if len(theta_hat) == len(theta_gt):
+                    np.testing.assert_allclose(theta_hat, theta_gt)
+                else:
+                    theta_gt = lifter.get_vec_around_gt(delta=0)
+                    np.testing.assert_allclose(theta_hat, theta_gt)
+
             else:
                 # just test that we converged when noise is added
                 assert theta_hat is not None
@@ -213,6 +221,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                 # just test that we converged when noise is added
                 assert theta_hat is not None
 
+
 def compare_solvers():
     kwargs = {"method": None}
 
@@ -255,6 +264,7 @@ def compare_solvers():
                 print(
                     f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}. \n\tmessage:{msg} "
                 )
+
 
 if __name__ == "__main__":
     import sys

@@ -7,26 +7,37 @@ from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
 
-from _scripts.stereo_study import run_oneshot_experiment, plot_scalability, run_scalability_new
+from _scripts.stereo_study import (
+    run_oneshot_experiment,
+    plot_scalability,
+    run_scalability_new,
+)
 
 n_landmarks = 3
 d = 2
+
 
 def mono_tightness():
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
-    plots = ["svd", "matrices", "matrix", "tightness", "templates"]  # ["svd", "matrices"]
+    plots = [
+        "svd",
+        "matrices",
+        "matrix",
+        "tightness",
+        "templates",
+    ]  # ["svd", "matrices"]
 
-    for level in ["xwT"]: #["xxT", "xwT"]:
+    for level in ["xwT"]:  # ["xxT", "xwT"]:
         all_variables = ["l", "x"] + [f"w_{i}" for i in range(n_landmarks)]
         if level == "xxT":
             all_variables.append("z")
         else:
             all_variables += [f"z_{i}" for i in range(n_landmarks)]
         variable_list = [all_variables]
-        
+
         np.random.seed(seed)
         lifter = MonoLifter(
             n_landmarks=n_landmarks,
@@ -38,7 +49,9 @@ def mono_tightness():
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"_results/{lifter}_seed{seed}"
-        run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True)
+        run_oneshot_experiment(
+            learner, fname_root, plots, tightness="rank", add_original=True
+        )
 
 
 def range_only_scalability():
@@ -55,7 +68,11 @@ def range_only_scalability():
     for level in ["quad", "no"]:
         df_data = []
         for seed, n_positions in itertools.product(range(n_seeds), n_positions_list):
-            variable_list = [["l"] + [f"x_{n}" for n in range(n_positions)] + [f"z_{n}" for n in range(n_positions)]]
+            variable_list = [
+                ["l"]
+                + [f"x_{n}" for n in range(n_positions)]
+                + [f"z_{n}" for n in range(n_positions)]
+            ]
             print(f"===== {n_positions} ====")
             np.random.seed(seed)
             lifter = RangeOnlyLocLifter(
@@ -80,10 +97,11 @@ def range_only_scalability():
         fig.set_size_inches(5, 5)
         savefig(fig, fname_root + "_scalability.pdf")
 
+
 def range_only_scalability_new():
     n_positions_list = [10, 15, 20, 25, 30]
     n_seeds = 1
-    for level in ["no", "quad"]: 
+    for level in ["no", "quad"]:
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
         lifter = RangeOnlyLocLifter(
@@ -94,8 +112,16 @@ def range_only_scalability_new():
             variable_list=variable_list,
         )
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, vmin=1e-2, vmax=5, tightness="rank")
+        run_scalability_new(
+            learner,
+            param_list=n_positions_list,
+            n_seeds=n_seeds,
+            vmin=1e-2,
+            vmax=5,
+            tightness="rank",
+        )
+
 
 if __name__ == "__main__":
     mono_tightness()
-    #range_only_scalability_new()
+    # range_only_scalability_new()

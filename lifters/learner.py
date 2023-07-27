@@ -28,6 +28,8 @@ FACTOR = 1.5  # oversampling factor.
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e8
 
+PLOT_MAX_MATRICES = 20  # set to np.inf to plot all individual matrices.
+
 
 class Learner(object):
     """
@@ -707,7 +709,7 @@ class Learner(object):
         old_param = params[0]
         for i, p in enumerate(params):
             if p != old_param:
-                ax.axvline(i, color="red",linewidth=1.0)
+                ax.axvline(i, color="red", linewidth=1.0)
                 ax.annotate(
                     text=f"${p.replace(':0', '^x').replace(':1', '^y').replace('l.','').replace('.','')}$",
                     xy=[i, 0],
@@ -831,6 +833,7 @@ class Learner(object):
         fname_root="",
         reduced_mode=False,
         save_individual=False,
+        max_matrices=PLOT_MAX_MATRICES,
     ):
         if A_matrices is None:
             A_matrices = self.A_matrices
@@ -852,7 +855,7 @@ class Learner(object):
             if i < n_matrices:
                 plot_axs.append(axs[i])
 
-            if save_individual:
+            if save_individual and (i < max_matrices):
                 figi, axi = plt.subplots()
                 figi.set_size_inches(3, 3)
                 plot_axs.append(axi)
