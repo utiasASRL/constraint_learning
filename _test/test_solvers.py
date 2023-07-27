@@ -3,7 +3,7 @@ import numpy as np
 
 from lifters.poly_lifters import PolyLifter
 from lifters.mono_lifter import MonoLifter
-from lifters.test_tools import all_lifters
+from _test.test_tools import all_lifters
 
 
 def test_hess_finite_diff():
@@ -140,7 +140,7 @@ def test_cost(noise=0.0):
             assert costQ < 1e-7, costQ
         elif noise == 0 and isinstance(lifter, MonoLifter):
             w = lifter.theta[-lifter.n_landmarks :]
-            assert cost == np.sum(w < 0)
+            assert abs(cost - np.sum(w < 0)) < 1e-10
 
 
 def test_solvers_noisy(n_seeds=1, noise=1e-1):
@@ -161,6 +161,8 @@ def test_solvers(n_seeds=1, noise=0.0):
             theta_gt = lifter.get_vec_around_gt(delta=0)
             try:
                 theta_hat, msg, cost_solver = lifter.local_solver(theta_gt, y)
+                print("local solution:", cost_solver, theta_hat)
+                print("ground truth:", theta_gt)
             except NotImplementedError:
                 print("local solver not implemented yet.")
                 continue
@@ -201,18 +203,23 @@ def test_solvers(n_seeds=1, noise=0.0):
 
                 # TODO(FD) this doesn't pass, looks like the problem is actually not well conditioned!
                 try:
-                    np.testing.assert_allclose(theta_hat, theta_gt, atol=1e-5)
+                    np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                 except AssertionError as e:
                     print(
                         f"Found solution for {lifter} is not ground truth in zero-noise! is the problem well-conditioned?"
                     )
-                    mineig_hess_hat = np.linalg.eigvalsh(lifter.get_hess(theta_hat, y))[
-                        0
-                    ]
-                    mineig_hess_gt = np.linalg.eigvalsh(lifter.get_hess(theta_gt, y))[0]
-                    print(
-                        f"minimum eigenvalue at gt: {mineig_hess_gt:.1e} and at estimate: {mineig_hess_hat:.1e}"
-                    )
+
+                    try:
+                        mineig_hess_hat = np.linalg.eigvalsh(lifter.get_hess(theta_hat, y))[
+                            0
+                        ]
+                        mineig_hess_gt = np.linalg.eigvalsh(lifter.get_hess(theta_gt, y))[0]
+                        print(
+                            f"minimum eigenvalue at gt: {mineig_hess_gt:.1e} and at estimate: {mineig_hess_hat:.1e}"
+                        )
+                    except NotImplementedError:
+                        print("implement Hessian for further checks.")
+                    print(e)
             else:
                 # test that "we made progress"
                 progress = np.linalg.norm(theta_0 - theta_hat)
@@ -225,15 +232,20 @@ def test_solvers(n_seeds=1, noise=0.0):
 def compare_solvers():
     kwargs = {"method": None}
 
-    compare_solvers = [
-        "Nelder-Mead",
-        "Powell",  # "CG",  CG takes forever.
-        # "Newton-CG",
-        "BFGS",
-        "TNC",
-    ]
     noise = 1e-1
     for lifter in all_lifters():
+        if isinstance(lifter, MonoLifter):
+            compare_solvers = [
+                "CG","SD","TR",
+            ]
+        else:
+            compare_solvers = [
+                "Nelder-Mead",
+                "Powell",  # "CG",  CG takes forever.
+                # "Newton-CG",
+                "BFGS",
+                "TNC",
+            ]
         print("testing", lifter)
         np.random.seed(0)
 
@@ -248,11 +260,10 @@ def compare_solvers():
         import time
 
         for solver in compare_solvers:
-            kwargs["method"] = solver
             t1 = time.time()
             try:
                 theta_hat, msg, cost_solver = lifter.local_solver(
-                    theta_gt, y, solver_kwargs=kwargs
+                    theta_gt, y, method=solver
                 )
             except NotImplementedError:
                 continue
@@ -275,7 +286,7 @@ if __name__ == "__main__":
     # pytest.main([__file__, "-s"])
     # print("all tests passed")
     with warnings.catch_warnings():
-        warnings.simplefilter("error")
+        #warnings.simplefilter("error")
         test_solvers()
         test_solvers_noisy()
         test_cost()

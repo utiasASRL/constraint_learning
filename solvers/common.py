@@ -86,6 +86,7 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
 def solve_sdp_cvxpy(
     Q,
     A_b_list,
+    B_list=[],
     adjust=True,
     solver=SOLVER,
     primal=False,
@@ -119,6 +120,7 @@ def solve_sdp_cvxpy(
         X = cp.Variable(Q.shape, symmetric=True)
         constraints = [X >> 0]
         constraints += [cp.trace(A @ X) == b for A, b in A_b_list]
+        constraints += [cp.trace(B @ X) <= 0 for B in B_list]
         cprob = cp.Problem(cp.Minimize(cp.trace(Q_here @ X)), constraints)
         try:
             cprob.solve(
@@ -132,10 +134,16 @@ def solve_sdp_cvxpy(
             H = None
             yvals = None
         else:
-            cost = cprob.value
-            X = X.value
-            H = constraints[0].dual_value
-            yvals = [c.dual_value for c in constraints[1:]]
+            if np.isfinite(cprob.value):
+                cost = cprob.value
+                X = X.value
+                H = constraints[0].dual_value
+                yvals = [c.dual_value for c in constraints[1:]]
+            else:
+                cost = None
+                X = None
+                H = None
+                yvals = None
     else:  # Dual
         """
         max < y, b >
@@ -143,13 +151,18 @@ def solve_sdp_cvxpy(
         """
         m = len(A_b_list)
         y = cp.Variable(shape=(m,))
+
+        k = len(B_list)
+        u = cp.Variable(shape=(k,))
+
         As, b = zip(*A_b_list)
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
-        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
-        constraint = LHS << Q_here
+        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
+        constraints = [LHS << Q_here]
+        constraints.append(u >= 0)
 
-        cprob = cp.Problem(objective, [constraint])
+        cprob = cp.Problem(objective, constraints)
         try:
             cprob.solve(
                 solver=solver,
@@ -161,9 +174,9 @@ def solve_sdp_cvxpy(
             H = None
             yvals = None
         else:
-            if cprob.value > -np.inf:
+            if np.isfinite(cprob.value):
                 cost = cprob.value
-                X = constraint.dual_value
+                X = constraints[0].dual_value
                 H = Q_here - LHS.value
                 yvals = [x.value for x in y]
             else:

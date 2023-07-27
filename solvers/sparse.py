@@ -11,6 +11,7 @@ def solve_lambda(
     Q,
     A_b_list,
     xhat,
+    B_list=[],
     force_first=1,
     adjust=True,
     solver=SOLVER,
@@ -37,17 +38,22 @@ def solve_lambda(
         m = len(A_b_list)
         y = cp.Variable(shape=(m,))
 
+        k = len(B_list)
+        u = cp.Variable(shape=(k,))
+
         As, b = zip(*A_b_list)
-        H = Q_here + cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)])
+        H = Q_here + cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
 
         objective = cp.Minimize(cp.norm1(y[force_first:]))
 
         constraints = [H >> 0]
         constraints += [H @ xhat == 0]
+        constraints += [u >= 0]
         #constraints += [H @ xhat <= 1e-8]
         #constraints += [H @ xhat >= 1e-8]
 
         cprob = cp.Problem(objective, constraints)
+        opts["verbose"] = verbose
         try:
             cprob.solve(
                 solver=solver,

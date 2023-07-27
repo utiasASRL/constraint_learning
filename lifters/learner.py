@@ -16,12 +16,12 @@ from utils.plotting_tools import savefig
 from utils.constraint import Constraint
 
 # parameter of SDP solver
-TOL = 1e-10
+TOL = 1e-8 #1e-10
 
 NOISE_SEED = 5
 
-ADJUST_Q = True  # rescale Q matrix
-PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
+ADJUST_Q = True # rescale Q matrix
+PRIMAL = True  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
 FACTOR = 1.5  # oversampling factor.
 
@@ -154,7 +154,8 @@ class Learner(object):
     def is_tight(self, verbose=False, tightness="rank"):
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
-        X, info = self._test_tightness(A_b_list_all, verbose=False)
+        B_list = self.lifter.get_B_known()
+        X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
 
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
@@ -210,11 +211,12 @@ class Learner(object):
                 tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
             return tightness_val
 
-    def generate_minimal_subset(self, reorder=False, tightness="rank"):
+    def generate_minimal_subset(self, reorder=False, tightness="rank", start=0):
         from solvers.sparse import solve_lambda
 
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
+        B_list = self.lifter.get_B_known()
 
         # find the importance of each constraint
         if reorder:
@@ -222,7 +224,10 @@ class Learner(object):
                 self.solver_vars["Q"],
                 A_b_list_all,
                 self.solver_vars["xhat"],
+                B_list=B_list,
                 force_first=1,
+                tol=1e-5,
+                verbose=False
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
@@ -234,7 +239,9 @@ class Learner(object):
         else:
             lamdas = np.zeros(len(self.constraints))
             sorted_idx = range(len(self.constraints))
-        A_b_list = [(self.lifter.get_A0(), 1.0)]
+
+        A_b0 = (self.lifter.get_A0(), 1.0)
+        B_list = self.lifter.get_B_known()
 
         df_data = []
 
@@ -245,33 +252,36 @@ class Learner(object):
         cost_idx = None
         new_data = {"lifter": str(self.lifter), "reorder": reorder}
         for i, idx in enumerate(sorted_idx):
+            if i < start:
+                continue
+            A_b_list = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx[:i+1]]
             new_data.update(
-                {"idx": idx, "lamda": lamdas[idx], "value": self.constraints[idx].value}
+                {"idx": idx, "lamda": lamdas[idx], "value": self.constraints[idx].value, "n": len(A_b_list)}
             )
-            Ai_sparse = A_list[idx]
-
-            A_b_list += [(Ai_sparse, 0.0)]
-            X, info = self._test_tightness(A_b_list, verbose=False)
+            X, info = self._test_tightness(A_b_list, B_list=B_list, verbose=False)
 
             dual_cost = info["cost"]
             # dual_cost = 1e-10
             new_data["dual cost"] = dual_cost
             if dual_cost is None:
-                new_data["eigs"] = np.zeros(Ai_sparse.shape[0])
+                new_data["eigs"] = np.full(A_list[0].shape[0], np.nan)
                 print(f"{i}/{len(sorted_idx)}: solver error")
+                new_data["cost_tight"] = False
+                new_data["rank_tight"] = False
+                df_data.append(deepcopy(new_data))
                 continue
 
             if self.duality_gap_is_zero(dual_cost):
                 if cost_idx is None:
                     cost_idx = i
-                    print(f"{i}/{len(sorted_idx)}: cost-tight")
+                    print(f"{i+1}/{len(sorted_idx)}: cost-tight")
                 new_data["cost_tight"] = True
                 if tightness == "cost":
                     tightness_counter += 1
             else:
                 new_data["cost_tight"] = False
                 print(
-                    f"{i}/{len(sorted_idx)}: not cost-tight yet: {dual_cost:.3e}, {self.solver_vars['qcqp_cost']:.3e}"
+                    f"{i+1}/{len(sorted_idx)}: not cost-tight yet: {dual_cost:.3e}, {self.solver_vars['qcqp_cost']:.3e}"
                 )
 
             eigs = np.linalg.eigvalsh(X)[::-1]
@@ -279,7 +289,7 @@ class Learner(object):
             if self.is_rank_one(eigs):
                 if rank_idx is None:
                     rank_idx = i
-                    print(f"{i}/{len(sorted_idx)}: rank-tight")
+                    print(f"{i+1}/{len(sorted_idx)}: rank-tight")
                 new_data["rank_tight"] = True
                 if tightness == "rank":
                     tightness_counter += 1
@@ -319,7 +329,7 @@ class Learner(object):
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
         return False
 
-    def _test_tightness(self, A_b_list_all, verbose=False):
+    def _test_tightness(self, A_b_list_all, B_list=[], verbose=False):
         from solvers.common import solve_sdp_cvxpy
 
         if self.solver_vars is None:
@@ -329,6 +339,7 @@ class Learner(object):
         X, info = solve_sdp_cvxpy(
             self.solver_vars["Q"],
             A_b_list_all,
+            B_list,
             adjust=ADJUST_Q,
             verbose=verbose,
             primal=PRIMAL,
@@ -345,13 +356,28 @@ class Learner(object):
             return False
 
     def learn_templates(self, use_known=False, plot=False, data_dict=None):
+        templates = []
+
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
 
         if use_known:
-            basis_current = self.get_b_current()
-            if basis_current is not None:
-                Y = np.vstack([Y, basis_current])
+            b_list = []
+            for Ai in self.lifter.get_A_known():
+                a = self.lifter.get_vec(Ai, correct=False)
+                b_list.append(self.lifter.augment_using_zero_padding(a))
+
+            templates += [
+                Constraint.init_from_b(
+                    index=self.constraint_index + i,
+                    mat_var_dict=self.mat_var_dict,
+                    b=bi,
+                    lifter=self.lifter,
+                )
+                for i, bi in enumerate(b_list)
+            ]
+            self.constraint_index += len(b_list)
+            Y = np.vstack([Y] + [c.a_.toarray() for c in templates])
 
         if plot:
             fig, ax = plt.subplots()
@@ -388,7 +414,7 @@ class Learner(object):
             data_dict["corank Y"] = corank
 
         if basis_new.shape[0]:
-            templates = [
+            templates += [
                 Constraint.init_from_b(
                     index=self.constraint_index + i,
                     mat_var_dict=self.mat_var_dict,
@@ -399,6 +425,7 @@ class Learner(object):
             ]
             self.constraint_index += basis_new.shape[0]
 
+        if len(templates) > 0:
             print(f"found {len(templates)} candidate templates")
             indep_templates = self.clean_constraints(
                 new_constraints=templates,

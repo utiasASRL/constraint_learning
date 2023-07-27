@@ -16,19 +16,18 @@ from _scripts.stereo_study import (
 n_landmarks = 3
 d = 2
 
-
 def mono_tightness():
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
     plots = [
-        "svd",
-        "matrices",
-        "matrix",
+        #"svd",
+        #"matrices",
+        #"matrix",
         "tightness",
         "templates",
-    ]  # ["svd", "matrices"]
+    ] 
 
     for level in ["xwT"]:  # ["xxT", "xwT"]:
         all_variables = ["l", "x"] + [f"w_{i}" for i in range(n_landmarks)]

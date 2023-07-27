@@ -115,7 +115,7 @@ def save_tightness_order(learner: Learner, fname_root=""):
             if reorder
             else "dual cost, original ordering"
         )
-        ax_cost.semilogy(range(len(df)), df["dual cost"], label=label)
+        ax_cost.semilogy(df["n"], df["dual cost"], label=label)
 
         fig_eigs, ax_eigs = plt.subplots()
         fig_eigs.set_size_inches(5, 5)
@@ -128,20 +128,21 @@ def save_tightness_order(learner: Learner, fname_root=""):
         rank_idx = rank_tight[0] if len(rank_tight) else None
 
         for i in range(len(df)):
+            n = df.iloc[i].n
             eig = df.iloc[i].eigs
             label = None
             color = cmap(i)
             if i == len(df) // 2:
                 label = "..."
             if i == 0:
-                label = f"{i+1}"
+                label = f"{n}"
             if i == len(df) - 1:
-                label = f"{i+1}"
+                label = f"{n}"
             if i == cost_idx:
-                label = f"{i+1}: cost-tight"
+                label = f"{n}: cost-tight"
                 color = "red"
             if i == rank_idx:
-                label = f"{i+1}: rank-tight"
+                label = f"{n}: rank-tight"
                 color = "black"
             ax_eigs.semilogy(eig, color=color, label=label)
 
@@ -189,7 +190,7 @@ def tightness_study(learner: Learner, tightness="rank", original=False):
         return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
-        reorder=False, tightness=tightness
+        reorder=False, tightness=tightness, start=250
     )
     return idx_subset_original, idx_subset_reorder
 
@@ -387,7 +388,7 @@ def run_scalability_new(
 def run_oneshot_experiment(
     learner: Learner, fname_root, plots, tightness="rank", add_original=True
 ):
-    learner.run(verbose=True, use_known=False, plot=True, tightness=tightness)
+    learner.run(verbose=True, use_known=True, plot=True, tightness=tightness)
 
     if "svd" in plots:
         fig = plt.gcf()

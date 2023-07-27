@@ -220,7 +220,7 @@ def test_zero_padding():
             new_patterns = lifter.apply_template(bi_poly)
             for new_pattern in new_patterns:
                 # generate Ai from poly_row.
-                ai_test = lifter.convert_poly_to_a(new_pattern, var_subset)
+                ai_test = lifter.convert_polyrow_to_a(new_pattern, var_subset)
                 Ai = lifter.get_mat(ai_test, var_dict=var_dict)
                 # bi = new_pattern.get_matrix((["l"], row_var_dict))
                 # Ai = lifter.get_mat(lifter.get_reduced_a(bi, lifter.var_dict))

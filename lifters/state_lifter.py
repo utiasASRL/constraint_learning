@@ -542,7 +542,7 @@ class StateLifter(BaseClass):
             poly_mat[keyi_m, keyj_n] += newval
         return poly_mat
 
-    def convert_poly_to_Asparse(self, poly_row, var_subset=None):
+    def convert_polyrow_to_Asparse(self, poly_row, var_subset=None):
         poly_mat = self.convert_polyrow_to_Apoly(poly_row, correct=False)
 
         var_dict = self.get_var_dict(var_subset)
@@ -555,14 +555,14 @@ class StateLifter(BaseClass):
         mat_sparse = poly_mat.get_matrix({m: 1 for m in mat_var_list})
         return mat_sparse
 
-    def convert_poly_to_a(self, poly_row, var_subset=None, sparse=False):
+    def convert_polyrow_to_a(self, poly_row, var_subset=None, sparse=False):
         """Convert poly-row to reduced a.
 
         poly-row has elements with keys "pk:l.xi:m.xj:n",
         meaning this element corresponds to the l-th element of parameter i,
         and the m-n-th element of xj times xk.
         """
-        mat_sparse = self.convert_poly_to_Asparse(poly_row, var_subset)
+        mat_sparse = self.convert_polyrow_to_Asparse(poly_row, var_subset)
         return self.get_vec(mat_sparse, correct=False, sparse=sparse)
 
     def convert_a_to_polyrow(
@@ -707,12 +707,11 @@ class StateLifter(BaseClass):
         for i, bi_sub in enumerate(basis_new):
             bi_poly = self.convert_b_to_polyrow(bi_sub, var_subset, tol=self.EPS_SPARSE)
             ai = self.get_reduced_a(bi_sub, var_subset)
-            if increases_rank(current_basis, ai):
-                basis_list.append(bi_poly)
-                if current_basis is None:
-                    current_basis = ai[None, :]
-                else:
-                    current_basis = np.r_[current_basis, ai[None, :]]
+            basis_list.append(bi_poly)
+            if current_basis is None:
+                current_basis = ai[None, :]
+            else:
+                current_basis = np.r_[current_basis, ai[None, :]]
         return basis_list
 
     def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
@@ -1026,6 +1025,9 @@ class StateLifter(BaseClass):
 
     def get_A_b_list(self, A_list, var_subset=None):
         return [(self.get_A0(var_subset), 1.0)] + [(A, 0.0) for A in A_list]
+
+    def get_B_known(self):
+        return []
 
     def get_param_idx_dict(self, var_subset=None):
         """

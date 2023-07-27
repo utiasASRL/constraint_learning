@@ -1,8 +1,16 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-from lifters.test_tools import all_lifters
+from _test.test_tools import all_lifters
 from lifters.state_lifter import unravel_multi_index_triu, ravel_multi_index_triu
+
+import pytest
+
+def pytest_configure():
+    # global variables
+    pytest.A_learned = {}
+    for lifter in all_lifters():
+        pytest.A_learned[str(lifter)] = None
 
 def test_ravel():
     shape = (5, 5)
@@ -27,32 +35,40 @@ def test_ravel():
         assert i == i_test[0]
         assert j == j_test[0]
 
+def _test_with_tol(lifter, A_list, tol):
+    x = lifter.get_x()
+    for Ai in A_list:
+        err = abs(x.T @ Ai @ x)
+        assert err < tol, err
 
-def test_constraints():
-    def test_with_tol(A_list, tol):
-        x = lifter.get_x()
-        for Ai in A_list:
-            err = abs(x.T @ Ai @ x)
-            assert err < tol, err
+        ai = lifter.get_vec(Ai.toarray())
+        xvec = lifter.get_vec(np.outer(x, x))
+        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
-            ai = lifter.get_vec(Ai.toarray())
-            xvec = lifter.get_vec(np.outer(x, x))
-            np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
+        ai = lifter.get_vec(Ai)
+        xvec = lifter.get_vec(np.outer(x, x))
+        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
-            ai = lifter.get_vec(Ai)
-            xvec = lifter.get_vec(np.outer(x, x))
-            np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
-
+def test_known_constraints():
     for lifter in all_lifters():
         A_known = lifter.get_A_known()
-        test_with_tol(A_known, tol=1e-10)
+        _test_with_tol(lifter, A_known, tol=1e-10)
 
-        methods = ["qrp", "svd", "qr"]
+        B_known = lifter.get_B_known()
+        x = lifter.get_x(theta=lifter.theta)
+        for Bi in B_known:
+            assert x.T @ Bi @ x <= 0
+
+def test_learned_constraints():
+    methods = ["qrp", "svd", "qr"]
+    for lifter in all_lifters():
         num_learned = None
         for method in methods:
             np.random.seed(0)
-            A_learned = lifter.get_A_learned(method=method)
-            test_with_tol(A_learned, tol=1e-4)
+            if pytest.A_learned[str(lifter)] is None:
+                pytest.A_learned[str(lifter)] = lifter.get_A_learned(method=method)
+            A_learned = pytest.A_learned[str(lifter)]
+            _test_with_tol(lifter, A_learned, tol=1e-4)
 
             # make sure each method finds the same number of matrices
             if num_learned is None:
@@ -86,16 +102,19 @@ def test_vec_mat():
             np.testing.assert_allclose(A.toarray(), A_test.toarray())
 
             a_poly = lifter.convert_a_to_polyrow(a)
-            a_test = lifter.convert_poly_to_a(a_poly)
+            a_test = lifter.convert_polyrow_to_a(a_poly)
             np.testing.assert_allclose(a, a_test)
 
         A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
-        for A_l, A_k in zip(A_learned, A_known):
+        for A_l, A_k in zip(A_learned[:3], A_known):
             np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
+
 
 if __name__ == "__main__":
     import sys
     import warnings
+
+    pytest_configure()
 
     test_ravel()
     test_vec_mat()
@@ -106,7 +125,8 @@ if __name__ == "__main__":
     # print("all tests passed")
     with warnings.catch_warnings():
         warnings.simplefilter("error")
-        test_constraints()
+        test_known_constraints()
+        test_learned_constraints()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

@@ -10,7 +10,7 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.mono_lifter import MonoLifter
 
 d = 2
-n_landmarks = 4
+n_landmarks = 3
 n_poses = 4
 Lifters = [
     #(Poly4Lifter, dict()),
