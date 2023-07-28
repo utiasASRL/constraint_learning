@@ -749,7 +749,7 @@ class StateLifter(BaseClass):
                     unique_idx.add(i)
 
         if len(unique_idx) == 0:
-            return []
+            return [bi_poly]
 
         variable_indices = self.get_variable_indices(self.var_dict)
         # if z_0 is in this constraint, repeat the constraint for each landmark.
@@ -760,9 +760,10 @@ class StateLifter(BaseClass):
                 key_ij = key
                 for from_, to_ in zip(unique_idx, idx):
                     key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
+                    key_ij = key_ij.replace(f"w_{from_}", f"wi_{to_}")
                     key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
                     key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
-                key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x")
+                key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x").replace("wi", "w")
                 if verbose and (key != key_ij):
                     print("changed", key, "to", key_ij)
 

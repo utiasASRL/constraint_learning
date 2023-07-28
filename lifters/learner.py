@@ -161,7 +161,7 @@ class Learner(object):
         self.variable_list.append(self.mat_vars)
 
         if info["cost"] is None:
-            self.ranks.append(np.zeros(A_list[0].shape[0]))
+            self.ranks.append(np.zeros(self.lifter.get_dim_x()))
             print("Warning: is problem infeasible?")
             max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum error:", max_error)

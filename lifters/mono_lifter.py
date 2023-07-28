@@ -62,13 +62,13 @@ def penalty(t, rho=PENALTY_RHO, u=PENALTY_U):
 class MonoLifter(StateLifter):
     LEVELS = ["no", "xwT", "xxT"]
     PARAM_LEVELS = ["no"]
-    VARIALBE_LIST = [
+    VARIABLE_LIST = [
         ["l", "x"],
-        ["l", "x", "w_0"],
         ["l", "x", "z_0"],
+        ["l", "x", "w_0"],
+        ["l", "x", "z_0", "z_1"],
         ["l", "x", "w_0", "w_1"],
         ["l", "x", "w_0", "z_0"],
-        ["l", "x", "z_0", "z_1"],
     ]
     LEVEL_NAMES = {"no": "no", "xwT": "x kron w", "xxT": "x kron x"}
 
@@ -88,6 +88,8 @@ class MonoLifter(StateLifter):
         self.level = level
         if variable_list == "all":
             variable_list = self.get_all_variables()
+        #elif variable_list is None:
+        #    self.variable_list = self.VARIABLE_LIST
 
         if not robust:
             assert level == "no"

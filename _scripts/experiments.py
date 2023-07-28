@@ -6,6 +6,7 @@ import numpy as np
 import matplotlib.pylab as plt
 
 from lifters.learner import Learner
+from lifters.mono_lifter import MonoLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
@@ -227,19 +228,20 @@ def run_scalability_new(
     n_seeds: int = 1,
     vmin=None,
     vmax=None,
-    recompute=True,
+    recompute=False,
     tightness="cost",
+    use_last=None
 ):
     import pickle
 
-    fname = f"{learner.lifter}.pkl"
+    fname = f"_results/{learner.lifter}.pkl"
     fname_root = f"_results/scalability_{learner.lifter}"
 
     try:
         assert not recompute, "forcing to recompute"
         with open(fname, "rb") as f:
             learner = pickle.load(f)
-            data_dict = pickle.load(f)
+            orig_dict = pickle.load(f)
     except (AssertionError, FileNotFoundError) as e:
         print(e)
         # find which of the constraints are actually necessary
@@ -272,11 +274,12 @@ def run_scalability_new(
             learner,
             tightness=tightness,
             original=True,
+            use_last=use_last
         )
         orig_dict["t determine required"] = time.time() - t1
         orig_dict["n templates"] = len(learner.constraints)
         orig_dict["n sufficient (sorted)"] = (
-            len(idx_subset_reorder) if idx_subset_original is not None else None
+            len(idx_subset_reorder) if idx_subset_reorder is not None else None
         )
         orig_dict["n sufficient (original)"] = (
             len(idx_subset_original) if idx_subset_original is not None else None
@@ -320,6 +323,14 @@ def run_scalability_new(
                         new_lifter = RangeOnlyLocLifter(
                             n_positions=n_params,
                             n_landmarks=learner.lifter.n_landmarks,
+                            level=learner.lifter.level,
+                            d=learner.lifter.d,
+                            variable_list=None,
+                        )
+                    elif isinstance(learner.lifter, MonoLifter):
+                        new_lifter = MonoLifter(
+                            n_landmarks=n_params,
+                            robust=learner.lifter.robust,
                             level=learner.lifter.level,
                             d=learner.lifter.d,
                             variable_list=None,
