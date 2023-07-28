@@ -31,8 +31,6 @@ SOLVER_KWARGS = dict(
     verbosity=1
 )
 
-ROBUST = False
-
 # TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
 # However, the penalty results in inequality constraints etc. and that's not easy to deal with.
 ADD_PENALTY = True
@@ -76,7 +74,7 @@ class MonoLifter(StateLifter):
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
     def __init__(
-        self, level="no", param_level="no", d=2, n_landmarks=3, variable_list=None, robust=ROBUST
+        self, level="no", param_level="no", d=2, n_landmarks=3, variable_list=None, robust=False
     ):
         """
         :param level:
@@ -116,7 +114,7 @@ class MonoLifter(StateLifter):
         if self.robust:
             all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
         if self.level == "xxT":
-            all_variables.append("z")
+            all_variables.append("z_0")
         elif self.level == "xwT":
             all_variables += [f"z_{i}" for i in range(self.n_landmarks)]
         variable_list = [all_variables]

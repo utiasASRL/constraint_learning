@@ -211,7 +211,7 @@ class Learner(object):
                 tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
             return tightness_val
 
-    def generate_minimal_subset(self, reorder=False, tightness="rank", start=0):
+    def generate_minimal_subset(self, reorder=False, tightness="rank", use_last=None):
         from solvers.sparse import solve_lambda
 
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
@@ -251,8 +251,14 @@ class Learner(object):
         rank_idx = None
         cost_idx = None
         new_data = {"lifter": str(self.lifter), "reorder": reorder}
+
+        if use_last is None:
+            start_idx = 0
+        else:
+            start_idx = len(sorted_idx) - use_last
+
         for i, idx in enumerate(sorted_idx):
-            if i < start:
+            if i < start_idx:
                 continue
             A_b_list = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx[:i+1]]
             new_data.update(

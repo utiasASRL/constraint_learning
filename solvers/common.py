@@ -128,7 +128,7 @@ def solve_sdp_cvxpy(
                 # save_file="solve_cvxpy_primal.ptf",
                 **opts,
             )
-        except:
+        except Exception as e:
             cost = None
             X = None
             H = None

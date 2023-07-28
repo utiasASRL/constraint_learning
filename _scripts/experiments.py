@@ -180,17 +180,17 @@ def save_tightness_order(learner: Learner, fname_root=""):
     return
 
 
-def tightness_study(learner: Learner, tightness="rank", original=False):
+def tightness_study(learner: Learner, tightness="rank", original=False, use_last=None):
     """investigate tightness before and after reordering"""
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(
-        reorder=True, tightness=tightness
+        reorder=True, tightness=tightness, use_last=use_last
     )
     if not original:
         return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
-        reorder=False, tightness=tightness, start=0
+        reorder=False, tightness=tightness, use_last=use_last
     )
     return idx_subset_original, idx_subset_reorder
 
@@ -386,7 +386,7 @@ def run_scalability_new(
 
 
 def run_oneshot_experiment(
-    learner: Learner, fname_root, plots, tightness="rank", add_original=True
+    learner: Learner, fname_root, plots, tightness="rank", add_original=True, use_last=None
 ):
     learner.run(verbose=True, use_known=True, plot=True, tightness=tightness)
 
@@ -398,7 +398,7 @@ def run_oneshot_experiment(
         savefig(fig, fname_root + "_svd.pdf")
 
     idx_subset_original, idx_subset_reorder = tightness_study(
-        learner, tightness=tightness, original=add_original
+        learner, tightness=tightness, original=add_original, use_last=use_last
     )
     if "tightness" in plots:
         save_tightness_order(learner, fname_root)
