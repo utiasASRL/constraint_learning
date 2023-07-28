@@ -42,7 +42,7 @@ class StereoLifter(StateLifter, ABC):
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
         self.d = d
         self.n_landmarks = n_landmarks
-        super().__init__(level=level, param_level=param_level, varialbe_list=variable_list)
+        super().__init__(level=level, param_level=param_level, variable_list=variable_list)
 
     def get_level_dims(self, n=1):
         """

@@ -161,8 +161,8 @@ def test_solvers(n_seeds=1, noise=0.0):
             theta_gt = lifter.get_vec_around_gt(delta=0)
             try:
                 theta_hat, msg, cost_solver = lifter.local_solver(theta_gt, y)
-                print("local solution:", cost_solver, theta_hat)
-                print("ground truth:", theta_gt)
+                print("local solution:", theta_hat, f"cost: {cost_solver:.4e}")
+                print("ground truth:  ", theta_gt)
             except NotImplementedError:
                 print("local solver not implemented yet.")
                 continue
@@ -181,6 +181,10 @@ def test_solvers(n_seeds=1, noise=0.0):
             # test that we converge to real solution when initializing around it
             theta_0 = lifter.get_vec_around_gt(delta=1e-2)
             theta_hat, msg, cost_solver = lifter.local_solver(theta_0, y)
+
+            print("init:          ", theta_0)
+            print("local solution:", theta_hat, f"cost: {cost_solver:.4e}")
+            print("ground truth:  ", theta_gt)
 
             if theta_hat is None:
                 print(f"Warning: {lifter} did not converge noise {noise}, seed {j}.")

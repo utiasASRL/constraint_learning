@@ -227,7 +227,7 @@ class Learner(object):
                 B_list=B_list,
                 force_first=1,
                 tol=1e-5,
-                verbose=False
+                verbose=True
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
@@ -621,15 +621,7 @@ class Learner(object):
 
         series = []
 
-        variable_dict_j = list(
-            set(
-                [
-                    l
-                    for i in templates_poly.matrix.keys()
-                    for l in templates_poly.matrix[i].keys()
-                ]
-            )
-        )
+        variable_dict_j = list(templates_poly.variable_dict_j.keys())
         for i, key_i in enumerate(templates_poly.variable_dict_i):
             data = {j: float(val) for j, val in templates_poly.matrix[key_i].items()}
             for key, idx_list in add_columns.items():
@@ -719,7 +711,7 @@ class Learner(object):
         assert keys.issubset(variables_j)
         if drop_zero:
             variables_j = {k: v for k, v in variables_j.items() if k in keys}
-        fig, ax = plot_basis(poly_matrix, variables_j=variables_j, discrete=True)
+        fig, ax = plot_basis(poly_matrix, variables_j=variables_j, variables_i=list(df.index.values), discrete=True)
         ax.set_yticklabels([])
         ax.set_yticks([])
         if simplify:

@@ -190,7 +190,7 @@ def tightness_study(learner: Learner, tightness="rank", original=False):
         return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
-        reorder=False, tightness=tightness, start=250
+        reorder=False, tightness=tightness, start=0
     )
     return idx_subset_original, idx_subset_reorder
 

@@ -37,10 +37,13 @@ def initialize_discrete_cbar(values):
 def plot_basis(
     basis_poly: PolyMatrix,
     variables_j: dict,
+    variables_i: list = None,
     fname_root: str = "",
     discrete: bool = True,
 ):
-    variables_i = basis_poly.generate_variable_dict_i()
+
+    if variables_i is None:
+        variables_i = basis_poly.generate_variable_dict_i()
 
     if discrete:
         values = basis_poly.get_matrix((variables_i, variables_j)).data

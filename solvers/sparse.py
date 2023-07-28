@@ -44,7 +44,7 @@ def solve_lambda(
         As, b = zip(*A_b_list)
         H = Q_here + cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
 
-        objective = cp.Minimize(cp.norm1(y[force_first:]))
+        objective = cp.Minimize(cp.norm1(y[force_first:])+cp.norm1(u))
 
         constraints = [H >> 0]
         constraints += [H @ xhat == 0]
@@ -60,14 +60,14 @@ def solve_lambda(
                 **opts,
             )
         except:
-            lamda = y.value
+            lamda = None 
             X = None
         else:
-            lamda = None
+            lamda = y.value
             X = constraints[0].dual_value
 
     # reverse Q adjustment
-    if lamda:
+    if lamda is not None:
         lamda[0] *= scale
         lamda[0] += offset
     return X, y.value

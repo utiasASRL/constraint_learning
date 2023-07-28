@@ -17,7 +17,7 @@ from utils.geometry import (
     get_xtheta_from_theta,
 )
 
-NOISE = 1e-3
+NOISE = 1e-1
 N_OUTLIERS = 0
 
 MAX_DIST = 2.0 # maximum distance of camera from landmarks
@@ -31,6 +31,7 @@ SOLVER_KWARGS = dict(
     verbosity=1
 )
 
+ROBUST = False
 
 # TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
 # However, the penalty results in inequality constraints etc. and that's not easy to deal with.
@@ -75,7 +76,7 @@ class MonoLifter(StateLifter):
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
     def __init__(
-        self, level="no", param_level="no", d=2, n_landmarks=3, variable_list=None
+        self, level="no", param_level="no", d=2, n_landmarks=3, variable_list=None, robust=ROBUST
     ):
         """
         :param level:
@@ -84,6 +85,14 @@ class MonoLifter(StateLifter):
         """
         self.beta = 1.0
         self.n_landmarks = n_landmarks
+
+        self.robust = robust
+        self.level = level
+        if variable_list == "all":
+            variable_list = self.get_all_variables()
+
+        if not robust:
+            assert level == "no"
         super().__init__(
             level=level, param_level=param_level, d=d, variable_list=variable_list
         )
@@ -93,12 +102,25 @@ class MonoLifter(StateLifter):
         """Return key,size pairs of all variables."""
         n = self.d**2 + self.d
         var_dict = {"l": 1, "x": n}
+        if not self.robust:
+            return var_dict
         var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
         if self.level == "xwT":
             var_dict.update({f"z_{i}": n for i in range(self.n_landmarks)})
         elif self.level == "xxT":
             var_dict.update({"z_0": n**2})
         return var_dict
+
+    def get_all_variables(self):
+        all_variables = ["l", "x"] 
+        if self.robust:
+            all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
+        if self.level == "xxT":
+            all_variables.append("z")
+        elif self.level == "xwT":
+            all_variables += [f"z_{i}" for i in range(self.n_landmarks)]
+        variable_list = [all_variables]
+        return variable_list
 
     def get_level_dims(self, n=1):
         """Return the dimension of the chosen lifting level, for n parameters"""
@@ -119,14 +141,17 @@ class MonoLifter(StateLifter):
 
         n_angles = self.d * (self.d - 1) // 2
         angles = np.random.uniform(0, 2*np.pi, size=n_angles)
-        w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-        return np.r_[pc_cw, angles, w]
+        if self.robust:
+            w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            return np.r_[pc_cw, angles, w]
+        return np.r_[pc_cw, angles]
 
     def sample_theta(self):
         """Sample a new feasible theta."""
         theta = self.generate_random_theta()
-        w = np.random.choice([-1, 1], size=self.n_landmarks)#[-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-        theta[-len(w):] = w
+        if self.robust:
+            w = np.random.choice([-1, 1], size=self.n_landmarks)#[-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            theta[-len(w):] = w
         return theta
 
     def sample_parameters(self, x=None):
@@ -145,7 +170,11 @@ class MonoLifter(StateLifter):
         if var_subset is None:
             var_subset = self.var_dict.keys()
 
-        theta_here = theta[: -self.n_landmarks]
+        if self.robust:
+            theta_here = theta[: -self.n_landmarks]
+        else:
+            theta_here = theta
+
         if (self.d == 2) and len(theta_here) == 6:  # x, y, vec(C)
             R, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 2) and len(theta_here) == 3:  # x, y, alpha
@@ -154,6 +183,8 @@ class MonoLifter(StateLifter):
             R, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 3) and len(theta_here) == 6:  # x, y, z, alpha
             R, t = get_C_r_from_theta(theta_here, self.d)
+        else:
+            raise ValueError(theta_here)
 
         if self.param_level != "no":
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
@@ -194,14 +225,15 @@ class MonoLifter(StateLifter):
 
     def get_A_known(self, output_poly=False):
         A_list = []
-        for i in range(self.n_landmarks):
-            Ai = PolyMatrix(symmetric=True)
-            Ai["l", "l"] = -1.0
-            Ai[f"w_{i}", f"w_{i}"] = 1.0
-            if output_poly:
-                A_list.append(Ai)
-            else:
-                A_list.append(Ai.get_matrix(self.var_dict))
+        if self.robust:
+            for i in range(self.n_landmarks):
+                Ai = PolyMatrix(symmetric=True)
+                Ai["l", "l"] = -1.0
+                Ai[f"w_{i}", f"w_{i}"] = 1.0
+                if output_poly:
+                    A_list.append(Ai)
+                else:
+                    A_list.append(Ai.get_matrix(self.var_dict))
         return A_list
 
     def get_B_known(self):
@@ -243,29 +275,43 @@ class MonoLifter(StateLifter):
         """Sample around ground truth.
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
         """
-        n_rot = self.d * (self.d - 1) // 2
-        theta_x = deepcopy(self.theta[: self.d + n_rot])
-        theta_x += np.random.normal(size=theta_x.shape, scale=delta)
-        theta_w = self.theta[self.d + n_rot :]
-        return np.r_[get_xtheta_from_theta(theta_x, self.d), theta_w]
+        if self.robust:
+            n_rot = self.d * (self.d - 1) // 2
+            theta_x = deepcopy(self.theta[: self.d + n_rot])
+            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
+            theta_w = self.theta[self.d + n_rot :]
+            return np.r_[get_xtheta_from_theta(theta_x, self.d), theta_w]
+        else:
+            theta_x = deepcopy(self.theta)
+            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
+            return get_xtheta_from_theta(theta_x, self.d)
+            
 
-    def residual(self, x, ui, pi):
-        try:
-            R, t = get_C_r_from_theta(x, self.d)
-        except:
-            R, t = get_C_r_from_xtheta(x, self.d)
+    def residual(self, R, t, pi, ui):
         W = np.eye(self.d) - np.outer(ui, ui)
         return (R @ pi + t).T @ W @ (R @ pi + t)
 
     def get_cost(self, theta, y):
-        x = theta[: -self.n_landmarks]
-        w = theta[-self.n_landmarks :]
-        assert np.all(w**2 == 1.0)
+        if self.robust:
+            x = theta[: -self.n_landmarks]
+            w = theta[-self.n_landmarks :]
+            assert np.all(w**2 == 1.0)
+        else:
+            x = theta
+
+        try:
+            R, t = get_C_r_from_theta(x, self.d)
+        except:
+            R, t = get_C_r_from_xtheta(x, self.d)
+
         cost = 0
         for i in range(self.n_landmarks):
             assert abs(np.linalg.norm(y[i]) - 1.0) < 1e-10
-            res = self.residual(x, y[i], self.landmarks[i])
-            cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
+            res = self.residual(R, t, self.landmarks[i], y[i])
+            if self.robust:
+                cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
+            else:
+                cost += res
         return 0.5 * cost 
 
     def get_grad(self, t, y):
@@ -277,12 +323,9 @@ class MonoLifter(StateLifter):
     def get_Q(self, noise: float = None):
         if noise is None:
             noise = NOISE
-        from poly_matrix.poly_matrix import PolyMatrix
-
-        Q = PolyMatrix(symmetric=True)
-
         y = np.empty((self.n_landmarks, self.d))
-        theta = self.theta[: -self.n_landmarks]
+        n_angles = self.d * (self.d - 1) // 2
+        theta = self.theta[: self.d + n_angles]
         R, t = get_C_r_from_theta(theta, self.d)
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
@@ -295,20 +338,34 @@ class MonoLifter(StateLifter):
             ui /= np.linalg.norm(ui)
             y[i] = ui
 
+        Q = self.get_Q_from_y(y)
+        return Q, y
+
+    def get_Q_from_y(self, y):
+        from poly_matrix.poly_matrix import PolyMatrix
+
+        Q = PolyMatrix(symmetric=True)
+
+        for i in range(self.n_landmarks):
+            pi = self.landmarks[i]
+            ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
             Wi = np.eye(self.d) - np.outer(ui, ui)
             Qi = Pi.T @ Wi @ Pi / self.beta**2
-
-            Q["l", "l"] += 1
-            Q["l", f"w_{i}"] += -0.5
-            if self.level == "xwT":
-                Q[f"z_{i}", "x"] += 0.5 * Qi
-                Q[f"x", "x"] += Qi
-            elif self.level == "xxT":
-                Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
+            if self.robust:
+                Qi /= self.beta**2
+                Q["l", "l"] += 1
+                Q["l", f"w_{i}"] += -0.5
+                if self.level == "xwT":
+                    Q[f"z_{i}", "x"] += 0.5 * Qi
+                    Q[f"x", "x"] += Qi
+                elif self.level == "xxT":
+                    Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
+                    Q[f"x", "x"] += Qi
+            else:
                 Q[f"x", "x"] += Qi
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
-        return Q_sparse, y
+        return Q_sparse
 
     def local_solver(self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS):
         import pymanopt
@@ -336,10 +393,11 @@ class MonoLifter(StateLifter):
         def cost(R, t):
             cost = 0
             for i in range(self.n_landmarks):
-                Wi = np.eye(self.d) - np.outer(y[i], y[i])
-                pi_cam = R @ self.landmarks[i] + t
-                residual = pi_cam.T @ Wi @ pi_cam
-                cost += (1 + w[i]) / self.beta**2 * residual + 1 - w[i]
+                residual = self.residual(R, t, self.landmarks[i], y[i])
+                if self.robust:
+                    cost += (1 + w[i]) / self.beta**2 * residual + 1 - w[i]
+                else:
+                    cost += residual
             if ADD_PENALTY: 
                 return 0.5 * cost + penalty(t)
             else:
@@ -353,13 +411,17 @@ class MonoLifter(StateLifter):
                 Wi = np.eye(self.d) - np.outer(y[i], y[i])
                 # residual = (R @ pi + t).T @ Wi @ (R @ pi + t)
                 pi_cam = R @ self.landmarks[i] + t
-                grad_R += (
-                    2
-                    * w[i]
-                    / self.beta**2
-                    * np.outer(Wi.T @ pi_cam, self.landmarks[i])
-                )
-                grad_t += 2 * w[i] / self.beta**2 * Wi.T @ pi_cam
+                if self.robust:
+                    grad_R += (
+                        2
+                        * w[i]
+                        / self.beta**2
+                        * np.outer(Wi.T @ pi_cam, self.landmarks[i])
+                    )
+                    grad_t += 2 * w[i] / self.beta**2 * Wi.T @ pi_cam
+                else:
+                    grad_R += np.outer(Wi.T @ pi_cam, self.landmarks[i])
+                    grad_t += Wi.T @ pi_cam
             return grad_R, grad_t
 
         if ADD_PENALTY:
@@ -369,10 +431,13 @@ class MonoLifter(StateLifter):
         )
         optimizer = Optimizer(**solver_kwargs)
 
-        R_0, t_0 = get_C_r_from_xtheta(t0[: -self.n_landmarks], self.d)
+        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
-        theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
+        if self.robust:
+            theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
+        else:
+            theta_hat = get_xtheta_from_C_r(R, t)
 
         cost_penalized = res.cost
         if ADD_PENALTY:
@@ -383,4 +448,5 @@ class MonoLifter(StateLifter):
         return theta_hat, res.stopping_criterion, cost_penalized
 
     def __repr__(self):
-        return f"mono_{self.d}d_{self.level}_{self.param_level}"
+        appendix = "_robust" if self.robust else ""
+        return f"mono_{self.d}d_{self.level}_{self.param_level}{appendix}"
