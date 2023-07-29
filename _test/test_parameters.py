@@ -3,7 +3,6 @@ import matplotlib.pylab as plt
 
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 INCREMENTAL = True

@@ -39,16 +39,21 @@ def solve_lambda(
         y = cp.Variable(shape=(m,))
 
         k = len(B_list)
-        u = cp.Variable(shape=(k,))
+        if k > 0:
+            u = cp.Variable(shape=(k,))
 
         As, b = zip(*A_b_list)
         H = Q_here + cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
 
-        objective = cp.Minimize(cp.norm1(y[force_first:])+cp.norm1(u))
+        if k > 0:
+            objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u))
+        else:
+            objective = cp.Minimize(cp.norm1(y[force_first:]))
 
         constraints = [H >> 0]
         constraints += [H @ xhat == 0]
-        constraints += [u >= 0]
+        if k > 0:
+            constraints += [u >= 0]
         #constraints += [H @ xhat <= 1e-8]
         #constraints += [H @ xhat >= 1e-8]
 

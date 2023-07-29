@@ -153,14 +153,16 @@ def solve_sdp_cvxpy(
         y = cp.Variable(shape=(m,))
 
         k = len(B_list)
-        u = cp.Variable(shape=(k,))
+        if k > 0:
+            u = cp.Variable(shape=(k,))
 
         As, b = zip(*A_b_list)
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
         constraints = [LHS << Q_here]
-        constraints.append(u >= 0)
+        if k > 0:
+            constraints.append(u >= 0)
 
         cprob = cp.Problem(objective, constraints)
         try:
@@ -168,7 +170,7 @@ def solve_sdp_cvxpy(
                 solver=solver,
                 **opts,
             )
-        except:
+        except Exception as e:
             cost = None
             X = None
             H = None

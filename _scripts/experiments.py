@@ -24,6 +24,42 @@ rename_dict = {
     "t check tightness": "solve SDP",
 }
 
+def create_newinstance(lifter, n_params):
+    # TODO(FD): replace below with copy constructor
+    if isinstance(lifter, Stereo2DLifter):
+        new_lifter = Stereo2DLifter(
+            n_landmarks=n_params,
+            level=lifter.level,
+            param_level=lifter.param_level,
+            variable_list=None,
+        )
+    elif isinstance(lifter, Stereo3DLifter):
+        new_lifter = Stereo3DLifter(
+            n_landmarks=n_params,
+            level=lifter.level,
+            param_level=lifter.param_level,
+            variable_list=None,
+        )
+    elif isinstance(lifter, RangeOnlyLocLifter):
+        new_lifter = RangeOnlyLocLifter(
+            n_positions=n_params,
+            n_landmarks=lifter.n_landmarks,
+            level=lifter.level,
+            d=lifter.d,
+            variable_list=None,
+        )
+    elif isinstance(lifter, MonoLifter):
+        new_lifter = MonoLifter(
+            n_landmarks=n_params,
+            robust=lifter.robust,
+            level=lifter.level,
+            d=lifter.d,
+            variable_list=None,
+        )
+    else:
+        raise ValueError(lifter)
+    return new_lifter
+
 
 def plot_scalability_new(df, log=True, start="t "):
     import seaborn as sns
@@ -261,11 +297,12 @@ def run_scalability_new(
             pickle.dump(orig_dict, f)
         print("wrote intermediate as", fname)
 
-    fname = fname_root + "_df_all.pkl"
+    fname = fname_root + "_order_dict.pkl"
     try:
         assert not recompute, "forcing to recompute"
-        df = pd.read_pickle(fname)
-    except (AssertionError, FileNotFoundError) as e:
+        with open(fname, "rb") as f:
+            order_dict = pickle.load(f)
+    except (AssertionError, FileNotFoundError, EOFError) as e:
         print(e)
         order_dict = {}
 
@@ -286,64 +323,39 @@ def run_scalability_new(
         )
         if idx_subset_reorder is not None:
             order_dict["sorted"] = idx_subset_reorder
-        # if idx_subset_original is not None:
-        #    order_dict["original"] = idx_subset_original
+        if idx_subset_original is not None:
+            order_dict["original"] = idx_subset_original
         order_dict["all"] = range(len(learner.constraints))
+        with open(fname, "wb") as f:
+            pickle.dump(order_dict, f)
 
+    fname = fname_root + "_df_all.pkl"
+    try:
+        assert not recompute, "forcing to recompute"
+        df = pd.read_pickle(fname)
+        assert set(param_list).issubset(df.N.unique())
+    except (AssertionError, FileNotFoundError):
         max_seeds = n_seeds + 5
         df_data = []
         for name, new_order in order_dict.items():
-            data_dict = deepcopy(orig_dict)
+            data_dict = {}
             for n_params in param_list:
                 n_successful_seeds = 0
                 for seed in range(max_seeds):
                     print(
-                        f"================== N={n_params},seed={seed} ======================"
+                        f"================== apply to N={n_params},seed={seed} ======================"
                     )
                     data_dict["N"] = n_params
                     data_dict["order"] = name
+                    data_dict["seed"] = seed
 
-                    np.random.seed(seed)
-                    # TODO(FD): replace below with copy constructor
-                    if isinstance(learner.lifter, Stereo2DLifter):
-                        new_lifter = Stereo2DLifter(
-                            n_landmarks=n_params,
-                            level=learner.lifter.level,
-                            param_level=learner.lifter.param_level,
-                            variable_list=None,
-                        )
-                    elif isinstance(learner.lifter, Stereo3DLifter):
-                        new_lifter = Stereo3DLifter(
-                            n_landmarks=n_params,
-                            level=learner.lifter.level,
-                            param_level=learner.lifter.param_level,
-                            variable_list=None,
-                        )
-                    elif isinstance(learner.lifter, RangeOnlyLocLifter):
-                        new_lifter = RangeOnlyLocLifter(
-                            n_positions=n_params,
-                            n_landmarks=learner.lifter.n_landmarks,
-                            level=learner.lifter.level,
-                            d=learner.lifter.d,
-                            variable_list=None,
-                        )
-                    elif isinstance(learner.lifter, MonoLifter):
-                        new_lifter = MonoLifter(
-                            n_landmarks=n_params,
-                            robust=learner.lifter.robust,
-                            level=learner.lifter.level,
-                            d=learner.lifter.d,
-                            variable_list=None,
-                        )
-                    else:
-                        raise ValueError(learner.lifter)
-
+                    new_lifter = create_newinstance(learner.lifter, n_params)
                     # doesn't matter because we don't use the usual pipeline.
                     # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
+                    np.random.seed(seed)
                     new_learner = Learner(
                         lifter=new_lifter, variable_list=new_lifter.variable_list
                     )
-
                     success = new_learner.find_local_solution()
                     if not success:
                         continue
@@ -352,7 +364,6 @@ def run_scalability_new(
                     # apply the templates to all new landmarks
                     t1 = time.time()
                     # (make sure the dimensions of the constraints are correct)
-
                     new_learner.templates = [
                         learner.constraints[i].scale_to_new_lifter(new_lifter)
                         for i in new_order
@@ -379,6 +390,48 @@ def run_scalability_new(
                         break
             df = pd.DataFrame(df_data)
             df.to_pickle(fname)
+
+    fname = f"{fname_root}_df_oneshot.pkl"
+    try:
+        df_oneshot = pd.read_pickle(fname)
+    except (FileNotFoundError, AssertionError):
+        max_seeds = n_seeds + 5
+        df_data = []
+        for n_params in param_list:
+            n_successful_seeds = 0
+            for seed in range(max_seeds):
+                print(
+                    f"================== oneshot N={n_params},seed={seed} ======================"
+                )
+                data_dict = {
+                    "N": n_params,
+                    "order": "new",
+                    "seed": seed
+                }
+                new_lifter = create_newinstance(learner.lifter, n_params)
+
+                ############ standard one-shot ############
+                new_lifter.param_level = "no"
+                variable_list = new_lifter.get_all_variables()
+                new_learner = Learner(
+                    lifter=new_lifter, variable_list=variable_list, apply_templates=False
+                )
+                t1 = time.time()
+                new_learner.run(tightness=tightness, verbose=True)
+                data_dict["t learn from scratch"] = t1 - time.time()
+
+                ############ incremental one-shot ############
+                new_lifter.param_level = "ppT"
+                new_learner = Learner(
+                    lifter=new_lifter, variable_list=new_lifter.VARIABLE_LIST, apply_templates=True
+                )
+                t1 = time.time()
+                new_learner.run(tightness=tightness, verbose=True)
+                data_dict["t learn from scratch (incremental)"] = t1 - time.time()
+                df_data.append(deepcopy(data_dict))
+
+            df_oneshot = pd.DataFrame(df_data)
+            df_oneshot.to_pickle(fname)
 
     df = df.apply(pd.to_numeric, errors="ignore")
     vmax = df[[c for c in df.columns if c.startswith("t ")]].max().max() * 1.1

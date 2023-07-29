@@ -1057,3 +1057,9 @@ class StateLifter(BaseClass):
                     param_dict[f"{pi}.{pj}"] = i
                 i += 1
         return param_dict
+
+    def get_hess(self, t, y):
+        raise NotImplementedError("hessian not implemented")
+
+    def get_grad(self, t, y):
+        raise NotImplementedError("grad not implemented")

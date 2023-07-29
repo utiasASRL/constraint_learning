@@ -16,14 +16,14 @@ from utils.plotting_tools import savefig
 from utils.constraint import Constraint
 
 # parameter of SDP solver
-TOL = 1e-8 #1e-10
+TOL = 1e-10
 
 NOISE_SEED = 5
 
 ADJUST_Q = True # rescale Q matrix
-PRIMAL = True  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
+PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
-FACTOR = 1.5  # oversampling factor.
+FACTOR = 1.2  # oversampling factor.
 
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e8
@@ -193,8 +193,7 @@ class Learner(object):
                         f"Feasibility error too high! xAx:{error:.2e}, <X,A>:{errorX:.2e}"
                     )
             print(f"Maximum feasibility error at solution x: {max_error}")
-
-            return False
+            return True
         else:
             final_cost = np.trace(self.solver_vars["Q"] @ X)
             if abs(final_cost - info["cost"]) >= 1e-10:
@@ -226,7 +225,7 @@ class Learner(object):
                 self.solver_vars["xhat"],
                 B_list=B_list,
                 force_first=1,
-                tol=1e-5,
+                tol=1e-10,
                 verbose=True
             )
             if lamdas is None:

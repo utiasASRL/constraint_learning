@@ -86,7 +86,7 @@ def stereo_scalability_new(d=2):
         n_landmarks_list = [10, 15, 20, 25, 30]
         n_seeds = 3  # 10
     elif d == 3:
-        n_landmarks_list = [5, 10]
+        n_landmarks_list = [5, 6] #[10, 20] #15, 20, 25, 30]
         n_seeds = 1
     level = "urT"
     param_level = "ppT"
@@ -112,96 +112,10 @@ def stereo_scalability_new(d=2):
         )
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    run_scalability_plot(learner)
-    #run_scalability_new(
-    #    learner, param_list=n_landmarks_list, n_seeds=n_seeds, vmin=0.1, vmax=50
-    #)
-
-
-def stereo_scalability(d=2):
-    """
-    Deteremine how the range-only problem sclaes with nubmer of positions.
-    """
-    # n_positions_list = np.logspace(0.1, 2, 10).astype(int)
-    n_seeds = 1
-    if d == 2:
-        # n_landmarks_list = [4, 5, 6]
-        n_landmarks_list = [5, 6, 7, 8, 9, 10]
-    if d == 3:
-        n_landmarks_list = [4, 5, 6]
-
-    level = "urT"
-    param_level = "no"
-    # param_level = "ppT"
-
-    # variable_list = None
-    fname_root = f"_results/stereo{d}d_{level}_{param_level}_n{n_landmarks_list[-1]}"
-    fname = f"{fname_root}_df_scale.pkl"
-    try:
-        df = pd.read_pickle(fname)
-    except (FileNotFoundError, AssertionError):
-        df_data = []
-        for seed, n_landmarks in itertools.product(range(n_seeds), n_landmarks_list):
-            print(
-                f"================== N={n_landmarks},seed={seed} ======================"
-            )
-            np.random.seed(seed)
-
-            variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
-            if d == 2:
-                lifter = Stereo2DLifter(
-                    n_landmarks=n_landmarks,
-                    level=level,
-                    param_level=param_level,
-                    variable_list=variable_list,
-                )
-            elif d == 3:
-                lifter = Stereo3DLifter(
-                    n_landmarks=n_landmarks,
-                    level=level,
-                    param_level=param_level,
-                    variable_list=variable_list,
-                )
-            fname_root = f"_results/{lifter}"
-            learner = Learner(
-                lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
-            )
-
-            # just use cost tightness because rank tightness was not achieved even in toy example
-            times = learner.run(
-                verbose=True, use_known=False, plot=False, tightness="cost"
-            )
-            t_dict = times[0]
-
-            idx_subset_original, idx_subset_reorder = tightness_study(
-                learner, tightness="cost", original=False
-            )
-            # t_dict["n req1"] = len(idx_subset_original)
-            if idx_subset_reorder is not None:
-                t_dict["n req2"] = len(idx_subset_reorder)
-            else:
-                t_dict["n req2"] = None
-            t_dict["N"] = n_landmarks
-            df_data.append(t_dict)
-
-        df = pd.DataFrame(df_data)
-        df.to_pickle(fname)
-
-    fig, ax = plot_scalability(df, log=False, start="t ")
-    fig.set_size_inches(5, 5)
-    ax.legend(loc="upper left")
-    savefig(fig, fname_root + "_scalability.pdf")
-
-    df["N dimension"] = df["dim Y"]
-    df["N nullspace"] = df["n learned templates"]
-    df["N sufficient"] = df["n req2"]
-    fig, ax = plot_scalability(df, log=False, start="N ")
-    fig.set_size_inches(5, 5)
-    ax.legend(loc="upper left")
-    savefig(fig, fname_root + "_scalability_n.pdf")
-
-    tex_name = fname_root + "_scalability.tex"
-    save_table(df, tex_name)
+    #run_scalability_plot(learner)
+    run_scalability_new(
+        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=False#vmin=0.1, vmax=50
+    )
 
 
 def stereo_3d_study():
@@ -210,7 +124,7 @@ def stereo_3d_study():
     """
     seed = 0
     n_landmark_list = [4, 5, 6]  # , 7, 8, 9, 10]
-    noise_list = np.logspace(0, 2, 5)
+    noise_list = np.logspace(0, 2, 3)
 
     level = "urT"
     param_level = "no"
@@ -250,9 +164,10 @@ def stereo_3d_study():
             {"value": qcost, "cost": "qcqp", "noise": noise, "n_landmarks": n_landmarks}
         )
         data.append(deepcopy(data_here))
+        ratio = abs(qcost - dcost) / qcost if dcost is not None else None
         data_here.update(
             {
-                "value": abs(qcost - dcost) / qcost,
+                "value": ratio,
                 "cost": "ratio",
                 "noise": noise,
                 "n_landmarks": n_landmarks,
@@ -335,13 +250,12 @@ if __name__ == "__main__":
     #    warnings.simplefilter("error")
 
     # stereo_scalability(d=2)
-    # stereo_scalability(d=3)
+    #stereo_scalability(d=3)
 
-    stereo_scalability_new(d=2)
-    plt.show()
-    # stereo_scalability_new(d=3)
+    #stereo_scalability_new(d=2)
+    stereo_scalability_new(d=3)
 
     # stereo_tightness(d=2)
     # stereo_tightness(d=3)
 
-    # stereo_3d_study()
+    #stereo_3d_study()

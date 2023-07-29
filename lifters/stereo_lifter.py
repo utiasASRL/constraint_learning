@@ -6,7 +6,7 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta, get_C_r_from_xtheta, get_T, get_xtheta_from_theta
 
-NOISE = 0.5 # 
+NOISE = 1.0 # 
 
 class StereoLifter(StateLifter, ABC):
     """General lifter for stereo localization problem.
@@ -23,13 +23,13 @@ class StereoLifter(StateLifter, ABC):
         "u@r",
         "uuT",
         "urT",
-        "u1u2rT"
+        "uxT",
     ]
     PARAM_LEVELS = ["no", "p", "ppT"]
     LEVEL_NAMES = {
         "no": "$\\boldsymbol{u}_n$",
         "urT": "$\\boldsymbol{u}\\boldsymbol{t}^\\top_n$",
-        "u1u2rT": "$\\boldsymbol{u}_1\\boldsymbol{u}_2\\boldsymbol{t}^\\top_n$",
+        "uxT": "$\\boldsymbol{u}\\boldsymbol{x}^\\top_n$",
     }
     VARIABLE_LIST = [
         ["l", "x"], 
@@ -40,9 +40,11 @@ class StereoLifter(StateLifter, ABC):
         ["l", "z_0", "z_1", "z_2"],
     ]
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
-        self.d = d
         self.n_landmarks = n_landmarks
-        super().__init__(level=level, param_level=param_level, variable_list=variable_list)
+        super().__init__(d=d, level=level, param_level=param_level, variable_list=variable_list)
+
+    def get_all_variables(self): 
+        return [["l", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
 
     def get_level_dims(self, n=1):
         """
@@ -55,7 +57,7 @@ class StereoLifter(StateLifter, ABC):
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
-            "u1u2rT": n * 2 * self.d**2,
+            "uxT": n * (self.d* (self.d + self.d **2)),
         }
 
     @abstractproperty
@@ -99,11 +101,11 @@ class StereoLifter(StateLifter, ABC):
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
 
     def generate_random_theta(self):
-        from utils.common import generate_random_pose
+        from utils.geometry import generate_random_pose
         return generate_random_pose(d=self.d)
 
     def get_parameters(self, var_subset=None):
-        return self.extract_parameters(self, var_subset, self.landmarks)
+        return self.extract_parameters(var_subset, self.landmarks)
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -199,8 +201,8 @@ class StereoLifter(StateLifter, ABC):
                 A_known.append(A.get_matrix(self.var_dict))
         return A_known
 
-    def sample_theta(self, factor=1.0):
-        return self.generate_random_theta(factor=factor).flatten()
+    def sample_theta(self):
+        return self.generate_random_theta().flatten()
 
     def sample_parameters(self, theta=None):
         if self.param_level == "no":

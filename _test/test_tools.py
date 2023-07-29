@@ -15,15 +15,15 @@ n_poses = 4
 Lifters = [
     #(Poly4Lifter, dict()),
     #(Poly6Lifter, dict()),
-    (MonoLifter, dict(n_landmarks=n_landmarks, d=d, robust=False, level="no")),
+    #(MonoLifter, dict(n_landmarks=n_landmarks, d=d, robust=False, level="no")),
     #(MonoLifter, dict(n_landmarks=n_landmarks, d=d, robust=True, level="xxT")),
     #(MonoLifter, dict(n_landmarks=n_landmarks, d=d, robust=True, level="xwT")),
     #(RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no")),
     #(RangeOnlyLocLifter, dict( n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad")),
     #(Stereo1DLifter, dict(n_landmarks=n_landmarks)),
     #(Stereo1DLifter, dict(n_landmarks=n_landmarks, param_level="p")),
-    #(Stereo2DLifter, dict(n_landmarks=n_landmarks)),
-    #(Stereo3DLifter, dict(n_landmarks=n_landmarks)),
+    (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
+    (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
 
 
