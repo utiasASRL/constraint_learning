@@ -66,11 +66,12 @@ def plot_scalability_new(df, log=True, start="t "):
 
     dict_ = plot_dict[start]
 
+    var_name=dict_["var_name"]
     df_plot = df.melt(
         id_vars=["variables"],
         value_vars=[v for v in df.columns if v.startswith(start)],
         value_name=dict_["value_name"],
-        var_name=dict_["var_name"],
+        var_name=var_name,
     )
     fig, ax = plt.subplots()
     df_plot.variables = df_plot.variables.astype("str")
@@ -95,31 +96,32 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
     from matplotlib.ticker import MaxNLocator
 
     dict_ = plot_dict[start]
+    var_name=dict_["var_name"]
 
     df_plot = df.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.melt(
-        id_vars=["N"],
+        id_vars=["N", "type"],
         value_vars=[v for v in df_plot.columns if v.startswith(start)],
         value_name=dict_["value_name"],
-        var_name=dict_["var_name"],
+        var_name=var_name,
     )
     df_plot.replace(rename_dict, inplace=True)
-    fig, ax = plt.subplots()
-    if len(df_plot.N.unique()) == 1:
-        sns.lineplot(df_plot, x=dict_["var_name"], y=dict_["value_name"], ax=ax)
-        if log:
-            ax.set_yscale("log")
-    else:
+    var_name_list = df_plot[var_name].unique()
+    fig, axs = plt.subplots(1, len(var_name_list), sharex=True, sharey=True)
+    axs = {op:ax for op, ax in zip(var_name_list, axs)}
+    for var_name, df_sub in df_plot.groupby(var_name):
+        last = var_name == var_name_list[-1]
         sns.lineplot(
-            df_plot, x="N", y=dict_["value_name"], hue=dict_["var_name"], ax=ax
+            df_sub, x="N", y=dict_["value_name"], style="type", ax=axs[var_name], legend=last
         )
         if log:
-            ax.set_yscale("log")
+            axs[var_name].set_yscale("log")
         # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        ax.set_xticks(df_plot.N.unique())
-    ax.set_ylim(ymin, ymax)
-    ax.legend(loc="lower right")
-    return fig, ax
+        axs[var_name].set_xticks(df_plot.N.unique())
+        axs[var_name].set_title(var_name)
+        #axs[operation].legend(loc="lower right")
+    #axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    return fig, axs
 
 
 def save_table(df, tex_name):
@@ -314,18 +316,12 @@ def run_scalability_new(
             use_last=use_last
         )
         orig_dict["t determine required"] = time.time() - t1
-        orig_dict["n templates"] = len(learner.constraints)
-        orig_dict["n sufficient (sorted)"] = (
-            len(idx_subset_reorder) if idx_subset_reorder is not None else None
-        )
-        orig_dict["n sufficient (original)"] = (
-            len(idx_subset_original) if idx_subset_original is not None else None
-        )
         if idx_subset_reorder is not None:
             order_dict["sorted"] = idx_subset_reorder
         if idx_subset_original is not None:
             order_dict["original"] = idx_subset_original
-        order_dict["all"] = range(len(learner.constraints))
+        #order_dict["all"] = range(len(learner.constraints))
+        order_dict["basic"] = None
         with open(fname, "wb") as f:
             pickle.dump(order_dict, f)
 
@@ -343,11 +339,11 @@ def run_scalability_new(
                 n_successful_seeds = 0
                 for seed in range(max_seeds):
                     print(
-                        f"================== apply to N={n_params},seed={seed} ======================"
+                        f"================== apply ({name}) to N={n_params},seed={seed} ======================"
                     )
                     data_dict["N"] = n_params
-                    data_dict["order"] = name
                     data_dict["seed"] = seed
+                    data_dict["type"] = name
 
                     new_lifter = create_newinstance(learner.lifter, n_params)
                     # doesn't matter because we don't use the usual pipeline.
@@ -364,14 +360,18 @@ def run_scalability_new(
                     # apply the templates to all new landmarks
                     t1 = time.time()
                     # (make sure the dimensions of the constraints are correct)
-                    new_learner.templates = [
-                        learner.constraints[i].scale_to_new_lifter(new_lifter)
-                        for i in new_order
-                    ]
+                    if new_order is not None:
+                        new_learner.templates = [
+                            learner.constraints[i].scale_to_new_lifter(new_lifter)
+                            for i in new_order
+                        ]
+                    else:
+                        new_learner.templates = learner.templates
                     # apply the templates
+                    data_dict[f"n templates"] = len(new_learner.templates)
                     n_new, n_total = new_learner.apply_templates(reapply_all=True)
-                    data_dict[f"n total ({name})"] = n_total
-                    data_dict["t apply templates"] = time.time() - t1
+                    data_dict[f"n constraints"] = n_total
+                    data_dict[f"t create constraints"] = time.time() - t1
 
                     # TODO(FD) below should not be necessary
                     new_learner.constraints = new_learner.clean_constraints(
@@ -382,7 +382,7 @@ def run_scalability_new(
                     print(f"=========== tightness test: {name} ===============")
                     t1 = time.time()
                     new_learner.is_tight(verbose=True, tightness=tightness)
-                    data_dict["t check tightness"] = time.time() - t1
+                    data_dict[f"t solve SDP"] = time.time() - t1
                     # times = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
                     df_data.append(deepcopy(data_dict))
 
@@ -393,6 +393,7 @@ def run_scalability_new(
 
     fname = f"{fname_root}_df_oneshot.pkl"
     try:
+        assert recompute is False
         df_oneshot = pd.read_pickle(fname)
     except (FileNotFoundError, AssertionError):
         max_seeds = n_seeds + 5
@@ -405,8 +406,8 @@ def run_scalability_new(
                 )
                 data_dict = {
                     "N": n_params,
-                    "order": "new",
-                    "seed": seed
+                    "seed": seed,
+                    "type": "from scratch"
                 }
                 new_lifter = create_newinstance(learner.lifter, n_params)
 
@@ -416,38 +417,45 @@ def run_scalability_new(
                 new_learner = Learner(
                     lifter=new_lifter, variable_list=variable_list, apply_templates=False
                 )
-                t1 = time.time()
-                new_learner.run(tightness=tightness, verbose=True)
-                data_dict["t learn from scratch"] = t1 - time.time()
+
+                success = new_learner.find_local_solution()
+                if not success:
+                    continue
+                n_successful_seeds += 1
+
+                new_dict = new_learner.run(tightness=tightness, verbose=True)[-1]
+                data_dict["t create constraints"] = new_dict["t learn templates"] 
+                data_dict["t solve SDP"] = new_dict["t check tightness"]
+                data_dict["n templates"] = new_dict["n learned templates"]
+                data_dict["n constraints"] = new_dict["n learned templates"]
 
                 ############ incremental one-shot ############
-                new_lifter.param_level = "ppT"
-                new_learner = Learner(
-                    lifter=new_lifter, variable_list=new_lifter.VARIABLE_LIST, apply_templates=True
-                )
-                t1 = time.time()
-                new_learner.run(tightness=tightness, verbose=True)
-                data_dict["t learn from scratch (incremental)"] = t1 - time.time()
+                #new_lifter.param_level = "ppT"
+                #new_learner = Learner(
+                #    lifter=new_lifter, variable_list=new_lifter.VARIABLE_LIST, apply_templates=True
+                #)
+                #t1 = time.time()
+                #new_learner.run(tightness=tightness, verbose=True)
+                #data_dict["t learn from scratch (incremental)"] = t1 - time.time()
                 df_data.append(deepcopy(data_dict))
+                if n_successful_seeds >= n_seeds:
+                    break
 
             df_oneshot = pd.DataFrame(df_data)
             df_oneshot.to_pickle(fname)
 
+    df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
-    vmax = df[[c for c in df.columns if c.startswith("t ")]].max().max() * 1.1
-    for name, df_plot in df.groupby("order"):
-        fig, ax = plot_scalability(df_plot, log=True, ymin=vmin, ymax=vmax)
-        ax.set_xlabel("number of landmarks")
-        fig.set_size_inches(5, 5)
-        savefig(fig, fname_root + f"_{name}.pdf")
 
-        tex_name = fname_root + f"_{name}_n.tex"
-        save_table(df_plot, tex_name)
-
+    fig, ax = plot_scalability(df, log=True, start="t ")
+    fig.set_size_inches(5, 5)
+    savefig(fig, fname_root + f"_t.pdf")
     fig, ax = plot_scalability(df, log=True, start="n ")
     fig.set_size_inches(5, 5)
     savefig(fig, fname_root + f"_n.pdf")
 
+    tex_name = fname_root + f"_n.tex"
+    save_table(df, tex_name)
 
 def run_oneshot_experiment(
     learner: Learner, fname_root, plots, tightness="rank", add_original=True, use_last=None

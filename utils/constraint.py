@@ -36,22 +36,31 @@ class Constraint(object):
         self.applied_list = []
 
     @staticmethod
-    def init_from_b(index: int, b: np.ndarray, mat_var_dict: dict, lifter: StateLifter):
+    def init_from_b(index: int, b: np.ndarray, mat_var_dict: dict, lifter: StateLifter, convert_to_polyrow=False):
         a = lifter.get_reduced_a(b, mat_var_dict, sparse=True)
         A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
         a_full = lifter.get_vec(A_sparse, sparse=True)
         # a_full = lifter.augment_using_zero_padding(a, mat_var_dict)
-        A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
-        polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
-        polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
+        if convert_to_polyrow:
+            A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
+            polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
+            polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
+            return Constraint(
+                index=index,
+                a=a,
+                b=b,
+                A_sparse=A_sparse,
+                A_poly=A_poly,
+                polyrow_b=polyrow_b,
+                polyrow_a=polyrow_a,
+                a_full=a_full,
+                mat_var_dict=mat_var_dict,
+            )
         return Constraint(
             index=index,
             a=a,
             b=b,
             A_sparse=A_sparse,
-            A_poly=A_poly,
-            polyrow_b=polyrow_b,
-            polyrow_a=polyrow_a,
             a_full=a_full,
             mat_var_dict=mat_var_dict,
         )

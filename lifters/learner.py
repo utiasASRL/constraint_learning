@@ -412,11 +412,6 @@ class Learner(object):
                 Y = np.delete(Y, bad_idx, axis=0)
             else:
                 break
-        if data_dict is not None:
-            ttot = time.time() - t1
-            data_dict["t learn templates"] = ttot
-            data_dict["rank Y"] = Y.shape[1] - corank
-            data_dict["corank Y"] = corank
 
         if basis_new.shape[0]:
             templates += [
@@ -425,10 +420,17 @@ class Learner(object):
                     mat_var_dict=self.mat_var_dict,
                     b=b,
                     lifter=self.lifter,
+                    convert_to_polyrow = self.apply_templates_to_others
                 )
                 for i, b in enumerate(basis_new)
             ]
             self.constraint_index += basis_new.shape[0]
+
+        if data_dict is not None:
+            ttot = time.time() - t1
+            data_dict["t learn templates"] = ttot
+            data_dict["rank Y"] = Y.shape[1] - corank
+            data_dict["corank Y"] = corank
 
         if len(templates) > 0:
             print(f"found {len(templates)} candidate templates")

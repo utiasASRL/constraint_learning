@@ -6,6 +6,10 @@ from .common import adjust_Q, adjust_tol, solver_options
 VERBOSE = False
 SOLVER = "MOSEK"
 
+# for computing the lambda parameter, we are adding all possible constraints
+# and therefore we might run into numerical problems. Setting below to a high value
+# was found to lead to less cases where the solver terminates with "UNKNOWN" status.
+LAMBDA_REL_GAP = 0.1
 
 def solve_lambda(
     Q,
@@ -59,6 +63,8 @@ def solve_lambda(
 
         cprob = cp.Problem(objective, constraints)
         opts["verbose"] = verbose
+        if solver == "MOSEK":
+            opts["mosek_params"]["MSK_DPAR_INTPNT_CO_TOL_REL_GAP"] = LAMBDA_REL_GAP
         try:
             cprob.solve(
                 solver=solver,
