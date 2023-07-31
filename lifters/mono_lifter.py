@@ -37,27 +37,6 @@ ADD_PENALTY = True
 PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
-def h_list(t):
-    """
-        We want to inforce that 
-        - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
-        - norm(t) <= 10 
-        as constraints h_j(t)<=0
-    """
-    return [
-        np.sqrt(np.sum(t[:-1]**2)) - np.tan(FOV/2)*t[-1],
-        #-t[-1]+1,
-        np.sqrt(np.sum(t**2)) - MAX_DIST
-    ]
-
-def penalty(t, rho=PENALTY_RHO, u=PENALTY_U):
-    try:
-        return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in h_list(t)])
-    except RuntimeWarning:
-        PENALTY_U *= 0.1
-        u = PENALTY_U
-        return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in h_list(t)])
-        
 
 class MonoLifter(StateLifter):
     LEVELS = ["no", "xwT", "xxT"]
@@ -96,6 +75,27 @@ class MonoLifter(StateLifter):
         super().__init__(
             level=level, param_level=param_level, d=d, variable_list=variable_list
         )
+
+    def h_list(self, t):
+        """
+            We want to inforce that 
+            - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+            - norm(t) <= 10 
+            as constraints h_j(t)<=0
+        """
+        return [
+            np.sqrt(np.sum(t[:-1]**2)) - np.tan(FOV/2)*t[-1],
+            #-t[-1]+1,
+            np.sqrt(np.sum(t**2)) - MAX_DIST
+        ]
+
+    def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
+        try:
+            return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)])
+        except RuntimeWarning:
+            PENALTY_U *= 0.1
+            u = PENALTY_U
+            return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)])
 
     @property
     def var_dict(self):
@@ -286,10 +286,13 @@ class MonoLifter(StateLifter):
             theta_x += np.random.normal(size=theta_x.shape, scale=delta)
             return get_xtheta_from_theta(theta_x, self.d)
             
+    def term_in_norm(self, R, t, pi, ui):
+        return R @ pi + t
 
     def residual(self, R, t, pi, ui):
         W = np.eye(self.d) - np.outer(ui, ui)
-        return (R @ pi + t).T @ W @ (R @ pi + t)
+        term = self.term_in_norm(R, t, pi, ui)
+        return term.T @ W @ term
 
     def get_cost(self, theta, y):
         if self.robust:
@@ -306,7 +309,6 @@ class MonoLifter(StateLifter):
 
         cost = 0
         for i in range(self.n_landmarks):
-            assert abs(np.linalg.norm(y[i]) - 1.0) < 1e-10
             res = self.residual(R, t, self.landmarks[i], y[i])
             if self.robust:
                 cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
@@ -399,7 +401,7 @@ class MonoLifter(StateLifter):
                 else:
                     cost += residual
             if ADD_PENALTY: 
-                return 0.5 * cost + penalty(t)
+                return 0.5 * cost + self.penalty(t)
             else:
                 return 0.5 * cost 
 
@@ -410,18 +412,18 @@ class MonoLifter(StateLifter):
             for i in range(self.n_landmarks):
                 Wi = np.eye(self.d) - np.outer(y[i], y[i])
                 # residual = (R @ pi + t).T @ Wi @ (R @ pi + t)
-                pi_cam = R @ self.landmarks[i] + t
+                term = self.term_in_norm(R, t, self.landmarks[i], y[i])
                 if self.robust:
                     grad_R += (
                         2
                         * w[i]
                         / self.beta**2
-                        * np.outer(Wi.T @ pi_cam, self.landmarks[i])
+                        * np.outer(Wi.T @ term, self.landmarks[i])
                     )
-                    grad_t += 2 * w[i] / self.beta**2 * Wi.T @ pi_cam
+                    grad_t += 2 * w[i] / self.beta**2 * Wi.T @ term
                 else:
-                    grad_R += np.outer(Wi.T @ pi_cam, self.landmarks[i])
-                    grad_t += Wi.T @ pi_cam
+                    grad_R += np.outer(Wi.T @ term, self.landmarks[i])
+                    grad_t += Wi.T @ term
             return grad_R, grad_t
 
         if ADD_PENALTY:
@@ -441,7 +443,7 @@ class MonoLifter(StateLifter):
 
         cost_penalized = res.cost
         if ADD_PENALTY:
-            pen = penalty(t)
+            pen = self.penalty(t)
             if abs(res.cost) > 1e-10:
                 assert abs(pen)/res.cost <= 1e-1, (pen, res.cost)
             cost_penalized -= pen

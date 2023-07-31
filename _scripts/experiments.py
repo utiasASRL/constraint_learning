@@ -333,6 +333,7 @@ def run_scalability_new(
     except (AssertionError, FileNotFoundError):
         max_seeds = n_seeds + 5
         df_data = []
+        order_dict = {"basic": None}
         for name, new_order in order_dict.items():
             data_dict = {}
             for n_params in param_list:
@@ -377,8 +378,10 @@ def run_scalability_new(
                     new_learner.constraints = new_learner.clean_constraints(
                         new_learner.constraints, [], remove_imprecise=True
                     )
-
                     # determine tightness
+                    if isinstance(new_lifter, Stereo3DLifter) and (n_params > 25) and (name == "basic"):
+                        print(f"skipping tightness test of stereo3D with {n_params} because it leeds to memory error")
+                        continue
                     print(f"=========== tightness test: {name} ===============")
                     t1 = time.time()
                     new_learner.is_tight(verbose=True, tightness=tightness)
@@ -393,16 +396,17 @@ def run_scalability_new(
 
     fname = f"{fname_root}_df_oneshot.pkl"
     try:
+        assert False
         assert recompute is False
         df_oneshot = pd.read_pickle(fname)
     except (FileNotFoundError, AssertionError):
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
-            if isinstance(new_lifter, Stereo2DLifter) and n_params > 25:
+            if isinstance(learner.lifter, Stereo2DLifter) and n_params > 25:
                 print(f"skipping N={n_params} for stereo2D because this will cause out of memory error.")
                 continue
-            if isinstance(new_lifter, Stereo3DLifter) and n_params > 25:
+            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 10:
                 print(f"skipping N={n_params} for stereo3D because this will cause out of memory error.")
                 continue
             n_successful_seeds = 0
@@ -432,8 +436,8 @@ def run_scalability_new(
                 new_dict = new_learner.run(tightness=tightness, verbose=True)[-1]
                 data_dict["t create constraints"] = new_dict["t learn templates"] 
                 data_dict["t solve SDP"] = new_dict["t check tightness"]
-                data_dict["n templates"] = new_dict["n learned templates"]
-                data_dict["n constraints"] = new_dict["n learned templates"]
+                data_dict["n templates"] = new_dict["n templates"]
+                data_dict["n constraints"] = new_dict["n templates"]
 
                 ############ incremental one-shot ############
                 #new_lifter.param_level = "ppT"
