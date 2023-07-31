@@ -83,10 +83,10 @@ def stereo_tightness(d=2, n_landmarks=None):
 def stereo_scalability_new(d=2):
     if d == 2:
         # n_landmarks_list = [5, 6, 7]
-        n_landmarks_list = [5, 10] #15] #15, 20, 25, 30]
+        n_landmarks_list = [5, 10, 15, 20, 25, 30]
         n_seeds = 1  # 10
     elif d == 3:
-        n_landmarks_list = [5, 10] #[10, 20] #15, 20, 25, 30]
+        n_landmarks_list = [5, 10, 15, 20, 25, 30]
         n_seeds = 1
     level = "urT"
     param_level = "ppT"
@@ -114,7 +114,7 @@ def stereo_scalability_new(d=2):
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     #run_scalability_plot(learner)
     run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=False#vmin=0.1, vmax=50
+        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=True #vmin=0.1, vmax=50
     )
 
 

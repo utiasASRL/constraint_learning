@@ -64,11 +64,11 @@ class MonoLifter(StateLifter):
     PARAM_LEVELS = ["no"]
     VARIABLE_LIST = [
         ["l", "x"],
-        ["l", "x", "z_0"],
         ["l", "x", "w_0"],
-        ["l", "x", "z_0", "z_1"],
         ["l", "x", "w_0", "w_1"],
+        ["l", "x", "z_0"],
         ["l", "x", "w_0", "z_0"],
+        ["l", "x", "z_0", "z_1"],
     ]
     LEVEL_NAMES = {"no": "no", "xwT": "x kron w", "xxT": "x kron x"}
 

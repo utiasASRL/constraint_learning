@@ -40,7 +40,6 @@ class RangeOnlyLocLifter(StateLifter):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
-        self.d = d
         if W is not None:
             assert W.shape == (n_landmarks, n_positions)
             self.W = W
@@ -48,7 +47,7 @@ class RangeOnlyLocLifter(StateLifter):
             self.W = np.ones((n_positions, n_landmarks))
 
         self.variable_list = self.VARIABLE_LIST if not variable_list else variable_list
-        super().__init__(level=level)
+        super().__init__(level=level, d=d)
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
@@ -79,15 +78,17 @@ class RangeOnlyLocLifter(StateLifter):
     def sample_theta(self):
         return self.generate_random_theta()
 
-    def get_A_known(self):
+    def get_A_known(self, var_dict=None):
         from poly_matrix.poly_matrix import PolyMatrix
+
+        positions = self.get_variable_indices(var_dict)
 
         if self.level == "quad":
             from utils.common import diag_indices
             diag_idx = diag_indices(self.d)
 
         A_list = []
-        for n in range(self.n_positions):
+        for n in positions:
             A = PolyMatrix()
             A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
             if self.level == "no":
@@ -96,7 +97,7 @@ class RangeOnlyLocLifter(StateLifter):
                 mat = np.zeros((1, self.size_z))
                 mat[0, diag_idx] = -0.5
                 A["l", f"z_{n}"] = mat
-            A_list.append(A.get_matrix(self.var_dict))
+            A_list.append(A.get_matrix(var_dict))
         return A_list
 
     def get_x(self, theta=None, parameters=None, var_subset=None):

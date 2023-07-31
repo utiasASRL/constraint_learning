@@ -81,7 +81,7 @@ class Stereo3DLifter(StereoLifter):
         x = self.get_x(theta=x_hat)
         Q = self.get_Q_from_y(y[:, :, 0])
         cost_Q = x.T @ Q @ x
-        assert abs(cost_Q - cost) < 1e-8
+        assert abs(cost_Q - cost)/cost < 1e-8
 
         if success:
             return x_hat, "converged", cost

@@ -399,6 +399,12 @@ def run_scalability_new(
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
+            if isinstance(new_lifter, Stereo2DLifter) and n_params > 25:
+                print(f"skipping N={n_params} for stereo2D because this will cause out of memory error.")
+                continue
+            if isinstance(new_lifter, Stereo3DLifter) and n_params > 25:
+                print(f"skipping N={n_params} for stereo3D because this will cause out of memory error.")
+                continue
             n_successful_seeds = 0
             for seed in range(max_seeds):
                 print(
@@ -457,6 +463,7 @@ def run_scalability_new(
     tex_name = fname_root + f"_n.tex"
     save_table(df, tex_name)
 
+    
 def run_oneshot_experiment(
     learner: Learner, fname_root, plots, tightness="rank", add_original=True, use_last=None
 ):

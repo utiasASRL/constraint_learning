@@ -36,7 +36,7 @@ class Constraint(object):
         self.applied_list = []
 
     @staticmethod
-    def init_from_b(index: int, b: np.ndarray, mat_var_dict: dict, lifter: StateLifter, convert_to_polyrow=False):
+    def init_from_b(index: int, b: np.ndarray, mat_var_dict: dict, lifter: StateLifter, convert_to_polyrow:bool=True):
         a = lifter.get_reduced_a(b, mat_var_dict, sparse=True)
         A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
         a_full = lifter.get_vec(A_sparse, sparse=True)

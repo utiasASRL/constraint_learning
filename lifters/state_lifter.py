@@ -303,7 +303,7 @@ class StateLifter(BaseClass):
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
 
-    def get_A_known(self) -> list:
+    def get_A_known(self, var_dict=None) -> list:
         return []
 
     def extract_A_known(self, A_known, var_subset, output_type="csc"):

@@ -368,7 +368,7 @@ class Learner(object):
 
         if use_known:
             b_list = []
-            for Ai in self.lifter.get_A_known():
+            for Ai in self.lifter.get_A_known(self.mat_var_dict):
                 a = self.lifter.get_vec(Ai, correct=False)
                 b_list.append(self.lifter.augment_using_zero_padding(a))
 
@@ -378,6 +378,7 @@ class Learner(object):
                     mat_var_dict=self.mat_var_dict,
                     b=bi,
                     lifter=self.lifter,
+                    convert_to_polyrow = self.apply_templates_to_others
                 )
                 for i, bi in enumerate(b_list)
             ]
@@ -429,8 +430,8 @@ class Learner(object):
         if data_dict is not None:
             ttot = time.time() - t1
             data_dict["t learn templates"] = ttot
-            data_dict["rank Y"] = Y.shape[1] - corank
-            data_dict["corank Y"] = corank
+            data_dict["n rank"] = Y.shape[1] - corank
+            data_dict["n nullspace"] = corank
 
         if len(templates) > 0:
             print(f"found {len(templates)} candidate templates")
@@ -575,7 +576,7 @@ class Learner(object):
 
             print(f"======== {self.mat_vars} ========")
             data_dict = {"variables": self.mat_vars}
-            data_dict["dim Y"] = self.lifter.get_dim_Y(self.mat_vars)
+            data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
 
             print(f"-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
@@ -583,7 +584,7 @@ class Learner(object):
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
             print(f"found {n_new} independent templates, new total: {n_all} ")
-            data_dict["n learned templates"] = n_all
+            data_dict["n templates"] = n_all
             if n_new == 0:
                 print("new variables didn't have any effect")
                 continue
@@ -595,7 +596,7 @@ class Learner(object):
                 n_new, n_all = self.apply_templates()
                 ttot = time.time() - t1
 
-                data_dict["n applied templates"] = n_all
+                data_dict["n constraints"] = n_all
                 data_dict["t apply templates"] = ttot
             else:
                 self.constraints = self.templates
