@@ -280,6 +280,7 @@ def run_scalability_new(
         with open(fname, "rb") as f:
             learner = pickle.load(f)
             orig_dict = pickle.load(f)
+        print(f"--------- read {fname} \n")
     except (AssertionError, FileNotFoundError) as e:
         print(e)
         # find which of the constraints are actually necessary
@@ -304,6 +305,7 @@ def run_scalability_new(
         assert not recompute, "forcing to recompute"
         with open(fname, "rb") as f:
             order_dict = pickle.load(f)
+        print(f"--------- read {fname} \n")
     except (AssertionError, FileNotFoundError, EOFError) as e:
         print(e)
         order_dict = {}
@@ -330,10 +332,10 @@ def run_scalability_new(
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())
+        print(f"--------- read {fname} \n")
     except (AssertionError, FileNotFoundError):
         max_seeds = n_seeds + 5
         df_data = []
-        order_dict = {"basic": None}
         for name, new_order in order_dict.items():
             data_dict = {}
             for n_params in param_list:
@@ -396,9 +398,9 @@ def run_scalability_new(
 
     fname = f"{fname_root}_df_oneshot.pkl"
     try:
-        assert False
         assert recompute is False
         df_oneshot = pd.read_pickle(fname)
+        print(f"--------- read {fname} \n")
     except (FileNotFoundError, AssertionError):
         max_seeds = n_seeds + 5
         df_data = []

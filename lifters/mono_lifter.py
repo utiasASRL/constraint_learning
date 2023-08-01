@@ -20,15 +20,12 @@ from utils.geometry import (
 NOISE = 1e-1
 N_OUTLIERS = 0
 
-MAX_DIST = 2.0 # maximum distance of camera from landmarks
-FOV = np.pi / 2 # camera field of view
+MAX_DIST = 2.0  # maximum distance of camera from landmarks
+FOV = np.pi / 2  # camera field of view
 
 METHOD = "CG"
 SOLVER_KWARGS = dict(
-    min_gradient_norm=1e-7,
-    max_iterations=10000,
-    min_step_size=1e-8,
-    verbosity=1
+    min_gradient_norm=1e-7, max_iterations=10000, min_step_size=1e-8, verbosity=1
 )
 
 # TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
@@ -44,8 +41,8 @@ class MonoLifter(StateLifter):
     VARIABLE_LIST = [
         ["l", "x"],
         ["l", "x", "w_0"],
-        ["l", "x", "w_0", "w_1"],
         ["l", "x", "z_0"],
+        ["l", "x", "w_0", "w_1"],
         ["l", "x", "w_0", "z_0"],
         ["l", "x", "z_0", "z_1"],
     ]
@@ -53,7 +50,13 @@ class MonoLifter(StateLifter):
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
     def __init__(
-        self, level="no", param_level="no", d=2, n_landmarks=3, variable_list=None, robust=False
+        self,
+        level="no",
+        param_level="no",
+        d=2,
+        n_landmarks=3,
+        variable_list=None,
+        robust=False,
     ):
         """
         :param level:
@@ -67,7 +70,7 @@ class MonoLifter(StateLifter):
         self.level = level
         if variable_list == "all":
             variable_list = self.get_all_variables()
-        #elif variable_list is None:
+        # elif variable_list is None:
         #    self.variable_list = self.VARIABLE_LIST
 
         if not robust:
@@ -78,24 +81,28 @@ class MonoLifter(StateLifter):
 
     def h_list(self, t):
         """
-            We want to inforce that 
-            - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
-            - norm(t) <= 10 
-            as constraints h_j(t)<=0
+        We want to inforce that
+        - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+        - norm(t) <= 10
+        as constraints h_j(t)<=0
         """
         return [
-            np.sqrt(np.sum(t[:-1]**2)) - np.tan(FOV/2)*t[-1],
-            #-t[-1]+1,
-            np.sqrt(np.sum(t**2)) - MAX_DIST
+            np.sqrt(np.sum(t[:-1] ** 2)) - np.tan(FOV / 2) * t[-1],
+            # -t[-1]+1,
+            np.sqrt(np.sum(t**2)) - MAX_DIST,
         ]
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
         try:
-            return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)])
+            return np.sum(
+                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
+            )
         except RuntimeWarning:
             PENALTY_U *= 0.1
             u = PENALTY_U
-            return np.sum([rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)])
+            return np.sum(
+                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
+            )
 
     @property
     def var_dict(self):
@@ -112,7 +119,7 @@ class MonoLifter(StateLifter):
         return var_dict
 
     def get_all_variables(self):
-        all_variables = ["l", "x"] 
+        all_variables = ["l", "x"]
         if self.robust:
             all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
         if self.level == "xxT":
@@ -136,11 +143,11 @@ class MonoLifter(StateLifter):
         """Generate a random new feasible point, this is the ground truth."""
 
         # generate a random pose that is looking at world centre (where landmarks are)
-        pc_cw = np.random.rand(self.d)*0.1
+        pc_cw = np.random.rand(self.d) * 0.1
         pc_cw[self.d - 1] = np.random.uniform(1, MAX_DIST)
 
         n_angles = self.d * (self.d - 1) // 2
-        angles = np.random.uniform(0, 2*np.pi, size=n_angles)
+        angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
         if self.robust:
             w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
             return np.r_[pc_cw, angles, w]
@@ -150,8 +157,10 @@ class MonoLifter(StateLifter):
         """Sample a new feasible theta."""
         theta = self.generate_random_theta()
         if self.robust:
-            w = np.random.choice([-1, 1], size=self.n_landmarks)#[-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-            theta[-len(w):] = w
+            w = np.random.choice(
+                [-1, 1], size=self.n_landmarks
+            )  # [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            theta[-len(w) :] = w
         return theta
 
     def sample_parameters(self, x=None):
@@ -223,8 +232,11 @@ class MonoLifter(StateLifter):
         """Get the current paratmers given the (fixed) setup."""
         return self.extract_parameters(var_subset, self.landmarks)
 
-    def get_A_known(self, output_poly=False):
+    def get_A_known(self, var_dict=None, output_poly=False):
         A_list = []
+        if var_dict is not None:
+            print("Warning: selecting subsets of constraints not implemented yet.")
+            return A_list
         if self.robust:
             for i in range(self.n_landmarks):
                 Ai = PolyMatrix(symmetric=True)
@@ -237,10 +249,10 @@ class MonoLifter(StateLifter):
         return A_list
 
     def get_B_known(self):
-        """ Get inequality constraints of the form x.T @ B @ x >= 0"""
+        """Get inequality constraints of the form x.T @ B @ x >= 0"""
         dim_x = self.d + self.d**2
 
-        # enforce that norm(t) <= MAX_DIST 
+        # enforce that norm(t) <= MAX_DIST
         B1 = PolyMatrix(symmetric=True)
         constraint = np.zeros((dim_x, dim_x))
         constraint[range(self.d), range(self.d)] = 1.0
@@ -251,25 +263,28 @@ class MonoLifter(StateLifter):
         # tan**2(FOV/2)*t**2 - t1**2 - t2**2 >= 0
         B3 = PolyMatrix(symmetric=True)
         constraint = np.zeros((dim_x, dim_x))
-        constraint[range(self.d-1), range(self.d-1)] = 1.0
-        constraint[self.d-1, self.d-1] = -np.tan(FOV / 2)**2
-        B3["x", "x"] = constraint 
-        
+        constraint[range(self.d - 1), range(self.d - 1)] = 1.0
+        constraint[self.d - 1, self.d - 1] = -np.tan(FOV / 2) ** 2
+        B3["x", "x"] = constraint
+
         # t3 >= 0
         constraint = np.zeros(dim_x)
-        constraint[self.d-1] = -1
+        constraint[self.d - 1] = -1
         B2 = PolyMatrix(symmetric=True)
         B2["l", "x"] = constraint[None, :]
-        return [B1.get_matrix(self.var_dict), B2.get_matrix(self.var_dict), B3.get_matrix(self.var_dict)]
+        return [
+            B1.get_matrix(self.var_dict),
+            B2.get_matrix(self.var_dict),
+            B3.get_matrix(self.var_dict),
+        ]
 
         # simplified: enforce that t[2] >= 1
         B2 = PolyMatrix(symmetric=True)
         constraint = np.zeros(dim_x)
-        constraint[self.d-1] = -1.0
-        B2["l","l"] = 1.0
-        B2["l","x"] = constraint[None, :]
+        constraint[self.d - 1] = -1.0
+        B2["l", "l"] = 1.0
+        B2["l", "x"] = constraint[None, :]
         return [B1.get_matrix(self.var_dict), B2.get_matrix(self.var_dict)]
-
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
@@ -285,7 +300,7 @@ class MonoLifter(StateLifter):
             theta_x = deepcopy(self.theta)
             theta_x += np.random.normal(size=theta_x.shape, scale=delta)
             return get_xtheta_from_theta(theta_x, self.d)
-            
+
     def term_in_norm(self, R, t, pi, ui):
         return R @ pi + t
 
@@ -314,7 +329,7 @@ class MonoLifter(StateLifter):
                 cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
             else:
                 cost += res
-        return 0.5 * cost 
+        return 0.5 * cost
 
     def get_grad(self, t, y):
         raise NotImplementedError("get_grad not implement yet")
@@ -333,10 +348,10 @@ class MonoLifter(StateLifter):
             pi = self.landmarks[i]
             # ui = deepcopy(pi) #R @ pi + t
             ui = R @ pi + t
-            ui /= ui[self.d-1]
+            ui /= ui[self.d - 1]
 
-            ui[:self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d-1)
-            assert ui[self.d-1] == 1.0
+            ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
+            assert ui[self.d - 1] == 1.0
             ui /= np.linalg.norm(ui)
             y[i] = ui
 
@@ -369,20 +384,23 @@ class MonoLifter(StateLifter):
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 
-    def local_solver(self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS):
+    def local_solver(
+        self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS
+    ):
         import pymanopt
         from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+
         if method == "CG":
-            from pymanopt.optimizers import ConjugateGradient as Optimizer # fastest
+            from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest
         elif method == "SD":
-            from pymanopt.optimizers import SteepestDescent as Optimizer # slow
+            from pymanopt.optimizers import SteepestDescent as Optimizer  # slow
         elif method == "TR":
-            from pymanopt.optimizers import TrustRegions as Optimizer # okay
+            from pymanopt.optimizers import TrustRegions as Optimizer  # okay
         else:
             raise ValueError(method)
-        
+
         if verbose:
-            solver_kwargs["verbosity"] = 2 
+            solver_kwargs["verbosity"] = 2
 
         # We assume that we know w! If we wanted to solve for w too we would need
         # IRLS or similar. Since we just care about getting the global solution
@@ -400,10 +418,10 @@ class MonoLifter(StateLifter):
                     cost += (1 + w[i]) / self.beta**2 * residual + 1 - w[i]
                 else:
                     cost += residual
-            if ADD_PENALTY: 
+            if ADD_PENALTY:
                 return 0.5 * cost + self.penalty(t)
             else:
-                return 0.5 * cost 
+                return 0.5 * cost
 
         @pymanopt.function.autograd(manifold)
         def euclidean_gradient(R, t):
@@ -427,7 +445,7 @@ class MonoLifter(StateLifter):
             return grad_R, grad_t
 
         if ADD_PENALTY:
-            euclidean_gradient = None        
+            euclidean_gradient = None
         problem = pymanopt.Problem(
             manifold, cost, euclidean_gradient=euclidean_gradient  #
         )
@@ -445,7 +463,7 @@ class MonoLifter(StateLifter):
         if ADD_PENALTY:
             pen = self.penalty(t)
             if abs(res.cost) > 1e-10:
-                assert abs(pen)/res.cost <= 1e-1, (pen, res.cost)
+                assert abs(pen) / res.cost <= 1e-1, (pen, res.cost)
             cost_penalized -= pen
         return theta_hat, res.stopping_criterion, cost_penalized
 

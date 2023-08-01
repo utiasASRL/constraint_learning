@@ -1,5 +1,3 @@
-from copy import deepcopy
-
 import matplotlib
 import matplotlib.pylab as plt
 
@@ -10,19 +8,14 @@ import autograd.numpy as np
 
 from lifters.mono_lifter import MonoLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils.geometry import (
-    get_C_r_from_theta,
-    get_C_r_from_xtheta,
-    get_xtheta_from_C_r,
-    get_xtheta_from_theta,
-)
+from utils.geometry import get_C_r_from_theta
 
 N_TRYS = 10
 
-NOISE = 1e-1
+NOISE = 1e-2
 N_OUTLIERS = 0
 
-MAX_DIST = 2.0 # maximum distance of camera from landmarks
+MAX_DIST = 2.0  # maximum distance of camera from landmarks
 
 # TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
 # However, the penalty results in inequality constraints etc. and that's not easy to deal with.
@@ -30,22 +23,20 @@ PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
 
-        
-
 class WahbaLifter(MonoLifter):
     def h_list(self, t):
         """
-            We want to inforce that 
-            - norm(t) <= 10 
-            as constraints h_j(t)<=0
+        We want to inforce that
+        - norm(t) <= 10
+        as constraints h_j(t)<=0
         """
-        return [
-            np.sqrt(np.sum(t**2)) - MAX_DIST
-        ]
+        return [np.sqrt(np.sum(t**2)) - MAX_DIST]
 
     def generate_random_setup(self):
         """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        self.landmarks = np.random.normal(loc=0, scale=1.0, size=(self.n_landmarks, self.d))
+        self.landmarks = np.random.normal(
+            loc=0, scale=1.0, size=(self.n_landmarks, self.d)
+        )
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
         return
 
@@ -56,25 +47,25 @@ class WahbaLifter(MonoLifter):
         success = False
         while not success:
             i += 1
-            pc_cw = np.random.uniform(0, MAX_DIST, size=self.d)
+            pc_cw = np.random.uniform(0, MAX_DIST**(1/self.d), size=self.d)
             success = np.linalg.norm(pc_cw) < MAX_DIST
             if success:
                 break
-            elif i > N_TRYS: 
+            elif i > N_TRYS:
                 raise ValueError("didn't find feasible point")
 
         n_angles = self.d * (self.d - 1) // 2
-        angles = np.random.uniform(0, 2*np.pi, size=n_angles)
+        angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
         if self.robust:
             w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
     def get_B_known(self):
-        """ Get inequality constraints of the form x.T @ B @ x >= 0"""
+        """Get inequality constraints of the form x.T @ B @ x >= 0"""
         dim_x = self.d + self.d**2
 
-        # enforce that norm(t) <= MAX_DIST 
+        # enforce that norm(t) <= MAX_DIST
         B1 = PolyMatrix(symmetric=True)
         constraint = np.zeros((dim_x, dim_x))
         constraint[range(self.d), range(self.d)] = 1.0
@@ -87,7 +78,7 @@ class WahbaLifter(MonoLifter):
 
     def residual(self, R, t, pi, ui):
         # TODO: can easily extend below to matrix-weighted
-        W = np.eye(self.d) 
+        W = np.eye(self.d)
         return (R @ pi + t - ui).T @ W @ (R @ pi + t - ui)
 
     def get_Q(self, noise: float = None):
@@ -124,19 +115,19 @@ class WahbaLifter(MonoLifter):
             pi = self.landmarks[i]
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
-            Pi_ll = ui.T @ Wi @ ui 
+            Pi_ll = ui.T @ Wi @ ui
             Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
-            Qi = Pi.T @ Wi @ Pi 
+            Qi = Pi.T @ Wi @ Pi
             if self.robust:
                 Qi /= self.beta**2
                 Pi_ll /= self.beta**2
                 Pi_xl /= self.beta**2
                 Q["x", "x"] += Qi
                 Q["x", "l"] += Pi_xl
-                Q["l", "l"] += 1 + Pi_ll # 1 from (1 - wi), Pi_ll from first term.
-                Q["l", f"w_{i}"] += -0.5 # from (1 - wi), 0.5 cause on off-diagonal
+                Q["l", "l"] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
+                Q["l", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
-                    Q[f"z_{i}", "x"] += 0.5 * Qi 
+                    Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"w_{i}", "l"] += 0.5 * Pi_ll
                     Q[f"z_{i}", "l"] += Pi_xl
                 elif self.level == "xxT":
@@ -146,7 +137,7 @@ class WahbaLifter(MonoLifter):
             else:
                 Q["x", "x"] += Qi
                 Q["x", "l"] += Pi_xl
-                Q["l", "l"] += Pi_ll# on diagonal
+                Q["l", "l"] += Pi_ll  # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 

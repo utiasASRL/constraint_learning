@@ -11,6 +11,45 @@ SOLVER = "MOSEK"
 # was found to lead to less cases where the solver terminates with "UNKNOWN" status.
 LAMBDA_REL_GAP = 0.1
 
+def bisection(function, inputs, left, right):
+    """
+    functions is cost tightness or rank tightness, which is of shape
+              .-----
+             |
+    ---------'
+    *==============*
+           *=======*   middle not tight --> look in right half
+           *===*       middle tight --> look in left half
+    """
+    A_list, df_data = inputs
+    left_tight = function(A_list[:left+1], df_data)
+    right_tight = function(A_list[:right+1], df_data)
+    
+    assert not left_tight 
+    assert right_tight
+    # start at 0
+
+    middle = (right + left) // 2
+    middle_tight = function(A_list[:middle + 1], df_data)
+
+    if middle_tight: # look in the left half next
+        right = middle
+    else:
+        left = middle
+    if right == left + 1:
+        return
+    return bisection(function, inputs, left, right)
+
+def brute_force(function, inputs, left, right):
+    A_list, df_data = inputs
+    tightness_counter = 0
+    for idx in range(left, right+1):
+        is_tight = function(A_list[:idx+1], df_data)
+        if is_tight:
+            tightness_counter +=1 
+        if tightness_counter >= 10:
+            return
+
 def solve_lambda(
     Q,
     A_b_list,
