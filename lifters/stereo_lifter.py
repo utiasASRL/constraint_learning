@@ -167,7 +167,7 @@ class StereoLifter(StateLifter, ABC):
         assert len(x_data) == dim_x
         return np.array(x_data)
 
-    def get_A_known(self, add_known_redundant=False):
+    def get_A_known(self, var_dict=None, output_poly=False):
         # C = [ c1
         #       c2
         #       c3 ]
@@ -198,7 +198,10 @@ class StereoLifter(StateLifter, ABC):
                     A["l", "t"] = fill_mat.reshape((1, -1))
                 elif j == self.d - 1:  # z
                     A["l", "l"] = -2.0
-                A_known.append(A.get_matrix(self.var_dict))
+                if output_poly:
+                    A_known.append(A)
+                else:
+                    A_known.append(A.get_matrix(self.var_dict))
         return A_known
 
     def sample_theta(self):

@@ -196,7 +196,7 @@ class Learner(object):
             return True
         else:
             final_cost = np.trace(self.solver_vars["Q"] @ X)
-            if abs(final_cost - info["cost"]) >= 1e-10:
+            if abs(final_cost - info["cost"])/info["cost"] >= 1e-3:
                 print(
                     f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}"
                 )
