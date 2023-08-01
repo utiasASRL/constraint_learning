@@ -210,13 +210,53 @@ class Learner(object):
                 tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
             return tightness_val
 
-    def generate_minimal_subset(self, reorder=False, tightness="rank", use_last=None, use_bisection=True):
+    def generate_minimal_subset(self, reorder=False, tightness="rank", use_last=None, use_bisection=False):
         from solvers.sparse import solve_lambda
+        from solvers.sparse import bisection, brute_force
+
+        def function(A_b_list_here, df_data):
+            """ Function for bisection or brute_force """
+            if len(A_b_list_here) in df_data.keys():
+                new_data = df_data[len(A_b_list_here)]
+            else:
+                new_data = {"lifter": str(self.lifter), "reorder": reorder}
+                X, info = self._test_tightness(A_b_list_here, B_list=B_list, verbose=False)
+                dual_cost = info["cost"]
+                new_data["dual cost"] = dual_cost
+                if dual_cost is None:
+                    print(f"{len(A_b_list_here)}: solver error")
+                    new_data["eigs"] = np.full(self.lifter.get_dim_X(), np.nan)
+                    new_data["cost_tight"] = False
+                    new_data["rank_tight"] = False
+                    df_data[len(A_b_list_here)] = deepcopy(new_data)
+                    return False
+
+                elif self.duality_gap_is_zero(dual_cost):
+                    print(f"{len(A_b_list_here)}: cost-tight")
+                    new_data["cost_tight"] = True
+                else:
+                    print(f"{len(A_b_list_here)}: not cost-tight yet")
+                    new_data["cost_tight"] = False
+
+                eigs = np.linalg.eigvalsh(X)[::-1]
+                new_data["eigs"] = eigs
+                if self.is_rank_one(eigs):
+                    print(f"{len(A_b_list_here)}: rank-tight")
+                    new_data["rank_tight"] = True
+                else:
+                    new_data["rank_tight"] = False
+                    print(f"{len(A_b_list_here)}: not rank-tight yet")
+                df_data[len(A_b_list_here)] = deepcopy(new_data)
+
+            if tightness == "rank":
+                return new_data["rank_tight"]
+            else:
+                return new_data["cost_tight"]
+
 
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
-
         # find the importance of each constraint
         if reorder:
             __, lamdas = solve_lambda(
@@ -241,62 +281,12 @@ class Learner(object):
 
         A_b0 = (self.lifter.get_A0(), 1.0)
         B_list = self.lifter.get_B_known()
-
         df_data = []
-
-        minimal_indices = []
-        tightness_counter = 0
-
-        rank_idx = None
-        cost_idx = None
-        new_data = {"lifter": str(self.lifter), "reorder": reorder}
 
         if use_last is None:
             start_idx = 0
         else:
-            start_idx = len(sorted_idx) - use_last
-
-        from solvers.sparse import bisection, brute_force
-
-        def function(A_b_list_here, df_data):
-            if len(A_b_list_here) in df_data.keys():
-                new_data = df_data[len(A_b_list_here)]
-            else:
-                new_data = {}
-                X, info = self._test_tightness(A_b_list_here, B_list=B_list, verbose=False)
-                dual_cost = info["cost"]
-                new_data["dual cost"] = dual_cost
-                if dual_cost is None:
-                    print(f"{len(A_b_list_here)}: solver error")
-                    new_data["eigs"] = np.full(self.lifter.get_dim_X(), np.nan)
-                    new_data["cost_tight"] = False
-                    new_data["rank_tight"] = False
-                    df_data[len(A_b_list_here)] = deepcopy(new_data)
-                    return False
-
-                elif self.duality_gap_is_zero(dual_cost):
-                    print(f"{len(A_b_list_here)}: cost-tight")
-                    new_data["cost_tight"] = True
-                else:
-                    new_data["cost_tight"] = False
-
-                eigs = np.linalg.eigvalsh(X)[::-1]
-                new_data["eigs"] = eigs
-                if self.is_rank_one(eigs):
-                    print(f"{len(A_b_list_here)}: rank-tight")
-                    new_data["rank_tight"] = True
-                    if tightness == "rank":
-                        tightness_counter += 1
-                else:
-                    new_data["rank_tight"] = False
-                    print(f"{len(A_b_list_here)}: not rank-tight yet")
-                df_data[len(A_b_list_here)] = deepcopy(new_data)
-
-            if tightness == "rank":
-                return new_data["rank_tight"]
-            else:
-                return new_data["cost_tight"]
-
+            start_idx = max(len(sorted_idx) - use_last, 0)
 
         inputs = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx]
         df_data = {}
@@ -306,13 +296,20 @@ class Learner(object):
             brute_force(function, (inputs, df_data), left=start_idx, right=len(sorted_idx))
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
-        if tightness == "cost":
-            min_idx = df_tight[df_tight.cost_tight == True].index.min()
-            minimal_indices = sorted_idx[range(min_idx)]
         if self.df_tight is None:
             self.df_tight = df_tight
         else:
             self.df_tight = pd.concat([self.df_tight, df_tight], axis=0)
+
+        minimal_indices = []
+        if tightness == "cost":
+            min_idx = df_tight[df_tight.cost_tight == True].index.min()
+            if not np.isnan(min_idx):
+                minimal_indices = sorted_idx[range(min_idx)]
+        elif tightness == "rank":
+            min_idx = df_tight[df_tight.rank_tight == True].index.min()
+            if not np.isnan(min_idx):
+                minimal_indices = sorted_idx[range(min_idx)]
         return minimal_indices
 
     def find_local_solution(self):
@@ -630,10 +627,15 @@ class Learner(object):
         for i, key_i in enumerate(templates_poly.variable_dict_i):
             data = {j: float(val) for j, val in templates_poly.matrix[key_i].items()}
             for key, idx_list in add_columns.items():
-                try:
-                    data[key] = idx_list.index(i)
-                except Exception:
-                    data[key] = -1
+                # if the list is not empty, then indicate which constraints are required.
+                if idx_list is not None and len(idx_list):
+                    try:
+                        data[key] = idx_list.index(i)
+                    except Exception:
+                        data[key] = -1
+                # if the list is empty, all of them are required (and more)
+                else:
+                    data[key] = 1.0
             series.append(
                 pd.Series(
                     data,
@@ -742,11 +744,11 @@ class Learner(object):
                 )
                 old_param = p
         ax.set_title(title)
-        if "required (reordered)" in df.columns:
+        if "required (sorted)" in df.columns:
             from matplotlib.patches import Rectangle
 
             for i, (__, row) in enumerate(df.iterrows()):
-                if row["required (reordered)"] < 0:
+                if row["required (sorted)"] < 0:
                     ax.add_patch(
                         Rectangle(
                             (ax.get_xlim()[0], i - 0.5),

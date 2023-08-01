@@ -25,6 +25,13 @@ def bisection(function, inputs, left, right):
     left_tight = function(A_list[:left+1], df_data)
     right_tight = function(A_list[:right+1], df_data)
     
+    if left_tight and right_tight:
+        print("Warning: not a valid starting interval, both left and right already tight!")
+        return 
+    elif (not left_tight) and (not right_tight):
+        print("Warning: problem is not tight on left or right.")
+        return
+
     assert not left_tight 
     assert right_tight
     # start at 0

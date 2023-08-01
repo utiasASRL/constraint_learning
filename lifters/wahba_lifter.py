@@ -34,6 +34,7 @@ class WahbaLifter(MonoLifter):
 
     def generate_random_setup(self):
         """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
+        self.theta
         self.landmarks = np.random.normal(
             loc=0, scale=1.0, size=(self.n_landmarks, self.d)
         )

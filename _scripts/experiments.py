@@ -7,6 +7,7 @@ import matplotlib.pylab as plt
 
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
+from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
@@ -26,21 +27,21 @@ rename_dict = {
 
 def create_newinstance(lifter, n_params):
     # TODO(FD): replace below with copy constructor
-    if isinstance(lifter, Stereo2DLifter):
+    if type(lifter) == Stereo2DLifter:
         new_lifter = Stereo2DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif isinstance(lifter, Stereo3DLifter):
+    elif type(lifter) ==  Stereo3DLifter:
         new_lifter = Stereo3DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif isinstance(lifter, RangeOnlyLocLifter):
+    elif type(lifter) ==  RangeOnlyLocLifter:
         new_lifter = RangeOnlyLocLifter(
             n_positions=n_params,
             n_landmarks=lifter.n_landmarks,
@@ -48,8 +49,16 @@ def create_newinstance(lifter, n_params):
             d=lifter.d,
             variable_list=None,
         )
-    elif isinstance(lifter, MonoLifter):
+    elif type(lifter) == MonoLifter:
         new_lifter = MonoLifter(
+            n_landmarks=n_params,
+            robust=lifter.robust,
+            level=lifter.level,
+            d=lifter.d,
+            variable_list=None,
+        )
+    elif type(lifter) ==  WahbaLifter:
+        new_lifter = WahbaLifter(
             n_landmarks=n_params,
             robust=lifter.robust,
             level=lifter.level,
@@ -88,6 +97,8 @@ def plot_scalability_new(df, log=True, start="t "):
     if log:
         ax.set_yscale("log")
     ax.legend(loc="upper left")
+    ax.set_xticks(ax.get_xticks())
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
     return fig, ax
 
 
@@ -154,7 +165,7 @@ def save_tightness_order(learner: Learner, fname_root=""):
             if reorder
             else "dual cost, original ordering"
         )
-        ax_cost.semilogy(df["n"], df["dual cost"], label=label)
+        ax_cost.semilogy(df.index, df["dual cost"], label=label)
 
         fig_eigs, ax_eigs = plt.subplots()
         fig_eigs.set_size_inches(5, 5)
@@ -167,7 +178,7 @@ def save_tightness_order(learner: Learner, fname_root=""):
         rank_idx = rank_tight[0] if len(rank_tight) else None
 
         for i in range(len(df)):
-            n = df.iloc[i].n
+            n = df.iloc[i].name
             eig = df.iloc[i].eigs
             label = None
             color = cmap(i)
@@ -219,17 +230,17 @@ def save_tightness_order(learner: Learner, fname_root=""):
     return
 
 
-def tightness_study(learner: Learner, tightness="rank", original=False, use_last=None):
+def tightness_study(learner: Learner, tightness="rank", original=False, use_last=None, use_bisection=False):
     """investigate tightness before and after reordering"""
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(
-        reorder=True, tightness=tightness, use_last=use_last
+        reorder=True, tightness=tightness, use_last=use_last, use_bisection=use_bisection
     )
     if not original:
         return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
-        reorder=False, tightness=tightness, use_last=use_last
+        reorder=False, tightness=tightness, use_last=use_last, use_bisection=use_bisection
     )
     return idx_subset_original, idx_subset_reorder
 
@@ -264,11 +275,11 @@ def run_scalability_new(
     learner: Learner,
     param_list: list,
     n_seeds: int = 1,
-    vmin=None,
-    vmax=None,
     recompute=False,
     tightness="cost",
-    use_last=None
+    use_last=None,
+    use_bisection=False
+
 ):
     import pickle
 
@@ -315,7 +326,8 @@ def run_scalability_new(
             learner,
             tightness=tightness,
             original=True,
-            use_last=use_last
+            use_last=use_last,
+            use_bisection=use_bisection
         )
         orig_dict["t determine required"] = time.time() - t1
         if idx_subset_reorder is not None:
@@ -471,7 +483,7 @@ def run_scalability_new(
 
     
 def run_oneshot_experiment(
-    learner: Learner, fname_root, plots, tightness="rank", add_original=True, use_last=None
+    learner: Learner, fname_root, plots, tightness="rank", add_original=True, use_last=None, use_bisection=False
 ):
     learner.run(verbose=True, use_known=True, plot=True, tightness=tightness)
 
@@ -483,7 +495,7 @@ def run_oneshot_experiment(
         savefig(fig, fname_root + "_svd.pdf")
 
     idx_subset_original, idx_subset_reorder = tightness_study(
-        learner, tightness=tightness, original=add_original, use_last=use_last
+        learner, tightness=tightness, original=add_original, use_last=use_last, use_bisection=use_bisection
     )
     if "tightness" in plots:
         save_tightness_order(learner, fname_root)
@@ -520,7 +532,7 @@ def run_oneshot_experiment(
         templates_poly = learner.generate_templates_poly(factor_out_parameters=True)
         add_columns = {
             "required": idx_subset_original,
-            "required (reordered)": idx_subset_reorder,
+            "required (sorted)": idx_subset_reorder,
         }
         df = learner.get_sorted_df(
             templates_poly=templates_poly, add_columns=add_columns
