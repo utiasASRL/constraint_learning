@@ -2,6 +2,7 @@ import pandas as pd
 
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
+from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
@@ -10,6 +11,7 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 def run_all(lifters):
     all_list = []
     for lifter in lifters:
+        print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list
         )
@@ -25,6 +27,10 @@ def run_all(lifters):
 if __name__ == "__main__":
     
     lifters = [
+        WahbaLifter(n_landmarks=4, d=2, robust=False, level="no"),
+        WahbaLifter(n_landmarks=8, d=3, robust=False, level="no"),
+        WahbaLifter(n_landmarks=4, d=2, robust=True, level="xwT"),
+        WahbaLifter(n_landmarks=8, d=3, robust=True, level="xwT"),
         RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         Stereo2DLifter(n_landmarks=3, param_level="ppT", level="urT"),
@@ -37,7 +43,7 @@ if __name__ == "__main__":
     try:
         df = pd.read_pickle("_results/all_df.pkl")
         lifters_str = set([str(l) for l in lifters])
-        assert lifters_str.issubset(df.lifter.unique().astype(str))
+        assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)

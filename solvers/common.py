@@ -163,7 +163,7 @@ def solve_sdp_cvxpy(
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
         constraints = [LHS << Q_here]
         if k > 0:
-            constraints.append(u <= 0)
+            constraints.append(u >= 0)
 
         cprob = cp.Problem(objective, constraints)
         try:
