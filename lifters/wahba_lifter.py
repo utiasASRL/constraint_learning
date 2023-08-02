@@ -6,73 +6,49 @@ plt.ion()
 
 import autograd.numpy as np
 
-from lifters.mono_lifter import MonoLifter
+from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
 N_TRYS = 10
-
 NOISE = 1e-2
+
 N_OUTLIERS = 0
 
-MAX_DIST = 2.0  # maximum distance of camera from landmarks
 
-# TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
-# However, the penalty results in inequality constraints etc. and that's not easy to deal with.
-PENALTY_RHO = 10
-PENALTY_U = 1e-3
+# TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
+# and it currently breaks tightness (might be a bug in my implementation though)
+USE_INEQ = False
 
-
-class WahbaLifter(MonoLifter):
+class WahbaLifter(RobustPoseLifter):
     def h_list(self, t):
         """
         We want to inforce that
-        - norm(t) <= 10
+        - norm(t) <= 10 (default)
         as constraints h_j(t)<=0
         """
-        return [np.sqrt(np.sum(t**2)) - MAX_DIST]
+        default = super().h_list(t)
+        return default
 
     def generate_random_setup(self):
         """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        self.theta
+        self.theta # makes sure to generate theta
         self.landmarks = np.random.normal(
             loc=0, scale=1.0, size=(self.n_landmarks, self.d)
         )
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
         return
 
-    def generate_random_theta(self):
-        """Generate a random new feasible point, this is the ground truth."""
-
-        i = 0
-        success = False
-        while not success:
-            i += 1
-            pc_cw = np.random.uniform(0, MAX_DIST**(1/self.d), size=self.d)
-            success = np.linalg.norm(pc_cw) < MAX_DIST
-            if success:
-                break
-            elif i > N_TRYS:
-                raise ValueError("didn't find feasible point")
-
-        n_angles = self.d * (self.d - 1) // 2
-        angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
-        if self.robust:
-            w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-            return np.r_[pc_cw, angles, w]
-        return np.r_[pc_cw, angles]
+    def get_random_position(self):
+        return np.random.uniform(-0.5*self.MAX_DIST**(1/self.d), 0.5*self.MAX_DIST**(1/self.d), size=self.d)
 
     def get_B_known(self):
-        """Get inequality constraints of the form x.T @ B @ x >= 0"""
-        dim_x = self.d + self.d**2
+        """Get inequality constraints of the form x.T @ B @ x <= 0"""
+        if not USE_INEQ:
+            return[]
 
-        # enforce that norm(t) <= MAX_DIST
-        B1 = PolyMatrix(symmetric=True)
-        constraint = np.zeros((dim_x, dim_x))
-        constraint[range(self.d), range(self.d)] = 1.0
-        B1["l", "l"] = -MAX_DIST
-        B1["x", "x"] = constraint
-        return [B1.get_matrix(self.var_dict)]
+        default = super().get_B_known()
+        return default
 
     def term_in_norm(self, R, t, pi, ui):
         return R @ pi + t - ui

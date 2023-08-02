@@ -8,130 +8,33 @@ plt.ion()
 
 import autograd.numpy as np
 
-from lifters.state_lifter import StateLifter
+from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils.geometry import (
-    get_C_r_from_theta,
-    get_C_r_from_xtheta,
-    get_xtheta_from_C_r,
-    get_xtheta_from_theta,
-)
+from utils.geometry import get_C_r_from_theta
 
-NOISE = 1e-1
-N_OUTLIERS = 0
-
-MAX_DIST = 2.0  # maximum distance of camera from landmarks
+NOISE = 1e-3
 FOV = np.pi / 2  # camera field of view
 
-METHOD = "CG"
-SOLVER_KWARGS = dict(
-    min_gradient_norm=1e-7, max_iterations=10000, min_step_size=1e-8, verbosity=1
-)
+N_TRYS = 10
+N_OUTLIERS = 0
 
-# TODO(FD) we need to add a penalty here, otherwise the local solution is not good.
-# However, the penalty results in inequality constraints etc. and that's not easy to deal with.
-ADD_PENALTY = True
-PENALTY_RHO = 10
-PENALTY_U = 1e-3
+# TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
+# and it currently breaks tightness (might be a bug in my implementation though)
+USE_INEQ = False
 
-
-class MonoLifter(StateLifter):
-    LEVELS = ["no", "xwT", "xxT"]
-    PARAM_LEVELS = ["no"]
-    VARIABLE_LIST = [
-        ["l", "x"],
-        ["l", "x", "w_0"],
-        ["l", "x", "z_0"],
-        ["l", "x", "w_0", "w_1"],
-        ["l", "x", "w_0", "z_0"],
-        ["l", "x", "z_0", "z_1"],
-    ]
-    LEVEL_NAMES = {"no": "no", "xwT": "x kron w", "xxT": "x kron x"}
-
-    # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
-    def __init__(
-        self,
-        level="no",
-        param_level="no",
-        d=2,
-        n_landmarks=3,
-        variable_list=None,
-        robust=False,
-    ):
-        """
-        :param level:
-            - xwT: x kron w
-            - xxT: x kron x
-        """
-        self.beta = 1.0
-        self.n_landmarks = n_landmarks
-
-        self.robust = robust
-        self.level = level
-        if variable_list == "all":
-            variable_list = self.get_all_variables()
-        # elif variable_list is None:
-        #    self.variable_list = self.VARIABLE_LIST
-
-        if not robust:
-            assert level == "no"
-        super().__init__(
-            level=level, param_level=param_level, d=d, variable_list=variable_list
-        )
-
+class MonoLifter(RobustPoseLifter):
     def h_list(self, t):
         """
         We want to inforce that
+        - norm(t) <= 10 (default)
         - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
-        - norm(t) <= 10
         as constraints h_j(t)<=0
         """
-        return [
-            np.sqrt(np.sum(t[:-1] ** 2)) - np.tan(FOV / 2) * t[-1],
-            # -t[-1]+1,
-            np.sqrt(np.sum(t**2)) - MAX_DIST,
+        default = super().h_list(t) 
+        return default + [
+            np.sum(t[:-1] ** 2) - np.tan(FOV / 2)**2 * t[-1]**2,
+            -t[-1]
         ]
-
-    def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
-        try:
-            return np.sum(
-                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
-            )
-        except RuntimeWarning:
-            PENALTY_U *= 0.1
-            u = PENALTY_U
-            return np.sum(
-                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
-            )
-
-    @property
-    def var_dict(self):
-        """Return key,size pairs of all variables."""
-        n = self.d**2 + self.d
-        var_dict = {"l": 1, "x": n}
-        if not self.robust:
-            return var_dict
-        var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
-        if self.level == "xwT":
-            var_dict.update({f"z_{i}": n for i in range(self.n_landmarks)})
-        elif self.level == "xxT":
-            var_dict.update({"z_0": n**2})
-        return var_dict
-
-    def get_all_variables(self):
-        all_variables = ["l", "x"]
-        if self.robust:
-            all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
-        if self.level == "xxT":
-            all_variables.append("z_0")
-        elif self.level == "xwT":
-            all_variables += [f"z_{i}" for i in range(self.n_landmarks)]
-        variable_list = [all_variables]
-        return variable_list
-
-    def get_level_dims(self, n=1):
-        """Return the dimension of the chosen lifting level, for n parameters"""
-        return
 
     def generate_random_setup(self):
         """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
@@ -139,128 +42,23 @@ class MonoLifter(StateLifter):
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
         return
 
-    def generate_random_theta(self):
-        """Generate a random new feasible point, this is the ground truth."""
-
-        # generate a random pose that is looking at world centre (where landmarks are)
+    def get_random_position(self):
         pc_cw = np.random.rand(self.d) * 0.1
-        pc_cw[self.d - 1] = np.random.uniform(1, MAX_DIST)
-
-        n_angles = self.d * (self.d - 1) // 2
-        angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
-        if self.robust:
-            w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-            return np.r_[pc_cw, angles, w]
-        return np.r_[pc_cw, angles]
-
-    def sample_theta(self):
-        """Sample a new feasible theta."""
-        theta = self.generate_random_theta()
-        if self.robust:
-            w = np.random.choice(
-                [-1, 1], size=self.n_landmarks
-            )  # [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
-            theta[-len(w) :] = w
-        return theta
-
-    def sample_parameters(self, x=None):
-        """Sample new parameters, given x."""
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            raise NotImplementedError("no parameters implement yet for mono.")
-
-    def get_x(self, theta=None, parameters=None, var_subset=None) -> np.ndarray:
-        """Get the lifted vector x given theta and parameters."""
-        if theta is None:
-            theta = self.theta
-        if parameters is None:
-            parameters = self.parameters
-        if var_subset is None:
-            var_subset = self.var_dict.keys()
-
-        if self.robust:
-            theta_here = theta[: -self.n_landmarks]
-        else:
-            theta_here = theta
-
-        if (self.d == 2) and len(theta_here) == 6:  # x, y, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
-        elif (self.d == 2) and len(theta_here) == 3:  # x, y, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
-        elif (self.d == 3) and len(theta_here) == 12:  # x, y, z, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
-        elif (self.d == 3) and len(theta_here) == 6:  # x, y, z, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
-        else:
-            raise ValueError(theta_here)
-
-        if self.param_level != "no":
-            landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
-        else:
-            landmarks = self.landmarks
-
-        x_data = []
-        for key in var_subset:
-            if key == "l":
-                x_data.append(1.0)
-            elif key == "x":
-                x_data += list(get_xtheta_from_C_r(R, t))
-            elif "w" in key:
-                j = int(key.split("_")[-1])
-                w_j = theta[-self.n_landmarks + j]
-                x_data.append(w_j)
-
-        if self.level == "no":
-            pass
-        elif self.level == "xxT":
-            if "z_0" in var_subset:
-                x_vec = list(get_xtheta_from_C_r(R, t))
-                x_data += list(np.kron(x_vec, x_vec))
-        elif self.level == "xwT":
-            for key in var_subset:
-                if "z" in key:
-                    j = int(key.split("_")[-1])
-                    w_j = theta[-self.n_landmarks + j]
-                    x_vec = get_xtheta_from_C_r(R, t)
-                    x_data += list(x_vec * w_j)
-        dim_x = self.get_dim_x(var_subset=var_subset)
-        assert len(x_data) == dim_x
-        return np.array(x_data)
-
-    def get_parameters(self, var_subset=None) -> list:
-        """Get the current paratmers given the (fixed) setup."""
-        return self.extract_parameters(var_subset, self.landmarks)
-
-    def get_A_known(self, var_dict=None, output_poly=False):
-        A_list = []
-        if var_dict is not None:
-            print("Warning: selecting subsets of constraints not implemented yet.")
-            return A_list
-        if self.robust:
-            for i in range(self.n_landmarks):
-                Ai = PolyMatrix(symmetric=True)
-                Ai["l", "l"] = -1.0
-                Ai[f"w_{i}", f"w_{i}"] = 1.0
-                if output_poly:
-                    A_list.append(Ai)
-                else:
-                    A_list.append(Ai.get_matrix(self.var_dict))
-        return A_list
+        pc_cw[self.d - 1] = np.random.uniform(1, self.MAX_DIST)
+        return pc_cw
 
     def get_B_known(self):
-        """Get inequality constraints of the form x.T @ B @ x >= 0"""
+        """Get inequality constraints of the form x.T @ B @ x <= 0"""
+
+        # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
+        # and it currently breaks tightness (might be a bug in my implementation though)
+        if not USE_INEQ:
+            return []
+
         dim_x = self.d + self.d**2
-
-        # enforce that norm(t) <= MAX_DIST
-        B1 = PolyMatrix(symmetric=True)
-        constraint = np.zeros((dim_x, dim_x))
-        constraint[range(self.d), range(self.d)] = 1.0
-        B1["l", "l"] = -MAX_DIST
-        B1["x", "x"] = constraint
-
-        # enforce that tan(FOV/2)*t3 >= sqrt(t1**2 + t2**2)
-        # tan**2(FOV/2)*t**2 - t1**2 - t2**2 >= 0
+        default = super().get_B_known()
+        ## B2 and B3 enforce that tan(FOV/2)*t3 >= sqrt(t1**2 + t2**2)
+        # 0 <= - tan**2(FOV/2)*t3**2 + t1**2 + t2**2
         B3 = PolyMatrix(symmetric=True)
         constraint = np.zeros((dim_x, dim_x))
         constraint[range(self.d - 1), range(self.d - 1)] = 1.0
@@ -272,34 +70,10 @@ class MonoLifter(StateLifter):
         constraint[self.d - 1] = -1
         B2 = PolyMatrix(symmetric=True)
         B2["l", "x"] = constraint[None, :]
-        return [
-            B1.get_matrix(self.var_dict),
+        return default + [
             B2.get_matrix(self.var_dict),
             B3.get_matrix(self.var_dict),
         ]
-
-        # simplified: enforce that t[2] >= 1
-        B2 = PolyMatrix(symmetric=True)
-        constraint = np.zeros(dim_x)
-        constraint[self.d - 1] = -1.0
-        B2["l", "l"] = 1.0
-        B2["l", "x"] = constraint[None, :]
-        return [B1.get_matrix(self.var_dict), B2.get_matrix(self.var_dict)]
-
-    def get_vec_around_gt(self, delta: float = 0):
-        """Sample around ground truth.
-        :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
-        """
-        if self.robust:
-            n_rot = self.d * (self.d - 1) // 2
-            theta_x = deepcopy(self.theta[: self.d + n_rot])
-            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
-            theta_w = self.theta[self.d + n_rot :]
-            return np.r_[get_xtheta_from_theta(theta_x, self.d), theta_w]
-        else:
-            theta_x = deepcopy(self.theta)
-            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
-            return get_xtheta_from_theta(theta_x, self.d)
 
     def term_in_norm(self, R, t, pi, ui):
         return R @ pi + t
@@ -308,34 +82,6 @@ class MonoLifter(StateLifter):
         W = np.eye(self.d) - np.outer(ui, ui)
         term = self.term_in_norm(R, t, pi, ui)
         return term.T @ W @ term
-
-    def get_cost(self, theta, y):
-        if self.robust:
-            x = theta[: -self.n_landmarks]
-            w = theta[-self.n_landmarks :]
-            assert np.all(w**2 == 1.0)
-        else:
-            x = theta
-
-        try:
-            R, t = get_C_r_from_theta(x, self.d)
-        except:
-            R, t = get_C_r_from_xtheta(x, self.d)
-
-        cost = 0
-        for i in range(self.n_landmarks):
-            res = self.residual(R, t, self.landmarks[i], y[i])
-            if self.robust:
-                cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
-            else:
-                cost += res
-        return 0.5 * cost
-
-    def get_grad(self, t, y):
-        raise NotImplementedError("get_grad not implement yet")
-
-    def get_hess(self, t, y):
-        raise NotImplementedError("get_hess not implement yet")
 
     def get_Q(self, noise: float = None):
         if noise is None:
@@ -359,8 +105,6 @@ class MonoLifter(StateLifter):
         return Q, y
 
     def get_Q_from_y(self, y):
-        from poly_matrix.poly_matrix import PolyMatrix
-
         Q = PolyMatrix(symmetric=True)
 
         for i in range(self.n_landmarks):
@@ -383,89 +127,6 @@ class MonoLifter(StateLifter):
                 Q[f"x", "x"] += Qi
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
-
-    def local_solver(
-        self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS
-    ):
-        import pymanopt
-        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
-
-        if method == "CG":
-            from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest
-        elif method == "SD":
-            from pymanopt.optimizers import SteepestDescent as Optimizer  # slow
-        elif method == "TR":
-            from pymanopt.optimizers import TrustRegions as Optimizer  # okay
-        else:
-            raise ValueError(method)
-
-        if verbose:
-            solver_kwargs["verbosity"] = 2
-
-        # We assume that we know w! If we wanted to solve for w too we would need
-        # IRLS or similar. Since we just care about getting the global solution
-        # with a local sovler that's not necessary.
-        w = self.theta[-self.n_landmarks :]
-
-        manifold = Product((SpecialOrthogonalGroup(self.d, k=1), Euclidean(self.d)))
-
-        @pymanopt.function.autograd(manifold)
-        def cost(R, t):
-            cost = 0
-            for i in range(self.n_landmarks):
-                residual = self.residual(R, t, self.landmarks[i], y[i])
-                if self.robust:
-                    cost += (1 + w[i]) / self.beta**2 * residual + 1 - w[i]
-                else:
-                    cost += residual
-            if ADD_PENALTY:
-                return 0.5 * cost + self.penalty(t)
-            else:
-                return 0.5 * cost
-
-        @pymanopt.function.autograd(manifold)
-        def euclidean_gradient(R, t):
-            grad_R = np.zeros(R.shape)
-            grad_t = np.zeros(t.shape)
-            for i in range(self.n_landmarks):
-                Wi = np.eye(self.d) - np.outer(y[i], y[i])
-                # residual = (R @ pi + t).T @ Wi @ (R @ pi + t)
-                term = self.term_in_norm(R, t, self.landmarks[i], y[i])
-                if self.robust:
-                    grad_R += (
-                        2
-                        * w[i]
-                        / self.beta**2
-                        * np.outer(Wi.T @ term, self.landmarks[i])
-                    )
-                    grad_t += 2 * w[i] / self.beta**2 * Wi.T @ term
-                else:
-                    grad_R += np.outer(Wi.T @ term, self.landmarks[i])
-                    grad_t += Wi.T @ term
-            return grad_R, grad_t
-
-        if ADD_PENALTY:
-            euclidean_gradient = None
-        problem = pymanopt.Problem(
-            manifold, cost, euclidean_gradient=euclidean_gradient  #
-        )
-        optimizer = Optimizer(**solver_kwargs)
-
-        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
-        res = optimizer.run(problem, initial_point=(R_0, t_0))
-        R, t = res.point
-        if self.robust:
-            theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
-        else:
-            theta_hat = get_xtheta_from_C_r(R, t)
-
-        cost_penalized = res.cost
-        if ADD_PENALTY:
-            pen = self.penalty(t)
-            if abs(res.cost) > 1e-10:
-                assert abs(pen) / res.cost <= 1e-1, (pen, res.cost)
-            cost_penalized -= pen
-        return theta_hat, res.stopping_criterion, cost_penalized
 
     def __repr__(self):
         appendix = "_robust" if self.robust else ""

@@ -134,17 +134,20 @@ def solve_sdp_cvxpy(
             X = None
             H = None
             yvals = None
+            msg = "infeasible / unknown"
         else:
             if np.isfinite(cprob.value):
                 cost = cprob.value
                 X = X.value
                 H = constraints[0].dual_value
                 yvals = [c.dual_value for c in constraints[1:]]
+                msg = "converged"
             else:
                 cost = None
                 X = None
                 H = None
                 yvals = None
+                msg = "unbounded"
     else:  # Dual
         """
         max < y, b >
@@ -160,7 +163,7 @@ def solve_sdp_cvxpy(
         As, b = zip(*A_b_list)
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
-        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
+        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [-u[i] * Bi for (i, Bi) in enumerate(B_list)])
         constraints = [LHS << Q_here]
         if k > 0:
             constraints.append(u >= 0)
@@ -176,17 +179,20 @@ def solve_sdp_cvxpy(
             X = None
             H = None
             yvals = None
+            msg = "infeasible / unknown"
         else:
             if np.isfinite(cprob.value):
                 cost = cprob.value
                 X = constraints[0].dual_value
                 H = Q_here - LHS.value
                 yvals = [x.value for x in y]
+                msg = "converged"
             else:
                 cost = None
                 X = None
                 H = None
                 yvals = None
+                msg = "unbounded"
 
     # reverse Q adjustment
     if cost:
@@ -195,7 +201,7 @@ def solve_sdp_cvxpy(
         H *= scale
         H[0, 0] += offset
 
-    info = {"H": H, "yvals": yvals, "cost": cost}
+    info = {"H": H, "yvals": yvals, "cost": cost, "msg": msg}
     return X, info
 
 

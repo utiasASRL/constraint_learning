@@ -79,7 +79,6 @@ def lifter_scalability_new(Lifter, d:int=2):
         learner, param_list=n_landmarks_list, n_seeds=n_seeds, use_last=None, recompute=False, use_bisection=True
     )
 
-
     learner.run(
         verbose=True, use_known=False, plot=False, tightness="cost"
     )
@@ -99,11 +98,15 @@ def lifter_scalability_new(Lifter, d:int=2):
 
 
 if __name__ == "__main__":
-    #from lifters.mono_lifter import MonoLifter as Lifter
-    from lifters.wahba_lifter import WahbaLifter as Lifter
+    from lifters.mono_lifter import MonoLifter as Lifter
+    #from lifters.wahba_lifter import WahbaLifter as Lifter
 
-    for d, robust in itertools.product([2, 3], [False, True]):
-        lifter_tightness(Lifter, d=d, robust=robust)
+    d = 3
+    robust = False
+    lifter_tightness(Lifter, d=d, robust=robust)
+
+    #for d, robust in itertools.product([2, 3], [False, True]):
+    #    lifter_tightness(Lifter, d=d, robust=robust)
 
     #for d in [2, 3]:
     #    lifter_scalability_new(Lifter, d=d)

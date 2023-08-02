@@ -1,4 +1,5 @@
 import pandas as pd
+import numpy as np
 
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
@@ -8,9 +9,11 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 
-def run_all(lifters):
+def run_all(lifters, seed=0):
     all_list = []
-    for lifter in lifters:
+    for Lifter, dict in lifters:
+        np.random.seed(seed)
+        lifter = Lifter(**dict)
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list
@@ -25,22 +28,27 @@ def run_all(lifters):
 
 
 if __name__ == "__main__":
-    
+
+    # fix seed for reproducibility
+
     lifters = [
-        WahbaLifter(n_landmarks=4, d=2, robust=False, level="no"),
-        WahbaLifter(n_landmarks=8, d=3, robust=False, level="no"),
-        WahbaLifter(n_landmarks=4, d=2, robust=True, level="xwT"),
-        WahbaLifter(n_landmarks=8, d=3, robust=True, level="xwT"),
-        RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
-        RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        Stereo2DLifter(n_landmarks=3, param_level="ppT", level="urT"),
-        Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT"),
-        MonoLifter(n_landmarks=4, d=2, robust=False, level="no"),
-        MonoLifter(n_landmarks=8, d=3, robust=False, level="no"),
-        MonoLifter(n_landmarks=4, d=2, robust=True, level="xwT"),
-        MonoLifter(n_landmarks=8, d=3, robust=True, level="xwT"),
+        (WahbaLifter, dict(n_landmarks=3, d=2, robust=False, level="no")), # ok with and without B_list
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no")), # ok "
+        (WahbaLifter, dict(n_landmarks=3, d=2, robust=True, level="xwT")), # ok "
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT")), # ok "
+        (MonoLifter, dict(n_landmarks=4, d=2, robust=False, level="no")),  # ok
+        (MonoLifter, dict(n_landmarks=8, d=3, robust=False, level="no")),  # ok
+        (MonoLifter, dict(n_landmarks=4, d=2, robust=True, level="xwT")),  # ok (super small violation:  2.92e-06 dual vs. 2.91e-06 qcqp)
+        (MonoLifter, dict(n_landmarks=8, d=3, robust=True, level="xwT")),  # ok
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
+        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")), # ok
+        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")), # ok
     ]
+    recompute = True
+
     try:
+        assert recompute is False
         df = pd.read_pickle("_results/all_df.pkl")
         lifters_str = set([str(l) for l in lifters])
         assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
