@@ -137,6 +137,7 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
         # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
         axs[var_name].set_xticks(df_plot.N.unique())
         axs[var_name].set_title(var_name)
+        axs[var_name].grid('on')
         # axs[operation].legend(loc="lower right")
     # axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     return fig, axs
@@ -217,10 +218,10 @@ def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
 
         if reorder:
             name = "sorted"
-            ax_eigs.set_title("sorted by dual values")
+            # ax_eigs.set_title("sorted by dual values")
         else:
             name = "original"
-            ax_eigs.set_title("original order")
+            # ax_eigs.set_title("original order")
         ax_eigs.legend(loc="upper right", title="number of added\n constraints")
         if fname_root != "":
             savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.pdf")
@@ -515,7 +516,8 @@ def run_scalability_new(
         df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
 
-    fig, ax = plot_scalability(df, log=True, start="t ")
+    fig, axs = plot_scalability(df, log=True, start="t ")
+    [ax.set_ylim(10, 200) for ax in axs.values()]
     fig.set_size_inches(5, 5)
     savefig(fig, fname_root + f"_t.pdf")
     fig, ax = plot_scalability(df, log=True, start="n ")

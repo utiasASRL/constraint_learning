@@ -100,9 +100,9 @@ if __name__ == "__main__":
     from lifters.wahba_lifter import WahbaLifter
 
     d = 3
-    lifter_scalability_new(MonoLifter, d=d)
-    lifter_scalability_new(WahbaLifter, d=d)
+    # lifter_scalability_new(MonoLifter, d=d)
+    # lifter_scalability_new(WahbaLifter, d=d)
 
-    # robust = False
-    # for Lifter in MonoLifter, WahbaLifter:
-    #    lifter_tightness(Lifter, d=d, robust=robust)
+    robust = False
+    for Lifter in MonoLifter, WahbaLifter:
+        lifter_tightness(Lifter, d=d, robust=robust)
