@@ -13,25 +13,26 @@ from _scripts.stereo_study import (
     run_scalability_new,
 )
 
-def lifter_tightness(Lifter = MonoLifter, robust:bool = False, d:int=2):
+
+def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
     plots = [
-        #"svd",
-        #"matrices",
-        #"matrix",
+        # "svd",
+        # "matrices",
+        # "matrix",
         "tightness",
         "templates",
-    ] 
+    ]
 
     if d == 2:
-        n_landmarks = 4 # we have d**2 + d = 6 unknowns --> need n>=3 landmarks
-    elif d == 3: 
-        n_landmarks = 8 # we have d**2 + d = 12 unknowns --> need n>=6 landmarks
+        n_landmarks = 4  # we have d**2 + d = 6 unknowns --> need n>=3 landmarks
+    elif d == 3:
+        n_landmarks = 8  # we have d**2 + d = 12 unknowns --> need n>=6 landmarks
     if robust:
-        levels = ["xwT"] #["xxT"] #["xwT", "xxT"]
+        levels = ["xwT"]  # ["xxT"] #["xwT", "xxT"]
     else:
         levels = ["no"]
 
@@ -42,24 +43,31 @@ def lifter_tightness(Lifter = MonoLifter, robust:bool = False, d:int=2):
             d=d,
             level=level,
             variable_list="all",
-            robust=robust
+            robust=robust,
         )
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(
-            learner, fname_root, plots, tightness="rank", add_original=True, use_last=20, use_bisection=False
+            learner,
+            fname_root,
+            plots,
+            tightness="rank",
+            add_original=True,
+            use_last=30,
+            use_bisection=False,
         )
 
-def lifter_scalability_new(Lifter, d:int=2):
+
+def lifter_scalability_new(Lifter, d: int = 2):
     if d == 2:
         n_landmarks = 4
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
-        n_seeds = 1  
+        n_seeds = 1
     elif d == 3:
         n_landmarks = 8
-        n_landmarks_list = [5, 10, 15, 20, 25, 30]
+        n_landmarks_list = [10, 11, 12, 13, 14, 15]  # , 20, 25, 30]
         n_seeds = 1
 
     level = "xwT"
@@ -72,41 +80,29 @@ def lifter_scalability_new(Lifter, d:int=2):
         d=d,
         level=level,
         variable_list=variable_list,
-        robust=robust
+        robust=robust,
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, use_last=None, recompute=False, use_bisection=True
+        learner,
+        param_list=n_landmarks_list,
+        n_seeds=n_seeds,
+        use_last=None,
+        recompute=False,
+        use_bisection=True,
+        add_original=False,
+        tightness="cost",
     )
-
-    learner.run(
-        verbose=True, use_known=False, plot=False, tightness="cost"
-    )
-    from experiments import create_newinstance
-    np.random.seed(0)
-    new_lifter = create_newinstance(lifter, 4)
-
-    new_learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
-    new_learner.templates = learner.templates
-    
-    n_new, n_total = new_learner.apply_templates(reapply_all=True)
-    new_learner.constraints = new_learner.clean_constraints(
-        new_learner.constraints, [], remove_imprecise=True
-    )
-    new_learner.is_tight(tightness="cost", verbose=True)
-    print("done")
 
 
 if __name__ == "__main__":
-    from lifters.mono_lifter import MonoLifter as Lifter
-    #from lifters.wahba_lifter import WahbaLifter as Lifter
+    from lifters.mono_lifter import MonoLifter
+    from lifters.wahba_lifter import WahbaLifter
 
     d = 3
-    robust = False
-    lifter_tightness(Lifter, d=d, robust=robust)
+    lifter_scalability_new(MonoLifter, d=d)
+    lifter_scalability_new(WahbaLifter, d=d)
 
-    #for d, robust in itertools.product([2, 3], [False, True]):
+    # robust = False
+    # for Lifter in MonoLifter, WahbaLifter:
     #    lifter_tightness(Lifter, d=d, robust=robust)
-
-    #for d in [2, 3]:
-    #    lifter_scalability_new(Lifter, d=d)

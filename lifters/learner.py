@@ -20,13 +20,13 @@ TOL = 1e-10
 
 NOISE_SEED = 5
 
-ADJUST_Q = True # rescale Q matrix
+ADJUST_Q = True  # rescale Q matrix
 PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, because of how MOSEK is set up.
 
 FACTOR = 1.2  # oversampling factor.
 
 TOL_REL_GAP = 1e-3
-TOL_RANK_ONE = 1e8
+TOL_RANK_ONE = 1e9
 
 PLOT_MAX_MATRICES = 20  # set to np.inf to plot all individual matrices.
 
@@ -196,7 +196,7 @@ class Learner(object):
             return True
         else:
             final_cost = np.trace(self.solver_vars["Q"] @ X)
-            if abs(final_cost - info["cost"])/info["cost"] >= 1e-3:
+            if abs(final_cost - info["cost"]) / info["cost"] >= 1e-3:
                 print(
                     f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}"
                 )
@@ -210,21 +210,25 @@ class Learner(object):
                 tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
             return tightness_val
 
-    def generate_minimal_subset(self, reorder=False, tightness="rank", use_last=None, use_bisection=False):
+    def generate_minimal_subset(
+        self, reorder=False, tightness="rank", use_last=None, use_bisection=False
+    ):
         from solvers.sparse import solve_lambda
         from solvers.sparse import bisection, brute_force
 
         def function(A_b_list_here, df_data):
-            """ Function for bisection or brute_force """
+            """Function for bisection or brute_force"""
             if len(A_b_list_here) in df_data.keys():
                 new_data = df_data[len(A_b_list_here)]
             else:
                 new_data = {"lifter": str(self.lifter), "reorder": reorder}
-                X, info = self._test_tightness(A_b_list_here, B_list=B_list, verbose=False)
+                X, info = self._test_tightness(
+                    A_b_list_here, B_list=B_list, verbose=False
+                )
                 dual_cost = info["cost"]
                 new_data["dual cost"] = dual_cost
                 if dual_cost is None:
-                    print(f"{len(A_b_list_here)}: solver error")
+                    print(f"{len(A_b_list_here)}: solver error? msg: {info['msg']}")
                     new_data["eigs"] = np.full(self.lifter.get_dim_X(), np.nan)
                     new_data["cost_tight"] = False
                     new_data["rank_tight"] = False
@@ -253,7 +257,6 @@ class Learner(object):
             else:
                 return new_data["cost_tight"]
 
-
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
@@ -266,7 +269,7 @@ class Learner(object):
                 B_list=B_list,
                 force_first=1,
                 tol=1e-10,
-                verbose=False
+                verbose=False,
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
@@ -291,9 +294,13 @@ class Learner(object):
         inputs = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx]
         df_data = {}
         if use_bisection:
-            bisection(function, (inputs, df_data), left=start_idx, right=len(sorted_idx))
+            bisection(
+                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+            )
         else:
-            brute_force(function, (inputs, df_data), left=start_idx, right=len(sorted_idx))
+            brute_force(
+                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+            )
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
         if self.df_tight is None:
@@ -362,7 +369,9 @@ class Learner(object):
 
         if use_known:
             b_list = []
-            for Ai in self.lifter.get_A_known(var_dict=self.mat_var_dict, output_poly=False):
+            for Ai in self.lifter.get_A_known(
+                var_dict=self.mat_var_dict, output_poly=False
+            ):
                 a = self.lifter.get_vec(Ai, correct=False)
                 b_list.append(self.lifter.augment_using_zero_padding(a))
 
@@ -372,7 +381,7 @@ class Learner(object):
                     mat_var_dict=self.mat_var_dict,
                     b=bi,
                     lifter=self.lifter,
-                    convert_to_polyrow = self.apply_templates_to_others
+                    convert_to_polyrow=self.apply_templates_to_others,
                 )
                 for i, bi in enumerate(b_list)
             ]
@@ -415,7 +424,7 @@ class Learner(object):
                     mat_var_dict=self.mat_var_dict,
                     b=b,
                     lifter=self.lifter,
-                    convert_to_polyrow = self.apply_templates_to_others
+                    convert_to_polyrow=self.apply_templates_to_others,
                 )
                 for i, b in enumerate(basis_new)
             ]
@@ -718,7 +727,12 @@ class Learner(object):
         assert keys.issubset(variables_j)
         if drop_zero:
             variables_j = {k: v for k, v in variables_j.items() if k in keys}
-        fig, ax = plot_basis(poly_matrix, variables_j=variables_j, variables_i=list(df.index.values), discrete=True)
+        fig, ax = plot_basis(
+            poly_matrix,
+            variables_j=variables_j,
+            variables_i=list(df.index.values),
+            discrete=True,
+        )
         ax.set_yticklabels([])
         ax.set_yticks([])
         if simplify:
@@ -728,7 +742,7 @@ class Learner(object):
             new_xticks = [
                 f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
             ]
-            ax.set_xticklabels(new_xticks)
+            ax.set_xticklabels(new_xticks, fontsize=7)
 
         # plot a red vertical line at each new block of parameters.
         params = [v.split("-")[0] for v in variables_j]
