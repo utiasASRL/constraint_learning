@@ -1,15 +1,10 @@
-import itertools
-
 import numpy as np
-import pandas as pd
 
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import (
     run_oneshot_experiment,
-    plot_scalability,
     run_scalability_new,
 )
 
@@ -100,9 +95,9 @@ if __name__ == "__main__":
     from lifters.wahba_lifter import WahbaLifter
 
     d = 3
-    # lifter_scalability_new(MonoLifter, d=d)
+    #lifter_scalability_new(MonoLifter, d=d)
     # lifter_scalability_new(WahbaLifter, d=d)
 
-    robust = False
+    robust = True
     for Lifter in [MonoLifter, WahbaLifter]:
         lifter_tightness(Lifter, d=d, robust=robust)
