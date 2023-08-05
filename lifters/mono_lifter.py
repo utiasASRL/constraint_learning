@@ -110,21 +110,35 @@ class MonoLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
-            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
-            Wi = np.eye(self.d) - np.outer(ui, ui)
-            Qi = Pi.T @ Wi @ Pi / self.beta**2
+
+            kron_i = np.kron(pi, np.eye(self.d))
+            I = np.eye(self.d)
+            Pi = np.c_[I, kron_i] # I, pi x I
+            Wi = I - np.outer(ui, ui)
+            Qi = Pi.T @ Wi @ Pi # "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 
             if self.robust:
                 Qi /= self.beta**2
                 Q["l", "l"] += 1
                 Q["l", f"w_{i}"] += -0.5
                 if self.level == "xwT":
-                    Q[f"z_{i}", "x"] += 0.5 * Qi
-                    Q[f"x", "x"] += Qi
+                    #Q[f"z_{i}", "x"] += 0.5 * Qi
+                    Q[f"z_{i}", "t"] += 0.5 * Wi
+                    Q[f"z_{i}", "c"] += 0.5 * kron_i.T @ Wi @ kron_i
+                    #Q["x", "x"] += Qi
+                    Q["t", "t"] += Wi
+                    Q["t", "c"] += Wi @ kron_i
+                    Q["c", "c"] += kron_i.T @ Wi @ kron_i
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
-                    Q[f"x", "x"] += Qi
+                    #Q["x", "x"] += Qi
+                    Q["t", "t"] += Wi
+                    Q["t", "c"] += Wi @ kron_i
+                    Q["c", "c"] += kron_i.T @ Wi @ kron_i
             else:
-                Q[f"x", "x"] += Qi
+                #Q["x", "x"] += Qi
+                Q["t", "t"] += Wi
+                Q["t", "c"] += Wi @ kron_i
+                Q["c", "c"] += kron_i.T @ Wi @ kron_i
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 

@@ -91,29 +91,54 @@ class WahbaLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
-            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
+
+            kron_i = np.kron(pi, np.eye(self.d))
+            I = np.eye(self.d)
+            Pi = np.c_[I, kron_i]
             Pi_ll = ui.T @ Wi @ ui
             Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
+            Pi_xl_t = -(Wi @ ui)[:, None]
+            Pi_xl_c = -(kron_i.T @ Wi @ ui)[:, None]
             Qi = Pi.T @ Wi @ Pi
             if self.robust:
                 Qi /= self.beta**2
                 Pi_ll /= self.beta**2
                 Pi_xl /= self.beta**2
-                Q["x", "x"] += Qi
-                Q["x", "l"] += Pi_xl
+                #Q["x", "x"] += Qi
+                Q["t", "t"] += Wi
+                Q["t", "c"] += Wi @ kron_i
+                Q["c", "c"] += kron_i.T @ Wi @ kron_i
+
+                #Q["x", "l"] += Pi_xl
+                Q["t", "l"] += Pi_xl_t
+                Q["c", "l"] += Pi_xl_c
                 Q["l", "l"] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
                 Q["l", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
-                    Q[f"z_{i}", "x"] += 0.5 * Qi
+                    #Q[f"z_{i}", "x"] += 0.5 * Qi
+                    Q[f"z_{i}", "t"] += 0.5 * Wi
+                    Q[f"z_{i}", "c"] += 0.5 * kron_i.T @ Wi @ kron_i
+
                     Q[f"w_{i}", "l"] += 0.5 * Pi_ll
+                    
                     Q[f"z_{i}", "l"] += Pi_xl
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
                     Q[f"w_{i}", "l"] += 0.5 * Pi_ll
-                    Q["x", f"w_{i}"] += Pi_xl
+
+                    #Q["x", f"w_{i}"] += Pi_xl
+                    Q["t", f"w_{i}"] += Pi_xl_t
+                    Q["c", f"w_{i}"] += Pi_xl_c
             else:
-                Q["x", "x"] += Qi
-                Q["x", "l"] += Pi_xl
+                #Q["x", "x"] += Qi
+                Q["t", "t"] += Wi
+                Q["t", "c"] += Wi @ kron_i
+                Q["c", "c"] += kron_i.T @ Wi @ kron_i
+
+                #Q["x", "l"] += Pi_xl
+                Q["t", "l"] += Pi_xl_t
+                Q["c", "l"] += Pi_xl_c
+
                 Q["l", "l"] += Pi_ll  # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse

@@ -104,5 +104,5 @@ if __name__ == "__main__":
     # lifter_scalability_new(WahbaLifter, d=d)
 
     robust = False
-    for Lifter in MonoLifter, WahbaLifter:
+    for Lifter in [MonoLifter, WahbaLifter]:
         lifter_tightness(Lifter, d=d, robust=robust)

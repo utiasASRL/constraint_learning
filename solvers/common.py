@@ -5,6 +5,9 @@ from lifters.state_lifter import StateLifter
 
 TOL = 1e-10
 
+# Reference for MOSEK parameters explanations:
+# https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
+
 VERBOSE = False
 SOLVER = "MOSEK"  # first choice
 solver_options = {

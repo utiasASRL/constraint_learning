@@ -26,7 +26,7 @@ PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, b
 FACTOR = 1.2  # oversampling factor.
 
 TOL_REL_GAP = 1e-3
-TOL_RANK_ONE = 1e9
+TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 20  # set to np.inf to plot all individual matrices.
 
@@ -121,11 +121,11 @@ class Learner(object):
         if primal_cost is None:
             print("warning can't check violation, no primal cost.")
             return False
-        return (dual_cost - primal_cost) / primal_cost > TOL_REL_GAP
+        return (dual_cost - primal_cost) / dual_cost > TOL_REL_GAP
 
     def duality_gap_is_zero(self, dual_cost, verbose=False):
         primal_cost = self.solver_vars["qcqp_cost"]
-        res = (primal_cost - dual_cost) / primal_cost < TOL_REL_GAP
+        res = (primal_cost - dual_cost) / dual_cost < TOL_REL_GAP
         if not verbose:
             return res
 
@@ -260,14 +260,22 @@ class Learner(object):
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
-        # find the importance of each constraint
+
+        A_b0 = (self.lifter.get_A0(), 1.0)
+        inputs = [A_b0]
+            
+        A_b_known = [(Ai, 0.0) for Ai in self.lifter.get_A_known()]
+        inputs += A_b_known
+        force_first = len(inputs)
+
         if reorder:
+            # find the importance of each constraint
             __, lamdas = solve_lambda(
                 self.solver_vars["Q"],
                 A_b_list_all,
                 self.solver_vars["xhat"],
                 B_list=B_list,
-                force_first=1,
+                force_first=force_first,
                 tol=1e-10,
                 verbose=False,
             )
@@ -276,30 +284,31 @@ class Learner(object):
                 return None
             print("found valid lamdas")
 
-            # order constraints by importance
-            sorted_idx = np.argsort(np.abs(lamdas[1:]))[::-1]
+            # order the redundant constraints by importance
+            redundant_idx = np.argsort(np.abs(lamdas[force_first:]))[::-1]
+            sorted_idx = force_first + redundant_idx
         else:
-            lamdas = np.zeros(len(self.constraints))
-            sorted_idx = np.arange(len(self.constraints))
+            # if force_first is 7, then
+            # sorted idx is simply 7, 8, 9, ..., 20
+            sorted_idx = force_first + np.arange(len(A_list)-force_first)
+        inputs += [A_b_list_all[idx] for idx in sorted_idx]
 
-        A_b0 = (self.lifter.get_A0(), 1.0)
         B_list = self.lifter.get_B_known()
         df_data = []
 
         if use_last is None:
-            start_idx = 0
+            start_idx = force_first
         else:
-            start_idx = max(len(sorted_idx) - use_last, 0)
+            start_idx = max(len(inputs) - use_last, force_first)
 
-        inputs = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx]
         df_data = {}
         if use_bisection:
             bisection(
-                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+                function, (inputs, df_data), left=start_idx, right=len(inputs)
             )
         else:
             brute_force(
-                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+                function, (inputs, df_data), left=start_idx, right=len(inputs)
             )
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
@@ -311,12 +320,10 @@ class Learner(object):
         minimal_indices = []
         if tightness == "cost":
             min_idx = df_tight[df_tight.cost_tight == True].index.min()
-            if not np.isnan(min_idx):
-                minimal_indices = sorted_idx[range(min_idx)]
         elif tightness == "rank":
             min_idx = df_tight[df_tight.rank_tight == True].index.min()
-            if not np.isnan(min_idx):
-                minimal_indices = sorted_idx[range(min_idx)]
+        if not np.isnan(min_idx):
+            minimal_indices = list(range(force_first))+ list(sorted_idx[range(min_idx-force_first)])
         return minimal_indices
 
     def find_local_solution(self):
@@ -638,6 +645,7 @@ class Learner(object):
             for key, idx_list in add_columns.items():
                 # if the list is not empty, then indicate which constraints are required.
                 if idx_list is not None and len(idx_list):
+                    idx_list = list(idx_list)
                     try:
                         data[key] = idx_list.index(i)
                     except Exception:
@@ -740,7 +748,7 @@ class Learner(object):
             ax.set_xticklabels([])
         else:
             new_xticks = [
-                f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
+                f"${lbl.get_text().replace('l-', '').replace(':', '_')}$" for lbl in ax.get_xticklabels()
             ]
             ax.set_xticklabels(new_xticks, fontsize=7)
 
