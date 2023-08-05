@@ -12,11 +12,11 @@ from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
-NOISE = 1e-3
 FOV = np.pi / 2  # camera field of view
+NOISE = 1e-3 # inlier noise
+NOISE_OUT = 1.0 # outlier noise
 
 N_TRYS = 10
-N_OUTLIERS = 0
 
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
@@ -93,10 +93,16 @@ class MonoLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             # ui = deepcopy(pi) #R @ pi + t
-            ui = R @ pi + t
-            ui /= ui[self.d - 1]
 
-            ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
+            if i < self.n_outliers:
+                # generate random unit vector inside the FOV cone
+                # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+                dir = np.random.uniform(low=-FOV/2, high=FOV/2, size=self.d-1)
+                ui = np.r_[dir, 1]
+            else:
+                ui = R @ pi + t
+                ui /= ui[self.d - 1]
+                ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
             assert ui[self.d - 1] == 1.0
             ui /= np.linalg.norm(ui)
             y[i] = ui
@@ -122,23 +128,23 @@ class MonoLifter(RobustPoseLifter):
                 Q["l", f"w_{i}"] += -0.5
                 if self.level == "xwT":
                     #Q[f"z_{i}", "x"] += 0.5 * Qi
-                    Q[f"z_{i}", "t"] += 0.5 * Wi
-                    Q[f"z_{i}", "c"] += 0.5 * kron_i.T @ Wi @ kron_i
+                    Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
+                    Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
                     #Q["x", "x"] += Qi
-                    Q["t", "t"] += Wi
-                    Q["t", "c"] += Wi @ kron_i
-                    Q["c", "c"] += kron_i.T @ Wi @ kron_i
+                    Q["t", "t"] += Qi[:self.d, :self.d]
+                    Q["t", "c"] += Qi[:self.d, self.d:]
+                    Q["c", "c"] += Qi[self.d:, self.d:]
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
                     #Q["x", "x"] += Qi
-                    Q["t", "t"] += Wi
-                    Q["t", "c"] += Wi @ kron_i
-                    Q["c", "c"] += kron_i.T @ Wi @ kron_i
+                    Q["t", "t"] += Qi[:self.d, :self.d]
+                    Q["t", "c"] += Qi[:self.d, self.d:]
+                    Q["c", "c"] += Qi[self.d:, self.d:]
             else:
                 #Q["x", "x"] += Qi
-                Q["t", "t"] += Wi
-                Q["t", "c"] += Wi @ kron_i
-                Q["c", "c"] += kron_i.T @ Wi @ kron_i
+                Q["t", "t"] += Qi[:self.d, :self.d]
+                Q["t", "c"] += Qi[:self.d, self.d:]
+                Q["c", "c"] += Qi[self.d:, self.d:]
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 

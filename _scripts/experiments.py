@@ -58,6 +58,7 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
+            n_outliers=lifter.n_outliers
         )
     elif type(lifter) == WahbaLifter:
         new_lifter = WahbaLifter(
@@ -66,6 +67,7 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
+            n_outliers=lifter.n_outliers
         )
     else:
         raise ValueError(lifter)
@@ -309,6 +311,7 @@ def run_scalability_new(
     use_last=None,
     use_bisection=False,
     add_original=True,
+    use_known=False
 ):
     import pickle
 
@@ -327,7 +330,7 @@ def run_scalability_new(
         orig_dict = {}
         t1 = time.time()
         data = learner.run(
-            verbose=True, use_known=False, plot=False, tightness=tightness
+            verbose=True, use_known=use_known, plot=False, tightness=tightness
         )
         orig_dict["t learn templates"] = time.time() - t1
 

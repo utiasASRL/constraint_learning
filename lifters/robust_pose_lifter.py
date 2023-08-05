@@ -19,7 +19,6 @@ from utils.geometry import (
     get_xtheta_from_theta,
 )
 
-N_OUTLIERS = 0
 N_TRYS = 10
 
 METHOD = "CG"
@@ -44,7 +43,7 @@ class RobustPoseLifter(StateLifter, ABC):
         if not self.robust:
             return [["l", "t", "c"]]
         else:
-            base = [["l", "t", "c"]]
+            base = ["l", "t", "c"]
             return [
                 base,
                 base + ["w_0"],
@@ -57,6 +56,7 @@ class RobustPoseLifter(StateLifter, ABC):
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
     def __init__(
         self,
+        n_outliers,
         level="no",
         param_level="no",
         d=2,
@@ -71,6 +71,7 @@ class RobustPoseLifter(StateLifter, ABC):
         """
         self.beta = 1.0
         self.n_landmarks = n_landmarks
+        self.n_outliers = n_outliers
 
         self.robust = robust
         self.level = level
@@ -126,9 +127,7 @@ class RobustPoseLifter(StateLifter, ABC):
         """Sample a new feasible theta."""
         theta = self.generate_random_theta()
         if self.robust:
-            w = np.random.choice(
-                [-1, 1], size=self.n_landmarks
-            )  # [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            w = np.random.choice([-1, 1], size=self.n_landmarks)
             theta[-len(w) :] = w
         return theta
 
@@ -217,7 +216,9 @@ class RobustPoseLifter(StateLifter, ABC):
         n_angles = self.d * (self.d - 1) // 2
         angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
         if self.robust:
-            w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            # we always assume the first elements correspond to outliers
+            # and the last elements to inliers.
+            w = [-1] * self.n_outliers + [1.0] * (self.n_landmarks - self.n_outliers)
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
@@ -378,7 +379,7 @@ class RobustPoseLifter(StateLifter, ABC):
                     else:
                         A_list.append(Ai.get_matrix(self.var_dict))
         if self.robust:
-            for key in self.var_dict:
+            for key in var_dict:
                 if "w" in key:
                     i = key.split("_")[-1]
                     Ai = PolyMatrix(symmetric=True)

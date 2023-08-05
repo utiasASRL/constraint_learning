@@ -121,11 +121,11 @@ class Learner(object):
         if primal_cost is None:
             print("warning can't check violation, no primal cost.")
             return False
-        return (dual_cost - primal_cost) / dual_cost > TOL_REL_GAP
+        return (dual_cost - primal_cost) / abs(dual_cost) > TOL_REL_GAP
 
     def duality_gap_is_zero(self, dual_cost, verbose=False):
         primal_cost = self.solver_vars["qcqp_cost"]
-        res = (primal_cost - dual_cost) / dual_cost < TOL_REL_GAP
+        res = (primal_cost - dual_cost) / abs(dual_cost) < TOL_REL_GAP
         if not verbose:
             return res
 
@@ -162,14 +162,14 @@ class Learner(object):
 
         if info["cost"] is None:
             self.ranks.append(np.zeros(self.lifter.get_dim_x()))
-            print("Warning: is problem infeasible?")
+            print(f"Warning: solver failed with message: {info['msg']}")
             max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum error:", max_error)
             return False
         elif self.check_violation(info["cost"]):
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print(
-                f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}"
+                f"Dual cost higher than QCQP: d={info['cost']:.2e}, q={self.solver_vars['qcqp_cost']:.2e}"
             )
             print(
                 "Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints."
@@ -376,10 +376,12 @@ class Learner(object):
 
         if use_known:
             b_list = []
+            print("WARNING: we are currently wasting compute here because we always add A_known again.")
             for Ai in self.lifter.get_A_known(
-                var_dict=self.mat_var_dict, output_poly=False
+                var_dict=self.mat_var_dict, output_poly=True
             ):
-                a = self.lifter.get_vec(Ai, correct=False)
+                Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
+                a = self.lifter.get_vec(Ai_sparse, correct=False)
                 b_list.append(self.lifter.augment_using_zero_padding(a))
 
             templates += [

@@ -39,6 +39,7 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
             level=level,
             variable_list="all",
             robust=robust,
+            n_outliers=2 if robust else 0
         )
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
@@ -76,6 +77,7 @@ def lifter_scalability_new(Lifter, d: int = 2):
         level=level,
         variable_list=variable_list,
         robust=robust,
+        n_outliers=2 if robust else 0
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_new(
@@ -83,10 +85,11 @@ def lifter_scalability_new(Lifter, d: int = 2):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         use_last=None,
-        recompute=False,
+        recompute=True,
         use_bisection=True,
         add_original=False,
         tightness="cost",
+        use_known=False
     )
 
 
@@ -95,9 +98,9 @@ if __name__ == "__main__":
     from lifters.wahba_lifter import WahbaLifter
 
     d = 3
+    lifter_scalability_new(WahbaLifter, d=d)
     #lifter_scalability_new(MonoLifter, d=d)
-    # lifter_scalability_new(WahbaLifter, d=d)
 
-    robust = True
-    for Lifter in [MonoLifter, WahbaLifter]:
-        lifter_tightness(Lifter, d=d, robust=robust)
+    #robust = False
+    #for Lifter in [MonoLifter, WahbaLifter]:
+    #    lifter_tightness(Lifter, d=d, robust=robust)
