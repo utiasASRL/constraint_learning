@@ -32,7 +32,7 @@ PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
 # the cutoff parameter of least squares. If residuals are >= BETA, they are considered outliers.
-BETA = 1.0 #e-2
+BETA = 0.1 
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]

@@ -13,7 +13,7 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
 NOISE = 1e-3 # inlier noise
-NOISE_OUT = 1e-3 # outlier noise
+NOISE_OUT = 1e-1 # outlier noise
 FOV = np.pi / 2  # camera field of view
 
 N_TRYS = 10
