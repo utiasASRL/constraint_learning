@@ -152,8 +152,8 @@ class Learner(object):
         return res
 
     def is_tight(self, verbose=False, tightness="rank"):
-        A_list = self.lifter.get_A_known()
-        A_list += [constraint.A_sparse_ for constraint in self.constraints]
+        #A_list = self.lifter.get_A_known()
+        A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
@@ -206,9 +206,9 @@ class Learner(object):
             self.ranks.append(eigs)
 
             if self.lifter.robust:
-                n_theta = len(self.lifter.theta)
-                wi = X[0, :n_theta][-self.lifter.n_landmarks:]
-                print("should be plus or minus ones:", wi)
+                idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
+                wi = X[0, idx_xtheta:idx_xtheta+self.lifter.n_landmarks]
+                print("should be plus or minus ones:", wi.round(4))
 
             if tightness == "rank":
                 tightness_val = self.is_rank_one(eigs, verbose=verbose)

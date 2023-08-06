@@ -12,6 +12,8 @@ from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
+NOISE = 1e-3 # inlier noise
+NOISE_OUT = 1e-1 # outlier noise
 FOV = np.pi / 2  # camera field of view
 NOISE = 1e-3 # inlier noise
 NOISE_OUT = 0.1  # outlier noise
@@ -45,8 +47,9 @@ class MonoLifter(RobustPoseLifter):
     def get_random_position(self):
         pc_cw = np.random.rand(self.d) * 0.1
         # make sure all landmarks are in field of view:
-        min_dist = max(np.linalg.norm(self.landmarks[:, :self.d-1], axis=1))
-        pc_cw[self.d - 1] = np.random.uniform(min_dist, self.MAX_DIST)
+        #min_dist = max(np.linalg.norm(self.landmarks[:, :self.d-1], axis=1))
+        min_dist = 1.0
+        pc_cw[self.d - 1] = np.random.uniform(1, self.MAX_DIST)
         return pc_cw
 
     def get_B_known(self):
@@ -117,8 +120,6 @@ class MonoLifter(RobustPoseLifter):
                     raise ValueError("did not find valid outlier ui")
             else:
                 ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
-                if i < self.n_outliers:
-                    ui[:self.d - 1] += 0.1
             assert ui[self.d - 1] == 1.0
             ui /= np.linalg.norm(ui)
             y[i] = ui
@@ -140,7 +141,6 @@ class MonoLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
-
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))] # I, pi x I
             Wi = np.eye(self.d) - np.outer(ui, ui)
             Qi = Pi.T @ Wi @ Pi # "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 

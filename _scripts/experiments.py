@@ -423,7 +423,7 @@ def run_scalability_new(
                     # (make sure the dimensions of the constraints are correct)
                     if new_order is not None:
                         new_learner.templates = [
-                            learner.constraints[i].scale_to_new_lifter(new_lifter)
+                            learner.constraints[i-1].scale_to_new_lifter(new_lifter)
                             for i in new_order
                         ]
                     else:

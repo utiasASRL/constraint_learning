@@ -8,8 +8,6 @@ from _scripts.stereo_study import (
     run_scalability_new,
 )
 
-N_OUTLIERS = 0
-
 def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
@@ -57,17 +55,14 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
         )
 
 
-def lifter_scalability_new(Lifter, d: int = 2):
+def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     level = "xwT"
-    robust = True
     variable_list = None  # use the default one for the first step.
 
     if d == 2:
-        n_landmarks = 4
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
         n_seeds = 1
     elif d == 3:
-        n_landmarks = 8 + N_OUTLIERS if robust else 8
         n_landmarks_list = [10, 11, 12, 13, 14, 15]  # , 20, 25, 30]
         n_seeds = 1
 
@@ -78,7 +73,7 @@ def lifter_scalability_new(Lifter, d: int = 2):
         level=level,
         variable_list=variable_list,
         robust=robust,
-        n_outliers=N_OUTLIERS if robust else 0
+        n_outliers=n_outliers
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     run_scalability_new(
@@ -86,11 +81,11 @@ def lifter_scalability_new(Lifter, d: int = 2):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         use_last=None,
-        recompute=True,
+        recompute=False,
         use_bisection=True,
         add_original=False,
         tightness="cost",
-        use_known=True
+        use_known=False
     )
 
 
@@ -98,9 +93,10 @@ if __name__ == "__main__":
     from lifters.mono_lifter import MonoLifter
     from lifters.wahba_lifter import WahbaLifter
 
-    d = 3
-    lifter_scalability_new(WahbaLifter, d=d)
-    #lifter_scalability_new(MonoLifter, d=d)
+    robust = True
+    n_outliers = 1
+    # lifter_scalability_new(WahbaLifter, d=3, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
+    lifter_scalability_new(MonoLifter, d=3, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)
     #lifter_tightness(MonoLifter, d=d, robust=True)
 
 
