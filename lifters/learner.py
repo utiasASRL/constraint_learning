@@ -152,7 +152,8 @@ class Learner(object):
         return res
 
     def is_tight(self, verbose=False, tightness="rank"):
-        A_list = [constraint.A_sparse_ for constraint in self.constraints]
+        A_list = self.lifter.get_A_known()
+        A_list += [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
@@ -203,6 +204,11 @@ class Learner(object):
 
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
+
+            if self.lifter.robust:
+                n_theta = len(self.lifter.theta)
+                wi = X[0, :n_theta][-self.lifter.n_landmarks:]
+                print("should be plus or minus ones:", wi)
 
             if tightness == "rank":
                 tightness_val = self.is_rank_one(eigs, verbose=verbose)
@@ -488,6 +494,8 @@ class Learner(object):
             return 0, len(self.constraints)
 
         # determine which of these constraints are actually independent, after reducing them to ai.
+
+        print(f"found {len(new_constraints)} candidate constraints.")
         indep_constraints = self.clean_constraints(
             new_constraints=new_constraints,
             before_constraints=self.constraints,
@@ -607,6 +615,7 @@ class Learner(object):
                 print(f"------- applying templates ---------")
                 t1 = time.time()
                 n_new, n_all = self.apply_templates()
+                print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
                 data_dict["n constraints"] = n_all

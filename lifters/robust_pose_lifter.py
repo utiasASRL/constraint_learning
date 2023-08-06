@@ -1,6 +1,5 @@
 from abc import abstractmethod, ABC
 from copy import deepcopy
-import itertools
 
 import matplotlib
 import matplotlib.pylab as plt
@@ -31,13 +30,14 @@ SOLVER_KWARGS = dict(
 PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
-BETA = 1e-1
+# the cutoff parameter of least squares. If residuals are >= BETA, they are considered outliers.
+BETA = 1e-2
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]
     PARAM_LEVELS = ["no"]
     LEVEL_NAMES = {"no": "no", "xwT": "x kron w", "xxT": "x kron x"}
-    MAX_DIST = 2.0  # maximum of norm of t.
+    MAX_DIST = 10.0  # maximum of norm of t.
 
     @property
     def VARIABLE_LIST(self):
@@ -46,12 +46,14 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             base = ["l", "t", "c"]
             return [
-                base,
-                base + ["z_0"],
+                #base,
                 base + ["w_0"],
-                base + ["z_0", "z_1"],
+                base + ["z_0"],
                 base + ["w_0", "w_1"],
                 base + ["w_0", "z_0"],
+                base + ["z_0", "z_1"],
+                base + ["w_0", "w_1", "z_0"],
+                base + ["w_0", "w_1", "z_0", "z_1"],
             ]
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
@@ -335,6 +337,18 @@ class RobustPoseLifter(StateLifter, ABC):
         R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
+
+        print("local solver sanity check:")
+        print("final penalty:", self.penalty(t))
+        for i in range(self.n_landmarks):
+            residual = self.residual(R, t, self.landmarks[i], y[i])
+            if i < self.n_outliers:
+                print(f"outlier residual: {residual:.4e}")
+                assert residual > self.beta, f"outlier residual too small: {residual} <= {self.beta}"
+            else:
+                print(f"inlier residual: {residual:.4e}")
+                assert residual <= self.beta, f"inlier residual too large: {residual} > {self.beta}"
+
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
         else:
@@ -347,6 +361,16 @@ class RobustPoseLifter(StateLifter, ABC):
                 assert abs(pen) / res.cost <= 1e-1, (pen, res.cost)
             cost_penalized -= pen
         return theta_hat, res.stopping_criterion, cost_penalized
+
+    def test_and_add(self, A_list, Ai, output_poly):
+        x = self.get_x()
+        Ai_sparse = Ai.get_matrix(self.var_dict)
+        err = x.T @ Ai_sparse @ x
+        assert abs(err) <= 1e-10, err
+        if output_poly:
+            A_list.append(Ai)
+        else:
+            A_list.append(Ai_sparse)
 
     def get_A_known(self, var_dict=None, output_poly=False):
         A_list = []
@@ -362,10 +386,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 Ai = PolyMatrix(symmetric=True)
                 Ai["c", "c"] = constraint
                 Ai["l", "l"] = -1
-                if output_poly:
-                    A_list.append(Ai)
-                else:
-                    A_list.append(Ai.get_matrix(self.var_dict))
+                self.test_and_add(A_list, Ai, output_poly=output_poly)
 
             #enforce off-diagonal
             for i in range(self.d):
@@ -376,10 +397,7 @@ class RobustPoseLifter(StateLifter, ABC):
                     constraint = np.kron(Ei, np.eye(self.d))
                     Ai = PolyMatrix(symmetric=True)
                     Ai["c", "c"] = constraint
-                    if output_poly:
-                        A_list.append(Ai)
-                    else:
-                        A_list.append(Ai.get_matrix(self.var_dict))
+                    self.test_and_add(A_list, Ai, output_poly=output_poly)
         if self.robust:
             for key in var_dict:
                 if "w" in key:
@@ -387,10 +405,39 @@ class RobustPoseLifter(StateLifter, ABC):
                     Ai = PolyMatrix(symmetric=True)
                     Ai["l", "l"] = -1.0
                     Ai[f"w_{i}", f"w_{i}"] = 1.0
-                    if output_poly:
-                        A_list.append(Ai)
-                    else:
-                        A_list.append(Ai.get_matrix(self.var_dict))
+                    self.test_and_add(A_list, Ai, output_poly=output_poly)
+                    
+                    # below doesn't hold: w_i*w_j = += 1
+                    #for key_other in [k for k in var_dict if (k.startswith("w") and (k!= key))]:
+                    #    Ai = PolyMatrix(symmetric=True)
+                    #    Ai["l", "l"] = -1.0
+                    #    Ai[key, key_other] = 0.5
+                    #    self.test_and_add(A_list, Ai, output_poly=output_poly)
+
+                if "z" in key:
+                    if self.level == "xwT":
+                        i = key.split("_")[-1]
+                        """ each z_i equals x * w_i"""
+
+                        for j in range(self.d):
+                            Ai = PolyMatrix(symmetric=True)
+                            constraint = np.zeros((self.d + self.d**2))
+                            constraint[j] = 1.0
+                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            constraint = np.zeros((self.d))
+                            constraint[j] = -1.0
+                            Ai[f"t", f"w_{i}"] = constraint[:, None]
+                            self.test_and_add(A_list, Ai, output_poly=output_poly)
+
+                        for j in range(self.d**2):
+                            Ai = PolyMatrix(symmetric=True)
+                            constraint = np.zeros((self.d + self.d**2))
+                            constraint[self.d + j] = 1.0
+                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            constraint = np.zeros((self.d**2))
+                            constraint[j] = -1.0
+                            Ai[f"c", f"w_{i}"] = constraint[:, None]
+                            self.test_and_add(A_list, Ai, output_poly=output_poly)
         return A_list
 
 

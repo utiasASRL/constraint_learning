@@ -78,10 +78,15 @@ class WahbaLifter(RobustPoseLifter):
     def get_Q_from_y(self, y):
         """
         every cost term can be written as
-        (1 + wi)  [l x'] Qi [l; x] + 1 - wi
+        (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
 
-        cost term:
-        (Rpi + t - ui) Wi (Rpi + t - ui)
+r       residual term:
+        (Rpi + t - ui).T Wi (Rpi + t - ui) = 
+        [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
+        ------x'-----   -----Pi'-----  
+        - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui 
+            -----x'------   ---------Pi_xl-------- 
+        + ui.T @ Wi @ ui
         """
         from poly_matrix.poly_matrix import PolyMatrix
 
@@ -115,16 +120,17 @@ class WahbaLifter(RobustPoseLifter):
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
                     Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
 
-                    Q[f"w_{i}", "l"] += 0.5 * Pi_ll
+                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
                     
                     Q[f"z_{i}", "l"] += Pi_xl
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
-                    Q[f"w_{i}", "l"] += 0.5 * Pi_ll
 
                     #Q["x", f"w_{i}"] += Pi_xl
                     Q["t", f"w_{i}"] += Pi_xl[:self.d, :]
                     Q["c", f"w_{i}"] += Pi_xl[self.d:, :]
+
+                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
             else:
                 #Q["x", "x"] += Qi
                 Q["t", "t"] += Qi[:self.d, :self.d]
@@ -134,7 +140,6 @@ class WahbaLifter(RobustPoseLifter):
                 #Q["x", "l"] += Pi_xl
                 Q["t", "l"] += Pi_xl[:self.d, :]
                 Q["c", "l"] += Pi_xl[self.d:, :]
-
                 Q["l", "l"] += Pi_ll  # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse

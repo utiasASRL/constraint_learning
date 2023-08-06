@@ -86,11 +86,11 @@ def lifter_scalability_new(Lifter, d: int = 2):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         use_last=None,
-        recompute=False,
+        recompute=True,
         use_bisection=True,
         add_original=False,
         tightness="cost",
-        use_known=False
+        use_known=True
     )
 
 
@@ -99,8 +99,10 @@ if __name__ == "__main__":
     from lifters.wahba_lifter import WahbaLifter
 
     d = 3
-    #lifter_scalability_new(WahbaLifter, d=d)
-    lifter_scalability_new(MonoLifter, d=d)
+    lifter_scalability_new(WahbaLifter, d=d)
+    #lifter_scalability_new(MonoLifter, d=d)
+    #lifter_tightness(MonoLifter, d=d, robust=True)
+
 
     #robust = False
     #for Lifter in [MonoLifter, WahbaLifter]:

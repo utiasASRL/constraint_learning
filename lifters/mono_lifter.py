@@ -14,19 +14,20 @@ from utils.geometry import get_C_r_from_theta
 
 FOV = np.pi / 2  # camera field of view
 NOISE = 1e-3 # inlier noise
+NOISE_OUT = 0.1  # outlier noise
 
 N_TRYS = 10
 
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
-USE_INEQ = True
+USE_INEQ = False
 
 class MonoLifter(RobustPoseLifter):
     def h_list(self, t):
         """
         We want to inforce that
         - norm(t) <= 10 (default)
-        - tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+        - tan(a/2)*t3 >= sqrt(t1**2 + t2**2)
         as constraints h_j(t)<=0
         """
         default = super().h_list(t) 
@@ -37,13 +38,15 @@ class MonoLifter(RobustPoseLifter):
 
     def generate_random_setup(self):
         """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        self.landmarks = np.random.rand(self.n_landmarks, self.d)
+        self.landmarks = np.random.normal(loc=0, scale=1, size=(self.n_landmarks, self.d))
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
         return
 
     def get_random_position(self):
         pc_cw = np.random.rand(self.d) * 0.1
-        pc_cw[self.d - 1] = np.random.uniform(1, self.MAX_DIST)
+        # make sure all landmarks are in field of view:
+        min_dist = max(np.linalg.norm(self.landmarks[:, :self.d-1], axis=1))
+        pc_cw[self.d - 1] = np.random.uniform(min_dist, self.MAX_DIST)
         return pc_cw
 
     def get_B_known(self):
@@ -91,23 +94,28 @@ class MonoLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             # ui = deepcopy(pi) #R @ pi + t
+            ui = R @ pi + t
+            ui /= ui[self.d - 1]
 
-            if False: #i < self.n_outliers:
+            if i < self.n_outliers:
                 # generate random unit vector inside the FOV cone
                 # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
                 
                 # randomly sample a vector
+                if np.tan(FOV/2) * ui[self.d-1] < np.sqrt(np.sum(ui[:self.d-1]**2)):
+                    print("warning: inlier not in FOV!!")
+
                 success = False
                 for _ in range(N_TRYS):
-                    ui = np.r_[ui, 1.0]
-                    if np.tan(FOV/2) * ui[self.d-1] >= np.sqrt(np.sum(ui[:self.d-1]**2)):
+                    ui_test = deepcopy(ui)
+                    ui_test[:self.d-1] += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d - 1)
+                    if np.tan(FOV/2) * ui_test[self.d-1] >= np.sqrt(np.sum(ui_test[:self.d-1]**2)):
                         success = True
+                        ui = ui_test
                         break
                 if not success:
-                    raise ValueError("did not find noisy ui")
+                    raise ValueError("did not find valid outlier ui")
             else:
-                ui = R @ pi + t
-                ui /= ui[self.d - 1]
                 ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
                 if i < self.n_outliers:
                     ui[:self.d - 1] += 0.1
