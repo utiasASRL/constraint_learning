@@ -28,7 +28,7 @@ FACTOR = 1.2  # oversampling factor.
 TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e7
 
-PLOT_MAX_MATRICES = 20  # set to np.inf to plot all individual matrices.
+PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
 
 class Learner(object):
@@ -297,7 +297,7 @@ class Learner(object):
         else:
             # if force_first is 7, then
             # sorted idx is simply 7, 8, 9, ..., 20
-            sorted_idx = force_first + np.arange(len(A_list)-force_first)
+            sorted_idx = force_first + np.arange(len(A_b_list_all)-force_first)
         inputs += [A_b_list_all[idx] for idx in sorted_idx]
 
         B_list = self.lifter.get_B_known()
@@ -388,7 +388,7 @@ class Learner(object):
                 var_dict=self.mat_var_dict, output_poly=True
             ):
                 Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
-                a = self.lifter.get_vec(Ai_sparse, correct=False)
+                a = self.lifter.get_vec(Ai_sparse, correct=True)
                 b_list.append(self.lifter.augment_using_zero_padding(a))
 
             templates += [
@@ -759,9 +759,14 @@ class Learner(object):
             ax.set_xticks([])
             ax.set_xticklabels([])
         else:
-            new_xticks = [
-                f"${lbl.get_text().replace('l-', '').replace(':', '_')}$" for lbl in ax.get_xticklabels()
-            ]
+            new_xticks = []
+            for lbl in ax.get_xticklabels():
+                lbl = lbl.get_text()
+                if "_" in lbl: # avoid double subscript
+                    new_lbl = f"${lbl.replace('l-', '').replace(':', '^')}$"
+                else:
+                    new_lbl = f"${lbl.replace('l-', '').replace(':', '_')}$"
+                new_xticks.append(new_lbl)
             ax.set_xticklabels(new_xticks, fontsize=7)
 
         # plot a red vertical line at each new block of parameters.
@@ -929,7 +934,7 @@ class Learner(object):
                 cax = add_colorbar(fig, ax, im, size=0.1)
                 cax.set_yticklabels(colorbar_yticks)
 
-            if save_individual:
+            if save_individual and (i < max_matrices):
                 savefig(figi, fname_root + f"_matrix{i}.pdf")
         for ax in axs[i + 1 :]:
             ax.axis("off")

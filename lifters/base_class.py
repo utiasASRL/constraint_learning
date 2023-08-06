@@ -9,6 +9,9 @@ class BaseClass(ABC):
     VARIABLE_LIST = ["l"]
 
     def __init__(self, level="no", param_level="no", d=2, variable_list=None):
+
+        self.robust = False
+
         assert level in self.LEVELS
         self.level = level
 

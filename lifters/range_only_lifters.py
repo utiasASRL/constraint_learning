@@ -55,8 +55,8 @@ class RangeOnlyLocLifter(StateLifter):
 
     def get_all_variables(self):
         vars = ["l"]
-        for i in range(self.n_positions):
-            vars += [f"x_{i}", f"z_{i}"]
+        vars += [f"x_{i}" for i in range(self.n_positions)]
+        vars += [f"z_{i}" for i in range(self.n_positions)]
         return [vars]
 
     def generate_random_setup(self):
@@ -91,10 +91,8 @@ class RangeOnlyLocLifter(StateLifter):
     def get_A_known(self, var_dict=None, output_poly=False):
         from poly_matrix.poly_matrix import PolyMatrix
 
-        if var_dict is not None:
-            print("A_known not adapted to var_dict yet")
-            return []
-
+        if var_dict is None:
+            var_dict = self.var_dict
         positions = self.get_variable_indices(var_dict)
 
         if self.level == "quad":
@@ -103,7 +101,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         A_list = []
         for n in positions:
-            A = PolyMatrix()
+            A = PolyMatrix(symmetric=True)
             A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
             if self.level == "no":
                 A["l", f"z_{n}"] = -0.5

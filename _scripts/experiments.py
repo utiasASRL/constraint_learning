@@ -463,10 +463,12 @@ def run_scalability_new(
 
     fname = f"{fname_root}_df_oneshot.pkl"
     try:
+
         assert recompute is False
         df_oneshot = pd.read_pickle(fname)
         print(f"--------- read {fname} \n")
     except (FileNotFoundError, AssertionError):
+        n_seeds = 1
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
@@ -491,7 +493,7 @@ def run_scalability_new(
                 )
                 continue
 
-            if (isinstance(learner.lifter, RangeOnlyLocLifter) and (learner.level == "quad") and (n_params > 15)):
+            if (isinstance(learner.lifter, RangeOnlyLocLifter) and (learner.lifter.level == "quad") and (n_params > 15)):
                 print(f"skipping tightness test of RO with {n_params} because so slow")
                 continue
 
@@ -541,15 +543,16 @@ def run_scalability_new(
     if df_oneshot is not None:
         df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
+    return df
 
     fig, axs = plot_scalability(df, log=True, start="t ")
-    [ax.set_ylim(10, 1000) for ax in axs.values()]
+    #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(5, 3)
-    axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     savefig(fig, fname_root + f"_t.pdf")
     fig, ax = plot_scalability(df, log=True, start="n ")
-    axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     fig.set_size_inches(5, 3)
     savefig(fig, fname_root + f"_n.pdf")
 
@@ -572,7 +575,7 @@ def run_oneshot_experiment(
     if "svd" in plots:
         fig = plt.gcf()
         ax = plt.gca()
-        ax.legend(loc="lower left")
+        ax.get_legend().remove()
         fig.set_size_inches(3, 3)
         savefig(fig, fname_root + "_svd.pdf")
 
@@ -592,9 +595,9 @@ def run_oneshot_experiment(
         from poly_matrix import PolyMatrix
         for c in learner.constraints:
             if c.A_poly_ is None:
-                c.A_poly_, __ = PolyMatrix.init_from_sparse(c.A_sparse_, learner.lifter.var_dict)
-            if "x:0" in c.A_poly_.adjacency_i:
-                A_matrices.append(c.A_poly_)
+                c.A_poly_, __ = PolyMatrix.init_from_sparse(c.A_sparse_, learner.lifter.var_dict, unfold=True)
+            #if "x:0" in c.A_poly_.adjacency_i:
+            A_matrices.append(c.A_poly_)
 
         save_individual = False
         if "matrix" in plots:
@@ -610,12 +613,12 @@ def run_oneshot_experiment(
         savefig(fig, fname_root + "_matrices.pdf")
 
         if idx_subset_reorder is not None and len(idx_subset_reorder):
-            A_matrices = [learner.constraints[i].A_poly_ for i in idx_subset_reorder]
+            A_matrices = [learner.constraints[i-1].A_poly_ for i in idx_subset_reorder]
             fig, ax = learner.save_matrices_sparsity(A_matrices)
             savefig(fig, fname_root + "_matrices-sparsity-reorder.pdf")
 
         if idx_subset_original is not None and len(idx_subset_original):
-            A_matrices = [learner.constraints[i].A_poly_ for i in idx_subset_original]
+            A_matrices = [learner.constraints[i-1].A_poly_ for i in idx_subset_original]
             fig, ax = learner.save_matrices_sparsity(A_matrices)
             savefig(fig, fname_root + "_matrices-sparsity-original.pdf")
 
@@ -640,9 +643,10 @@ def run_oneshot_experiment(
         fig.set_size_inches(5, 5 * h / w)
         savefig(fig, fname_root + "_templates.pdf")
 
-        fig, ax = learner.save_sorted_templates(
-            df, title=title, drop_zero=True, simplify=False
-        )
-        w, h = fig.get_size_inches()
-        fig.set_size_inches(5, 5 * h / w)
-        savefig(fig, fname_root + "_templates_full.pdf")
+        if "templates-full" in plots:
+            fig, ax = learner.save_sorted_templates(
+                df, title=title, drop_zero=True, simplify=False
+            )
+            w, h = fig.get_size_inches()
+            fig.set_size_inches(5, 5 * h / w)
+            savefig(fig, fname_root + "_templates_full.pdf")
