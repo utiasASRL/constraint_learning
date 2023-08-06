@@ -211,7 +211,7 @@ class Learner(object):
             return tightness_val
 
     def generate_minimal_subset(
-        self, reorder=False, tightness="rank", use_last=None, use_bisection=False
+        self, reorder=False, tightness="rank", use_last=None, use_bisection=False, use_known=False
     ):
         from solvers.sparse import solve_lambda
         from solvers.sparse import bisection, brute_force
@@ -264,10 +264,11 @@ class Learner(object):
         A_b0 = (self.lifter.get_A0(), 1.0)
         inputs = [A_b0]
             
-        A_b_known = [(Ai, 0.0) for Ai in self.lifter.get_A_known()]
-        inputs += A_b_known
-        force_first = len(inputs)
+        if use_known:
+            A_b_known = [(Ai, 0.0) for Ai in self.lifter.get_A_known()]
+            inputs += A_b_known
 
+        force_first = len(inputs)
         if reorder:
             # find the importance of each constraint
             __, lamdas = solve_lambda(

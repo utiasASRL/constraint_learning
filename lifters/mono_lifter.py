@@ -14,13 +14,12 @@ from utils.geometry import get_C_r_from_theta
 
 FOV = np.pi / 2  # camera field of view
 NOISE = 1e-3 # inlier noise
-NOISE_OUT = 1.0 # outlier noise
 
 N_TRYS = 10
 
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
-USE_INEQ = False
+USE_INEQ = True
 
 class MonoLifter(RobustPoseLifter):
     def h_list(self, t):
@@ -55,21 +54,20 @@ class MonoLifter(RobustPoseLifter):
         if not USE_INEQ:
             return []
 
-        dim_x = self.d + self.d**2
         default = super().get_B_known()
         ## B2 and B3 enforce that tan(FOV/2)*t3 >= sqrt(t1**2 + t2**2)
         # 0 <= - tan**2(FOV/2)*t3**2 + t1**2 + t2**2
         B3 = PolyMatrix(symmetric=True)
-        constraint = np.zeros((dim_x, dim_x))
+        constraint = np.zeros((self.d, self.d))
         constraint[range(self.d - 1), range(self.d - 1)] = 1.0
         constraint[self.d - 1, self.d - 1] = -np.tan(FOV / 2) ** 2
-        B3["x", "x"] = constraint
+        B3["t", "t"] = constraint
 
         # t3 >= 0
-        constraint = np.zeros(dim_x)
+        constraint = np.zeros(self.d)
         constraint[self.d - 1] = -1
         B2 = PolyMatrix(symmetric=True)
-        B2["l", "x"] = constraint[None, :]
+        B2["l", "t"] = constraint[None, :]
         return default + [
             B2.get_matrix(self.var_dict),
             B3.get_matrix(self.var_dict),
@@ -86,7 +84,7 @@ class MonoLifter(RobustPoseLifter):
     def get_Q(self, noise: float = None):
         if noise is None:
             noise = NOISE
-        y = np.empty((self.n_landmarks, self.d))
+        y = np.zeros((self.n_landmarks, self.d))
         n_angles = self.d * (self.d - 1) // 2
         theta = self.theta[: self.d + n_angles]
         R, t = get_C_r_from_theta(theta, self.d)
@@ -94,15 +92,25 @@ class MonoLifter(RobustPoseLifter):
             pi = self.landmarks[i]
             # ui = deepcopy(pi) #R @ pi + t
 
-            if i < self.n_outliers:
+            if False: #i < self.n_outliers:
                 # generate random unit vector inside the FOV cone
                 # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
-                dir = np.random.uniform(low=-FOV/2, high=FOV/2, size=self.d-1)
-                ui = np.r_[dir, 1]
+                
+                # randomly sample a vector
+                success = False
+                for _ in range(N_TRYS):
+                    ui = np.r_[ui, 1.0]
+                    if np.tan(FOV/2) * ui[self.d-1] >= np.sqrt(np.sum(ui[:self.d-1]**2)):
+                        success = True
+                        break
+                if not success:
+                    raise ValueError("did not find noisy ui")
             else:
                 ui = R @ pi + t
                 ui /= ui[self.d - 1]
                 ui[: self.d - 1] += np.random.normal(scale=noise, loc=0, size=self.d - 1)
+                if i < self.n_outliers:
+                    ui[:self.d - 1] += 0.1
             assert ui[self.d - 1] == 1.0
             ui /= np.linalg.norm(ui)
             y[i] = ui
@@ -111,16 +119,22 @@ class MonoLifter(RobustPoseLifter):
         return Q, y
 
     def get_Q_from_y(self, y):
+        """
+        every cost term can be written as
+        (1 + wi)/b**2  [l x'] Qi [l; x] + 1 - wi
+        = [l x'] Qi/b**2 [l; x] + wi * [l x']Qi/b**2[l;x] + 1 - wi
+
+        cost term:
+        (Rpi + t) (I - uiui') (Rpi + t)
+        """
         Q = PolyMatrix(symmetric=True)
 
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
 
-            kron_i = np.kron(pi, np.eye(self.d))
-            I = np.eye(self.d)
-            Pi = np.c_[I, kron_i] # I, pi x I
-            Wi = I - np.outer(ui, ui)
+            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))] # I, pi x I
+            Wi = np.eye(self.d) - np.outer(ui, ui)
             Qi = Pi.T @ Wi @ Pi # "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 
             if self.robust:
                 Qi /= self.beta**2

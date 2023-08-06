@@ -31,6 +31,7 @@ SOLVER_KWARGS = dict(
 PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
+BETA = 1e-1
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]
@@ -46,11 +47,11 @@ class RobustPoseLifter(StateLifter, ABC):
             base = ["l", "t", "c"]
             return [
                 base,
-                base + ["w_0"],
                 base + ["z_0"],
+                base + ["w_0"],
+                base + ["z_0", "z_1"],
                 base + ["w_0", "w_1"],
                 base + ["w_0", "z_0"],
-                base + ["z_0", "z_1"],
             ]
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
@@ -63,13 +64,14 @@ class RobustPoseLifter(StateLifter, ABC):
         n_landmarks=3,
         variable_list=None,
         robust=False,
+        beta=BETA,
     ):
         """
         :param level:
             - xwT: x kron w
             - xxT: x kron x
         """
-        self.beta = 1.0
+        self.beta = BETA
         self.n_landmarks = n_landmarks
         self.n_outliers = n_outliers
 

@@ -166,7 +166,7 @@ def solve_sdp_cvxpy(
         As, b = zip(*A_b_list)
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
-        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [-u[i] * Bi for (i, Bi) in enumerate(B_list)])
+        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
         constraints = [LHS << Q_here]
         if k > 0:
             constraints.append(u >= 0)

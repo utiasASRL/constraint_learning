@@ -293,10 +293,10 @@ if __name__ == "__main__":
     # print("all tests passed")
     with warnings.catch_warnings():
         #warnings.simplefilter("error")
-        test_solvers()
-        test_solvers_noisy()
         test_cost()
         test_cost_noisy()
+        test_solvers()
+        test_solvers_noisy()
 
         test_grad_finite_diff()
         test_hess_finite_diff()

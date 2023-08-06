@@ -79,10 +79,9 @@ class WahbaLifter(RobustPoseLifter):
         """
         every cost term can be written as
         (1 + wi)  [l x'] Qi [l; x] + 1 - wi
-        = [l x'] Qi [l; x] + wi * [l x'] Qi [l; x] + 1 - wi
-        = Pi_ll l**2 + 2 x.T @ Pi_xl * l + x'T Qi x
-        + wi * (Pi_ll l**2 + 2 x.T @ Pi_xl * l + x'T Qi x)
-        + 1 - wi
+
+        cost term:
+        (Rpi + t - ui) Wi (Rpi + t - ui)
         """
         from poly_matrix.poly_matrix import PolyMatrix
 
@@ -93,9 +92,7 @@ class WahbaLifter(RobustPoseLifter):
             pi = self.landmarks[i]
             ui = y[i]
 
-            kron_i = np.kron(pi, np.eye(self.d))
-            I = np.eye(self.d)
-            Pi = np.c_[I, kron_i]
+            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
             Pi_ll = ui.T @ Wi @ ui
             Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
             Qi = Pi.T @ Wi @ Pi
@@ -104,9 +101,9 @@ class WahbaLifter(RobustPoseLifter):
                 Pi_ll /= self.beta**2
                 Pi_xl /= self.beta**2
                 #Q["x", "x"] += Qi
-                Q["t", "t"] += Wi
-                Q["t", "c"] += Wi @ kron_i
-                Q["c", "c"] += kron_i.T @ Wi @ kron_i
+                Q["t", "t"] += Qi[:self.d, :self.d]
+                Q["t", "c"] += Qi[:self.d, self.d:] 
+                Q["c", "c"] += Qi[self.d:, self.d:]
 
                 #Q["x", "l"] += Pi_xl
                 Q["t", "l"] += Pi_xl[:self.d, :]
@@ -130,9 +127,9 @@ class WahbaLifter(RobustPoseLifter):
                     Q["c", f"w_{i}"] += Pi_xl[self.d:, :]
             else:
                 #Q["x", "x"] += Qi
-                Q["t", "t"] += Wi
-                Q["t", "c"] += Wi @ kron_i
-                Q["c", "c"] += kron_i.T @ Wi @ kron_i
+                Q["t", "t"] += Qi[:self.d, :self.d]
+                Q["t", "c"] += Qi[:self.d, self.d:] 
+                Q["c", "c"] += Qi[self.d:, self.d:]
 
                 #Q["x", "l"] += Pi_xl
                 Q["t", "l"] += Pi_xl[:self.d, :]

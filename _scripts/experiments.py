@@ -255,6 +255,7 @@ def tightness_study(
     original=False,
     use_last=None,
     use_bisection=False,
+    use_known=False
 ):
     """investigate tightness before and after reordering"""
     print("reordering...")
@@ -263,6 +264,7 @@ def tightness_study(
         tightness=tightness,
         use_last=use_last,
         use_bisection=use_bisection,
+        use_known=use_known
     )
     if not original:
         return None, idx_subset_reorder
@@ -272,6 +274,7 @@ def tightness_study(
         tightness=tightness,
         use_last=use_last,
         use_bisection=use_bisection,
+        use_known=use_known
     )
     return idx_subset_original, idx_subset_reorder
 
@@ -363,6 +366,7 @@ def run_scalability_new(
             original=add_original,
             use_last=use_last,
             use_bisection=use_bisection,
+            use_known=use_known
         )
 
         order_dict = {}
@@ -382,6 +386,7 @@ def run_scalability_new(
 
     fname = fname_root + "_df_all.pkl"
     try:
+        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())

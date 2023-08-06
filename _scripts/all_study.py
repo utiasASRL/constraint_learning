@@ -39,9 +39,9 @@ if __name__ == "__main__":
         #(MonoLifter, dict(n_landmarks=4, d=2, robust=False, level="no")),  # ok
         #(MonoLifter, dict(n_landmarks=8, d=3, robust=False, level="no")),  # ok
         #(MonoLifter, dict(n_landmarks=4, d=2, robust=True, level="xwT")),  # ok (super small violation:  2.92e-06 dual vs. 2.91e-06 qcqp)
-        #(MonoLifter, dict(n_landmarks=8, d=3, robust=True, level="xwT")),  # ok
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
+        (MonoLifter, dict(n_landmarks=8, d=3, robust=True, level="xwT", n_outliers=0)),  # ok
+        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
+        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
         #(Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")), # ok
         #(Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")), # ok
     ]
