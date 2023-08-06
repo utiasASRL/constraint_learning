@@ -30,12 +30,6 @@ class RangeOnlyLocLifter(StateLifter):
         "no": "$z_n$",
         "quad": "$\\boldsymbol{y}_n$",
     }
-    VARIABLE_LIST = [
-        ["l", "x_0"],
-        ["l", "x_0", "z_0"],
-        ["l", "x_0", "z_0", "z_1"],
-        ["l", "x_0", "x_1", "z_0", "z_1"],
-    ]
     def __init__(self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
@@ -46,8 +40,24 @@ class RangeOnlyLocLifter(StateLifter):
         else:
             self.W = np.ones((n_positions, n_landmarks))
 
-        self.variable_list = self.VARIABLE_LIST if not variable_list else variable_list
-        super().__init__(level=level, d=d)
+        if variable_list == "all":
+            variable_list = self.get_all_variables()
+        super().__init__(level=level, d=d, variable_list=variable_list)
+
+    @property
+    def VARIABLE_LIST(self):
+        return [
+            ["l", "x_0"],
+            ["l", "x_0", "z_0"],
+            ["l", "x_0", "z_0", "z_1"],
+            ["l", "x_0", "x_1", "z_0", "z_1"],
+        ]
+
+    def get_all_variables(self):
+        vars = ["l"]
+        for i in range(self.n_positions):
+            vars += [f"x_{i}", f"z_{i}"]
+        return [vars]
 
     def generate_random_setup(self):
         self.landmarks = np.random.rand(self.n_landmarks, self.d)
@@ -78,8 +88,12 @@ class RangeOnlyLocLifter(StateLifter):
     def sample_theta(self):
         return self.generate_random_theta()
 
-    def get_A_known(self, var_dict=None):
+    def get_A_known(self, var_dict=None, output_poly=False):
         from poly_matrix.poly_matrix import PolyMatrix
+
+        if var_dict is not None:
+            print("A_known not adapted to var_dict yet")
+            return []
 
         positions = self.get_variable_indices(var_dict)
 
@@ -97,7 +111,10 @@ class RangeOnlyLocLifter(StateLifter):
                 mat = np.zeros((1, self.size_z))
                 mat[0, diag_idx] = -0.5
                 A["l", f"z_{n}"] = mat
-            A_list.append(A.get_matrix(var_dict))
+            if output_poly:
+                A_list.append(A)
+            else:
+                A_list.append(A.get_matrix(self.var_dict))
         return A_list
 
     def get_x(self, theta=None, parameters=None, var_subset=None):

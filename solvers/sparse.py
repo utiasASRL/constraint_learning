@@ -9,6 +9,7 @@ SOLVER = "MOSEK"
 # for computing the lambda parameter, we are adding all possible constraints
 # and therefore we might run into numerical problems. Setting below to a high value
 # was found to lead to less cases where the solver terminates with "UNKNOWN" status.
+# see https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
 LAMBDA_REL_GAP = 0.1
 
 def bisection(function, inputs, left, right):
@@ -29,8 +30,9 @@ def bisection(function, inputs, left, right):
         print("Warning: not a valid starting interval, both left and right already tight!")
         return 
     elif (not left_tight) and (not right_tight):
-        print("Warning: problem is not tight on left or right.")
-        return
+        print("Warning: problem is not tight on left or right. Trying again in right half anyways")
+        left = (right - left) // 2
+        return bisection(function, inputs, left, right)
 
     assert not left_tight 
     assert right_tight
@@ -51,7 +53,7 @@ def brute_force(function, inputs, left, right):
     A_list, df_data = inputs
     tightness_counter = 0
     for idx in range(left, right+1):
-        is_tight = function(A_list[:idx+1], df_data)
+        is_tight = function(A_list[:idx], df_data)
         if is_tight:
             tightness_counter +=1 
         if tightness_counter >= 10:

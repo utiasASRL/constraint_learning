@@ -11,10 +11,8 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
 N_TRYS = 10
-NOISE = 1e-2
-
-N_OUTLIERS = 0
-
+NOISE = 1e-2 # inlier noise
+NOISE_OUT = 1.0 # outlier noise
 
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
@@ -69,7 +67,10 @@ class WahbaLifter(RobustPoseLifter):
             pi = self.landmarks[i]
             # ui = deepcopy(pi) #R @ pi + t
             ui = R @ pi + t
-            ui += np.random.normal(scale=noise, loc=0, size=self.d)
+            if i < self.n_outliers:
+                ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
+            else:
+                ui += np.random.normal(scale=noise, loc=0, size=self.d)
             y[i] = ui
         Q = self.get_Q_from_y(y)
         return Q, y
@@ -77,11 +78,15 @@ class WahbaLifter(RobustPoseLifter):
     def get_Q_from_y(self, y):
         """
         every cost term can be written as
-        (1 + wi)  [l x'] Qi [l; x] + 1 - wi
-        = [l x'] Qi [l; x] + wi * [l x'] Qi [l; x] + 1 - wi
-        = Pi_ll l**2 + 2 x.T @ Pi_xl * l + x'T Qi x
-        + wi * (Pi_ll l**2 + 2 x.T @ Pi_xl * l + x'T Qi x)
-        + 1 - wi
+        (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
+
+r       residual term:
+        (Rpi + t - ui).T Wi (Rpi + t - ui) = 
+        [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
+        ------x'-----   -----Pi'-----  
+        - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui 
+            -----x'------   ---------Pi_xl-------- 
+        + ui.T @ Wi @ ui
         """
         from poly_matrix.poly_matrix import PolyMatrix
 
@@ -91,6 +96,7 @@ class WahbaLifter(RobustPoseLifter):
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
+
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
             Pi_ll = ui.T @ Wi @ ui
             Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
@@ -99,21 +105,41 @@ class WahbaLifter(RobustPoseLifter):
                 Qi /= self.beta**2
                 Pi_ll /= self.beta**2
                 Pi_xl /= self.beta**2
-                Q["x", "x"] += Qi
-                Q["x", "l"] += Pi_xl
+                #Q["x", "x"] += Qi
+                Q["t", "t"] += Qi[:self.d, :self.d]
+                Q["t", "c"] += Qi[:self.d, self.d:] 
+                Q["c", "c"] += Qi[self.d:, self.d:]
+
+                #Q["x", "l"] += Pi_xl
+                Q["t", "l"] += Pi_xl[:self.d, :]
+                Q["c", "l"] += Pi_xl[self.d:, :]
                 Q["l", "l"] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
                 Q["l", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
-                    Q[f"z_{i}", "x"] += 0.5 * Qi
-                    Q[f"w_{i}", "l"] += 0.5 * Pi_ll
+                    #Q[f"z_{i}", "x"] += 0.5 * Qi
+                    Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
+                    Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
+
+                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
+                    
                     Q[f"z_{i}", "l"] += Pi_xl
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
-                    Q[f"w_{i}", "l"] += 0.5 * Pi_ll
-                    Q["x", f"w_{i}"] += Pi_xl
+
+                    #Q["x", f"w_{i}"] += Pi_xl
+                    Q["t", f"w_{i}"] += Pi_xl[:self.d, :]
+                    Q["c", f"w_{i}"] += Pi_xl[self.d:, :]
+
+                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
             else:
-                Q["x", "x"] += Qi
-                Q["x", "l"] += Pi_xl
+                #Q["x", "x"] += Qi
+                Q["t", "t"] += Qi[:self.d, :self.d]
+                Q["t", "c"] += Qi[:self.d, self.d:] 
+                Q["c", "c"] += Qi[self.d:, self.d:]
+
+                #Q["x", "l"] += Pi_xl
+                Q["t", "l"] += Pi_xl[:self.d, :]
+                Q["c", "l"] += Pi_xl[self.d:, :]
                 Q["l", "l"] += Pi_ll  # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse

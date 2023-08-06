@@ -26,7 +26,7 @@ PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, b
 FACTOR = 1.2  # oversampling factor.
 
 TOL_REL_GAP = 1e-3
-TOL_RANK_ONE = 1e9
+TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 20  # set to np.inf to plot all individual matrices.
 
@@ -121,11 +121,11 @@ class Learner(object):
         if primal_cost is None:
             print("warning can't check violation, no primal cost.")
             return False
-        return (dual_cost - primal_cost) / primal_cost > TOL_REL_GAP
+        return (dual_cost - primal_cost) / abs(dual_cost) > TOL_REL_GAP
 
     def duality_gap_is_zero(self, dual_cost, verbose=False):
         primal_cost = self.solver_vars["qcqp_cost"]
-        res = (primal_cost - dual_cost) / primal_cost < TOL_REL_GAP
+        res = (primal_cost - dual_cost) / abs(dual_cost) < TOL_REL_GAP
         if not verbose:
             return res
 
@@ -152,6 +152,7 @@ class Learner(object):
         return res
 
     def is_tight(self, verbose=False, tightness="rank"):
+        #A_list = self.lifter.get_A_known()
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
@@ -162,14 +163,14 @@ class Learner(object):
 
         if info["cost"] is None:
             self.ranks.append(np.zeros(self.lifter.get_dim_x()))
-            print("Warning: is problem infeasible?")
+            print(f"Warning: solver failed with message: {info['msg']}")
             max_error, bad_list = self.lifter.test_constraints(A_list, errors="print")
             print("Maximum error:", max_error)
             return False
         elif self.check_violation(info["cost"]):
             self.ranks.append(np.zeros(A_list[0].shape[0]))
             print(
-                f"Dual cost higher than QCQP: {info['cost']:.2e}, {self.solver_vars['qcqp_cost']:.2e}"
+                f"Dual cost higher than QCQP: d={info['cost']:.2e}, q={self.solver_vars['qcqp_cost']:.2e}"
             )
             print(
                 "Usually this means that MOSEK tolerances are too loose, or that there is a mistake in the constraints."
@@ -204,6 +205,11 @@ class Learner(object):
             eigs = np.linalg.eigvalsh(X)[::-1]
             self.ranks.append(eigs)
 
+            if self.lifter.robust:
+                idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
+                wi = X[0, idx_xtheta:idx_xtheta+self.lifter.n_landmarks]
+                print("should be plus or minus ones:", wi.round(4))
+
             if tightness == "rank":
                 tightness_val = self.is_rank_one(eigs, verbose=verbose)
             elif tightness == "cost":
@@ -211,7 +217,7 @@ class Learner(object):
             return tightness_val
 
     def generate_minimal_subset(
-        self, reorder=False, tightness="rank", use_last=None, use_bisection=False
+        self, reorder=False, tightness="rank", use_last=None, use_bisection=False, use_known=False
     ):
         from solvers.sparse import solve_lambda
         from solvers.sparse import bisection, brute_force
@@ -260,14 +266,23 @@ class Learner(object):
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
-        # find the importance of each constraint
+
+        A_b0 = (self.lifter.get_A0(), 1.0)
+        inputs = [A_b0]
+            
+        if use_known:
+            A_b_known = [(Ai, 0.0) for Ai in self.lifter.get_A_known()]
+            inputs += A_b_known
+
+        force_first = len(inputs)
         if reorder:
+            # find the importance of each constraint
             __, lamdas = solve_lambda(
                 self.solver_vars["Q"],
                 A_b_list_all,
                 self.solver_vars["xhat"],
                 B_list=B_list,
-                force_first=1,
+                force_first=force_first,
                 tol=1e-10,
                 verbose=False,
             )
@@ -276,30 +291,31 @@ class Learner(object):
                 return None
             print("found valid lamdas")
 
-            # order constraints by importance
-            sorted_idx = np.argsort(np.abs(lamdas[1:]))[::-1]
+            # order the redundant constraints by importance
+            redundant_idx = np.argsort(np.abs(lamdas[force_first:]))[::-1]
+            sorted_idx = force_first + redundant_idx
         else:
-            lamdas = np.zeros(len(self.constraints))
-            sorted_idx = np.arange(len(self.constraints))
+            # if force_first is 7, then
+            # sorted idx is simply 7, 8, 9, ..., 20
+            sorted_idx = force_first + np.arange(len(A_list)-force_first)
+        inputs += [A_b_list_all[idx] for idx in sorted_idx]
 
-        A_b0 = (self.lifter.get_A0(), 1.0)
         B_list = self.lifter.get_B_known()
         df_data = []
 
         if use_last is None:
-            start_idx = 0
+            start_idx = force_first
         else:
-            start_idx = max(len(sorted_idx) - use_last, 0)
+            start_idx = max(len(inputs) - use_last, force_first)
 
-        inputs = [A_b0] + [(A_list[idx], 0.0) for idx in sorted_idx]
         df_data = {}
         if use_bisection:
             bisection(
-                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+                function, (inputs, df_data), left=start_idx, right=len(inputs)
             )
         else:
             brute_force(
-                function, (inputs, df_data), left=start_idx, right=len(sorted_idx)
+                function, (inputs, df_data), left=start_idx, right=len(inputs)
             )
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
@@ -311,12 +327,10 @@ class Learner(object):
         minimal_indices = []
         if tightness == "cost":
             min_idx = df_tight[df_tight.cost_tight == True].index.min()
-            if not np.isnan(min_idx):
-                minimal_indices = sorted_idx[range(min_idx)]
         elif tightness == "rank":
             min_idx = df_tight[df_tight.rank_tight == True].index.min()
-            if not np.isnan(min_idx):
-                minimal_indices = sorted_idx[range(min_idx)]
+        if not np.isnan(min_idx):
+            minimal_indices = list(range(force_first))+ list(sorted_idx[range(min_idx-force_first)])
         return minimal_indices
 
     def find_local_solution(self):
@@ -369,10 +383,12 @@ class Learner(object):
 
         if use_known:
             b_list = []
+            print("WARNING: we are currently wasting compute here because we always add A_known again.")
             for Ai in self.lifter.get_A_known(
-                var_dict=self.mat_var_dict, output_poly=False
+                var_dict=self.mat_var_dict, output_poly=True
             ):
-                a = self.lifter.get_vec(Ai, correct=False)
+                Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
+                a = self.lifter.get_vec(Ai_sparse, correct=False)
                 b_list.append(self.lifter.augment_using_zero_padding(a))
 
             templates += [
@@ -478,6 +494,8 @@ class Learner(object):
             return 0, len(self.constraints)
 
         # determine which of these constraints are actually independent, after reducing them to ai.
+
+        print(f"found {len(new_constraints)} candidate constraints.")
         indep_constraints = self.clean_constraints(
             new_constraints=new_constraints,
             before_constraints=self.constraints,
@@ -597,6 +615,7 @@ class Learner(object):
                 print(f"------- applying templates ---------")
                 t1 = time.time()
                 n_new, n_all = self.apply_templates()
+                print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
                 data_dict["n constraints"] = n_all
@@ -638,6 +657,7 @@ class Learner(object):
             for key, idx_list in add_columns.items():
                 # if the list is not empty, then indicate which constraints are required.
                 if idx_list is not None and len(idx_list):
+                    idx_list = list(idx_list)
                     try:
                         data[key] = idx_list.index(i)
                     except Exception:
@@ -740,7 +760,7 @@ class Learner(object):
             ax.set_xticklabels([])
         else:
             new_xticks = [
-                f"${lbl.get_text().replace('l-', '')}$" for lbl in ax.get_xticklabels()
+                f"${lbl.get_text().replace('l-', '').replace(':', '_')}$" for lbl in ax.get_xticklabels()
             ]
             ax.set_xticklabels(new_xticks, fontsize=7)
 

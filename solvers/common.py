@@ -5,6 +5,9 @@ from lifters.state_lifter import StateLifter
 
 TOL = 1e-10
 
+# Reference for MOSEK parameters explanations:
+# https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
+
 VERBOSE = False
 SOLVER = "MOSEK"  # first choice
 solver_options = {
@@ -163,6 +166,9 @@ def solve_sdp_cvxpy(
         As, b = zip(*A_b_list)
         b = np.concatenate([np.atleast_1d(bi) for bi in b])
         objective = cp.Maximize(b @ y)
+
+        # We want the lagrangian to be H := Q - sum l_i * A_i + sum u_i * B_i.
+        # With this choice, l_0 will be negative
         LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [-u[i] * Bi for (i, Bi) in enumerate(B_list)])
         constraints = [LHS << Q_here]
         if k > 0:
@@ -186,6 +192,16 @@ def solve_sdp_cvxpy(
                 X = constraints[0].dual_value
                 H = Q_here - LHS.value
                 yvals = [x.value for x in y]
+
+                # sanity check for inequality constraints.
+                # we want them to be inactive!!!
+                if len(B_list):
+                    mu = np.array([ui.value for ui in u])
+                    i_nnz = np.where(mu > 1e-10)[0]
+                    if len(i_nnz):
+                        for i in i_nnz:
+                            print(f"Warning: is constraint {i} active? (mu={mu[i]:.4e}):")
+                            print(np.trace(B_list[i] @ X))
                 msg = "converged"
             else:
                 cost = None

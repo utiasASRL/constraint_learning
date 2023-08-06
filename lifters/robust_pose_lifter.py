@@ -31,6 +31,8 @@ SOLVER_KWARGS = dict(
 PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
+# the cutoff parameter of least squares. If residuals are >= BETA, they are considered outliers.
+BETA = 1.0 #e-2
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]
@@ -41,35 +43,41 @@ class RobustPoseLifter(StateLifter, ABC):
     @property
     def VARIABLE_LIST(self):
         if not self.robust:
-            return [["l", "x"]]
+            return [["l", "t", "c"]]
         else:
+            base = ["l", "t", "c"]
             return [
-                ["l", "x"],
-                ["l", "x", "w_0"],
-                ["l", "x", "z_0"],
-                ["l", "x", "w_0", "w_1"],
-                ["l", "x", "w_0", "z_0"],
-                ["l", "x", "z_0", "z_1"],
+                base,
+                base + ["w_0"],
+                base + ["z_0"],
+                base + ["w_0", "w_1"],
+                base + ["w_0", "z_0"],
+                base + ["z_0", "z_1"],
+                base + ["w_0", "w_1", "z_0"],
+                base + ["w_0", "w_1", "z_0", "z_1"],
             ]
             
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
     def __init__(
         self,
+        n_outliers,
         level="no",
         param_level="no",
         d=2,
         n_landmarks=3,
         variable_list=None,
         robust=False,
+        beta=BETA,
     ):
         """
         :param level:
             - xwT: x kron w
             - xxT: x kron x
         """
-        self.beta = 1.0
+        self.beta = BETA
         self.n_landmarks = n_landmarks
+        self.n_outliers = n_outliers
 
         self.robust = robust
         self.level = level
@@ -100,7 +108,7 @@ class RobustPoseLifter(StateLifter, ABC):
     def var_dict(self):
         """Return key,size pairs of all variables."""
         n = self.d**2 + self.d
-        var_dict = {"l": 1, "x": n}
+        var_dict = {"l": 1, "t": self.d, "c":self.d**2}
         if not self.robust:
             return var_dict
         var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
@@ -111,7 +119,7 @@ class RobustPoseLifter(StateLifter, ABC):
         return var_dict
 
     def get_all_variables(self):
-        all_variables = ["l", "x"]
+        all_variables = ["l", "t", "c"]
         if self.robust:
             all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
         if self.level == "xxT":
@@ -125,9 +133,7 @@ class RobustPoseLifter(StateLifter, ABC):
         """Sample a new feasible theta."""
         theta = self.generate_random_theta()
         if self.robust:
-            w = np.random.choice(
-                [-1, 1], size=self.n_landmarks
-            )  # [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            w = np.random.choice([-1, 1], size=self.n_landmarks)
             theta[-len(w) :] = w
         return theta
 
@@ -167,8 +173,10 @@ class RobustPoseLifter(StateLifter, ABC):
         for key in var_subset:
             if key == "l":
                 x_data.append(1.0)
-            elif key == "x":
-                x_data += list(get_xtheta_from_C_r(R, t))
+            elif key == "t":
+                x_data += list(t)
+            elif key == "c":
+                x_data += list(R.flatten("F"))
             elif "w" in key:
                 j = int(key.split("_")[-1])
                 w_j = theta[-self.n_landmarks + j]
@@ -214,7 +222,9 @@ class RobustPoseLifter(StateLifter, ABC):
         n_angles = self.d * (self.d - 1) // 2
         angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
         if self.robust:
-            w = [-1] * N_OUTLIERS + [1.0] * (self.n_landmarks - N_OUTLIERS)
+            # we always assume the first elements correspond to outliers
+            # and the last elements to inliers.
+            w = [-1] * self.n_outliers + [1.0] * (self.n_landmarks - self.n_outliers)
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
@@ -329,6 +339,18 @@ class RobustPoseLifter(StateLifter, ABC):
         R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
+
+        print("local solver sanity check:")
+        print("final penalty:", self.penalty(t))
+        for i in range(self.n_landmarks):
+            residual = self.residual(R, t, self.landmarks[i], y[i])
+            if i < self.n_outliers:
+                print(f"outlier residual: {residual:.4e}")
+                assert residual > self.beta, f"outlier residual too small: {residual} <= {self.beta}"
+            else:
+                print(f"inlier residual: {residual:.4e}")
+                assert residual <= self.beta, f"inlier residual too large: {residual} > {self.beta}"
+
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
         else:
@@ -342,20 +364,82 @@ class RobustPoseLifter(StateLifter, ABC):
             cost_penalized -= pen
         return theta_hat, res.stopping_criterion, cost_penalized
 
+    def test_and_add(self, A_list, Ai, output_poly):
+        x = self.get_x()
+        Ai_sparse = Ai.get_matrix(self.var_dict)
+        err = x.T @ Ai_sparse @ x
+        assert abs(err) <= 1e-10, err
+        if output_poly:
+            A_list.append(Ai)
+        else:
+            A_list.append(Ai_sparse)
+
     def get_A_known(self, var_dict=None, output_poly=False):
         A_list = []
-        if var_dict is not None:
-            print("Warning: selecting subsets of constraints not implemented yet.")
-            return A_list
-        if self.robust:
-            for i in range(self.n_landmarks):
+        if var_dict is None:
+            var_dict = self.var_dict
+
+        if "c" in var_dict:
+            # enforce diagonal
+            for i in range(self.d):
+                Ei = np.zeros((self.d, self.d))
+                Ei[i, i] = 1.0
+                constraint = np.kron(Ei, np.eye(self.d))
                 Ai = PolyMatrix(symmetric=True)
-                Ai["l", "l"] = -1.0
-                Ai[f"w_{i}", f"w_{i}"] = 1.0
-                if output_poly:
-                    A_list.append(Ai)
-                else:
-                    A_list.append(Ai.get_matrix(self.var_dict))
+                Ai["c", "c"] = constraint
+                Ai["l", "l"] = -1
+                self.test_and_add(A_list, Ai, output_poly=output_poly)
+
+            #enforce off-diagonal
+            for i in range(self.d):
+                for j in range(i+1, self.d):
+                    Ei = np.zeros((self.d, self.d))
+                    Ei[i, j] = 1.0
+                    Ei[j, i] = 1.0
+                    constraint = np.kron(Ei, np.eye(self.d))
+                    Ai = PolyMatrix(symmetric=True)
+                    Ai["c", "c"] = constraint
+                    self.test_and_add(A_list, Ai, output_poly=output_poly)
+        if self.robust:
+            for key in var_dict:
+                if "w" in key:
+                    i = key.split("_")[-1]
+                    Ai = PolyMatrix(symmetric=True)
+                    Ai["l", "l"] = -1.0
+                    Ai[f"w_{i}", f"w_{i}"] = 1.0
+                    self.test_and_add(A_list, Ai, output_poly=output_poly)
+                    
+                    # below doesn't hold: w_i*w_j = += 1
+                    #for key_other in [k for k in var_dict if (k.startswith("w") and (k!= key))]:
+                    #    Ai = PolyMatrix(symmetric=True)
+                    #    Ai["l", "l"] = -1.0
+                    #    Ai[key, key_other] = 0.5
+                    #    self.test_and_add(A_list, Ai, output_poly=output_poly)
+
+                if "z" in key:
+                    if self.level == "xwT":
+                        i = key.split("_")[-1]
+                        """ each z_i equals x * w_i"""
+
+                        for j in range(self.d):
+                            Ai = PolyMatrix(symmetric=True)
+                            constraint = np.zeros((self.d + self.d**2))
+                            constraint[j] = 1.0
+                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            constraint = np.zeros((self.d))
+                            constraint[j] = -1.0
+                            Ai[f"t", f"w_{i}"] = constraint[:, None]
+                            self.test_and_add(A_list, Ai, output_poly=output_poly)
+
+                        for j in range(self.d**2):
+                            Ai = PolyMatrix(symmetric=True)
+                            constraint = np.zeros((self.d + self.d**2))
+                            constraint[self.d + j] = 1.0
+                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            constraint = np.zeros((self.d**2))
+                            constraint[j] = -1.0
+                            Ai[f"c", f"w_{i}"] = constraint[:, None]
+                            self.test_and_add(A_list, Ai, output_poly=output_poly)
         return A_list
 
 
@@ -363,14 +447,10 @@ class RobustPoseLifter(StateLifter, ABC):
         """Get inequality constraints of the form x.T @ B @ x <= 0.
         By default, we always add ||t|| <= MAX_DIST
         """
-        dim_x = self.d + self.d**2
         B1 = PolyMatrix(symmetric=True)
-        constraint = np.zeros((dim_x, dim_x))
-        constraint[range(self.d), range(self.d)] = 1.0
         B1["l", "l"] = -self.MAX_DIST
-        B1["x", "x"] = constraint
+        B1["t", "t"] = np.eye(self.d)
         return [B1.get_matrix(self.var_dict)]
-
 
 
     @abstractmethod
