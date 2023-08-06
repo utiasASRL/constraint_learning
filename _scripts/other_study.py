@@ -8,7 +8,7 @@ from _scripts.stereo_study import (
     run_scalability_new,
 )
 
-def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
+def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_outliers=0):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
@@ -38,7 +38,7 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
             level=level,
             variable_list="all",
             robust=robust,
-            n_outliers=N_OUTLIERS if robust else 0
+            n_outliers=n_outliers if robust else 0
         )
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
@@ -50,8 +50,8 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2):
             plots,
             tightness="rank",
             add_original=True,
-            use_last=30,
             use_bisection=False,
+            use_known=True
         )
 
 
@@ -93,13 +93,13 @@ if __name__ == "__main__":
     from lifters.mono_lifter import MonoLifter
     from lifters.wahba_lifter import WahbaLifter
 
-    robust = True
-    n_outliers = 1
-    # lifter_scalability_new(WahbaLifter, d=3, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
-    lifter_scalability_new(MonoLifter, d=3, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)
-    #lifter_tightness(MonoLifter, d=d, robust=True)
-
-
+    #d = 3
     #robust = False
     #for Lifter in [MonoLifter, WahbaLifter]:
     #    lifter_tightness(Lifter, d=d, robust=robust)
+
+    robust = True
+    n_outliers = 1
+    lifter_scalability_new(WahbaLifter, d=3, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
+    lifter_scalability_new(MonoLifter, d=3, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)
+

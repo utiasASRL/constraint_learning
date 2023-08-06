@@ -386,7 +386,6 @@ def run_scalability_new(
 
     fname = fname_root + "_df_all.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())
@@ -471,10 +470,10 @@ def run_scalability_new(
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
-            if isinstance(learner.lifter, RobustPoseLifter) and learner.lifter.robust:
-                print("cannot do one-shot with robust pose lifters, too expensive!")
-                df_oneshot = None
-                break
+            #if isinstance(learner.lifter, RobustPoseLifter) and learner.lifter.robust:
+            #    print("cannot do one-shot with robust pose lifters, too expensive!")
+            #    df_oneshot = None
+            #    break
 
             if isinstance(learner.lifter, Stereo2DLifter) and n_params > 25:
                 print(
@@ -486,9 +485,16 @@ def run_scalability_new(
                     f"skipping N={n_params} for stereo3D because this will cause out of memory error."
                 )
                 continue
-            if (isinstance(new_lifter, RangeOnlyLocLifter) and (new_lifter.level == "quad")):
+            if isinstance(learner.lifter, RobustPoseLifter) and n_params > 11:
+                print(
+                    f"skipping N={n_params} for {learner.lifter} because this will cause out of memory error."
+                )
+                continue
+
+            if (isinstance(learner.lifter, RangeOnlyLocLifter) and (learner.level == "quad") and (n_params > 15)):
                 print(f"skipping tightness test of RO with {n_params} because so slow")
                 continue
+
             n_successful_seeds = 0
             for seed in range(max_seeds):
                 print(
@@ -537,7 +543,8 @@ def run_scalability_new(
     df = df.apply(pd.to_numeric, errors="ignore")
 
     fig, axs = plot_scalability(df, log=True, start="t ")
-    #[ax.set_ylim(10, 200) for ax in axs.values()]
+    [ax.set_ylim(10, 1000) for ax in axs.values()]
+
     fig.set_size_inches(5, 3)
     axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     savefig(fig, fname_root + f"_t.pdf")
@@ -558,8 +565,9 @@ def run_oneshot_experiment(
     add_original=True,
     use_last=None,
     use_bisection=False,
+    use_known=True
 ):
-    learner.run(verbose=True, use_known=True, plot=True, tightness=tightness)
+    learner.run(verbose=True, use_known=use_known, plot=True, tightness=tightness)
 
     if "svd" in plots:
         fig = plt.gcf()
@@ -574,6 +582,7 @@ def run_oneshot_experiment(
         original=add_original,
         use_last=use_last,
         use_bisection=use_bisection,
+        use_known=use_known
     )
     if "tightness" in plots:
         save_tightness_order(learner, fname_root)
