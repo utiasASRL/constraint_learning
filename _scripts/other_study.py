@@ -94,7 +94,7 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs.values()]
 
-    fig.set_size_inches(5, 5)
+    fig.set_size_inches(6, 2.5)
     #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     savefig(fig, fname_root + f"_t.pdf")
     

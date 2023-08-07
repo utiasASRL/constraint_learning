@@ -58,7 +58,7 @@ def range_only_scalability_new():
 
         #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
-        fig.set_size_inches(6, 3)
+        fig.set_size_inches(6, 2.5)
         axs["t solve SDP"].legend(loc="upper right") #, bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
         #fig, ax = plot_scalability(df, log=True, start="n ")

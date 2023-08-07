@@ -31,7 +31,7 @@ def stereo_tightness(d=2, n_landmarks=None):
     seed = 0
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
-    levels = ["urT", "no"]
+    levels = ["no", "urT"]
     param_level = "no"
     for level in levels:
         print(f"============= seed {seed} level {level} ================")
@@ -39,11 +39,11 @@ def stereo_tightness(d=2, n_landmarks=None):
 
         variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
         if d == 2:
-            # plots = ["tightness"]#, "matrix"]
-            # tightness = "rank"
-
-            plots = ["matrices", "templates", "svd"]
+            plots = ["tightness"]#, "matrix"]
             tightness = "cost"
+
+            #plots = ["matrices", "templates", "svd"]
+            #tightness = "cost"
 
             lifter = Stereo2DLifter(
                 n_landmarks=n_landmarks,
@@ -117,7 +117,7 @@ def stereo_scalability_new(d=2):
 
     #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
-    fig.set_size_inches(5, 3)
+    fig.set_size_inches(6, 2.5)
     axs["t create constraints"].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
 
@@ -257,11 +257,10 @@ if __name__ == "__main__":
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
 
-
     #stereo_scalability_new(d=2)
-    #stereo_scalability_new(d=3)
+    stereo_scalability_new(d=3)
 
-    stereo_tightness(d=2)
+    #stereo_tightness(d=2)
     #stereo_tightness(d=3)
 
     #stereo_3d_study()

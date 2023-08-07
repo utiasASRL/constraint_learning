@@ -178,7 +178,7 @@ def save_table(df, tex_name):
     print(f"saved table as {tex_name}")
 
 
-def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
+def save_tightness_order(learner: Learner, fname_root="", use_bisection=False, figsize=4):
     from matplotlib.ticker import MaxNLocator
 
     if (learner.df_tight is None) or (len(learner.df_tight) == 0):
@@ -187,12 +187,12 @@ def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
     df_current = learner.df_tight[learner.df_tight.lifter == str(learner.lifter)]
 
     fig_cost, ax_cost = plt.subplots()
-    ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k", label=".QCQP cost")
+    ax_cost.axhline(learner.solver_vars["qcqp_cost"], color="k", label="$q^\\star$")
     for reorder, df in df_current.groupby("reorder"):
         label = (
-            "dual cost, sorted by dual values"
+            "$d^\\star$ (sort.)"
             if reorder
-            else "dual cost, original ordering"
+            else "$d^\\star$ (orig.)"
         )
         if use_bisection:
             ax_cost.semilogy(df.index, df["dual cost"], label=label, ls="", marker="o")
@@ -200,42 +200,47 @@ def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
             ax_cost.semilogy(df.index, df["dual cost"], label=label, ls="-")
 
         fig_eigs, ax_eigs = plt.subplots()
-        fig_eigs.set_size_inches(5, 5)
+        fig_eigs.set_size_inches(figsize, figsize)
 
-        cmap = plt.get_cmap("viridis", len(df))
 
         cost_idx = df[df.cost_tight == True].index.min()
         rank_idx = df[df.rank_tight == True].index.min()
 
         df.sort_index(inplace=True)
 
-        for i in range(len(df)):
-            n = df.iloc[i].name
-            eig = df.iloc[i].eigs
-            label = None
-            color = cmap(i)
-            if i == len(df) // 2:
-                label = "..."
-            if i == 0:
-                label = f"{n}"
-            if i == len(df) - 1:
-                label = f"{n}"
-            if (n == cost_idx) and (cost_idx == rank_idx):
-                label = f"{n}: cost- and rank-tight "
-                color = "red"
-            elif n == cost_idx:
-                label = f"{n}: cost-tight"
-                color = "red"
-            elif n == rank_idx:
-                label = f"{n}: rank-tight"
-                color = "black"
-            ax_eigs.semilogy(eig, color=color, label=label)
+        df_valid = df[~df["dual cost"].isna()]
+        n_min = df_valid.iloc[0].name
+        n_max = df_valid.iloc[-1].name
+        n_mid = df_valid.iloc[len(df_valid) // 2].name
+        ls = ["--", "-.", ":"]
+        for n, ls in zip([n_min, n_mid, n_max], ls):
+            eig = df.loc[n].eigs
+            if not np.any(np.isfinite(eig)):
+                continue
+            if n in [cost_idx, rank_idx]:
+                continue
+            label = f"{n}"
+            color = "gray"
+            ax_eigs.semilogy(eig, ls=ls, label=label, color=color)
 
-        # make sure these two are in foreground
-        if np.isfinite(rank_idx):
-            ax_eigs.semilogy(df.loc[rank_idx].eigs, color="black")
-        if np.isfinite(cost_idx):
-            ax_eigs.semilogy(df.loc[cost_idx].eigs, color="red")
+        if (cost_idx == rank_idx):
+            n = cost_idx
+            eig = df.loc[n].eigs
+            label = f"{n} (C+R)"
+            color = "red"
+            ax_eigs.semilogy(eig, ls="-", label=label, color=color)
+        else:
+            for n in [cost_idx, rank_idx]:
+                if not np.isfinite(n):
+                    continue
+                elif n == cost_idx:
+                    label = f"{n} (C)"
+                    color = "red"
+                elif n == rank_idx:
+                    label = f"{n} (R)"
+                    color = "black"
+                eig = df.loc[n].eigs
+                ax_eigs.semilogy(eig, ls="-", label=label, color=color)
         ax_eigs.set_xlabel("index")
         ax_eigs.set_ylabel("eigenvalue")
         ax_eigs.grid(True)
@@ -246,7 +251,7 @@ def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
         else:
             name = "original"
             # ax_eigs.set_title("original order")
-        ax_eigs.legend(loc="upper right", title="number of added\n constraints")
+        ax_eigs.legend()
         if fname_root != "":
             savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.pdf")
 
@@ -259,9 +264,10 @@ def save_tightness_order(learner: Learner, fname_root="", use_bisection=False):
     ax_cost.xaxis.set_major_locator(MaxNLocator(integer=True))
     ax_cost.set_xlabel("number of added constraints")
     ax_cost.set_ylabel("cost")
-    fig_cost.set_size_inches(5, 5)
+    fig_cost.set_size_inches(figsize, figsize)
 
     ax_cost.grid(True)
+    ax_cost.legend()
 
     if fname_root != "":
         savefig(fig_cost, fname_root + "_tightness-cost.pdf")
@@ -400,6 +406,8 @@ def run_scalability_new(
         with open(fname, "wb") as f:
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
+
+    if learner is not None:
         save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
 
     fname = fname_root + "_df_all.pkl"
@@ -590,7 +598,7 @@ def run_oneshot_experiment(
         use_known=use_known
     )
     if "tightness" in plots:
-        save_tightness_order(learner, fname_root)
+        save_tightness_order(learner, fname_root, figsize=4)
 
     if "matrices" in plots:
         A_matrices = []

@@ -52,7 +52,7 @@ if __name__ == "__main__":
         (WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1)), # ok "
         (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),  # ok
     ]
-    recompute = True
+    recompute = False
 
     try:
         assert recompute is False
