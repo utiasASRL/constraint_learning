@@ -25,6 +25,10 @@ rename_dict = {
     "t apply templates": "apply templates",
     "t check tightness": "solve SDP",
 }
+ylabels = {
+    "t solve SDP": "time sovle SDP [s]",
+    "t create constraints": "time create constraints [s]"
+}
 
 
 def create_newinstance(lifter, n_params):
@@ -106,7 +110,7 @@ def plot_scalability_new(df, log=True, start="t "):
     return fig, ax
 
 
-def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
+def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None, legend_idx=0):
     import seaborn as sns
     from matplotlib.ticker import MaxNLocator
 
@@ -114,6 +118,7 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
     var_name = dict_["var_name"]
 
     df_plot = df.dropna(axis=1, inplace=False, how="all")
+    df_plot = df_plot.replace({"sorted":"sufficient", "basic":"all"})
     df_plot = df_plot.melt(
         id_vars=["N", "type"],
         value_vars=[v for v in df_plot.columns if v.startswith(start)],
@@ -124,22 +129,36 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None):
     var_name_list = df_plot[var_name].unique()
     fig, axs = plt.subplots(1, len(var_name_list), sharex=True, sharey=True)
     axs = {op: ax for op, ax in zip(var_name_list, axs)}
-    for var_name, df_sub in df_plot.groupby(var_name):
-        last = var_name == var_name_list[-1]
+    for key, df_sub in df_plot.groupby(var_name):
+        last = key == var_name_list[legend_idx]
+        remove = []
+        for type_, df_per_type in df_sub.groupby("type"):
+            values = df_per_type[dict_["value_name"]]
+            if (~values.isna()).sum() <= 1:
+                axs[key].scatter(df_per_type.N, values, marker="o", label=type_, color="k")
+                remove.append(type_)
+            if last:
+                axs[key].legend(loc="lower right")
+
+        df_sub = df_sub[~df_sub.type.isin(remove)]
+        values = df_sub[dict_["value_name"]]
         sns.lineplot(
             df_sub,
             x="N",
             y=dict_["value_name"],
             style="type",
-            ax=axs[var_name],
+            ax=axs[key],
             legend=last,
+            color="k"
         )
-        if log:
-            axs[var_name].set_yscale("log")
         # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
-        axs[var_name].set_xticks(df_plot.N.unique())
-        axs[var_name].set_title(var_name)
-        axs[var_name].grid('on')
+
+    for key, ax in axs.items():
+        if log:
+            ax.set_yscale("log")
+        ax.set_xticks(df_plot.N.unique())
+        ax.set_ylabel(ylabels[key], visible=True)
+        ax.grid('on')
         # axs[operation].legend(loc="lower right")
     # axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     return fig, axs
@@ -357,8 +376,6 @@ def run_scalability_new(
             learner = None
         print(f"--------- read {fname} \n")
 
-        if learner is not None:
-            save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
     except (AssertionError, FileNotFoundError) as e:
         print(e)
 
@@ -383,11 +400,10 @@ def run_scalability_new(
         with open(fname, "wb") as f:
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
-
+        save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
 
     fname = fname_root + "_df_all.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())
@@ -436,10 +452,9 @@ def run_scalability_new(
                     data_dict[f"t create constraints"] = time.time() - t1
 
                     # TODO(FD) below should not be necessary
-                    new_learner.constraints = new_learner.clean_constraints(
-                        new_learner.constraints, [], remove_imprecise=True
-                    )
-
+                    #new_learner.constraints = new_learner.clean_constraints(
+                    #    new_learner.constraints, [], remove_imprecise=False
+                    #)
 
                     # determine tightness
                     if (
@@ -450,14 +465,13 @@ def run_scalability_new(
                         print(
                             f"skipping tightness test of stereo3D with {n_params} because it leeds to memory error"
                         )
-                        continue
-                    print(f"=========== tightness test: {name} ===============")
-                    t1 = time.time()
-                    new_learner.is_tight(verbose=True, tightness=tightness)
-                    data_dict[f"t solve SDP"] = time.time() - t1
+                    else:
+                        print(f"=========== tightness test: {name} ===============")
+                        t1 = time.time()
+                        new_learner.is_tight(verbose=True, tightness=tightness)
+                        data_dict[f"t solve SDP"] = time.time() - t1
                     # times = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
                     df_data.append(deepcopy(data_dict))
-
                     if n_successful_seeds >= n_seeds:
                         break
                 df = pd.DataFrame(df_data)
@@ -465,7 +479,6 @@ def run_scalability_new(
 
     fname = f"{fname_root}_df_oneshot.pkl"
     try:
-
         assert recompute is False
         df_oneshot = pd.read_pickle(fname)
         print(f"--------- read {fname} \n")
@@ -484,7 +497,7 @@ def run_scalability_new(
                     f"skipping N={n_params} for stereo2D because this will cause out of memory error."
                 )
                 continue
-            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 10:
+            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 15:
                 print(
                     f"skipping N={n_params} for stereo3D because this will cause out of memory error."
                 )

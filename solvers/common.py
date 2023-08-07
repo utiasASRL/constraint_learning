@@ -244,6 +244,9 @@ def find_local_minimum(
             t_local, msg, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
+            #t_local, msg, cost_solver = lifter.local_solver_new(
+            #    t_init, y=y, verbose=verbose
+            #)
         except NotImplementedError:
             print("Warning: local solver not implemented.")
             return None, None

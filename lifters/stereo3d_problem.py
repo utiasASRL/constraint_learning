@@ -173,4 +173,4 @@ def local_solver(
         if i == max_iters:
             solved = False
     cost = _cost(T_op, p_w, y, W, M)
-    return solved, T_op, cost
+    return solved, T_op, cost / (y.shape[0] * 3)

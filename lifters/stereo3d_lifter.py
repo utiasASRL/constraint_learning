@@ -1,4 +1,4 @@
-import numpy as np
+import autograd.numpy as np
 
 from lifters.stereo_lifter import StereoLifter
 from utils.geometry import (get_T,
@@ -16,18 +16,24 @@ def change_dimensions(a, y):
 class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no", param_level="no", variable_list=None):
         self.W = np.stack([np.eye(4)] * n_landmarks)
-        self.M_matrix_ = None
+
+        f_u = 484.5
+        f_v = 484.5
+        c_u = 322
+        c_v = 247
+        b = 0.24
+        self.M_matrix = np.array(
+            [
+                [f_u, 0, c_u, f_u * b / 2],
+                [0, f_v, c_v, 0],
+                [f_u, 0, c_u, -f_u * b / 2],
+                [0, f_v, c_v, 0],
+            ]
+        )
         super().__init__(
             n_landmarks=n_landmarks, level=level, param_level=param_level, d=3, variable_list=variable_list
         )
 
-    @property
-    def M_matrix(self):
-        if self.M_matrix_ is None:
-            from lifters.stereo3d_problem import M as M_matrix
-
-            self.M_matrix_ = M_matrix
-        return self.M_matrix_
 
     def get_vec_around_gt(self, delta):
         t0 = super().get_vec_around_gt(delta)
@@ -54,7 +60,7 @@ class Stereo3DLifter(StereoLifter):
         T = get_T(xtheta, 3)
 
         cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
-        return cost
+        return cost / (self.n_landmarks * self.d)
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         """

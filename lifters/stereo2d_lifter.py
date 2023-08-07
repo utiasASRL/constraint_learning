@@ -1,4 +1,4 @@
-import numpy as np
+import autograd.numpy as np
 
 from lifters.stereo_lifter import StereoLifter
 
@@ -12,18 +12,15 @@ def change_dimensions(a, y, x):
 class Stereo2DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no", param_level="no", variable_list=None):
         self.W = np.stack([np.eye(2)] * n_landmarks)
-        self.M_matrix_ = None
+
+        f_u = 484.5
+        c_u = 322
+        b = 0.24
+        self.M_matrix = np.array([[f_u, c_u, f_u * b / 2], [f_u, c_u, -f_u * b / 2]])
+
         super().__init__(
             n_landmarks=n_landmarks, level=level, param_level=param_level, d=2, variable_list=variable_list
         )
-
-    @property
-    def M_matrix(self):
-        if self.M_matrix_ is None:
-            from lifters.stereo2d_problem import M as M_matrix
-
-            self.M_matrix_ = M_matrix
-        return self.M_matrix_
 
     def get_cost(self, t, y, W=None):
         from lifters.stereo2d_problem import _cost
@@ -34,7 +31,7 @@ class Stereo2DLifter(StereoLifter):
 
         p_w, y, phi = change_dimensions(a, y, t)
         cost = _cost(phi, p_w, y, W, self.M_matrix)
-        return cost
+        return cost / self.n_landmarks
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         from lifters.stereo2d_problem import local_solver

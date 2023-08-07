@@ -25,7 +25,7 @@ PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, b
 
 FACTOR = 1.2  # oversampling factor.
 
-TOL_REL_GAP = 1e-3
+TOL_REL_GAP = 1e-2
 TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.

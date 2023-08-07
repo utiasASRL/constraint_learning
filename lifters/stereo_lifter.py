@@ -1,6 +1,6 @@
 from abc import ABC, abstractproperty
 
-import numpy as np
+import autograd.numpy as np
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -41,6 +41,7 @@ class StereoLifter(StateLifter, ABC):
     ]
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
         self.n_landmarks = n_landmarks
+        assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
         super().__init__(d=d, level=level, param_level=param_level, variable_list=variable_list)
 
     def get_all_variables(self): 
@@ -59,10 +60,6 @@ class StereoLifter(StateLifter, ABC):
             "urT": n * self.d**2,
             "uxT": n * (self.d* (self.d + self.d **2)),
         }
-
-    @abstractproperty
-    def M_matrix(self):
-        return
 
     def get_inits(self, n_inits):
         n_angles = self.d * (self.d - 1) / 2
@@ -257,6 +254,7 @@ class StereoLifter(StateLifter, ABC):
             ls_problem.add_residual({"l": (y[j] - m), f"z_{j}": -M_tilde})
 
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
+        Q /= (self.n_landmarks * self.d)
         # there is precision loss because Q is 
 
         # sanity check
@@ -266,14 +264,59 @@ class StereoLifter(StateLifter, ABC):
         # can contain very large values. 
         B = ls_problem.get_B_matrix(self.var_dict)
         errors = B @ x
-        cost_test = errors.T @ errors
+        cost_test = errors.T @ errors / (self.n_landmarks * self.d)
 
         t = self.theta
         cost_raw = self.get_cost(t, y)
         cost_Q = x.T @ Q.toarray() @ x
         assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
-        return Q
+        return Q 
+
+    def local_solver_new(self, t0, y, W=None, verbose=False, method="CG", **solver_kwargs):
+        import pymanopt
+        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+
+        if method == "CG":
+            from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest
+        elif method == "SD":
+            from pymanopt.optimizers import SteepestDescent as Optimizer  # slow
+        elif method == "TR":
+            from pymanopt.optimizers import TrustRegions as Optimizer  # okay
+        else:
+            raise ValueError(method)
+
+        if verbose:
+            solver_kwargs["verbosity"] = 2
+
+        manifold = Product((SpecialOrthogonalGroup(self.d, k=1), Euclidean(self.d)))
+
+        if W is None:
+            W = np.eye(4) if self.d == 3 else np.eye(2)
+
+        @pymanopt.function.autograd(manifold)
+        def cost(R, t):
+            cost = 0
+            for i in range(self.n_landmarks):
+                pi_cam = np.concatenate([R @ self.landmarks[i] + t, [1]], axis=0)
+                y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d-1])
+                residual = y[i] - y_gt
+                cost += residual.T @ W @ residual
+            return cost / (self.n_landmarks * self.d)
+
+        euclidean_gradient = None # set to None 
+        problem = pymanopt.Problem(
+            manifold, cost, euclidean_gradient=euclidean_gradient  #
+        )
+        optimizer = Optimizer(**solver_kwargs)
+
+        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
+        res = optimizer.run(problem, initial_point=(R_0, t_0))
+        R, t = res.point
+
+        from utils.geometry import get_xtheta_from_C_r
+        theta_hat = get_xtheta_from_C_r(R, t)
+        return theta_hat, res.stopping_criterion, res.cost
 
     def __repr__(self):
         level_str = str(self.level).replace(".", "-")

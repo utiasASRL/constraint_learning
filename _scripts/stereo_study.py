@@ -80,8 +80,8 @@ def stereo_scalability_new(d=2):
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
         n_seeds = 10
     elif d == 3:
-        n_landmarks_list = [5, 10, 15, 20, 25, 30]
-        n_seeds = 10
+        n_landmarks_list = [10, 15, 20, 25, 30]
+        n_seeds = 10 
     level = "urT"
     param_level = "ppT"
 
@@ -108,25 +108,23 @@ def stereo_scalability_new(d=2):
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     #run_scalability_plot(learner)
     df = run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=True, use_bisection=False, use_known=False, add_original=False
+        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=False, use_bisection=True, use_known=False, add_original=False
     )
 
     fname_root = f"_results/scalability_{learner.lifter}"
 
-    fig, axs = plot_scalability(df, log=True, start="t ")
+    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
 
     #[ax.set_ylim(10, 1000) for ax in axs.values()]
-
     fig.set_size_inches(5, 3)
-    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    axs["t create constraints"].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
-    fig, ax = plot_scalability(df, log=True, start="n ")
+    #fig, ax = plot_scalability(df, log=True, start="n ")
     #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-    fig.set_size_inches(5, 3)
-    savefig(fig, fname_root + f"_n.pdf")
-
-    tex_name = fname_root + f"_n.tex"
-    save_table(df, tex_name)
+    #fig.set_size_inches(5, 5)
+    #savefig(fig, fname_root + f"_n.pdf")
+    #tex_name = fname_root + f"_n.tex"
+    #save_table(df, tex_name)
 
 
 def stereo_3d_study():
