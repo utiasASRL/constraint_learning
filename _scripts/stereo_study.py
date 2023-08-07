@@ -12,14 +12,9 @@ plt.ion()
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from experiments import (
-    run_scalability_new,
-    run_scalability_plot,
-    run_oneshot_experiment,
-    tightness_study,
-    plot_scalability,
-    save_table,
-)
+from experiments import run_scalability_new, run_oneshot_experiment
+from experiments import plot_scalability, save_table
+from utils.plotting_tools import savefig
 
 from lifters.learner import Learner
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -36,7 +31,7 @@ def stereo_tightness(d=2, n_landmarks=None):
     seed = 0
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
-    levels = ["urT"]
+    levels = ["no", "urT"]
     param_level = "no"
     for level in levels:
         print(f"============= seed {seed} level {level} ================")
@@ -82,12 +77,11 @@ def stereo_tightness(d=2, n_landmarks=None):
 
 def stereo_scalability_new(d=2):
     if d == 2:
-        # n_landmarks_list = [5, 6, 7]
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
-        n_seeds = 1  # 10
+        n_seeds = 10
     elif d == 3:
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
-        n_seeds = 1
+        n_seeds = 10
     level = "urT"
     param_level = "ppT"
 
@@ -113,9 +107,26 @@ def stereo_scalability_new(d=2):
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     #run_scalability_plot(learner)
-    run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=False, use_bisection=False
+    df = run_scalability_new(
+        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=True, use_bisection=False, use_known=False, add_original=False
     )
+
+    fname_root = f"_results/scalability_{learner.lifter}"
+
+    fig, axs = plot_scalability(df, log=True, start="t ")
+
+    #[ax.set_ylim(10, 1000) for ax in axs.values()]
+
+    fig.set_size_inches(5, 3)
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    savefig(fig, fname_root + f"_t.pdf")
+    fig, ax = plot_scalability(df, log=True, start="n ")
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    fig.set_size_inches(5, 3)
+    savefig(fig, fname_root + f"_n.pdf")
+
+    tex_name = fname_root + f"_n.tex"
+    save_table(df, tex_name)
 
 
 def stereo_3d_study():
@@ -255,7 +266,7 @@ if __name__ == "__main__":
     #stereo_scalability_new(d=2)
     stereo_scalability_new(d=3)
 
-    # stereo_tightness(d=2)
-    # stereo_tightness(d=3)
+    #stereo_tightness(d=2)
+    #stereo_tightness(d=3)
 
     #stereo_3d_study()

@@ -2,6 +2,8 @@ import numpy as np
 
 from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
+from experiments import plot_scalability, save_table
+from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import run_oneshot_experiment, run_scalability_new
 
@@ -48,8 +50,6 @@ def range_only_scalability_new():
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         df = run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, tightness="rank", recompute=False, add_original=False)
 
-        from experiments import plot_scalability, save_table
-        from utils.plotting_tools import savefig
 
         df = df[df.type != 'original']
         fname_root = f"_results/scalability_{learner.lifter}"

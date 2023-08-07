@@ -356,6 +356,9 @@ def run_scalability_new(
         except EOFError:
             learner = None
         print(f"--------- read {fname} \n")
+
+        if learner is not None:
+            save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
     except (AssertionError, FileNotFoundError) as e:
         print(e)
 
@@ -381,11 +384,10 @@ def run_scalability_new(
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
 
-    if learner is not None:
-        save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
 
     fname = fname_root + "_df_all.pkl"
     try:
+        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())
@@ -405,10 +407,10 @@ def run_scalability_new(
                     data_dict["seed"] = seed
                     data_dict["type"] = name
 
+                    np.random.seed(seed)
                     new_lifter = create_newinstance(learner.lifter, n_params)
                     # doesn't matter because we don't use the usual pipeline.
                     # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
-                    np.random.seed(seed)
                     new_learner = Learner(
                         lifter=new_lifter, variable_list=new_lifter.variable_list
                     )
