@@ -31,7 +31,7 @@ class Stereo2DLifter(StereoLifter):
 
         p_w, y, phi = change_dimensions(a, y, t)
         cost = _cost(phi, p_w, y, W, self.M_matrix)
-        return cost / self.n_landmarks
+        return cost / (self.n_landmarks * self.d)
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         from lifters.stereo2d_problem import local_solver
@@ -44,6 +44,7 @@ class Stereo2DLifter(StereoLifter):
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
         )
+        cost /= (self.n_landmarks * self.d)
         if success:
             return phi_hat.flatten(), "converged", cost
         else:
@@ -52,4 +53,3 @@ class Stereo2DLifter(StereoLifter):
 
 if __name__ == "__main__":
     lifter = Stereo2DLifter(n_landmarks=3)
-    lifter.run()

@@ -13,7 +13,7 @@ plt.ion()
 # plt.ioff()
 
 from experiments import run_scalability_new, run_oneshot_experiment
-from experiments import plot_scalability, save_table
+from experiments import plot_scalability
 from utils.plotting_tools import savefig
 
 from lifters.learner import Learner
@@ -31,7 +31,7 @@ def stereo_tightness(d=2, n_landmarks=None):
     seed = 0
 
     # parameter_levels = ["ppT"] #["no", "p", "ppT"]
-    levels = ["no", "urT"]
+    levels = ["urT", "no"]
     param_level = "no"
     for level in levels:
         print(f"============= seed {seed} level {level} ================")
@@ -116,15 +116,14 @@ def stereo_scalability_new(d=2):
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
 
     #[ax.set_ylim(10, 1000) for ax in axs.values()]
+
     fig.set_size_inches(5, 3)
     axs["t create constraints"].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
+
     #fig, ax = plot_scalability(df, log=True, start="n ")
-    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     #fig.set_size_inches(5, 5)
     #savefig(fig, fname_root + f"_n.pdf")
-    #tex_name = fname_root + f"_n.tex"
-    #save_table(df, tex_name)
 
 
 def stereo_3d_study():
@@ -258,13 +257,11 @@ if __name__ == "__main__":
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
 
-    # stereo_scalability(d=2)
-    #stereo_scalability(d=3)
 
     #stereo_scalability_new(d=2)
-    stereo_scalability_new(d=3)
+    #stereo_scalability_new(d=3)
 
-    #stereo_tightness(d=2)
+    stereo_tightness(d=2)
     #stereo_tightness(d=3)
 
     #stereo_3d_study()

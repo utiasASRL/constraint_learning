@@ -141,7 +141,6 @@ def _du_dphi(p_w, phi, M):
 
 def _cost(phi, p_w, y, W, M):
     # W: (N, 1, 1)
-    N = p_w.shape[0]
     u = _un(y, p_w, phi, M)
     return np.sum(u.transpose((0, 2, 1)) @ W @ u, axis=0)[0, 0]
 

@@ -1,3 +1,5 @@
+import time
+
 import pandas as pd
 import numpy as np
 
@@ -21,6 +23,17 @@ def run_all(lifters, seed=0):
         dict_list = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
         for d in dict_list:
             d["lifter"] = str(lifter)
+                
+        t1 = time.time()
+        learner.generate_minimal_subset(
+            reorder=True,
+            tightness="cost",
+            use_bisection=True,
+            use_known=False
+        )
+        t_suff = time.time() - t1
+        for d in dict_list:
+            d["t find sufficient"] = t_suff
         all_list += dict_list
     df = pd.DataFrame(all_list)
     df = df.apply(pd.to_numeric, errors="ignore")
@@ -29,49 +42,64 @@ def run_all(lifters, seed=0):
 
 if __name__ == "__main__":
 
-    # fix seed for reproducibility
-
     lifters = [
-        #(WahbaLifter, dict(n_landmarks=3, d=2, robust=False, level="no")), # ok with and without B_list
-        #(WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no")), # ok "
-        #(WahbaLifter, dict(n_landmarks=3, d=2, robust=True, level="xwT")), # ok "
-        #(WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT")), # ok "
-        #(MonoLifter, dict(n_landmarks=4, d=2, robust=False, level="no")),  # ok
-        #(MonoLifter, dict(n_landmarks=8, d=3, robust=False, level="no")),  # ok
-        #(MonoLifter, dict(n_landmarks=4, d=2, robust=True, level="xwT")),  # ok (super small violation:  2.92e-06 dual vs. 2.91e-06 qcqp)
-        (MonoLifter, dict(n_landmarks=8, d=3, robust=True, level="xwT", n_outliers=0)),  # ok
-        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
-        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
-        #(Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")), # ok
-        #(Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")), # ok
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
+        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")), # ok
+        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")), # ok
+        (WahbaLifter, dict(n_landmarks=3, d=3, robust=False, level="no", n_outliers=0)), # ok "
+        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),  # ok
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1)), # ok "
+        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),  # ok
     ]
     recompute = True
 
     try:
         assert recompute is False
         df = pd.read_pickle("_results/all_df.pkl")
-        lifters_str = set([str(l) for l in lifters])
+        lifters_str = set([str(L(**d)) for L,d in lifters])
         assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
-        df = run_all(lifters)
+        df= run_all(lifters)
         df.to_pickle("_results/all_df.pkl")
 
-    times = ['t check tightness', 't learn templates', 't apply templates']
-    with open("_results/all_df.tex", "w") as f:
+    times = {
+       't learn templates': "$t_n$", 
+       't apply templates': "$t_a$", 
+       't check tightness': "$t_s$", 
+       't find sufficient': "$t_r$",
+    }
+    lifter_names = {
+        "wahba_3d_no_no": "PPR",
+        "mono_3d_no_no": "PPL",
+        "wahba_3d_xwT_no_robust": "rPPR",
+        "mono_3d_xwT_no_robust": "rPLR",
+        "rangeonlyloc3d_no": "RO ($z_n$)",
+        "rangeonlyloc3d_quad": f"RO ($\\vc{{y}}_n$)",
+        "stereo2d_urT_ppT": "stereo (2d)",
+        "stereo3d_urT_ppT": "stereo (3d)",
+    }
+    fname = "_results/all_df.tex"
+    with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
-            out("problem& variables& dimension Y& time learn& time apply& time SDP& time total \\\\ \n")
+            out(f"problem & $n$ & $N_l$ & \\# templates & {' & '.join(times.values())} & total [s]  \\\\ \n")
+            out(f"\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
-                out(lifter.replace("_", "-") + " & ")
-                out("[")
-                for vars in df_sub.variables:
-                    out("[")
-                    for v in vars[:-1]:
-                        out(f"${v}$, ")
-                    out(f"${vars[-1]}$] ")
-                out("] & ")
+                out(lifter_names[lifter] + " & ")
+                #out("[")
+                #for vars in df_sub.variables:
+                #    out("[")
+                #    for v in vars[:-1]:
+                #        out(f"${v}$, ")
+                #    out(f"${vars[-1]}$] ")
+                #out("] & ")
                 out(str(df_sub["n dims"].values) + " & ")
-                for t in times:
-                    out(f"{df_sub[t].sum():.4f} &")
-                out(f"{df_sub[times].sum().sum():.4f} \\\\ \n")
+                out(str(df_sub["n nullspace"].values) + " & ")
+                out(str(df_sub["n templates"].values[-1]) + " & ")
+                #out(str(df_sub["n constraints"].values[-1]) + " & ")
+                for t in times.keys():
+                    out(f"{df_sub[t].sum():.2f} &")
+                out(f"{df_sub[times.keys()].sum().sum():.2f} \\\\ \n")
+    print("\nwrote above in", fname)

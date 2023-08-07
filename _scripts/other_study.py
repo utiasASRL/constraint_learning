@@ -1,7 +1,9 @@
 import numpy as np
 
+from experiments import plot_scalability
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
+from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import (
     run_oneshot_experiment,
@@ -76,7 +78,7 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
         n_outliers=n_outliers
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    run_scalability_new(
+    df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
@@ -88,6 +90,18 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
         use_known=False
     )
 
+    fname_root = f"_results/scalability_{learner.lifter}"
+    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+    [ax.set_ylim(10, 1000) for ax in axs.values()]
+
+    fig.set_size_inches(5, 5)
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    savefig(fig, fname_root + f"_t.pdf")
+    
+    #fig, ax = plot_scalability(df, log=True, start="n ")
+    #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    #fig.set_size_inches(5, 3)
+    #savefig(fig, fname_root + f"_n.pdf")
 
 if __name__ == "__main__":
     from lifters.mono_lifter import MonoLifter

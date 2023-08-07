@@ -87,7 +87,7 @@ class RobustPoseLifter(StateLifter, ABC):
         if not robust:
             assert level == "no"
         super().__init__(
-            level=level, param_level=param_level, d=d, variable_list=variable_list
+            level=level, param_level=param_level, d=d, variable_list=variable_list, robust=robust
         )
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
