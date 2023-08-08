@@ -1,6 +1,6 @@
 import numpy as np
 
-from experiments import plot_scalability
+from experiments import plot_scalability, save_table
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
@@ -94,14 +94,17 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs.values()]
 
-    fig.set_size_inches(6, 2.5)
+    fig.set_size_inches(8, 3)
     #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     savefig(fig, fname_root + f"_t.pdf")
     
     #fig, ax = plot_scalability(df, log=True, start="n ")
     #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-    #fig.set_size_inches(5, 3)
-    #savefig(fig, fname_root + f"_n.pdf")
+    fig.set_size_inches(5, 3)
+    savefig(fig, fname_root + f"_n.pdf")
+
+    tex_name = fname_root + f"_n.tex"
+    save_table(df, tex_name)
 
 if __name__ == "__main__":
     from lifters.mono_lifter import MonoLifter

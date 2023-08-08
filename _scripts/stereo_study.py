@@ -13,7 +13,7 @@ plt.ion()
 # plt.ioff()
 
 from experiments import run_scalability_new, run_oneshot_experiment
-from experiments import plot_scalability
+from experiments import plot_scalability, save_table
 from utils.plotting_tools import savefig
 
 from lifters.learner import Learner
@@ -117,13 +117,16 @@ def stereo_scalability_new(d=2):
 
     #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
-    fig.set_size_inches(6, 2.5)
+    fig.set_size_inches(8, 3)
     axs["t create constraints"].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
 
     #fig, ax = plot_scalability(df, log=True, start="n ")
     #fig.set_size_inches(5, 5)
     #savefig(fig, fname_root + f"_n.pdf")
+
+    tex_name = fname_root + f"_n.tex"
+    save_table(df, tex_name)
 
 
 def stereo_3d_study():

@@ -58,7 +58,7 @@ def range_only_scalability_new():
 
         #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
-        fig.set_size_inches(6, 2.5)
+        fig.set_size_inches(8, 3)
         axs["t solve SDP"].legend(loc="upper right") #, bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
         #fig, ax = plot_scalability(df, log=True, start="n ")
@@ -66,8 +66,8 @@ def range_only_scalability_new():
         #fig.set_size_inches(5, 3)
         #savefig(fig, fname_root + f"_n.pdf")
 
-        #tex_name = fname_root + f"_n.tex"
-        #save_table(df, tex_name)
+        tex_name = fname_root + f"_n.tex"
+        save_table(df, tex_name)
 
 if __name__ == "__main__":
     #range_only_tightness()
