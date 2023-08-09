@@ -15,8 +15,6 @@ from utils.geometry import get_C_r_from_theta
 NOISE = 1e-3 # inlier noise
 NOISE_OUT = 1e-1 # outlier noise
 FOV = np.pi / 2  # camera field of view
-NOISE = 1e-3 # inlier noise
-NOISE_OUT = 0.1  # outlier noise
 
 N_TRYS = 10
 

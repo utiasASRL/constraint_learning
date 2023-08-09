@@ -330,7 +330,7 @@ class RangeOnlyLocLifter(StateLifter):
         return sub_idx_x
 
     def local_solver(
-        self, t_init, y, tol=1e-8, verbose=False, solver_kwargs=SOLVER_KWARGS
+        self, t_init, y, verbose=False, solver_kwargs=SOLVER_KWARGS
     ):
         """
         :param t_init: (positions, landmarks) tuple
@@ -340,6 +340,8 @@ class RangeOnlyLocLifter(StateLifter):
         options={"disp": verbose, "maxiter": self.LOCAL_MAXITER}
         if self.LOCAL_MAXITER is not None:
             options["maxiter"] = self.LOCAL_MAXITER
+            options["gtol"] = 1e-6
+            options["ftol"] = 1e-10
         sol = minimize(
             self.get_cost,
             x0=t_init,
@@ -347,7 +349,6 @@ class RangeOnlyLocLifter(StateLifter):
             jac=self.get_grad,
             # hess=self.get_hess, not used by any solvers.
             **solver_kwargs,
-            tol=tol,
             options=options,
         )
         if sol.success:

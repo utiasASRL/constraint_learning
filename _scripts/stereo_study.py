@@ -261,9 +261,9 @@ if __name__ == "__main__":
     #    warnings.simplefilter("error")
 
     #stereo_scalability_new(d=2)
-    stereo_scalability_new(d=3)
+    #stereo_scalability_new(d=3)
 
-    #stereo_tightness(d=2)
+    stereo_tightness(d=2)
     #stereo_tightness(d=3)
 
     #stereo_3d_study()

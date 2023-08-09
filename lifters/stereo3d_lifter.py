@@ -80,7 +80,7 @@ class Stereo3DLifter(StereoLifter):
         T_init = get_T(xtheta_init, 3)
 
         success, T_hat, cost = local_solver(
-            T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose
+            T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose, min_update_norm=1e-10
         )
         x_hat = get_xtheta_from_T(T_hat)
 

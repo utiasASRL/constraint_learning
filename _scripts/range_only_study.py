@@ -70,5 +70,5 @@ def range_only_scalability_new():
         save_table(df, tex_name)
 
 if __name__ == "__main__":
-    #range_only_tightness()
-    range_only_scalability_new()
+    range_only_tightness()
+    #range_only_scalability_new()

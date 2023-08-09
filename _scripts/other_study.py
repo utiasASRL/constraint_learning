@@ -26,7 +26,7 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_outl
     if d == 2:
         n_landmarks = 4  # we have d**2 + d = 6 unknowns --> need n>=3 landmarks
     elif d == 3:
-        n_landmarks = 8  # we have d**2 + d = 12 unknowns --> need n>=6 landmarks
+        n_landmarks = 4  # we have d**2 + d = 12 unknowns --> need n>=6 landmarks
     if robust:
         levels = ["xwT"]  # ["xxT"] #["xwT", "xxT"]
     else:

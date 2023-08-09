@@ -412,6 +412,7 @@ def run_scalability_new(
 
     fname = fname_root + "_df_all.pkl"
     try:
+        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         assert set(param_list).issubset(df.N.unique())

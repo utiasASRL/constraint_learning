@@ -25,7 +25,7 @@ def run_all(lifters, seed=0):
             d["lifter"] = str(lifter)
                 
         t1 = time.time()
-        learner.generate_minimal_subset(
+        indices = learner.generate_minimal_subset(
             reorder=True,
             tightness="cost",
             use_bisection=True,
@@ -34,6 +34,7 @@ def run_all(lifters, seed=0):
         t_suff = time.time() - t1
         for d in dict_list:
             d["t find sufficient"] = t_suff
+            d["n required"] = len(indices)
         all_list += dict_list
     df = pd.DataFrame(all_list)
     df = df.apply(pd.to_numeric, errors="ignore")
@@ -56,14 +57,14 @@ if __name__ == "__main__":
 
     try:
         assert recompute is False
-        df = pd.read_pickle("_results/all_df.pkl")
+        df = pd.read_pickle("_results/all_df_new.pkl")
         lifters_str = set([str(L(**d)) for L,d in lifters])
         assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
         df= run_all(lifters)
-        df.to_pickle("_results/all_df.pkl")
+        df.to_pickle("_results/all_df_new.pkl")
 
     times = {
        't learn templates': "$t_n$", 
@@ -84,22 +85,17 @@ if __name__ == "__main__":
     fname = "_results/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
-            out(f"problem & $n$ & $N_l$ & \\# templates & {' & '.join(times.values())} & total [s]  \\\\ \n")
+            out(f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & EVR \\\\ \n")
             out(f"\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
                 out(lifter_names[lifter] + " & ")
-                #out("[")
-                #for vars in df_sub.variables:
-                #    out("[")
-                #    for v in vars[:-1]:
-                #        out(f"${v}$, ")
-                #    out(f"${vars[-1]}$] ")
-                #out("] & ")
                 out(str(df_sub["n dims"].values) + " & ")
                 out(str(df_sub["n nullspace"].values) + " & ")
-                out(str(df_sub["n templates"].values[-1]) + " & ")
-                #out(str(df_sub["n constraints"].values[-1]) + " & ")
+                out(str(df_sub["n constraints"].values[-1]) + " & ")
+                out(str(df_sub["n required"].values[-1]) + " & ")
                 for t in times.keys():
                     out(f"{df_sub[t].sum():.2f} &")
-                out(f"{df_sub[times.keys()].sum().sum():.2f} \\\\ \n")
+                out(f"{df_sub[times.keys()].sum().sum():.2f} & ")
+                out(f"{abs(df_sub['RDG'].values[-1]):.2e} & ")
+                out(f"{df_sub['SVR'].values[-1]:.2e} \\\\ \n")
     print("\nwrote above in", fname)

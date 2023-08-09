@@ -123,9 +123,11 @@ class Learner(object):
             return False
         return (dual_cost - primal_cost) / abs(dual_cost) > TOL_REL_GAP
 
-    def duality_gap_is_zero(self, dual_cost, verbose=False):
+    def duality_gap_is_zero(self, dual_cost, verbose=False, data_dict={}):
         primal_cost = self.solver_vars["qcqp_cost"]
-        res = (primal_cost - dual_cost) / abs(dual_cost) < TOL_REL_GAP
+        RDG = (primal_cost - dual_cost) / abs(dual_cost)
+        res = RDG < TOL_REL_GAP
+        data_dict["RDG"] = RDG
         if not verbose:
             return res
 
@@ -138,8 +140,10 @@ class Learner(object):
         )
         return res
 
-    def is_rank_one(self, eigs, verbose=False):
-        res = eigs[0] / eigs[1] > TOL_RANK_ONE
+    def is_rank_one(self, eigs, verbose=False, data_dict={}):
+        SVR = eigs[0] / eigs[1]
+        data_dict["SVR"] = SVR
+        res = SVR > TOL_RANK_ONE
         if not verbose:
             return res
         if res:
@@ -151,7 +155,7 @@ class Learner(object):
         )
         return res
 
-    def is_tight(self, verbose=False, tightness="rank"):
+    def is_tight(self, verbose=False, tightness="rank", data_dict={}):
         #A_list = self.lifter.get_A_known()
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
@@ -211,9 +215,11 @@ class Learner(object):
                 print("should be plus or minus ones:", wi.round(4))
 
             if tightness == "rank":
-                tightness_val = self.is_rank_one(eigs, verbose=verbose)
+                self.duality_gap_is_zero(info["cost"], verbose=False, data_dict=data_dict)
+                tightness_val = self.is_rank_one(eigs, verbose=verbose, data_dict=data_dict)
             elif tightness == "cost":
-                tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose)
+                self.is_rank_one(eigs, verbose=False, data_dict=data_dict)
+                tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose, data_dict=data_dict)
             return tightness_val
 
     def generate_minimal_subset(
@@ -625,7 +631,7 @@ class Learner(object):
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")
-            is_tight = self.is_tight(verbose=verbose, tightness=tightness)
+            is_tight = self.is_tight(verbose=verbose, tightness=tightness, data_dict=data_dict)
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)
