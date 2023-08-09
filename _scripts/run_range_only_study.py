@@ -2,10 +2,10 @@ import numpy as np
 
 from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from experiments import plot_scalability, save_table
-from utils.plotting_tools import savefig
 
-from _scripts.stereo_study import run_oneshot_experiment, run_scalability_new
+from utils.plotting_tools import savefig
+from utils.experiments import plot_scalability, save_table
+from utils.experiments import run_oneshot_experiment, run_scalability_new
 
 RECOMPUTE = True
 

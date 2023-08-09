@@ -3,6 +3,7 @@ import numpy as np
 
 from lifters.poly_lifters import PolyLifter
 from lifters.mono_lifter import MonoLifter
+from lifters.robust_pose_lifter import RobustPoseLifter
 from _test.test_tools import all_lifters
 
 
@@ -133,9 +134,7 @@ def test_cost(noise=0.0):
         # for Stereo3D problem.
         assert abs(cost - costQ) < 1e-6, (cost, costQ)
 
-        if noise == 0 and not (
-            isinstance(lifter, PolyLifter) or isinstance(lifter, MonoLifter)
-        ):
+        if noise == 0 and not isinstance(lifter, PolyLifter) and not lifter.robust:
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
         elif noise == 0 and isinstance(lifter, MonoLifter):
@@ -236,18 +235,17 @@ def test_solvers(n_seeds=1, noise=0.0):
 
 
 def compare_solvers():
-    kwargs = {"method": None}
-
     noise = 1e-1
     for lifter in all_lifters():
-        if isinstance(lifter, MonoLifter):
+        if isinstance(lifter, RobustPoseLifter):
             compare_solvers = [
-                "CG","SD","TR",
+                "CG","SD",#"TR", very slow for some reason
             ]
         else:
             compare_solvers = [
                 "Nelder-Mead",
-                "Powell",  # "CG",  CG takes forever.
+                "Powell",  
+                # "CG",  CG takes forever.
                 # "Newton-CG",
                 "BFGS",
                 "TNC",

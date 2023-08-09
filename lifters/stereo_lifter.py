@@ -58,7 +58,7 @@ class StereoLifter(StateLifter, ABC):
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
-            "uxT": n * (self.d* (self.d + self.d **2)),
+            "uxT": n * (self.d* (self.d + self.d**2)),
         }
 
     def get_inits(self, n_inits):
@@ -156,10 +156,9 @@ class StereoLifter(StateLifter, ABC):
                 elif self.level == "urT":
                     # this works
                     x_data += list(np.outer(u, r).flatten())
-                elif self.level == "u1u2rT":
-                    x_data += list(np.outer(u, r).flatten())
-                    x_data += list(np.outer(u**2, r).flatten())
-
+                elif self.level == "uxT":
+                    x = np.r_[r, C.flatten("F")]
+                    x_data += list(np.outer(u, x).flatten())
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)

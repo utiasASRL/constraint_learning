@@ -10,11 +10,15 @@ from poly_matrix.least_squares_problem import LeastSquaresProblem
 
 NOISE = 1e-2 # std deviation of distance noise
 
-SOLVER_KWARGS = dict(
-    # method="Nelder-Mead",
-    method="BFGS",  # the only one that almost always converges
-    # method="Powell"
-)
+METHOD = "BFGS"
+
+# TODO(FD): parameters below are not all equivalent.
+SOLVER_KWARGS = {
+    "BFGS": dict(gtol=1e-6, xrtol = 1e-10), # relative step size
+    "Nelder-Mead": dict(xatol=1e-10), # absolute step size
+    "Powell": dict(ftol = 1e-6, xtol=1e-10),
+    "TNC": dict(gtol=1e-6, xtol=1e-10)
+}
 
 
 class RangeOnlyLocLifter(StateLifter):
@@ -23,8 +27,6 @@ class RangeOnlyLocLifter(StateLifter):
     - level "no" uses substitution z_i=||p_i||^2=x_i^2 + y_i^2
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
-    LOCAL_MAXITER = None
-
     LEVELS = ["no", "quad"]
     LEVEL_NAMES = {
         "no": "$z_n$",
@@ -330,26 +332,22 @@ class RangeOnlyLocLifter(StateLifter):
         return sub_idx_x
 
     def local_solver(
-        self, t_init, y, verbose=False, solver_kwargs=SOLVER_KWARGS
+        self, t_init, y, verbose=False, method="BFGS", solver_kwargs=SOLVER_KWARGS
     ):
         """
         :param t_init: (positions, landmarks) tuple
         """
 
         # TODO(FD): split problem into individual points.
-        options={"disp": verbose, "maxiter": self.LOCAL_MAXITER}
-        if self.LOCAL_MAXITER is not None:
-            options["maxiter"] = self.LOCAL_MAXITER
-            options["gtol"] = 1e-6
-            options["ftol"] = 1e-10
+        solver_kwargs["disp"] = verbose
         sol = minimize(
             self.get_cost,
             x0=t_init,
             args=y,
             jac=self.get_grad,
             # hess=self.get_hess, not used by any solvers.
-            **solver_kwargs,
-            options=options,
+            method=method,
+            options=solver_kwargs,
         )
         if sol.success:
             print("RangeOnly local solver:", sol.nit)

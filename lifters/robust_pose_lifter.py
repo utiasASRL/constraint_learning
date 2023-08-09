@@ -75,7 +75,6 @@ class RobustPoseLifter(StateLifter, ABC):
         """
         self.beta = BETA
         self.n_landmarks = n_landmarks
-        self.n_outliers = n_outliers
 
         self.robust = robust
         self.level = level
@@ -87,7 +86,7 @@ class RobustPoseLifter(StateLifter, ABC):
         if not robust:
             assert level == "no"
         super().__init__(
-            level=level, param_level=param_level, d=d, variable_list=variable_list, robust=robust
+            level=level, param_level=param_level, d=d, variable_list=variable_list, robust=robust, n_outliers=n_outliers
         )
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
@@ -257,7 +256,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         cost = 0
         for i in range(self.n_landmarks):
-            res = self.residual(R, t, self.landmarks[i], y[i])
+            res = self.residual_sq(R, t, self.landmarks[i], y[i])
             if self.robust:
                 cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
             else:
@@ -300,7 +299,7 @@ class RobustPoseLifter(StateLifter, ABC):
         def cost(R, t):
             cost = 0
             for i in range(self.n_landmarks):
-                residual = self.residual(R, t, self.landmarks[i], y[i])
+                residual = self.residual_sq(R, t, self.landmarks[i], y[i])
                 if self.robust:
                     cost += (1 + w[i]) / self.beta**2 * residual + 1 - w[i]
                 else:
@@ -340,14 +339,16 @@ class RobustPoseLifter(StateLifter, ABC):
 
         print("local solver sanity check:")
         print("final penalty:", self.penalty(t))
-        for i in range(self.n_landmarks):
-            residual = self.residual(R, t, self.landmarks[i], y[i])
-            if i < self.n_outliers:
-                print(f"outlier residual: {residual:.4e}")
-                assert residual > self.beta, f"outlier residual too small: {residual} <= {self.beta}"
-            else:
-                print(f"inlier residual: {residual:.4e}")
-                assert residual <= self.beta, f"inlier residual too large: {residual} > {self.beta}"
+
+        if self.robust:
+            for i in range(self.n_landmarks):
+                residual_sq = self.residual_sq(R, t, self.landmarks[i], y[i])
+                if i < self.n_outliers:
+                    print(f"outlier residual_sq: {residual_sq:.4e}")
+                    assert residual_sq > self.beta**2, f"outlier residual_sq too small: {residual_sq} <= {self.beta**2}"
+                else:
+                    print(f"inlier residual_sq: {residual_sq:.4e}")
+                    assert residual_sq <= self.beta**2, f"inlier residual_sq too large: {residual_sq} > {self.beta**2}"
 
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
@@ -476,7 +477,8 @@ class RobustPoseLifter(StateLifter, ABC):
         return
 
     @abstractmethod
-    def residual(self, R, t, pi, ui):
+    def residual_sq(self, R, t, pi, ui):
+        raise ValueError("do not call this")
         return
 
     @abstractmethod

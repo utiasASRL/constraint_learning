@@ -8,8 +8,9 @@ class BaseClass(ABC):
     PARAM_LEVELS = ["no"]
     VARIABLE_LIST = ["l"]
 
-    def __init__(self, level="no", param_level="no", d=2, variable_list=None, robust=False):
+    def __init__(self, level="no", param_level="no", d=2, variable_list=None, robust=False, n_outliers=0):
         self.robust = robust
+        self.n_outliers = n_outliers
 
         assert level in self.LEVELS
         self.level = level

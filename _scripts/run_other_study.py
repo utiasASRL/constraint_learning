@@ -1,16 +1,17 @@
 import numpy as np
 
-from experiments import plot_scalability, save_table
+from utils.experiments import plot_scalability, save_table
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
 
-from _scripts.stereo_study import (
+from utils.experiments import (
     run_oneshot_experiment,
     run_scalability_new,
 )
 
 RECOMPUTE = True
+N_SEEDS = 1
 
 def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_landmarks=4, n_outliers=0):
     """
@@ -56,10 +57,8 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
 
     if d == 2:
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
-        n_seeds = 1
     elif d == 3:
         n_landmarks_list = [10, 11, 12, 13, 14, 15]  # , 20, 25, 30]
-        n_seeds = 1
 
     np.random.seed(0)
     lifter = Lifter(
@@ -74,7 +73,7 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
-        n_seeds=n_seeds,
+        n_seeds=N_SEEDS,
         use_last=None,
         recompute=RECOMPUTE,
         use_bisection=True,
@@ -100,19 +99,13 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     save_table(df, tex_name)
 
 if __name__ == "__main__":
-    from lifters.mono_lifter import MonoLifter
-    from lifters.wahba_lifter import WahbaLifter
-
     d = 3
-
-    # study of non-robust lifters (scales well)
-    robust = False
-    lifter_tightness(WahbaLifter, d=d, n_landmarks=3, robust=robust)
-    lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=robust)
-
-    
-    # study of robust lfiters (scales poorly --- use incremental only)
-    robust = True
     n_outliers = 1
-    lifter_scalability_new(WahbaLifter, d=d, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
-    lifter_scalability_new(MonoLifter, d=d, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)
+
+    from lifters.mono_lifter import MonoLifter
+    lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
+    lifter_scalability_new(MonoLifter, d=d, n_landmarks=5+n_outliers, robust=True, n_outliers=n_outliers)
+
+    from lifters.wahba_lifter import WahbaLifter
+    lifter_tightness(WahbaLifter, d=d, n_landmarks=3, robust=False)
+    lifter_scalability_new(WahbaLifter, d=d, n_landmarks=3+n_outliers, robust=True, n_outliers=n_outliers)

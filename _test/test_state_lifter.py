@@ -6,6 +6,7 @@ from lifters.state_lifter import unravel_multi_index_triu, ravel_multi_index_tri
 
 import pytest
 
+
 def pytest_configure():
     # global variables
     pytest.A_learned = {}
@@ -109,12 +110,11 @@ def test_vec_mat():
         for A_l, A_k in zip(A_learned[:3], A_known):
             np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
 
+pytest_configure()
 
 if __name__ == "__main__":
     import sys
     import warnings
-
-    pytest_configure()
 
     test_ravel()
     test_vec_mat()

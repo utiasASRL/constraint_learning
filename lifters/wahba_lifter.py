@@ -50,10 +50,10 @@ class WahbaLifter(RobustPoseLifter):
     def term_in_norm(self, R, t, pi, ui):
         return R @ pi + t - ui
 
-    def residual(self, R, t, pi, ui):
+    def residual_sq(self, R, t, pi, ui):
         # TODO: can easily extend below to matrix-weighted
         W = np.eye(self.d)
-        return (R @ pi + t - ui).T @ W @ (R @ pi + t - ui)
+        return (R @ pi + t - ui).T @ W @ (R @ pi + t - ui) / (self.n_landmarks * self.d) ** 2
 
     def get_Q(self, noise: float = None):
         if noise is None:
@@ -90,16 +90,17 @@ r       residual term:
         from poly_matrix.poly_matrix import PolyMatrix
 
         Q = PolyMatrix(symmetric=True)
+        norm = (self.n_landmarks * self.d) ** 2
 
         Wi = np.eye(self.d)
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
+            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))] 
 
-            Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
-            Pi_ll = ui.T @ Wi @ ui
-            Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
-            Qi = Pi.T @ Wi @ Pi
+            Pi_ll = ui.T @ Wi @ ui / norm
+            Pi_xl = -(Pi.T @ Wi @ ui)[:, None] / norm
+            Qi = Pi.T @ Wi @ Pi / norm
             if self.robust:
                 Qi /= self.beta**2
                 Pi_ll /= self.beta**2
@@ -112,14 +113,14 @@ r       residual term:
                 #Q["x", "l"] += Pi_xl
                 Q["t", "l"] += Pi_xl[:self.d, :]
                 Q["c", "l"] += Pi_xl[self.d:, :]
-                Q["l", "l"] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
+                Q["l", "l"] += 1 + Pi_ll # 1 from (1 - wi), Pi_ll from first term.
                 Q["l", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
                     #Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
                     Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
 
-                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
+                    Q["l", f"w_{i}"] += 0.5 * Pi_ll # from first term
                     
                     Q[f"z_{i}", "l"] += Pi_xl
                 elif self.level == "xxT":
@@ -139,9 +140,9 @@ r       residual term:
                 #Q["x", "l"] += Pi_xl
                 Q["t", "l"] += Pi_xl[:self.d, :]
                 Q["c", "l"] += Pi_xl[self.d:, :]
-                Q["l", "l"] += Pi_ll  # on diagonal
+                Q["l", "l"] += Pi_ll # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
-        return Q_sparse
+        return Q_sparse 
 
     def __repr__(self):
         appendix = "_robust" if self.robust else ""

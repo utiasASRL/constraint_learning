@@ -80,10 +80,10 @@ class MonoLifter(RobustPoseLifter):
     def term_in_norm(self, R, t, pi, ui):
         return R @ pi + t
 
-    def residual(self, R, t, pi, ui):
+    def residual_sq(self, R, t, pi, ui):
         W = np.eye(self.d) - np.outer(ui, ui)
         term = self.term_in_norm(R, t, pi, ui)
-        return term.T @ W @ term
+        return term.T @ W @ term  / (self.n_landmarks * self.d)**2
 
     def get_Q(self, noise: float = None):
         if noise is None:
@@ -128,27 +128,29 @@ class MonoLifter(RobustPoseLifter):
     def get_Q_from_y(self, y):
         """
         every cost term can be written as
-        (1 + wi)/b**2  [l x'] Qi [l; x] + 1 - wi
-        = [l x'] Qi/b**2 [l; x] + wi * [l x']Qi/b**2[l;x] + 1 - wi
+        (1 + wi)/b**2  [l x'] Qi [l; x] / norm + 1 - wi
+        = [l x'] Qi/b**2 [l; x] /norm + wi * [l x']Qi/b**2[l;x] / norm + 1 - wi
 
         cost term:
         (Rpi + t) (I - uiui') (Rpi + t)
         """
         Q = PolyMatrix(symmetric=True)
+        norm = (self.n_landmarks * self.d)**2
 
         for i in range(self.n_landmarks):
             pi = self.landmarks[i]
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))] # I, pi x I
+
             Wi = np.eye(self.d) - np.outer(ui, ui)
-            Qi = Pi.T @ Wi @ Pi # "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 
+            Qi = Pi.T @ Wi @ Pi / norm# "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 
             if self.robust:
                 Qi /= self.beta**2
-                Q["l", "l"] += 1
+                Q["l", "l"] += 1 # last two terms, should not be affected by norm
                 Q["l", f"w_{i}"] += -0.5
                 if self.level == "xwT":
                     #Q[f"z_{i}", "x"] += 0.5 * Qi
-                    Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
+                    Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d] 
                     Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
                     #Q["x", "x"] += Qi
                     Q["t", "t"] += Qi[:self.d, :self.d]
