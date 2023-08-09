@@ -7,6 +7,8 @@ from utils.plotting_tools import savefig
 
 from _scripts.stereo_study import run_oneshot_experiment, run_scalability_new
 
+RECOMPUTE = True
+
 n_positions = 3
 n_landmarks = 10
 d = 3
@@ -37,6 +39,7 @@ def range_only_tightness():
 def range_only_scalability_new():
     n_positions_list = [10, 15, 20, 25, 30]
     n_seeds = 10
+
     for level in ["no", "quad"]:
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -48,7 +51,7 @@ def range_only_scalability_new():
             variable_list=variable_list,
         )
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        df = run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, tightness="rank", recompute=False, add_original=False)
+        df = run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, tightness="rank", recompute=RECOMPUTE, add_original=False)
 
 
         df = df[df.type != 'original']
@@ -61,14 +64,10 @@ def range_only_scalability_new():
         fig.set_size_inches(8, 3)
         axs["t solve SDP"].legend(loc="upper right") #, bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
-        #fig, ax = plot_scalability(df, log=True, start="n ")
-        #axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-        #fig.set_size_inches(5, 3)
-        #savefig(fig, fname_root + f"_n.pdf")
 
         tex_name = fname_root + f"_n.tex"
         save_table(df, tex_name)
 
 if __name__ == "__main__":
     range_only_tightness()
-    #range_only_scalability_new()
+    range_only_scalability_new()

@@ -10,23 +10,16 @@ from _scripts.stereo_study import (
     run_scalability_new,
 )
 
-def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_outliers=0):
+RECOMPUTE = True
+
+def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_landmarks=4, n_outliers=0):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
     plots = [
-        # "svd",
-        # "matrices",
-        # "matrix",
         "tightness",
-        "templates",
     ]
-
-    if d == 2:
-        n_landmarks = 4  # we have d**2 + d = 6 unknowns --> need n>=3 landmarks
-    elif d == 3:
-        n_landmarks = 4  # we have d**2 + d = 12 unknowns --> need n>=6 landmarks
     if robust:
         levels = ["xwT"]  # ["xxT"] #["xwT", "xxT"]
     else:
@@ -83,7 +76,7 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         use_last=None,
-        recompute=False,
+        recompute=RECOMPUTE,
         use_bisection=True,
         add_original=False,
         tightness="cost",
@@ -110,13 +103,16 @@ if __name__ == "__main__":
     from lifters.mono_lifter import MonoLifter
     from lifters.wahba_lifter import WahbaLifter
 
-    #d = 3
-    #robust = False
-    #for Lifter in [MonoLifter, WahbaLifter]:
-    #    lifter_tightness(Lifter, d=d, robust=robust)
+    d = 3
 
+    # study of non-robust lifters (scales well)
+    robust = False
+    lifter_tightness(WahbaLifter, d=d, n_landmarks=3, robust=robust)
+    lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=robust)
+
+    
+    # study of robust lfiters (scales poorly --- use incremental only)
     robust = True
     n_outliers = 1
-    lifter_scalability_new(WahbaLifter, d=3, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
-    lifter_scalability_new(MonoLifter, d=3, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)
-
+    lifter_scalability_new(WahbaLifter, d=d, n_landmarks=3+n_outliers, robust=robust, n_outliers=n_outliers)
+    lifter_scalability_new(MonoLifter, d=d, n_landmarks=5+n_outliers, robust=robust, n_outliers=n_outliers)

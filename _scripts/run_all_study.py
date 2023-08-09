@@ -11,6 +11,8 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 
+RECOMPUTE = True
+
 def run_all(lifters, seed=0):
     all_list = []
     for Lifter, dict in lifters:
@@ -42,7 +44,6 @@ def run_all(lifters, seed=0):
 
 
 if __name__ == "__main__":
-
     lifters = [
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
@@ -53,10 +54,9 @@ if __name__ == "__main__":
         (WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1)), # ok "
         (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),  # ok
     ]
-    recompute = False
 
     try:
-        assert recompute is False
+        assert RECOMPUTE is False
         df = pd.read_pickle("_results/all_df_new.pkl")
         lifters_str = set([str(L(**d)) for L,d in lifters])
         assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
