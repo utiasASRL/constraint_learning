@@ -9,4 +9,4 @@ if __name__ == "__main__":
     run_stereo_study(n_seeds=n_seeds, recompute=recompute, tightness=True, scalability=False)
     run_range_only_study(n_seeds=n_seeds, recompute=recompute, tightness=True, scalability=False)
     run_other_study(n_seeds=1, recompute=recompute, tightness=True, scalability=False)
-    run_all_study(recompute=recompute)
+    run_all_study(recompute=True)

@@ -24,6 +24,10 @@ USE_INEQ = False
 
 
 class MonoLifter(RobustPoseLifter):
+    @property
+    def TIGHTNESS(self):
+        return "cost" if self.robust else "rank"
+
     def h_list(self, t):
         """
         We want to inforce that

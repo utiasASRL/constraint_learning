@@ -46,8 +46,6 @@ def range_only_tightness():
             learner,
             fname_root,
             plots,
-            tightness="rank",
-            add_original=True,
             use_known=False,
         )
 

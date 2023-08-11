@@ -8,7 +8,7 @@ plt.ion()
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from utils.experiments import run_scalability_new, run_oneshot_experiment
+from utils.experiments import run_scalability_new, run_oneshot_experiment, run_scalability_plot
 from utils.experiments import plot_scalability, save_table
 from utils.plotting_tools import savefig
 
@@ -38,12 +38,7 @@ def stereo_tightness(d=2, n_landmarks=None):
 
         variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
         if d == 2:
-            plots = ["tightness"]  # , "matrix"]
-            tightness = "cost"
-
-            # plots = ["matrices", "templates", "svd"]
-            # tightness = "cost"
-
+            plots = ["tightness", "matrix", "templates", "svd"]
             lifter = Stereo2DLifter(
                 n_landmarks=n_landmarks,
                 level=level,
@@ -52,11 +47,6 @@ def stereo_tightness(d=2, n_landmarks=None):
             )
         elif d == 3:
             plots = ["tightness"]
-            tightness = "cost"
-
-            # plots = ["matrices", "templates", "svd"]
-            # tightness = "cost"
-
             lifter = Stereo3DLifter(
                 n_landmarks=n_landmarks,
                 level=level,
@@ -70,7 +60,7 @@ def stereo_tightness(d=2, n_landmarks=None):
         fname_root = f"_results/{lifter}_seed{seed}"
 
         run_oneshot_experiment(
-            learner, fname_root, plots, tightness=tightness, add_original=True
+            learner, fname_root, plots
         )
 
 
@@ -103,7 +93,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
         )
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    # run_scalability_plot(learner)
+    #run_scalability_plot(learner)
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,

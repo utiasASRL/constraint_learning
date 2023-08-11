@@ -5,6 +5,9 @@ import numpy as np
 
 
 class Constraint(object):
+    """
+    This class serves the main purpose of not recomputing representations of constraints more than once.
+    """
     def __init__(
         self,
         index=0,

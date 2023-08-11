@@ -130,7 +130,9 @@ class Learner(object):
         )
         return res
 
-    def is_tight(self, verbose=False, tightness="rank", data_dict={}):
+    def is_tight(self, verbose=False, data_dict={}):
+        tightness = self.lifter.TIGHTNESS
+
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
@@ -594,7 +596,7 @@ class Learner(object):
         print(f"using {n_known} known constraints")
         return n_known
 
-    def run(self, use_known=True, verbose=False, plot=False, tightness="rank"):
+    def run(self, use_known=True, verbose=False, plot=False):
         data = []
         success = False
 
@@ -646,7 +648,7 @@ class Learner(object):
             t1 = time.time()
             print(f"-------- checking tightness ----------")
             is_tight = self.is_tight(
-                verbose=verbose, tightness=tightness, data_dict=data_dict
+                verbose=verbose, data_dict=data_dict
             )
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot

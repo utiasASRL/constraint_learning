@@ -21,9 +21,7 @@ def lifter_tightness(
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
-    plots = [
-        "tightness",
-    ]
+    plots = ["tightness"]
     if robust:
         levels = ["xwT"]  # ["xxT"] #["xwT", "xxT"]
     else:
@@ -47,9 +45,6 @@ def lifter_tightness(
             learner,
             fname_root,
             plots,
-            tightness="rank",
-            add_original=True,
-            use_bisection=False,
             use_known=True,
         )
 
@@ -79,12 +74,10 @@ def lifter_scalability_new(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
-        use_last=None,
         recompute=recompute,
         use_bisection=True,
-        add_original=False,
-        tightness="cost",
-        use_known=False,
+        add_original=True,
+        #use_known=False,
     )
 
     fname_root = f"_results/scalability_{learner.lifter}"
@@ -108,8 +101,8 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
     d = 3
     n_outliers = 1
 
+    print("================= Mono study ==================")
     from lifters.mono_lifter import MonoLifter
-
     if tightness:
         lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
     if scalability:
@@ -123,8 +116,8 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
             recompute=recompute,
         )
 
+    print("================= Wahba study ==================")
     from lifters.wahba_lifter import WahbaLifter
-
     if tightness:
         lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
     if scalability:

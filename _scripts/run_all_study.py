@@ -9,46 +9,31 @@ from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.robust_pose_lifter import RobustPoseLifter
 
 
 RECOMPUTE = True
-COST_TIGHT_LIFTERS = [Stereo2DLifter, Stereo3DLifter]
-
 
 def generate_results(lifters, seed=0):
     all_list = []
     for Lifter, dict in lifters:
         np.random.seed(seed)
         lifter = Lifter(**dict)
-        if type(lifter) in COST_TIGHT_LIFTERS:
-            tightness = "cost"
-        elif isinstance(lifter, RobustPoseLifter):
-            if lifter.robust:
-                tightness = "cost"
-            else:
-                tightness = "rank"
-        else:
-            tightness = "rank"
 
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         dict_list, success = learner.run(
-            verbose=True, use_known=False, plot=False, tightness=tightness
+            verbose=True, use_known=False, plot=False
         )
-        for d in dict_list:
-            d["lifter"] = str(lifter)
         if not success:
-            raise RuntimeError(f"{lifter}: did not achieve {tightness} tightness.")
+            raise RuntimeError(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(
-            reorder=True, tightness=tightness, use_bisection=True, use_known=True
-        )
+        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True, use_known=True)
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
         for d in dict_list:
+            d["lifter"] = str(lifter)
             d["t find sufficient"] = t_suff
             d["n required"] = len(indices) if indices is not None else None
         all_list += dict_list
@@ -62,29 +47,29 @@ def run_all(recompute=RECOMPUTE):
         (
             RangeOnlyLocLifter,
             dict(n_positions=3, n_landmarks=10, d=3, level="no"),
-        ),  # ok
+        ),  
         (
             RangeOnlyLocLifter,
             dict(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        ),  # ok
-        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),  # ok
-        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),  # ok
+        ),  
+        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),  
+        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),  
         (
             WahbaLifter,
             dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1),
-        ),  # ok "
+        ),   
         (
             MonoLifter,
             dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
-        ),  # ok
+        ),  
         (
             WahbaLifter,
             dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
-        ),  # ok "
+        ),   
         (
             MonoLifter,
             dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-        ),  # ok
+        ),  
     ]
 
     try:

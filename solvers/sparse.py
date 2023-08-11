@@ -30,9 +30,8 @@ def bisection(function, inputs, left, right):
         print("Warning: not a valid starting interval, both left and right already tight!")
         return 
     elif (not left_tight) and (not right_tight):
-        print("Warning: problem is not tight on left or right. Trying again in right half anyways")
-        left = (right - left) // 2
-        return bisection(function, inputs, left, right)
+        print("Warning: problem is not tight on left or right.")
+        return
 
     assert not left_tight 
     assert right_tight

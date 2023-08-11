@@ -28,6 +28,7 @@ class RangeOnlyLocLifter(StateLifter):
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
 
+    TIGHTNESS = "rank" 
     LEVELS = ["no", "quad"]
     LEVEL_NAMES = {
         "no": "$z_n$",

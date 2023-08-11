@@ -5,7 +5,6 @@ import matplotlib.pylab as plt
 import scipy.linalg as la
 import scipy.sparse as sp
 
-from utils.common import increases_rank
 from utils.common import upper_triangular
 from lifters.base_class import BaseClass
 
@@ -74,6 +73,7 @@ class StateLifter(BaseClass):
 
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
+    TIGHTNESS = "cost" 
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):

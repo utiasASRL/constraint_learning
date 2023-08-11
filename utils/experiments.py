@@ -328,28 +328,21 @@ def save_tightness_order(
 
 def tightness_study(
     learner: Learner,
-    tightness="rank",
-    original=False,
-    use_last=None,
-    use_bisection=False,
-    use_known=False,
+    use_bisection=True,
+    use_known=True,
 ):
     """investigate tightness before and after reordering"""
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(
         reorder=True,
-        tightness=tightness,
-        use_last=use_last,
+        tightness=learner.lifter.TIGHTNESS,
         use_bisection=use_bisection,
         use_known=use_known,
     )
-    if not original:
-        return None, idx_subset_reorder
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
         reorder=False,
-        tightness=tightness,
-        use_last=use_last,
+        tightness=learner.lifter.TIGHTNESS,
         use_bisection=use_bisection,
         use_known=use_known,
     )
@@ -359,14 +352,14 @@ def tightness_study(
 def run_scalability_plot(learner: Learner):
     fname_root = f"_results/scalability_{learner.lifter}"
     data, success = learner.run(
-        verbose=True, use_known=False, plot=False, tightness="cost"
+        verbose=True, use_known=False, plot=False, tightness=learner.lifter.TIGHTNESS
     )
     df = pd.DataFrame(data)
     fig, ax = plot_scalability_new(df, start="t ")
     savefig(fig, fname_root + f"_small.pdf")
 
     idx_subset_original, idx_subset_reorder = tightness_study(
-        learner, tightness="cost", original=False
+        learner, original=False
     )
     templates_poly = learner.generate_templates_poly(factor_out_parameters=False)
     add_columns = {
@@ -389,7 +382,6 @@ def run_scalability_new(
     param_list: list,
     n_seeds: int = 1,
     recompute=False,
-    tightness="cost",
     use_last=None,
     use_bisection=False,
     add_original=True,
@@ -412,7 +404,7 @@ def run_scalability_new(
         orig_dict = {}
         t1 = time.time()
         data, success = learner.run(
-            verbose=True, use_known=use_known, plot=False, tightness=tightness
+            verbose=True, use_known=use_known, plot=False
         )
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
@@ -444,7 +436,6 @@ def run_scalability_new(
         t1 = time.time()
         idx_subset_original, idx_subset_reorder = tightness_study(
             learner,
-            tightness=tightness,
             original=add_original,
             use_last=use_last,
             use_bisection=use_bisection,
@@ -544,9 +535,8 @@ def run_scalability_new(
                     else:
                         print(f"=========== tightness test: {name} ===============")
                         t1 = time.time()
-                        new_learner.is_tight(verbose=True, tightness=tightness)
+                        new_learner.is_tight(verbose=True)
                         data_dict[f"t solve SDP"] = time.time() - t1
-                    # times = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
                     df_data.append(deepcopy(data_dict))
                     if n_successful_seeds >= n_seeds:
                         break
@@ -614,7 +604,7 @@ def run_scalability_new(
                     continue
                 n_successful_seeds += 1
 
-                dict_list, success = new_learner.run(tightness=tightness, verbose=True)
+                dict_list, success = new_learner.run(verbose=True)
                 new_dict = dict_list[-1]
                 if not success:
                     raise RuntimeError(
@@ -642,13 +632,9 @@ def run_oneshot_experiment(
     learner: Learner,
     fname_root,
     plots,
-    tightness="rank",
-    add_original=True,
-    use_last=None,
-    use_bisection=False,
     use_known=True,
 ):
-    learner.run(verbose=True, use_known=use_known, plot=True, tightness=tightness)
+    learner.run(verbose=True, use_known=use_known, plot=True)
 
     if "svd" in plots:
         fig = plt.gcf()
@@ -659,14 +645,11 @@ def run_oneshot_experiment(
 
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner,
-        tightness=tightness,
-        original=add_original,
-        use_last=use_last,
-        use_bisection=use_bisection,
+        use_bisection=True,
         use_known=use_known,
     )
     if "tightness" in plots:
-        save_tightness_order(learner, fname_root, figsize=4)
+        save_tightness_order(learner, fname_root, figsize=4, use_bisection=True)
 
     if "matrices" in plots:
         A_matrices = []
