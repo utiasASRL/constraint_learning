@@ -339,7 +339,8 @@ class RangeOnlyLocLifter(StateLifter):
         """
 
         # TODO(FD): split problem into individual points.
-        solver_kwargs["disp"] = verbose
+        options = SOLVER_KWARGS[method]
+        options["disp"] = verbose
         sol = minimize(
             self.get_cost,
             x0=t_init,
@@ -347,7 +348,7 @@ class RangeOnlyLocLifter(StateLifter):
             jac=self.get_grad,
             # hess=self.get_hess, not used by any solvers.
             method=method,
-            options=solver_kwargs,
+            options=options,
         )
         if sol.success:
             print("RangeOnly local solver:", sol.nit)

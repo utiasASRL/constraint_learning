@@ -7,6 +7,7 @@ from utils.plotting_tools import savefig
 from utils.experiments import plot_scalability, save_table
 from utils.experiments import run_oneshot_experiment, run_scalability_new
 
+N_SEEDS = 10
 RECOMPUTE = True
 
 n_positions = 3
@@ -36,10 +37,8 @@ def range_only_tightness():
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(learner, fname_root, plots, tightness="rank", add_original=True, use_known=False)
 
-def range_only_scalability_new():
+def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
     n_positions_list = [10, 15, 20, 25, 30]
-    n_seeds = 10
-
     for level in ["no", "quad"]:
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -51,13 +50,14 @@ def range_only_scalability_new():
             variable_list=variable_list,
         )
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        df = run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, tightness="rank", recompute=RECOMPUTE, add_original=False)
-
+        df = run_scalability_new(learner, param_list=n_positions_list, n_seeds=n_seeds, tightness="rank", recompute=recompute, add_original=False)
 
         df = df[df.type != 'original']
         fname_root = f"_results/scalability_{learner.lifter}"
 
-        fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+        df_sub = df[df.type != 'oneshot']['t solve SDP']
+        ylim = [df_sub.min(), df_sub.max()]
+        fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1, extra_plot_ylim=ylim)
 
         #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
@@ -68,6 +68,11 @@ def range_only_scalability_new():
         tex_name = fname_root + f"_n.tex"
         save_table(df, tex_name)
 
+def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+    if scalability:
+        range_only_scalability_new(recompute=recompute, n_seeds=n_seeds)
+    if tightness:
+        range_only_tightness()
+
 if __name__ == "__main__":
-    range_only_tightness()
-    range_only_scalability_new()
+    run_all()

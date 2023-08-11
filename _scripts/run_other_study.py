@@ -51,7 +51,7 @@ def lifter_tightness(Lifter=MonoLifter, robust: bool = False, d: int = 2, n_land
         )
 
 
-def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
+def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     level = "xwT"
     variable_list = None  # use the default one for the first step.
 
@@ -73,9 +73,9 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
-        n_seeds=N_SEEDS,
+        n_seeds=n_seeds,
         use_last=None,
-        recompute=RECOMPUTE,
+        recompute=recompute,
         use_bisection=True,
         add_original=False,
         tightness="cost",
@@ -98,14 +98,21 @@ def lifter_scalability_new(Lifter, d, n_landmarks, n_outliers, robust):
     tex_name = fname_root + f"_n.tex"
     save_table(df, tex_name)
 
-if __name__ == "__main__":
+def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     d = 3
     n_outliers = 1
 
     from lifters.mono_lifter import MonoLifter
-    lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
-    lifter_scalability_new(MonoLifter, d=d, n_landmarks=5+n_outliers, robust=True, n_outliers=n_outliers)
+    if tightness:
+        lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
+    if scalability:
+        lifter_scalability_new(MonoLifter, d=d, n_landmarks=5+n_outliers, robust=True, n_outliers=n_outliers, n_seeds=n_seeds, recompute=recompute)
 
     from lifters.wahba_lifter import WahbaLifter
-    lifter_tightness(WahbaLifter, d=d, n_landmarks=3, robust=False)
-    lifter_scalability_new(WahbaLifter, d=d, n_landmarks=3+n_outliers, robust=True, n_outliers=n_outliers)
+    if tightness:
+        lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
+    if scalability:
+        lifter_scalability_new(WahbaLifter, d=d, n_landmarks=4+n_outliers, robust=True, n_outliers=n_outliers, n_seeds=n_seeds, recompute=recompute)
+
+if __name__ == "__main__":
+    run_all()

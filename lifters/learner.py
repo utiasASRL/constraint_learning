@@ -25,7 +25,7 @@ PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, b
 
 FACTOR = 1.2  # oversampling factor.
 
-TOL_REL_GAP = 1e-2
+TOL_REL_GAP = 1e-3
 TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
@@ -53,7 +53,6 @@ class Learner(object):
 
         # templates contains the learned "templates" of the form:
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)
-        self.b_current_ = None  # current basis formed from b matrices
         self.templates_poly_ = None  # for plotting only: all templats stacked in one
 
         # A_matrices contains the generated PolyMatrices (induced from the templates)
@@ -91,30 +90,6 @@ class Learner(object):
     @property
     def A_matrices(self):
         return [c.A_sparse_ for c in self.constraints]
-
-    def get_b_current(self, target_mat_var_dict=None):
-        """
-        Extract basis vectors that depend on a subset of the currently used parameters (keys in target_mat_var_dict).
-
-        example:
-            - templates contains("l", "x", "z_0"): list of learned constraints for this subset
-            - target: ("l", "x")
-        """
-        if target_mat_var_dict is None:
-            target_mat_var_dict = self.lifter.get_var_dict_unroll(self.mat_var_dict)
-
-        # if self.b_current_ is None:
-        b_list = []
-        for constraint in self.constraints:
-            bi = constraint.b(self.lifter)
-            mat_vars = constraint.mat_var_dict
-            i = constraint.index
-            bi = self.lifter.zero_pad_subvector(bi, mat_vars, target_mat_var_dict)
-            if bi is not None:
-                b_list.append(bi)
-        if len(b_list):
-            self.b_current_ = np.vstack(b_list)
-        return self.b_current_
 
     def check_violation(self, dual_cost):
         primal_cost = self.solver_vars["qcqp_cost"]
@@ -156,7 +131,6 @@ class Learner(object):
         return res
 
     def is_tight(self, verbose=False, tightness="rank", data_dict={}):
-        #A_list = self.lifter.get_A_known()
         A_list = [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
@@ -269,18 +243,15 @@ class Learner(object):
             else:
                 return new_data["cost_tight"]
 
-        A_list = [constraint.A_sparse_ for constraint in self.constraints]
+        A_known = [constraint.A_sparse_ for constraint in self.constraints if constraint.known]
+        A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints if not constraint.known]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
 
-        A_b0 = (self.lifter.get_A0(), 1.0)
-        inputs = [A_b0]
-            
+        force_first = 1
         if use_known:
-            A_b_known = [(Ai, 0.0) for Ai in self.lifter.get_A_known()]
-            inputs += A_b_known
+            force_first  += len(A_known)
 
-        force_first = len(inputs)
         if reorder:
             # find the importance of each constraint
             __, lamdas = solve_lambda(
@@ -299,12 +270,13 @@ class Learner(object):
 
             # order the redundant constraints by importance
             redundant_idx = np.argsort(np.abs(lamdas[force_first:]))[::-1]
-            sorted_idx = force_first + redundant_idx
+            sorted_idx = np.r_[np.arange(force_first), force_first + redundant_idx]
         else:
             # if force_first is 7, then
             # sorted idx is simply 7, 8, 9, ..., 20
-            sorted_idx = force_first + np.arange(len(A_b_list_all)-force_first)
-        inputs += [A_b_list_all[idx] for idx in sorted_idx]
+            sorted_idx = range(len(A_b_list_all))
+
+        inputs = [A_b_list_all[idx] for idx in sorted_idx]
 
         B_list = self.lifter.get_B_known()
         df_data = []
@@ -332,11 +304,11 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_idx = df_tight[df_tight.cost_tight == True].index.min()
+            min_num = df_tight[df_tight.cost_tight == True].index.min()
         elif tightness == "rank":
-            min_idx = df_tight[df_tight.rank_tight == True].index.min()
-        if not np.isnan(min_idx):
-            minimal_indices = list(range(force_first))+ list(sorted_idx[range(min_idx-force_first)])
+            min_num = df_tight[df_tight.rank_tight == True].index.min()
+        if not np.isnan(min_num):
+            minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
 
     def find_local_solution(self):
@@ -386,29 +358,8 @@ class Learner(object):
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-
         if use_known:
-            b_list = []
-            print("WARNING: we are currently wasting compute here because we always add A_known again.")
-            for Ai in self.lifter.get_A_known(
-                var_dict=self.mat_var_dict, output_poly=True
-            ):
-                Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
-                a = self.lifter.get_vec(Ai_sparse, correct=True)
-                b_list.append(self.lifter.augment_using_zero_padding(a))
-
-            templates += [
-                Constraint.init_from_b(
-                    index=self.constraint_index + i,
-                    mat_var_dict=self.mat_var_dict,
-                    b=bi,
-                    lifter=self.lifter,
-                    convert_to_polyrow=self.apply_templates_to_others,
-                )
-                for i, bi in enumerate(b_list)
-            ]
-            self.constraint_index += len(b_list)
-            Y = np.vstack([Y] + [c.a_.toarray() for c in templates])
+            Y = np.vstack([Y] + [c.a_.toarray() for c in self.templates if c.a_ is not None])
 
         if plot:
             fig, ax = plt.subplots()
@@ -440,6 +391,7 @@ class Learner(object):
                 break
 
         if basis_new.shape[0]:
+            print(f"found {basis_new.shape[0]} basis vectors")
             templates += [
                 Constraint.init_from_b(
                     index=self.constraint_index + i,
@@ -447,10 +399,26 @@ class Learner(object):
                     b=b,
                     lifter=self.lifter,
                     convert_to_polyrow=self.apply_templates_to_others,
+                    known=False
                 )
                 for i, b in enumerate(basis_new)
             ]
             self.constraint_index += basis_new.shape[0]
+            print(f"found {len(templates)} candidate templates")
+
+            # at this point, templates is a mix of:
+            # (new and old) known constraints, 
+            # previously found constraints,
+            # and new constraints.
+
+            # we assume that all known constraints are linearly independent, and also
+            # that all known+previously found constraints are linearly independent. 
+            indep_templates = self.clean_constraints(
+                new_constraints=templates,
+                before_constraints=self.templates,
+                remove_dependent=True,
+                remove_imprecise=False,
+            )
 
         if data_dict is not None:
             ttot = time.time() - t1
@@ -459,13 +427,6 @@ class Learner(object):
             data_dict["n nullspace"] = corank
 
         if len(templates) > 0:
-            print(f"found {len(templates)} candidate templates")
-            indep_templates = self.clean_constraints(
-                new_constraints=templates,
-                before_constraints=self.templates,
-                remove_dependent=True,
-                remove_imprecise=False,
-            )
             n_all = len(indep_templates)
             n_new = n_all - len(self.templates)
             self.templates = indep_templates
@@ -490,6 +451,8 @@ class Learner(object):
                         index=self.constraint_index + i,
                         polyrow_b=new_constraint,
                         lifter=self.lifter,
+                        template_idx=template.index,
+                        known=template.known
                     )
                     for i, new_constraint in enumerate(constraints)
                 ]
@@ -593,25 +556,53 @@ class Learner(object):
                     del constraints[idx]
         return constraints
 
+    def add_known_templates(self):
+        n_known = 0
+        for i, Ai in enumerate(self.lifter.get_A_known(self.mat_var_dict, output_poly=True)):
+            Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
+            a = self.lifter.get_vec(Ai_sparse, correct=True)
+
+            bi = self.lifter.augment_using_zero_padding(a)
+            template = Constraint.init_from_b(
+                index=self.constraint_index + i,
+                mat_var_dict=self.mat_var_dict,
+                b=bi,
+                lifter=self.lifter,
+                convert_to_polyrow=self.apply_templates_to_others,
+                known=True
+            )
+            self.constraint_index += 1
+            self.templates.append(template)
+            n_known += 1
+        print(f"using {n_known} known constraints")
+        return n_known
+
     def run(self, use_known=True, verbose=False, plot=False, tightness="rank"):
         data = []
+        success = False
+
         while 1:
             # add one more variable to the list of variables to vary
             if not self.update_variables():
                 print("no more variables to add")
                 break
-
             print(f"======== {self.mat_vars} ========")
+
+            n_new = 0
+            if use_known:
+                n_new += self.add_known_templates()
+
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
 
             print(f"-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
-            n_new, n_all = self.learn_templates(
+            n_new_learned, n_all = self.learn_templates(
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
-            print(f"found {n_new} independent templates, new total: {n_all} ")
-            data_dict["n templates"] = n_all
+            n_new += n_new_learned
+            print(f"found {n_new_learned} learned templates, new total learned: {n_all} ")
+            data_dict["n templates"] = len(self.templates)
             if n_new == 0:
                 print("new variables didn't have any effect")
                 continue
@@ -627,7 +618,11 @@ class Learner(object):
                 data_dict["n constraints"] = n_all
                 data_dict["t apply templates"] = ttot
             else:
-                self.constraints = self.templates
+                self.constraints = []
+                for temp in self.templates:
+                    con = deepcopy(temp)
+                    con.template_idx = temp.index
+                    self.constraints.append(con)
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")
@@ -636,8 +631,9 @@ class Learner(object):
             data_dict["t check tightness"] = ttot
             data.append(data_dict)
             if is_tight:
+                success = True
                 break
-        return data
+        return data, success
 
     def get_sorted_df(self, templates_poly=None, add_columns={}):
         def sort_fun_sparsity(series):

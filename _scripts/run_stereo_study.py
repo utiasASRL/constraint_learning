@@ -1,7 +1,3 @@
-import itertools
-from copy import deepcopy
-
-import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 
@@ -77,7 +73,7 @@ def stereo_tightness(d=2, n_landmarks=None):
         )
 
 
-def stereo_scalability_new(d=2):
+def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     if d == 2:
         n_landmarks_list = [5, 10, 15, 20, 25, 30]
     elif d == 3:
@@ -108,13 +104,12 @@ def stereo_scalability_new(d=2):
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     #run_scalability_plot(learner)
     df = run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=N_SEEDS, recompute=RECOMPUTE, use_bisection=True, use_known=False, add_original=False
+        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=recompute, use_bisection=True, use_known=False, add_original=False
     )
 
     fname_root = f"_results/scalability_{learner.lifter}"
 
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
-
     #[ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(8, 3)
@@ -128,13 +123,16 @@ def stereo_scalability_new(d=2):
     tex_name = fname_root + f"_n.tex"
     save_table(df, tex_name)
 
+def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+    if tightness:
+        stereo_tightness(d=2)
+        stereo_tightness(d=3)
+    if scalability:
+        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
+        stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
+
 if __name__ == "__main__":
     # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-
-    #stereo_scalability_new(d=2)
-    #stereo_scalability_new(d=3)
-
-    stereo_tightness(d=2)
-    stereo_tightness(d=3)
+    run_all()

@@ -9,61 +9,76 @@ from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.robust_pose_lifter import RobustPoseLifter
 
 
 RECOMPUTE = True
+COST_TIGHT_LIFTERS = [Stereo2DLifter, Stereo3DLifter]
 
-def run_all(lifters, seed=0):
+def generate_results(lifters, seed=0):
     all_list = []
     for Lifter, dict in lifters:
         np.random.seed(seed)
         lifter = Lifter(**dict)
+        if type(lifter) in COST_TIGHT_LIFTERS:
+            tightness = "cost"
+        elif isinstance(lifter, RobustPoseLifter):
+            if lifter.robust: 
+                tightness = "cost"
+            else:
+                tightness = "rank"
+        else:
+            tightness = "rank"
+            
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list
         )
-        dict_list = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
+        dict_list, success = learner.run(verbose=True, use_known=False, plot=False, tightness=tightness)
         for d in dict_list:
             d["lifter"] = str(lifter)
+        if not success:
+            raise RuntimeError(f"{lifter}: did not achieve {tightness} tightness.")
                 
         t1 = time.time()
         indices = learner.generate_minimal_subset(
             reorder=True,
-            tightness="cost",
+            tightness=tightness,
             use_bisection=True,
-            use_known=False
+            use_known=True
         )
+        if indices is None:
+            print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
         for d in dict_list:
             d["t find sufficient"] = t_suff
-            d["n required"] = len(indices)
+            d["n required"] = len(indices) if indices is not None else None
         all_list += dict_list
     df = pd.DataFrame(all_list)
     df = df.apply(pd.to_numeric, errors="ignore")
     return df
 
-
-if __name__ == "__main__":
+def run_all(recompute=RECOMPUTE):
     lifters = [
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")), # ok
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")), # ok
         (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")), # ok
         (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")), # ok
-        (WahbaLifter, dict(n_landmarks=3, d=3, robust=False, level="no", n_outliers=0)), # ok "
-        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),  # ok
-        (WahbaLifter, dict(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1)), # ok "
+        (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)), # ok "
         (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),  # ok
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)), # ok "
+        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),  # ok
     ]
 
     try:
-        assert RECOMPUTE is False
+        assert recompute is False
         df = pd.read_pickle("_results/all_df_new.pkl")
         lifters_str = set([str(L(**d)) for L,d in lifters])
         assert lifters_str.issubset(df.lifter.unique().astype(str)), f"{lifters_str.difference(df.lifter.unique())} not in df"
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
-        df= run_all(lifters)
+        df= generate_results(lifters)
         df.to_pickle("_results/all_df_new.pkl")
 
     times = {
@@ -99,3 +114,6 @@ if __name__ == "__main__":
                 out(f"{abs(df_sub['RDG'].values[-1]):.2e} & ")
                 out(f"{df_sub['SVR'].values[-1]:.2e} \\\\ \n")
     print("\nwrote above in", fname)
+
+if __name__ == "__main__":
+    run_all()

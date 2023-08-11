@@ -24,7 +24,7 @@ def noise_study(learner):
         )
         np.random.seed(seed)
 
-        data_here = learner.run(
+        data_here, success = learner.run(
             verbose=True, use_known=False, plot=False, tightness=tightness
         )[0]
         dcost = learner.dual_costs[-1]

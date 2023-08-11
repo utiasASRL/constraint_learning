@@ -26,8 +26,9 @@ rename_dict = {
     "t check tightness": "solve SDP",
 }
 ylabels = {
-    "t solve SDP": "time sovle SDP [s]",
-    "t create constraints": "time create constraints [s]"
+    "t solve SDP": "time to solve SDP [s]",
+    "t create constraints": "time to create constraints [s]",
+    "zoom": ""
 }
 
 
@@ -110,14 +111,17 @@ def plot_scalability_new(df, log=True, start="t "):
     return fig, ax
 
 
-def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None, legend_idx=0):
+def plot_scalability(df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]):
     import seaborn as sns
     from matplotlib.ticker import MaxNLocator
+    from matplotlib import gridspec
 
     dict_ = plot_dict[start]
     var_name = dict_["var_name"]
 
-    df_plot = df.dropna(axis=1, inplace=False, how="all")
+    df_plot = df[df.type != "original"]
+
+    df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.replace({"sorted":"sufficient", "basic":"all"})
     df_plot = df_plot.melt(
         id_vars=["N", "type"],
@@ -125,20 +129,31 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None, legend_idx=
         value_name=dict_["value_name"],
         var_name=var_name,
     )
+    add_extra = 1 if len(extra_plot_ylim) else 0
     df_plot.replace(rename_dict, inplace=True)
-    var_name_list = df_plot[var_name].unique()
-    fig, axs = plt.subplots(1, len(var_name_list), sharex=True, sharey=True)
-    axs = {op: ax for op, ax in zip(var_name_list, axs)}
-    for key, df_sub in df_plot.groupby(var_name):
-        last = key == var_name_list[legend_idx]
+    var_name_list = list(df_plot[var_name].unique())
+    fig = plt.figure()
+    axs = {}
+    sharex = None
+    sharey = None
+    gs = gridspec.GridSpec(1, len(var_name_list) + add_extra, width_ratios=len(var_name_list)*[2] + add_extra*[1]) 
+    for i, key in enumerate(var_name_list):
+        axs[key] = plt.subplot(gs[i], sharex=sharex, sharey=sharey)
+        #axs[key] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i, sharex=sharex, sharey=sharey)
+        sharex = axs[key]
+        sharey = axs[key]
+    if add_extra:
+        axs["zoom"] = plt.subplot(gs[i+1], sharex=None, sharey=None)
+        #axs["zoom"] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i+1, sharex=None, sharey=None)
+    def plot_here(ax, df_sub, last):
         remove = []
         for type_, df_per_type in df_sub.groupby("type"):
             values = df_per_type[dict_["value_name"]]
             if (~values.isna()).sum() <= 1:
-                axs[key].scatter(df_per_type.N, values, marker="o", label=type_, color="k")
+                ax.scatter(df_per_type.N, values, marker="o", label=type_, color="k")
                 remove.append(type_)
             if last:
-                axs[key].legend(loc="lower right")
+                ax.legend(loc="lower right")
 
         df_sub = df_sub[~df_sub.type.isin(remove)]
         values = df_sub[dict_["value_name"]]
@@ -147,18 +162,34 @@ def plot_scalability(df, log=True, start="t ", ymin=None, ymax=None, legend_idx=
             x="N",
             y=dict_["value_name"],
             style="type",
-            ax=axs[key],
+            ax=ax,
             legend=last,
             color="k"
         )
+
+    for key, df_sub in df_plot.groupby(var_name):
+        last = key == var_name_list[legend_idx]
+        plot_here(axs[key], df_sub, last)
         # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+
+    if len(extra_plot_ylim):
+        from matplotlib.patches import Rectangle
+        plot_here(axs["zoom"], df_sub, last=False)
+        axs["zoom"].set_xlim(*extra_plot_xlim)
+        axs["zoom"].set_ylim(*extra_plot_ylim)
+        axs["zoom"].set_title("zoom")
+        axs[key].add_patch(Rectangle([extra_plot_xlim[0], extra_plot_ylim[0]], width=np.diff(extra_plot_xlim)[[0]], height=np.diff(extra_plot_ylim)[0], edgecolor="k", facecolor='none'))
+        axs["zoom"].add_patch(Rectangle([extra_plot_xlim[0], extra_plot_ylim[0]], width=np.diff(extra_plot_xlim)[[0]], height=np.diff(extra_plot_ylim)[0], edgecolor="k", facecolor='none'))
 
     for key, ax in axs.items():
         if log:
             ax.set_yscale("log")
-        ax.set_xticks(df_plot.N.unique())
-        ax.set_ylabel(ylabels[key], visible=True)
-        ax.grid('on')
+        if key != "zoom":
+            ax.set_xticks(df_plot.N.unique())
+            ax.set_ylabel(ylabels[key], visible=True)
+            ax.grid('on')
+        else:
+            ax.axis("off")
         # axs[operation].legend(loc="lower right")
     # axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     return fig, axs
@@ -306,7 +337,7 @@ def tightness_study(
 
 def run_scalability_plot(learner: Learner):
     fname_root = f"_results/scalability_{learner.lifter}"
-    data = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
+    data, success = learner.run(verbose=True, use_known=False, plot=False, tightness="cost")
     df = pd.DataFrame(data)
     fig, ax = plot_scalability_new(df, start="t ")
     savefig(fig, fname_root + f"_small.pdf")
@@ -339,7 +370,7 @@ def run_scalability_new(
     use_last=None,
     use_bisection=False,
     add_original=True,
-    use_known=False
+    use_known=True
 ):
     import pickle
 
@@ -357,14 +388,16 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data = learner.run(
+        data, success = learner.run(
             verbose=True, use_known=use_known, plot=False, tightness=tightness
         )
+        if not success:
+            raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
 
-        df = pd.DataFrame(data)
-        fig, ax = plot_scalability_new(df, start="t ")
-        savefig(fig, fname_root + f"_small.pdf")
+        #df = pd.DataFrame(data)
+        #fig, ax = plot_scalability_new(df, start="t ")
+        #savefig(fig, fname_root + f"_small.pdf")
 
         with open(fname, "wb") as f:
             pickle.dump(learner, f)
@@ -412,10 +445,9 @@ def run_scalability_new(
 
     fname = fname_root + "_df_all.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
-        assert set(param_list).issubset(df.N.unique())
+        #assert set(param_list).issubset(df.N.unique())
         print(f"--------- read {fname} \n")
     except (AssertionError, FileNotFoundError):
         max_seeds = n_seeds + 5
@@ -446,12 +478,18 @@ def run_scalability_new(
 
                     # apply the templates to all new landmarks
                     t1 = time.time()
-                    # (make sure the dimensions of the constraints are correct)
                     if new_order is not None:
-                        new_learner.templates = [
-                            learner.constraints[i-1].scale_to_new_lifter(new_lifter)
-                            for i in new_order
-                        ]
+                        template_unique_idx = set()
+                        for i in new_order:
+                            template_unique_idx.add(learner.constraints[i-1].template_idx)
+
+                        new_learner.templates = []
+                        for t in template_unique_idx:
+                            template = [template for template in learner.templates if template.index == t][0]
+
+                            # (make sure the dimensions of the constraints are correct)
+                            scaled_template = template.scale_to_new_lifter(new_lifter)
+                            new_learner.templates.append(scaled_template)
                     else:
                         new_learner.templates = learner.templates
                     # apply the templates
@@ -543,20 +581,15 @@ def run_scalability_new(
                     continue
                 n_successful_seeds += 1
 
-                new_dict = new_learner.run(tightness=tightness, verbose=True)[-1]
+                dict_list, success = new_learner.run(tightness=tightness, verbose=True)
+                new_dict = dict_list[-1]
+                if not success:
+                    raise RuntimeError(f"{new_learner.lifter}: did not achieve tightness.")
                 data_dict["t create constraints"] = new_dict["t learn templates"]
                 data_dict["t solve SDP"] = new_dict["t check tightness"]
                 data_dict["n templates"] = new_dict["n templates"]
                 data_dict["n constraints"] = new_dict["n templates"]
 
-                ############ incremental one-shot ############
-                # new_lifter.param_level = "ppT"
-                # new_learner = Learner(
-                #    lifter=new_lifter, variable_list=new_lifter.VARIABLE_LIST, apply_templates=True
-                # )
-                # t1 = time.time()
-                # new_learner.run(tightness=tightness, verbose=True)
-                # data_dict["t learn from scratch (incremental)"] = t1 - time.time()
                 df_data.append(deepcopy(data_dict))
                 if n_successful_seeds >= n_seeds:
                     break
