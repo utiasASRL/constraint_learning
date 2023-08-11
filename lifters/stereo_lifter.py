@@ -4,9 +4,15 @@ import autograd.numpy as np
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils.geometry import get_C_r_from_theta, get_C_r_from_xtheta, get_T, get_xtheta_from_theta
+from utils.geometry import (
+    get_C_r_from_theta,
+    get_C_r_from_xtheta,
+    get_T,
+    get_xtheta_from_theta,
+)
 
-NOISE = 1.0 # 
+NOISE = 1.0  #
+
 
 class StereoLifter(StateLifter, ABC):
     """General lifter for stereo localization problem.
@@ -32,19 +38,24 @@ class StereoLifter(StateLifter, ABC):
         "uxT": "$\\boldsymbol{u}\\boldsymbol{x}^\\top_n$",
     }
     VARIABLE_LIST = [
-        ["h", "x"], 
-        ["h", "z_0"], 
+        ["h", "x"],
+        ["h", "z_0"],
         ["h", "x", "z_0"],
         ["h", "z_0", "z_1"],
         ["h", "x", "z_0", "z_1"],
         ["h", "z_0", "z_1", "z_2"],
     ]
-    def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
+
+    def __init__(
+        self, n_landmarks, d, level="no", param_level="no", variable_list=None
+    ):
         self.n_landmarks = n_landmarks
         assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
-        super().__init__(d=d, level=level, param_level=param_level, variable_list=variable_list)
+        super().__init__(
+            d=d, level=level, param_level=param_level, variable_list=variable_list
+        )
 
-    def get_all_variables(self): 
+    def get_all_variables(self):
         return [["h", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
 
     def get_level_dims(self, n=1):
@@ -58,7 +69,7 @@ class StereoLifter(StateLifter, ABC):
             "u@r": n,
             "uuT": n * self.d**2,
             "urT": n * self.d**2,
-            "uxT": n * (self.d* (self.d + self.d**2)),
+            "uxT": n * (self.d * (self.d + self.d**2)),
         }
 
     def get_inits(self, n_inits):
@@ -75,18 +86,18 @@ class StereoLifter(StateLifter, ABC):
                 # sample left u, v coordinates in left image, and compute landmark coordinates from that.
                 fu, cu, b = self.M_matrix[0, [0, 2, 3]]
                 fv, cv = self.M_matrix[1, [1, 2]]
-                u = np.random.uniform(0,cu*2,self.n_landmarks)
-                v = np.random.uniform(0,cv*2,self.n_landmarks)
-                z = np.random.uniform(0, 5, self.n_landmarks) 
-                x = 1/fu*(z*(u - cu) - b)
-                y = 1/fv*z*(v - cv)
-                points_cam = np.c_[x, y, z] # N x 3
+                u = np.random.uniform(0, cu * 2, self.n_landmarks)
+                v = np.random.uniform(0, cv * 2, self.n_landmarks)
+                z = np.random.uniform(0, 5, self.n_landmarks)
+                x = 1 / fu * (z * (u - cu) - b)
+                y = 1 / fv * z * (v - cv)
+                points_cam = np.c_[x, y, z]  # N x 3
             else:
                 # sample left u in left image, and compute landmark coordinates from that.
                 fu, cu, b = self.M_matrix[0, :]
-                u = np.random.uniform(0,cu*2,self.n_landmarks)
-                y = np.random.uniform(1, 5, self.n_landmarks) 
-                x = 1/fu*(y*(u - cu) - b)
+                u = np.random.uniform(0, cu * 2, self.n_landmarks)
+                y = np.random.uniform(1, 5, self.n_landmarks)
+                x = 1 / fu * (y * (u - cu) - b)
                 points_cam = np.c_[x, y]
             # transform points from  camera to world
             return (C.T @ (points_cam.T - r[:, None])).T
@@ -99,6 +110,7 @@ class StereoLifter(StateLifter, ABC):
 
     def generate_random_theta(self):
         from utils.geometry import generate_random_pose
+
         return generate_random_pose(d=self.d)
 
     def get_parameters(self, var_subset=None):
@@ -232,7 +244,7 @@ class StereoLifter(StateLifter, ABC):
     def get_Q_from_y(self, y):
         """
         The least squares problem reads
-        min_T \sum_{n=0}^{N-1} || y - Mtilde@z || 
+        min_T \sum_{n=0}^{N-1} || y - Mtilde@z ||
         where the first d elements of z correspond to u, and Mtilde contains the first d-1 and last element of M
         Mtilde is thus of shape d*2 by dim_z, where dim_z=d+dL (the additional Lasserre variables)
         y is of length d*2, corresponding to the measured pixel values in left and right image.
@@ -241,8 +253,8 @@ class StereoLifter(StateLifter, ABC):
 
         # in 2d: M_tilde is 2 by 6, with first 2 columns: M[:, [0, 2]]
         # in 3d: M_tilde is 4 by 12, with first 3 columns: M[:, [0, 1, 3]]
-        M_tilde = np.zeros((len(y[0]), self.var_dict["z_0"])) # 4 by dim_z
-        M_tilde[:, :self.d] = self.M_matrix[:, list(range(self.d - 1)) + [self.d]]
+        M_tilde = np.zeros((len(y[0]), self.var_dict["z_0"]))  # 4 by dim_z
+        M_tilde[:, : self.d] = self.M_matrix[:, list(range(self.d - 1)) + [self.d]]
 
         # in 2d: M[:, 1]
         # in 3d: M[:, 2]
@@ -253,14 +265,14 @@ class StereoLifter(StateLifter, ABC):
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
-        Q /= (self.n_landmarks * self.d)
-        # there is precision loss because Q is 
+        Q /= self.n_landmarks * self.d
+        # there is precision loss because Q is
 
         # sanity check
         x = self.get_x()
 
-        # sanity checks. Below is the best conditioned because we don't have to compute B.T @ B, which 
-        # can contain very large values. 
+        # sanity checks. Below is the best conditioned because we don't have to compute B.T @ B, which
+        # can contain very large values.
         B = ls_problem.get_B_matrix(self.var_dict)
         errors = B @ x
         cost_test = errors.T @ errors / (self.n_landmarks * self.d)
@@ -270,9 +282,11 @@ class StereoLifter(StateLifter, ABC):
         cost_Q = x.T @ Q.toarray() @ x
         assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
-        return Q 
+        return Q
 
-    def local_solver_new(self, t0, y, W=None, verbose=False, method="CG", **solver_kwargs):
+    def local_solver_new(
+        self, t0, y, W=None, verbose=False, method="CG", **solver_kwargs
+    ):
         import pymanopt
         from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
 
@@ -298,12 +312,12 @@ class StereoLifter(StateLifter, ABC):
             cost = 0
             for i in range(self.n_landmarks):
                 pi_cam = np.concatenate([R @ self.landmarks[i] + t, [1]], axis=0)
-                y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d-1])
+                y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d - 1])
                 residual = y[i] - y_gt
                 cost += residual.T @ W @ residual
             return cost / (self.n_landmarks * self.d)
 
-        euclidean_gradient = None # set to None 
+        euclidean_gradient = None  # set to None
         problem = pymanopt.Problem(
             manifold, cost, euclidean_gradient=euclidean_gradient  #
         )
@@ -314,6 +328,7 @@ class StereoLifter(StateLifter, ABC):
         R, t = res.point
 
         from utils.geometry import get_xtheta_from_C_r
+
         theta_hat = get_xtheta_from_C_r(R, t)
         return theta_hat, res.stopping_criterion, res.cost
 

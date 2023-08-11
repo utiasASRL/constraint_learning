@@ -1,7 +1,8 @@
 import autograd.numpy as np
 
 from lifters.stereo_lifter import StereoLifter
-from utils.geometry import (get_T,
+from utils.geometry import (
+    get_T,
     get_xtheta_from_T,
     get_xtheta_from_theta,
 )
@@ -31,9 +32,12 @@ class Stereo3DLifter(StereoLifter):
             ]
         )
         super().__init__(
-            n_landmarks=n_landmarks, level=level, param_level=param_level, d=3, variable_list=variable_list
+            n_landmarks=n_landmarks,
+            level=level,
+            param_level=param_level,
+            d=3,
+            variable_list=variable_list,
         )
-
 
     def get_vec_around_gt(self, delta):
         t0 = super().get_vec_around_gt(delta)
@@ -80,7 +84,13 @@ class Stereo3DLifter(StereoLifter):
         T_init = get_T(xtheta_init, 3)
 
         success, T_hat, cost = local_solver(
-            T_init=T_init, y=y, p_w=p_w, W=W, M=self.M_matrix, log=verbose, min_update_norm=1e-10
+            T_init=T_init,
+            y=y,
+            p_w=p_w,
+            W=W,
+            M=self.M_matrix,
+            log=verbose,
+            min_update_norm=1e-10,
         )
         x_hat = get_xtheta_from_T(T_hat)
 
@@ -88,7 +98,7 @@ class Stereo3DLifter(StereoLifter):
         Q = self.get_Q_from_y(y[:, :, 0])
         cost_Q = x.T @ Q @ x
         if abs(cost) > 1e-10:
-            assert abs(cost_Q - cost)/cost < 1e-8
+            assert abs(cost_Q - cost) / cost < 1e-8
 
         if success:
             return x_hat, "converged", cost

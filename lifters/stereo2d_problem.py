@@ -8,6 +8,7 @@ c_u = 322
 b = 0.24
 M = np.array([[f_u, c_u, f_u * b / 2], [f_u, c_u, -f_u * b / 2]])
 
+
 def forward_exact(T, p_w, M):
     assert T.shape == (3, 3)
     assert p_w.shape[1:] == (3, 1) and len(p_w.shape) == 3

@@ -215,10 +215,12 @@ def test_solvers(n_seeds=1, noise=0.0):
                     )
 
                     try:
-                        mineig_hess_hat = np.linalg.eigvalsh(lifter.get_hess(theta_hat, y))[
-                            0
-                        ]
-                        mineig_hess_gt = np.linalg.eigvalsh(lifter.get_hess(theta_gt, y))[0]
+                        mineig_hess_hat = np.linalg.eigvalsh(
+                            lifter.get_hess(theta_hat, y)
+                        )[0]
+                        mineig_hess_gt = np.linalg.eigvalsh(
+                            lifter.get_hess(theta_gt, y)
+                        )[0]
                         print(
                             f"minimum eigenvalue at gt: {mineig_hess_gt:.1e} and at estimate: {mineig_hess_hat:.1e}"
                         )
@@ -239,12 +241,13 @@ def compare_solvers():
     for lifter in all_lifters():
         if isinstance(lifter, RobustPoseLifter):
             compare_solvers = [
-                "CG","SD",#"TR", very slow for some reason
+                "CG",
+                "SD",  # "TR", very slow for some reason
             ]
         else:
             compare_solvers = [
                 "Nelder-Mead",
-                "Powell",  
+                "Powell",
                 # "CG",  CG takes forever.
                 # "Newton-CG",
                 "BFGS",
@@ -290,7 +293,7 @@ if __name__ == "__main__":
     # pytest.main([__file__, "-s"])
     # print("all tests passed")
     with warnings.catch_warnings():
-        #warnings.simplefilter("error")
+        # warnings.simplefilter("error")
         test_cost()
         test_cost_noisy()
         test_solvers()

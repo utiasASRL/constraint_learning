@@ -185,19 +185,30 @@ class Learner(object):
 
             if self.lifter.robust:
                 idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
-                wi = X[0, idx_xtheta:idx_xtheta+self.lifter.n_landmarks]
+                wi = X[0, idx_xtheta : idx_xtheta + self.lifter.n_landmarks]
                 print("should be plus or minus ones:", wi.round(4))
 
             if tightness == "rank":
-                self.duality_gap_is_zero(info["cost"], verbose=False, data_dict=data_dict)
-                tightness_val = self.is_rank_one(eigs, verbose=verbose, data_dict=data_dict)
+                self.duality_gap_is_zero(
+                    info["cost"], verbose=False, data_dict=data_dict
+                )
+                tightness_val = self.is_rank_one(
+                    eigs, verbose=verbose, data_dict=data_dict
+                )
             elif tightness == "cost":
                 self.is_rank_one(eigs, verbose=False, data_dict=data_dict)
-                tightness_val = self.duality_gap_is_zero(info["cost"], verbose=verbose, data_dict=data_dict)
+                tightness_val = self.duality_gap_is_zero(
+                    info["cost"], verbose=verbose, data_dict=data_dict
+                )
             return tightness_val
 
     def generate_minimal_subset(
-        self, reorder=False, tightness="rank", use_last=None, use_bisection=False, use_known=False
+        self,
+        reorder=False,
+        tightness="rank",
+        use_last=None,
+        use_bisection=False,
+        use_known=False,
     ):
         from solvers.sparse import solve_lambda
         from solvers.sparse import bisection, brute_force
@@ -243,14 +254,20 @@ class Learner(object):
             else:
                 return new_data["cost_tight"]
 
-        A_known = [constraint.A_sparse_ for constraint in self.constraints if constraint.known]
-        A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints if not constraint.known]
+        A_known = [
+            constraint.A_sparse_ for constraint in self.constraints if constraint.known
+        ]
+        A_list = A_known + [
+            constraint.A_sparse_
+            for constraint in self.constraints
+            if not constraint.known
+        ]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
 
         force_first = 1
         if use_known:
-            force_first  += len(A_known)
+            force_first += len(A_known)
 
         if reorder:
             # find the importance of each constraint
@@ -288,13 +305,9 @@ class Learner(object):
 
         df_data = {}
         if use_bisection:
-            bisection(
-                function, (inputs, df_data), left=start_idx, right=len(inputs)
-            )
+            bisection(function, (inputs, df_data), left=start_idx, right=len(inputs))
         else:
-            brute_force(
-                function, (inputs, df_data), left=start_idx, right=len(inputs)
-            )
+            brute_force(function, (inputs, df_data), left=start_idx, right=len(inputs))
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
         if self.df_tight is None:
@@ -359,7 +372,9 @@ class Learner(object):
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
         if use_known:
-            Y = np.vstack([Y] + [c.a_.toarray() for c in self.templates if c.a_ is not None])
+            Y = np.vstack(
+                [Y] + [c.a_.toarray() for c in self.templates if c.a_ is not None]
+            )
 
         if plot:
             fig, ax = plt.subplots()
@@ -399,7 +414,7 @@ class Learner(object):
                     b=b,
                     lifter=self.lifter,
                     convert_to_polyrow=self.apply_templates_to_others,
-                    known=False
+                    known=False,
                 )
                 for i, b in enumerate(basis_new)
             ]
@@ -407,12 +422,12 @@ class Learner(object):
             print(f"found {len(templates)} candidate templates")
 
             # at this point, templates is a mix of:
-            # (new and old) known constraints, 
+            # (new and old) known constraints,
             # previously found constraints,
             # and new constraints.
 
             # we assume that all known constraints are linearly independent, and also
-            # that all known+previously found constraints are linearly independent. 
+            # that all known+previously found constraints are linearly independent.
             indep_templates = self.clean_constraints(
                 new_constraints=templates,
                 before_constraints=self.templates,
@@ -452,7 +467,7 @@ class Learner(object):
                         polyrow_b=new_constraint,
                         lifter=self.lifter,
                         template_idx=template.index,
-                        known=template.known
+                        known=template.known,
                     )
                     for i, new_constraint in enumerate(constraints)
                 ]
@@ -558,7 +573,9 @@ class Learner(object):
 
     def add_known_templates(self):
         n_known = 0
-        for i, Ai in enumerate(self.lifter.get_A_known(self.mat_var_dict, output_poly=True)):
+        for i, Ai in enumerate(
+            self.lifter.get_A_known(self.mat_var_dict, output_poly=True)
+        ):
             Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
             a = self.lifter.get_vec(Ai_sparse, correct=True)
 
@@ -569,7 +586,7 @@ class Learner(object):
                 b=bi,
                 lifter=self.lifter,
                 convert_to_polyrow=self.apply_templates_to_others,
-                known=True
+                known=True,
             )
             self.constraint_index += 1
             self.templates.append(template)
@@ -601,7 +618,9 @@ class Learner(object):
                 use_known=use_known, plot=plot, data_dict=data_dict
             )
             n_new += n_new_learned
-            print(f"found {n_new_learned} learned templates, new total learned: {n_all} ")
+            print(
+                f"found {n_new_learned} learned templates, new total learned: {n_all} "
+            )
             data_dict["n templates"] = len(self.templates)
             if n_new == 0:
                 print("new variables didn't have any effect")
@@ -626,7 +645,9 @@ class Learner(object):
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")
-            is_tight = self.is_tight(verbose=verbose, tightness=tightness, data_dict=data_dict)
+            is_tight = self.is_tight(
+                verbose=verbose, tightness=tightness, data_dict=data_dict
+            )
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)
@@ -764,7 +785,7 @@ class Learner(object):
             new_xticks = []
             for lbl in ax.get_xticklabels():
                 lbl = lbl.get_text()
-                if "_" in lbl: # avoid double subscript
+                if "_" in lbl:  # avoid double subscript
                     new_lbl = f"${lbl.replace('l-', '').replace(':', '^')}$"
                 else:
                     new_lbl = f"${lbl.replace('l-', '').replace(':', '_')}$"

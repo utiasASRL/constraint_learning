@@ -111,7 +111,7 @@ def old_test_gauge():
 
 
 if __name__ == "__main__":
-    #test_equivalent_lifters()
-    #test_gauge()
+    # test_equivalent_lifters()
+    # test_gauge()
     test_levels()
     print("all tests passed")

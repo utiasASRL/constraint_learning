@@ -19,7 +19,7 @@ class Constraint(object):
         b_full=None,
         mat_var_dict=None,
         known=False,
-        template_idx=0
+        template_idx=0,
     ):
         self.index = index
         self.value = value
@@ -35,13 +35,21 @@ class Constraint(object):
         self.a_full_ = a_full
 
         self.known = known
-        self.template_idx=template_idx
+        self.template_idx = template_idx
 
         # list of applied constraints derived from this constraint.
         self.applied_list = []
 
     @staticmethod
-    def init_from_b(index: int, b: np.ndarray, mat_var_dict: dict, lifter: StateLifter, convert_to_polyrow:bool=True, known:bool=True, template_idx:int=None):
+    def init_from_b(
+        index: int,
+        b: np.ndarray,
+        mat_var_dict: dict,
+        lifter: StateLifter,
+        convert_to_polyrow: bool = True,
+        known: bool = True,
+        template_idx: int = None,
+    ):
         a = lifter.get_reduced_a(b, mat_var_dict, sparse=True)
         A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
         a_full = lifter.get_vec(A_sparse, sparse=True)
@@ -61,7 +69,7 @@ class Constraint(object):
                 a_full=a_full,
                 mat_var_dict=mat_var_dict,
                 known=known,
-                template_idx=template_idx
+                template_idx=template_idx,
             )
         return Constraint(
             index=index,
@@ -71,11 +79,17 @@ class Constraint(object):
             a_full=a_full,
             mat_var_dict=mat_var_dict,
             known=known,
-            template_idx=template_idx
+            template_idx=template_idx,
         )
 
     @staticmethod
-    def init_from_polyrow_b(index: int, polyrow_b: PolyMatrix, lifter: StateLifter, known:bool=False, template_idx:int=None):
+    def init_from_polyrow_b(
+        index: int,
+        polyrow_b: PolyMatrix,
+        lifter: StateLifter,
+        known: bool = False,
+        template_idx: int = None,
+    ):
         A_poly = lifter.convert_polyrow_to_Apoly(polyrow_b)
         A_sparse = A_poly.get_matrix(lifter.var_dict_unroll)
         a_full = lifter.get_vec(A_sparse, sparse=True)
@@ -86,7 +100,7 @@ class Constraint(object):
             A_sparse=A_sparse,
             a_full=a_full,
             known=known,
-            template_idx=template_idx
+            template_idx=template_idx,
         )
 
     def scale_to_new_lifter(self, lifter: StateLifter):

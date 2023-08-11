@@ -42,12 +42,15 @@ def test_canonical_operations():
     Ai_test = lifter.get_mat(ai_test, var_dict={var_subset: 6})
     np.testing.assert_allclose(Ai.toarray(), Ai_test.toarray())
 
+
 def test_learned_constraints(d=2, param_level="ppT"):
     n_landmarks = 2  # z_0 and z_1
     if d == 1:
         lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level=param_level)
     elif d == 2:
-        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level=param_level, level="urT")
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks, param_level=param_level, level="urT"
+        )
     else:
         raise ValueError(d)
 
@@ -55,7 +58,9 @@ def test_learned_constraints(d=2, param_level="ppT"):
     label_dict = lifter.var_dict_row(var_subset)
 
     basis_row_list = lifter.get_basis_list(var_subset, plot=False)
-    basis_list = [basis_row.get_matrix((["l"], label_dict)) for basis_row in basis_row_list]
+    basis_list = [
+        basis_row.get_matrix((["l"], label_dict)) for basis_row in basis_row_list
+    ]
     A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
 
     # first, test that the learned constraints actually work on the original setup.
@@ -70,12 +75,15 @@ def test_learned_constraints(d=2, param_level="ppT"):
         A_learned = lifter.generate_matrices(basis_list, var_dict=var_subset)
         lifter.test_constraints(A_learned, errors="print")
 
+
 def test_learned_constraints_augment(d=2, param_level="ppT"):
     n_landmarks = 2  # z_0 and z_1
     if d == 1:
         lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
     elif d == 2:
-        lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level=param_level, level="urT")
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks, param_level=param_level, level="urT"
+        )
     else:
         raise ValueError(d)
 

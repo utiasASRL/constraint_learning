@@ -9,22 +9,25 @@ plt = import_plt()
 
 def add_rectangles(ax, dict_sizes, color="red"):
     from matplotlib.patches import Rectangle
+
     cumsize = 0
     xticks = []
     xticklabels = []
     for key, size in dict_sizes.items():
         cumsize += size
-        xticks.append(cumsize-0.5)
+        xticks.append(cumsize - 0.5)
         xticklabels.append(f"${key}$")
         ax.add_patch(Rectangle((-0.5, -0.5), cumsize, cumsize, ec=color, fc="none"))
-        #ax.annotate(text=key, xy=(cumsize, 1), color='red', weight="bold")
+        # ax.annotate(text=key, xy=(cumsize, 1), color='red', weight="bold")
     ax.set_xticks(xticks, xticklabels)
-    ax.tick_params(axis='x', colors='red') 
+    ax.tick_params(axis="x", colors="red")
     ax.xaxis.tick_top()
     ax.set_yticks([])
 
+
 def initialize_discrete_cbar(values):
     import matplotlib as mpl
+
     values = sorted(list(np.unique(values.round(3))) + [0])
     cmap = plt.get_cmap("viridis", len(values))
     cmap.set_over((1.0, 0.0, 0.0))
@@ -34,6 +37,7 @@ def initialize_discrete_cbar(values):
     norm = mpl.colors.BoundaryNorm(bounds, cmap.N)
     return cmap, norm, colorbar_yticks
 
+
 def plot_basis(
     basis_poly: PolyMatrix,
     variables_j: dict,
@@ -41,7 +45,6 @@ def plot_basis(
     fname_root: str = "",
     discrete: bool = True,
 ):
-
     if variables_i is None:
         variables_i = basis_poly.generate_variable_dict_i()
 
@@ -55,7 +58,10 @@ def plot_basis(
 
     # reduced_ticks below has no effect because all variables in variables_j are of size 1.
     fig, ax, im = basis_poly.matshow(
-        variables_i=variables_i, variables_j=variables_j, cmap=cmap, norm=norm, #reduced_ticks=True
+        variables_i=variables_i,
+        variables_j=variables_j,
+        cmap=cmap,
+        norm=norm,  # reduced_ticks=True
     )
     fig.set_size_inches(15, 15 * len(variables_i) / len(variables_j))
     cax = add_colorbar(fig, ax, im)

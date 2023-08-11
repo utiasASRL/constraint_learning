@@ -13,6 +13,7 @@ def pytest_configure():
     for lifter in all_lifters():
         pytest.A_learned[str(lifter)] = None
 
+
 def test_ravel():
     shape = (5, 5)
     # test diagonal elements
@@ -27,14 +28,15 @@ def test_ravel():
     # test random elements
     for seed in range(100):
         np.random.seed(seed)
-        i = np.random.randint(low=0, high=shape[0]-1, size=1)
-        j = np.random.randint(low=i, high=shape[0]-1, size=1)
+        i = np.random.randint(low=0, high=shape[0] - 1, size=1)
+        j = np.random.randint(low=i, high=shape[0] - 1, size=1)
 
         flat_idx = ravel_multi_index_triu([i, j], shape=shape)
         i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
 
         assert i == i_test[0]
         assert j == j_test[0]
+
 
 def _test_with_tol(lifter, A_list, tol):
     x = lifter.get_x()
@@ -50,6 +52,7 @@ def _test_with_tol(lifter, A_list, tol):
         xvec = lifter.get_vec(np.outer(x, x))
         np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
+
 def test_known_constraints():
     for lifter in all_lifters():
         A_known = lifter.get_A_known()
@@ -59,6 +62,7 @@ def test_known_constraints():
         x = lifter.get_x(theta=lifter.theta)
         for Bi in B_known:
             assert x.T @ Bi @ x <= 0
+
 
 def test_learned_constraints():
     methods = ["qrp", "svd", "qr"]
@@ -109,6 +113,7 @@ def test_vec_mat():
         A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
         for A_l, A_k in zip(A_learned[:3], A_known):
             np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
+
 
 pytest_configure()
 

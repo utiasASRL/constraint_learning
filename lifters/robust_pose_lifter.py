@@ -31,7 +31,8 @@ PENALTY_RHO = 10
 PENALTY_U = 1e-3
 
 # the cutoff parameter of least squares. If residuals are >= BETA, they are considered outliers.
-BETA = 0.1 
+BETA = 0.1
+
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]
@@ -86,7 +87,12 @@ class RobustPoseLifter(StateLifter, ABC):
         if not robust:
             assert level == "no"
         super().__init__(
-            level=level, param_level=param_level, d=d, variable_list=variable_list, robust=robust, n_outliers=n_outliers
+            level=level,
+            param_level=param_level,
+            d=d,
+            variable_list=variable_list,
+            robust=robust,
+            n_outliers=n_outliers,
         )
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
@@ -105,7 +111,7 @@ class RobustPoseLifter(StateLifter, ABC):
     def var_dict(self):
         """Return key,size pairs of all variables."""
         n = self.d**2 + self.d
-        var_dict = {"h": 1, "t": self.d, "c":self.d**2}
+        var_dict = {"h": 1, "t": self.d, "c": self.d**2}
         if not self.robust:
             return var_dict
         var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
@@ -225,7 +231,6 @@ class RobustPoseLifter(StateLifter, ABC):
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
-
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
@@ -327,7 +332,7 @@ class RobustPoseLifter(StateLifter, ABC):
                     grad_t += Wi.T @ term
             return grad_R, grad_t
 
-        euclidean_gradient = None # set to None 
+        euclidean_gradient = None  # set to None
         problem = pymanopt.Problem(
             manifold, cost, euclidean_gradient=euclidean_gradient  #
         )
@@ -345,10 +350,14 @@ class RobustPoseLifter(StateLifter, ABC):
                 residual_sq = self.residual_sq(R, t, self.landmarks[i], y[i])
                 if i < self.n_outliers:
                     print(f"outlier residual_sq: {residual_sq:.4e}")
-                    assert residual_sq > self.beta**2, f"outlier residual_sq too small: {residual_sq} <= {self.beta**2}"
+                    assert (
+                        residual_sq > self.beta**2
+                    ), f"outlier residual_sq too small: {residual_sq} <= {self.beta**2}"
                 else:
                     print(f"inlier residual_sq: {residual_sq:.4e}")
-                    assert residual_sq <= self.beta**2, f"inlier residual_sq too large: {residual_sq} > {self.beta**2}"
+                    assert (
+                        residual_sq <= self.beta**2
+                    ), f"inlier residual_sq too large: {residual_sq} > {self.beta**2}"
 
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
@@ -389,9 +398,9 @@ class RobustPoseLifter(StateLifter, ABC):
                 Ai["h", "h"] = -1
                 self.test_and_add(A_list, Ai, output_poly=output_poly)
 
-            #enforce off-diagonal
+            # enforce off-diagonal
             for i in range(self.d):
-                for j in range(i+1, self.d):
+                for j in range(i + 1, self.d):
                     Ei = np.zeros((self.d, self.d))
                     Ei[i, j] = 1.0
                     Ei[j, i] = 1.0
@@ -407,9 +416,9 @@ class RobustPoseLifter(StateLifter, ABC):
                     Ai["h", "h"] = -1.0
                     Ai[f"w_{i}", f"w_{i}"] = 1.0
                     self.test_and_add(A_list, Ai, output_poly=output_poly)
-                    
+
                     # below doesn't hold: w_i*w_j = += 1
-                    #for key_other in [k for k in var_dict if (k.startswith("w") and (k!= key))]:
+                    # for key_other in [k for k in var_dict if (k.startswith("w") and (k!= key))]:
                     #    Ai = PolyMatrix(symmetric=True)
                     #    Ai["h", "h"] = -1.0
                     #    Ai[key, key_other] = 0.5
@@ -441,7 +450,6 @@ class RobustPoseLifter(StateLifter, ABC):
                             self.test_and_add(A_list, Ai, output_poly=output_poly)
         return A_list
 
-
     def get_B_known(self):
         """Get inequality constraints of the form x.T @ B @ x <= 0.
         By default, we always add ||t|| <= MAX_DIST
@@ -451,7 +459,6 @@ class RobustPoseLifter(StateLifter, ABC):
         B1["t", "t"] = np.eye(self.d)
         return [B1.get_matrix(self.var_dict)]
 
-
     @abstractmethod
     def h_list(self, t):
         """
@@ -460,7 +467,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         By default, we always add |t| <= MAX_DIST
         """
-        return [np.sqrt(np.sum(t[:self.d] ** 2)) - self.MAX_DIST]
+        return [np.sqrt(np.sum(t[: self.d] ** 2)) - self.MAX_DIST]
 
     @abstractmethod
     def get_random_position(self):

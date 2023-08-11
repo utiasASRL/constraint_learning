@@ -19,7 +19,11 @@ class Stereo2DLifter(StereoLifter):
         self.M_matrix = np.array([[f_u, c_u, f_u * b / 2], [f_u, c_u, -f_u * b / 2]])
 
         super().__init__(
-            n_landmarks=n_landmarks, level=level, param_level=param_level, d=2, variable_list=variable_list
+            n_landmarks=n_landmarks,
+            level=level,
+            param_level=param_level,
+            d=2,
+            variable_list=variable_list,
         )
 
     def get_cost(self, t, y, W=None):
@@ -44,7 +48,7 @@ class Stereo2DLifter(StereoLifter):
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
         )
-        cost /= (self.n_landmarks * self.d)
+        cost /= self.n_landmarks * self.d
         if success:
             return phi_hat.flatten(), "converged", cost
         else:

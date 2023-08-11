@@ -763,7 +763,12 @@ class StateLifter(BaseClass):
                     key_ij = key_ij.replace(f"w_{from_}", f"wi_{to_}")
                     key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
                     key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
-                key_ij = key_ij.replace("zi", "z").replace("pi", "p").replace("xi", "x").replace("wi", "w")
+                key_ij = (
+                    key_ij.replace("zi", "z")
+                    .replace("pi", "p")
+                    .replace("xi", "x")
+                    .replace("wi", "w")
+                )
                 if verbose and (key != key_ij):
                     print("changed", key, "to", key_ij)
 

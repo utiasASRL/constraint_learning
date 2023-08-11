@@ -8,16 +8,16 @@ plt.ion()
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
 
-NOISE = 1e-2 # std deviation of distance noise
+NOISE = 1e-2  # std deviation of distance noise
 
 METHOD = "BFGS"
 
 # TODO(FD): parameters below are not all equivalent.
 SOLVER_KWARGS = {
-    "BFGS": dict(gtol=1e-6, xrtol = 1e-10), # relative step size
-    "Nelder-Mead": dict(xatol=1e-10), # absolute step size
-    "Powell": dict(ftol = 1e-6, xtol=1e-10),
-    "TNC": dict(gtol=1e-6, xtol=1e-10)
+    "BFGS": dict(gtol=1e-6, xrtol=1e-10),  # relative step size
+    "Nelder-Mead": dict(xatol=1e-10),  # absolute step size
+    "Powell": dict(ftol=1e-6, xtol=1e-10),
+    "TNC": dict(gtol=1e-6, xtol=1e-10),
 }
 
 
@@ -27,12 +27,16 @@ class RangeOnlyLocLifter(StateLifter):
     - level "no" uses substitution z_i=||p_i||^2=x_i^2 + y_i^2
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
+
     LEVELS = ["no", "quad"]
     LEVEL_NAMES = {
         "no": "$z_n$",
         "quad": "$\\boldsymbol{y}_n$",
     }
-    def __init__(self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None):
+
+    def __init__(
+        self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None
+    ):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
@@ -99,6 +103,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
+
             diag_idx = diag_indices(self.d)
 
         A_list = []
@@ -129,7 +134,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         positions = theta.reshape(self.n_positions, -1)
 
-        x_data = [] 
+        x_data = []
         for key in var_subset:
             if key == "h":
                 x_data.append(1.0)
@@ -163,14 +168,15 @@ class RangeOnlyLocLifter(StateLifter):
                     x, y, z = pos[n]
                     jj += [n * self.d + j for j in [0, 0, 1, 0, 2, 1, 1, 2, 2]]
                     data += [2 * x, y, x, z, x, 2 * y, z, y, 2 * z]
-                    ii += [idx + i for i in [0, 1, 1, 2, 2, 3, 4,4, 5]]
+                    ii += [idx + i for i in [0, 1, 1, 2, 2, 3, 4, 4, 5]]
                 elif self.d == 2:
                     x, y = pos[n]
                     jj += [n * self.d + j for j in [0, 0, 1, 1]]
                     data += [2 * x, y, x, 2 * y]
                     ii += [idx + i for i in [0, 1, 1, 2]]
                 idx += self.size_z
-        J_lifting = sp.csr_array( (data, (ii, jj)),
+        J_lifting = sp.csr_array(
+            (data, (ii, jj)),
             shape=(self.M, self.N),
         )
         return J_lifting
@@ -229,7 +235,7 @@ class RangeOnlyLocLifter(StateLifter):
         if sub_idx is None:
             cost = np.sum(self.W * (y - y_current) ** 2)
         else:
-            cost = np.sum((self.W * (y - y_current))[sub_idx] **2 )
+            cost = np.sum((self.W * (y - y_current))[sub_idx] ** 2)
         return cost
 
     def get_grad(self, t, y, sub_idx=None):
@@ -275,6 +281,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if self.level == "quad":
             from utils.common import diag_indices
+
             diag_idx = diag_indices(self.d)
 
         for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
@@ -294,11 +301,10 @@ class RangeOnlyLocLifter(StateLifter):
                     res_dict = {
                         "h": y[n, k] - np.linalg.norm(ak) ** 2,
                         f"x_{n}": 2 * ak.reshape((1, -1)),
-                        f"z_{n}": mat
+                        f"z_{n}": mat,
                     }
                     self.ls_problem.add_residual(res_dict)
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
-
 
     def get_Q(self, noise: float = None) -> tuple:
         # N x K matrix
@@ -321,14 +327,17 @@ class RangeOnlyLocLifter(StateLifter):
         assert abs(cost1 - cost3) < 1e-10
         return Q, y
 
-    def get_sub_idx_x(self, sub_idx, add_z=True): 
-        sub_idx_x = [0] 
+    def get_sub_idx_x(self, sub_idx, add_z=True):
+        sub_idx_x = [0]
         for idx in sub_idx:
             sub_idx_x += [1 + idx * self.d + d for d in range(self.d)]
         if not add_z:
             return sub_idx_x
         for idx in sub_idx:
-            sub_idx_x += [1 + self.n_positions * self.d + idx * self.size_z + d for d in range(self.size_z)]
+            sub_idx_x += [
+                1 + self.n_positions * self.d + idx * self.size_z + d
+                for d in range(self.size_z)
+            ]
         return sub_idx_x
 
     def local_solver(

@@ -20,6 +20,7 @@ from utils.plotting_tools import savefig
 RECOMPUTE = True
 N_SEEDS = 10
 
+
 def stereo_tightness(d=2, n_landmarks=None):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
@@ -37,11 +38,11 @@ def stereo_tightness(d=2, n_landmarks=None):
 
         variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
         if d == 2:
-            plots = ["tightness"]#, "matrix"]
+            plots = ["tightness"]  # , "matrix"]
             tightness = "cost"
 
-            #plots = ["matrices", "templates", "svd"]
-            #tightness = "cost"
+            # plots = ["matrices", "templates", "svd"]
+            # tightness = "cost"
 
             lifter = Stereo2DLifter(
                 n_landmarks=n_landmarks,
@@ -102,26 +103,33 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
         )
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    #run_scalability_plot(learner)
+    # run_scalability_plot(learner)
     df = run_scalability_new(
-        learner, param_list=n_landmarks_list, n_seeds=n_seeds, recompute=recompute, use_bisection=True, use_known=False, add_original=False
+        learner,
+        param_list=n_landmarks_list,
+        n_seeds=n_seeds,
+        recompute=recompute,
+        use_bisection=True,
+        use_known=False,
+        add_original=False,
     )
 
     fname_root = f"_results/scalability_{learner.lifter}"
 
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
-    #[ax.set_ylim(10, 1000) for ax in axs.values()]
+    # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(8, 3)
     axs["t create constraints"].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
 
-    #fig, ax = plot_scalability(df, log=True, start="n ")
-    #fig.set_size_inches(5, 5)
-    #savefig(fig, fname_root + f"_n.pdf")
+    # fig, ax = plot_scalability(df, log=True, start="n ")
+    # fig.set_size_inches(5, 5)
+    # savefig(fig, fname_root + f"_n.pdf")
 
     tex_name = fname_root + f"_n.tex"
     save_table(df, tex_name)
+
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if tightness:
@@ -130,6 +138,7 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
     if scalability:
         stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
         stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
+
 
 if __name__ == "__main__":
     # import warnings
