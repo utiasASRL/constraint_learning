@@ -42,9 +42,9 @@ class RobustPoseLifter(StateLifter, ABC):
     @property
     def VARIABLE_LIST(self):
         if not self.robust:
-            return [["l", "t", "c"]]
+            return [["h", "t", "c"]]
         else:
-            base = ["l", "t", "c"]
+            base = ["h", "t", "c"]
             return [
                 base,
                 base + ["w_0"],
@@ -105,7 +105,7 @@ class RobustPoseLifter(StateLifter, ABC):
     def var_dict(self):
         """Return key,size pairs of all variables."""
         n = self.d**2 + self.d
-        var_dict = {"l": 1, "t": self.d, "c":self.d**2}
+        var_dict = {"h": 1, "t": self.d, "c":self.d**2}
         if not self.robust:
             return var_dict
         var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
@@ -116,7 +116,7 @@ class RobustPoseLifter(StateLifter, ABC):
         return var_dict
 
     def get_all_variables(self):
-        all_variables = ["l", "t", "c"]
+        all_variables = ["h", "t", "c"]
         if self.robust:
             all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
         if self.level == "xxT":
@@ -168,7 +168,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         x_data = []
         for key in var_subset:
-            if key == "l":
+            if key == "h":
                 x_data.append(1.0)
             elif key == "t":
                 x_data += list(t)
@@ -386,7 +386,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 constraint = np.kron(Ei, np.eye(self.d))
                 Ai = PolyMatrix(symmetric=True)
                 Ai["c", "c"] = constraint
-                Ai["l", "l"] = -1
+                Ai["h", "h"] = -1
                 self.test_and_add(A_list, Ai, output_poly=output_poly)
 
             #enforce off-diagonal
@@ -404,14 +404,14 @@ class RobustPoseLifter(StateLifter, ABC):
                 if "w" in key:
                     i = key.split("_")[-1]
                     Ai = PolyMatrix(symmetric=True)
-                    Ai["l", "l"] = -1.0
+                    Ai["h", "h"] = -1.0
                     Ai[f"w_{i}", f"w_{i}"] = 1.0
                     self.test_and_add(A_list, Ai, output_poly=output_poly)
                     
                     # below doesn't hold: w_i*w_j = += 1
                     #for key_other in [k for k in var_dict if (k.startswith("w") and (k!= key))]:
                     #    Ai = PolyMatrix(symmetric=True)
-                    #    Ai["l", "l"] = -1.0
+                    #    Ai["h", "h"] = -1.0
                     #    Ai[key, key_other] = 0.5
                     #    self.test_and_add(A_list, Ai, output_poly=output_poly)
 
@@ -424,7 +424,7 @@ class RobustPoseLifter(StateLifter, ABC):
                             Ai = PolyMatrix(symmetric=True)
                             constraint = np.zeros((self.d + self.d**2))
                             constraint[j] = 1.0
-                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            Ai["h", f"z_{i}"] = constraint[None, :]
                             constraint = np.zeros((self.d))
                             constraint[j] = -1.0
                             Ai[f"t", f"w_{i}"] = constraint[:, None]
@@ -434,7 +434,7 @@ class RobustPoseLifter(StateLifter, ABC):
                             Ai = PolyMatrix(symmetric=True)
                             constraint = np.zeros((self.d + self.d**2))
                             constraint[self.d + j] = 1.0
-                            Ai["l", f"z_{i}"] = constraint[None, :]
+                            Ai["h", f"z_{i}"] = constraint[None, :]
                             constraint = np.zeros((self.d**2))
                             constraint[j] = -1.0
                             Ai[f"c", f"w_{i}"] = constraint[:, None]
@@ -447,7 +447,7 @@ class RobustPoseLifter(StateLifter, ABC):
         By default, we always add ||t|| <= MAX_DIST
         """
         B1 = PolyMatrix(symmetric=True)
-        B1["l", "l"] = -self.MAX_DIST
+        B1["h", "h"] = -self.MAX_DIST
         B1["t", "t"] = np.eye(self.d)
         return [B1.get_matrix(self.var_dict)]
 

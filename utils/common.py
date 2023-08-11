@@ -19,26 +19,6 @@ def diag_indices(n):
     z[np.triu_indices(n)] = range(int(n * (n+1)/2))
     return np.diag(z).astype(int)
 
-def increases_rank(mat, new_row):
-    import scipy.sparse as sp
-    # TODO(FD) below is not the most efficient way of checking lin. indep.
-    if mat is None:
-        return True
-    try:
-        new_row = new_row.flatten()
-        mat_test = np.vstack([mat, new_row[None, :]])
-        new_rank = np.linalg.matrix_rank(mat_test)
-    except:
-        raise ValueError("don't use this function, it's inefficient.")
-        return True
-
-    # if the new matrix is not full row-rank then the new row was
-    # actually linealy dependent.
-    if new_rank == mat_test.shape[0]:
-        return True
-    return False
-
-
 def setup_tex():
     import shutil
     import matplotlib.pylab as plt
@@ -52,8 +32,6 @@ def setup_tex():
             "font.size": 12,
         }
     )
-    import matplotlib
-
     # matplotlib.use("ps")
     plt.rc("text.latex", preamble=r"\usepackage{bm}\usepackage{color}")
     return plt

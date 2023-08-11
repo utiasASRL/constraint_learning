@@ -40,7 +40,7 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
     def get_Q_from_y(self, y):
         self.ls_problem = LeastSquaresProblem()
         for n, k in self.edges:
-            self.ls_problem.add_residual({"l": y[n, k], f"e{n}{k}": -1})
+            self.ls_problem.add_residual({"h": y[n, k], f"e{n}{k}": -1})
         # fix Gauge freedom
         if self.remove_gauge == "cost":
             I = np.eye(self.d)
@@ -62,7 +62,7 @@ class RangeOnlySLAM2Lifter(RangeOnlySLAM1Lifter):
             else:
                 A[f"a{k}", f"a{k}"] = np.eye(self.d)
                 A[f"x{n}", f"a{k}"] = -np.eye(self.d)
-            A["l", f"e{n}{k}"] = -0.5
+            A["h", f"e{n}{k}"] = -0.5
             A_list.append(A.get_matrix(self.var_dict))
         return A_list
 

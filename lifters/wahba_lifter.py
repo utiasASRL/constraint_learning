@@ -110,19 +110,19 @@ r       residual term:
                 Q["t", "c"] += Qi[:self.d, self.d:] 
                 Q["c", "c"] += Qi[self.d:, self.d:]
 
-                #Q["x", "l"] += Pi_xl
-                Q["t", "l"] += Pi_xl[:self.d, :]
-                Q["c", "l"] += Pi_xl[self.d:, :]
-                Q["l", "l"] += 1 + Pi_ll # 1 from (1 - wi), Pi_ll from first term.
-                Q["l", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
+                #Q["x", "h"] += Pi_xl
+                Q["t", "h"] += Pi_xl[:self.d, :]
+                Q["c", "h"] += Pi_xl[self.d:, :]
+                Q["h", "h"] += 1 + Pi_ll # 1 from (1 - wi), Pi_ll from first term.
+                Q["h", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
                     #Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d]
                     Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d:]
 
-                    Q["l", f"w_{i}"] += 0.5 * Pi_ll # from first term
+                    Q["h", f"w_{i}"] += 0.5 * Pi_ll # from first term
                     
-                    Q[f"z_{i}", "l"] += Pi_xl
+                    Q[f"z_{i}", "h"] += Pi_xl
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
 
@@ -130,17 +130,17 @@ r       residual term:
                     Q["t", f"w_{i}"] += Pi_xl[:self.d, :]
                     Q["c", f"w_{i}"] += Pi_xl[self.d:, :]
 
-                    Q["l", f"w_{i}"] += 0.5 * Pi_ll
+                    Q["h", f"w_{i}"] += 0.5 * Pi_ll
             else:
                 #Q["x", "x"] += Qi
                 Q["t", "t"] += Qi[:self.d, :self.d]
                 Q["t", "c"] += Qi[:self.d, self.d:] 
                 Q["c", "c"] += Qi[self.d:, self.d:]
 
-                #Q["x", "l"] += Pi_xl
-                Q["t", "l"] += Pi_xl[:self.d, :]
-                Q["c", "l"] += Pi_xl[self.d:, :]
-                Q["l", "l"] += Pi_ll # on diagonal
+                #Q["x", "h"] += Pi_xl
+                Q["t", "h"] += Pi_xl[:self.d, :]
+                Q["c", "h"] += Pi_xl[self.d:, :]
+                Q["h", "h"] += Pi_ll # on diagonal
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse 
 

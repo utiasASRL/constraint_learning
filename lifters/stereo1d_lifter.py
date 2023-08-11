@@ -65,7 +65,7 @@ class Stereo1DLifter(StateLifter):
 
         x_data = []
         for key in var_subset:
-            if key == "l":
+            if key == "h":
                 x_data.append(1.0)
             elif key == "x":
                 x_data.append(float(theta))
@@ -104,13 +104,13 @@ class Stereo1DLifter(StateLifter):
 
     @property
     def var_dict(self):
-        vars = ["l", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
+        vars = ["h", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
     def get_param_idx_dict(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
-        param_dict_ = {"l": 0}
+        param_dict_ = {"h": 0}
         if self.param_level == "no":
             return param_dict_
 
@@ -131,7 +131,7 @@ class Stereo1DLifter(StateLifter):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"l": -y[j], f"z_{j}": 1})
+            ls_problem.add_residual({"h": -y[j], f"z_{j}": 1})
         return ls_problem.get_Q().get_matrix(self.var_dict), y
 
     def get_A_known(self, add_known_redundant=False):
@@ -145,9 +145,9 @@ class Stereo1DLifter(StateLifter):
         # enforce that z_j = 1/(x - a_j) <=> 1 - z_j*x + a_j*z_j = 0
         for j in range(self.n_landmarks):
             A = PolyMatrix()
-            A["l", f"z_{j}"] = 0.5 * self.landmarks[j]
+            A["h", f"z_{j}"] = 0.5 * self.landmarks[j]
             A["x", f"z_{j}"] = -0.5
-            A["l", "l"] = 1.0
+            A["h", "h"] = 1.0
             A_known.append(A.get_matrix(variables=self.var_dict))
 
         if not add_known_redundant:
@@ -158,8 +158,8 @@ class Stereo1DLifter(StateLifter):
         for i in range(self.n_landmarks):
             for j in range(i + 1, self.n_landmarks):
                 A = PolyMatrix()
-                A["l", f"z_{j}"] = 1
-                A["l", f"z_{i}"] = -1
+                A["h", f"z_{j}"] = 1
+                A["h", f"z_{i}"] = -1
                 A[f"z_{i}", f"z_{j}"] = self.landmarks[i] - self.landmarks[j]
                 A_known.append(A.get_matrix(variables=self.var_dict))
         return A_known

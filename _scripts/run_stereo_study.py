@@ -35,7 +35,7 @@ def stereo_tightness(d=2, n_landmarks=None):
         print(f"============= seed {seed} level {level} ================")
         np.random.seed(seed)
 
-        variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
+        variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
         if d == 2:
             plots = ["tightness"]#, "matrix"]
             tightness = "cost"
@@ -83,7 +83,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
     n_landmarks = d + 1
 
-    # variable_list = [["l", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
+    # variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
     variable_list = None  # use the default one for the first step.
     np.random.seed(0)
     if d == 2:

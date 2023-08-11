@@ -71,7 +71,7 @@ class MonoLifter(RobustPoseLifter):
         constraint = np.zeros(self.d)
         constraint[self.d - 1] = -1
         B2 = PolyMatrix(symmetric=True)
-        B2["l", "t"] = constraint[None, :]
+        B2["h", "t"] = constraint[None, :]
         return default + [
             B2.get_matrix(self.var_dict),
             B3.get_matrix(self.var_dict),
@@ -146,8 +146,8 @@ class MonoLifter(RobustPoseLifter):
             Qi = Pi.T @ Wi @ Pi / norm# "t,t, t,c, c,c: Wi, Wi @ kron, kron.T @ Wi @ kron 
             if self.robust:
                 Qi /= self.beta**2
-                Q["l", "l"] += 1 # last two terms, should not be affected by norm
-                Q["l", f"w_{i}"] += -0.5
+                Q["h", "h"] += 1 # last two terms, should not be affected by norm
+                Q["h", f"w_{i}"] += -0.5
                 if self.level == "xwT":
                     #Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, :self.d] 

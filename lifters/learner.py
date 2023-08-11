@@ -49,7 +49,7 @@ class Learner(object):
 
         self.apply_templates_to_others = apply_templates
 
-        self.mat_vars = ["l"]
+        self.mat_vars = ["h"]
 
         # templates contains the learned "templates" of the form:
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)

@@ -180,7 +180,7 @@ class StateLifter(BaseClass):
     @property
     def var_dict(self):
         if self.var_dict_ is None:
-            self.var_dict_ = {"l": 1}
+            self.var_dict_ = {"h": 1}
             self.var_dict_.update(self.base_var_dict)
             self.var_dict_.update(self.sub_var_dict)
         return self.var_dict_
@@ -355,7 +355,7 @@ class StateLifter(BaseClass):
 
         label_list = []
         if force_parameters_off:
-            param_dict = {"l": 0}
+            param_dict = {"h": 0}
         else:
             param_dict = self.get_param_idx_dict(var_subset)
         for idx, key in enumerate(param_dict.keys()):
@@ -396,7 +396,7 @@ class StateLifter(BaseClass):
         for i, bi_poly in enumerate(basis_poly_list):
             # test that this constraint holds
 
-            bi = bi_poly.get_matrix((["l"], all_dict))
+            bi = bi_poly.get_matrix((["h"], all_dict))
 
             if bi.shape[1] == self.get_dim_X(var_subset) * self.get_dim_P():
                 ai = self.get_reduced_a(bi, var_subset=var_subset)
@@ -422,13 +422,13 @@ class StateLifter(BaseClass):
     def get_vector_dense(self, poly_row_sub):
         # complete the missing variables
         var_dict = self.var_dict_row()
-        poly_row_all = poly_row_sub.get_matrix((["l"], var_dict), output_type="poly")
+        poly_row_all = poly_row_sub.get_matrix((["h"], var_dict), output_type="poly")
         vector = np.empty(0)
         for param in self.get_param_idx_dict().keys():
             # extract each block corresponding to a bigger matrix
             sub_mat = PolyMatrix(symmetric=True)
             for vari, varj in itertools.combinations_with_replacement(self.var_dict, 2):
-                val = poly_row_all["l", f"{param}.{vari}.{varj}"]
+                val = poly_row_all["h", f"{param}.{vari}.{varj}"]
                 if np.ndim(val) > 0:
                     if vari != varj:
                         sub_mat[vari, varj] = val.reshape(
@@ -455,7 +455,7 @@ class StateLifter(BaseClass):
     ):
         if incremental:
             assert len(A_known) == 0
-            var_subset = ["l", "x", "z_0"]
+            var_subset = ["h", "x", "z_0"]
             basis_list = self.get_basis_list(
                 var_subset=var_subset,
                 A_known=A_known,
@@ -493,13 +493,13 @@ class StateLifter(BaseClass):
             keyi_m, keyj_n = var_keys.split(".")
             m = keyi_m.split(":")[-1]
             n = keyj_n.split(":")[-1]
-            if param in ["l", "l.l"]:
+            if param in ["h", "h.h"]:
                 param_val = 1.0
             else:
                 param_val = parameters[param_dict[param]]
 
             # divide off-diagonal elements by sqrt(2)
-            newval = poly_row["l", key] * param_val
+            newval = poly_row["h", key] * param_val
             if correct and not ((keyi_m == keyj_n) and (m == n)):
                 newval /= np.sqrt(2)
 
@@ -529,13 +529,13 @@ class StateLifter(BaseClass):
             keyi_m, keyj_n = var_keys.split(".")
             m = keyi_m.split(":")[-1]
             n = keyj_n.split(":")[-1]
-            if param in ["l", "l.l"]:
+            if param in ["h", "h.h"]:
                 param_val = 1.0
             else:
                 param_val = parameters[param_dict[param]]
 
             # divide off-diagonal elements by sqrt(2)
-            newval = poly_row["l", key] * param_val
+            newval = poly_row["h", key] * param_val
             if correct and not ((keyi_m == keyj_n) and (m == n)):
                 newval /= np.sqrt(2)
 
@@ -588,7 +588,7 @@ class StateLifter(BaseClass):
         for keyi, keyj in itertools.combinations_with_replacement(var_dict, 2):
             if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
                 val = poly_mat.matrix[keyi][keyj]
-                labels = self.get_labels("l", keyi, keyj)
+                labels = self.get_labels("h", keyi, keyj)
                 if keyi != keyj:
                     vals = val.flatten()
                 else:
@@ -597,7 +597,7 @@ class StateLifter(BaseClass):
                 assert len(labels) == len(vals)
                 for l, v in zip(labels, vals):
                     if np.any(np.abs(v) > self.EPS_SPARSE):
-                        poly_row["l", l] = v
+                        poly_row["h", l] = v
         return poly_row
 
     def convert_b_to_polyrow(self, b, var_subset, tol=1e-10) -> PolyMatrix:
@@ -612,7 +612,7 @@ class StateLifter(BaseClass):
         mask = np.abs(b) > tol
         var_list = [v for i, v in enumerate(self.var_list_row(var_subset)) if mask[i]]
         for key, val in zip(var_list, b[mask]):
-            poly_row["l", key] = val
+            poly_row["h", key] = val
         return poly_row
 
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
@@ -656,7 +656,7 @@ class StateLifter(BaseClass):
         # poly_row = self.convert_b_to_polyrow(b, var_subset)
         # row_target_dict = self.var_dict_all(target_subset)
         # bi_all_test = poly_row.get_matrix(
-        #    (["l"], row_target_dict), output_type="dense"
+        #    (["h"], row_target_dict), output_type="dense"
         # ).flatten()
         # np.testing.assert_allclose(bi_all, bi_all_test)
         return bi_all
@@ -779,7 +779,7 @@ class StateLifter(BaseClass):
                             )
                 except ValueError as e:
                     pass
-                new_poly_row["l", key_ij] = bi_poly["l", key]
+                new_poly_row["h", key_ij] = bi_poly["h", key]
             new_poly_rows.append(new_poly_row)
         return new_poly_rows
 
@@ -913,7 +913,7 @@ class StateLifter(BaseClass):
         if isinstance(bi, np.ndarray):
             len_b = len(bi)
         elif isinstance(bi, PolyMatrix):
-            bi = bi.get_matrix((["l"], self.var_dict_row(var_subset)))
+            bi = bi.get_matrix((["h"], self.var_dict_row(var_subset)))
             len_b = bi.shape[1]
         else:
             # bi can be a scipy sparse matrix,
@@ -1021,7 +1021,7 @@ class StateLifter(BaseClass):
         else:
             var_dict = self.var_dict
         A0 = PolyMatrix()
-        A0["l", "l"] = 1.0
+        A0["h", "h"] = 1.0
         return A0.get_matrix(var_dict)
 
     def get_A_b_list(self, A_list, var_subset=None):
@@ -1039,20 +1039,20 @@ class StateLifter(BaseClass):
         - if param_level == 'ppT': {'l': 0, 'p_0:0.p_0:0': 1, ..., 'p_0:d-1:.p_0:d-1': 1}
         """
         if self.param_level == "no":
-            return {"l": 0}
+            return {"h": 0}
 
         if var_subset is None:
             var_subset = self.var_dict
         variables = self.get_variable_indices(var_subset)
-        param_keys = ["l"] + [f"p_{i}:{d}" for i in variables for d in range(self.d)]
+        param_keys = ["h"] + [f"p_{i}:{d}" for i in variables for d in range(self.d)]
         if self.param_level == "p":
             param_dict = {p: i for i, p in enumerate(param_keys)}
         elif self.param_level == "ppT":
             i = 0
             param_dict = {}
             for pi, pj in itertools.combinations_with_replacement(param_keys, 2):
-                if pi == pj == "l":
-                    param_dict["l"] = i
+                if pi == pj == "h":
+                    param_dict["h"] = i
                 else:
                     param_dict[f"{pi}.{pj}"] = i
                 i += 1

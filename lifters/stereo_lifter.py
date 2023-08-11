@@ -32,12 +32,12 @@ class StereoLifter(StateLifter, ABC):
         "uxT": "$\\boldsymbol{u}\\boldsymbol{x}^\\top_n$",
     }
     VARIABLE_LIST = [
-        ["l", "x"], 
-        ["l", "z_0"], 
-        ["l", "x", "z_0"],
-        ["l", "z_0", "z_1"],
-        ["l", "x", "z_0", "z_1"],
-        ["l", "z_0", "z_1", "z_2"],
+        ["h", "x"], 
+        ["h", "z_0"], 
+        ["h", "x", "z_0"],
+        ["h", "z_0", "z_1"],
+        ["h", "x", "z_0", "z_1"],
+        ["h", "z_0", "z_1", "z_2"],
     ]
     def __init__(self, n_landmarks, d, level="no", param_level="no", variable_list=None):
         self.n_landmarks = n_landmarks
@@ -45,7 +45,7 @@ class StereoLifter(StateLifter, ABC):
         super().__init__(d=d, level=level, param_level=param_level, variable_list=variable_list)
 
     def get_all_variables(self): 
-        return [["l", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
+        return [["h", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
 
     def get_level_dims(self, n=1):
         """
@@ -130,7 +130,7 @@ class StereoLifter(StateLifter, ABC):
 
         x_data = []
         for key in var_subset:
-            if key == "l":
+            if key == "h":
                 x_data.append(1.0)
             elif key == "x":
                 x_data += list(r) + list(C.flatten("F"))  # column-wise flatten
@@ -189,11 +189,11 @@ class StereoLifter(StateLifter, ABC):
                 A[f"t", f"z_{k}"] = fill_mat
 
                 if j < self.d - 1:  # u, (v)
-                    A["l", f"c_{j}"] = -self.landmarks[k].reshape((1, -1))
+                    A["h", f"c_{j}"] = -self.landmarks[k].reshape((1, -1))
                     fill_mat = -np.eye(self.d)[j]
-                    A["l", "t"] = fill_mat.reshape((1, -1))
+                    A["h", "t"] = fill_mat.reshape((1, -1))
                 elif j == self.d - 1:  # z
-                    A["l", "l"] = -2.0
+                    A["h", "h"] = -2.0
                 if output_poly:
                     A_known.append(A)
                 else:
@@ -250,7 +250,7 @@ class StereoLifter(StateLifter, ABC):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"l": (y[j] - m), f"z_{j}": -M_tilde})
+            ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
         Q /= (self.n_landmarks * self.d)
