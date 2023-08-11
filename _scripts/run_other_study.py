@@ -13,6 +13,9 @@ from utils.experiments import (
 RECOMPUTE = True
 N_SEEDS = 1
 
+WAHBA = False
+MONO = True
+
 
 def lifter_tightness(
     Lifter=MonoLifter, robust: bool = False, d: int = 2, n_landmarks=4, n_outliers=0
@@ -75,9 +78,6 @@ def lifter_scalability_new(
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         recompute=recompute,
-        use_bisection=True,
-        add_original=True,
-        #use_known=False,
     )
 
     fname_root = f"_results/scalability_{learner.lifter}"
@@ -101,35 +101,38 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
     d = 3
     n_outliers = 1
 
-    print("================= Mono study ==================")
-    from lifters.mono_lifter import MonoLifter
-    if tightness:
-        lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
-    if scalability:
-        lifter_scalability_new(
-            MonoLifter,
-            d=d,
-            n_landmarks=5 + n_outliers,
-            robust=True,
-            n_outliers=n_outliers,
-            n_seeds=n_seeds,
-            recompute=recompute,
-        )
+    if WAHBA:
+        print("================= Wahba study ==================")
+        from lifters.wahba_lifter import WahbaLifter
 
-    print("================= Wahba study ==================")
-    from lifters.wahba_lifter import WahbaLifter
-    if tightness:
-        lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
-    if scalability:
-        lifter_scalability_new(
-            WahbaLifter,
-            d=d,
-            n_landmarks=4 + n_outliers,
-            robust=True,
-            n_outliers=n_outliers,
-            n_seeds=n_seeds,
-            recompute=recompute,
-        )
+        if tightness:
+            lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
+        if scalability:
+            lifter_scalability_new(
+                WahbaLifter,
+                d=d,
+                n_landmarks=4 + n_outliers,
+                robust=True,
+                n_outliers=n_outliers,
+                n_seeds=n_seeds,
+                recompute=recompute,
+            )
+    if MONO:
+        print("================= Mono study ==================")
+        from lifters.mono_lifter import MonoLifter
+
+        if tightness:
+            lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
+        if scalability:
+            lifter_scalability_new(
+                MonoLifter,
+                d=d,
+                n_landmarks=5 + n_outliers,
+                robust=True,
+                n_outliers=n_outliers,
+                n_seeds=n_seeds,
+                recompute=recompute,
+            )
 
 
 if __name__ == "__main__":

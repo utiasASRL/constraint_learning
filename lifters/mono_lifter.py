@@ -12,8 +12,8 @@ from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
-NOISE = 1e-3  # inlier noise
-NOISE_OUT = 1e-1  # outlier noise
+NOISE = 1e-2  # inlier noise
+NOISE_OUT = 1.0  # outlier noise
 FOV = np.pi / 2  # camera field of view
 
 N_TRYS = 10
@@ -53,7 +53,6 @@ class MonoLifter(RobustPoseLifter):
         pc_cw = np.random.rand(self.d) * 0.1
         # make sure all landmarks are in field of view:
         # min_dist = max(np.linalg.norm(self.landmarks[:, :self.d-1], axis=1))
-        min_dist = 1.0
         pc_cw[self.d - 1] = np.random.uniform(1, self.MAX_DIST)
         return pc_cw
 
@@ -118,8 +117,8 @@ class MonoLifter(RobustPoseLifter):
                 success = False
                 for _ in range(N_TRYS):
                     ui_test = deepcopy(ui)
-                    ui_test[: self.d - 1] += np.random.normal(
-                        scale=NOISE_OUT, loc=0, size=self.d - 1
+                    ui_test[: self.d - 1] += np.random.uniform(
+                        [-NOISE_OUT, NOISE_OUT], size=self.d - 1
                     )
                     if np.tan(FOV / 2) * ui_test[self.d - 1] >= np.sqrt(
                         np.sum(ui_test[: self.d - 1] ** 2)

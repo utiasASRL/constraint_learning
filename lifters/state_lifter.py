@@ -479,7 +479,7 @@ class StateLifter(BaseClass):
     def convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
         """Convert poly-row to reduced a.
 
-        poly-row has elements with keys "pk:l.xi:m.xj:n",
+        poly-row has elements with keys "pk:i-xi:m.xj:n",
         meaning this element corresponds to the l-th element of parameter i,
         and the m-n-th element of xj times xk.
         """

@@ -326,25 +326,19 @@ def save_tightness_order(
     return
 
 
-def tightness_study(
-    learner: Learner,
-    use_bisection=True,
-    use_known=True,
-):
+def tightness_study(learner: Learner, use_bisection=True):
     """investigate tightness before and after reordering"""
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(
         reorder=True,
         tightness=learner.lifter.TIGHTNESS,
         use_bisection=use_bisection,
-        use_known=use_known,
     )
     print("original ordering...")
     idx_subset_original = learner.generate_minimal_subset(
         reorder=False,
         tightness=learner.lifter.TIGHTNESS,
         use_bisection=use_bisection,
-        use_known=use_known,
     )
     return idx_subset_original, idx_subset_reorder
 
@@ -358,9 +352,7 @@ def run_scalability_plot(learner: Learner):
     fig, ax = plot_scalability_new(df, start="t ")
     savefig(fig, fname_root + f"_small.pdf")
 
-    idx_subset_original, idx_subset_reorder = tightness_study(
-        learner, original=False
-    )
+    idx_subset_original, idx_subset_reorder = tightness_study(learner, original=False)
     templates_poly = learner.generate_templates_poly(factor_out_parameters=False)
     add_columns = {
         "required (reordered)": idx_subset_reorder,
@@ -382,10 +374,7 @@ def run_scalability_new(
     param_list: list,
     n_seeds: int = 1,
     recompute=False,
-    use_last=None,
     use_bisection=False,
-    add_original=True,
-    use_known=True,
 ):
     import pickle
 
@@ -403,9 +392,7 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data, success = learner.run(
-            verbose=True, use_known=use_known, plot=False
-        )
+        data, success = learner.run(verbose=True, plot=False)
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
@@ -436,10 +423,6 @@ def run_scalability_new(
         t1 = time.time()
         idx_subset_original, idx_subset_reorder = tightness_study(
             learner,
-            original=add_original,
-            use_last=use_last,
-            use_bisection=use_bisection,
-            use_known=use_known,
         )
 
         order_dict = {}

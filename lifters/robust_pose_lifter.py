@@ -53,8 +53,8 @@ class RobustPoseLifter(StateLifter, ABC):
                 base + ["w_0", "w_1"],
                 base + ["w_0", "z_0"],
                 base + ["z_0", "z_1"],
-                base + ["w_0", "w_1", "z_0"],
-                base + ["w_0", "w_1", "z_0", "z_1"],
+                # base + ["w_0", "w_1", "z_0"],
+                # base + ["w_0", "w_1", "z_0", "z_1"],
             ]
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
@@ -486,7 +486,6 @@ class RobustPoseLifter(StateLifter, ABC):
     @abstractmethod
     def residual_sq(self, R, t, pi, ui):
         raise ValueError("do not call this")
-        return
 
     @abstractmethod
     def get_Q(self, noise: float = None):

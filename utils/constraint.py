@@ -8,10 +8,10 @@ class Constraint(object):
     """
     This class serves the main purpose of not recomputing representations of constraints more than once.
     """
+
     def __init__(
         self,
         index=0,
-        value=0,
         polyrow_a=None,
         polyrow_b=None,
         A_poly=None,
@@ -25,7 +25,6 @@ class Constraint(object):
         template_idx=0,
     ):
         self.index = index
-        self.value = value
         self.mat_var_dict = mat_var_dict
 
         self.b_ = b
@@ -82,6 +81,33 @@ class Constraint(object):
             a_full=a_full,
             mat_var_dict=mat_var_dict,
             known=known,
+            template_idx=template_idx,
+        )
+
+    @staticmethod
+    def init_from_A_poly(
+        lifter: StateLifter,
+        A_poly: PolyMatrix,
+        mat_var_dict: dict,
+        known: bool = False,
+        index: int = 0,
+        template_idx: int = None,
+    ):
+        Ai_sparse = A_poly.get_matrix(variables=mat_var_dict)
+        ai = lifter.get_vec(Ai_sparse, correct=True)
+        bi = lifter.augment_using_zero_padding(ai)
+        polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
+        polyrow_a = lifter.convert_a_to_polyrow(ai, mat_var_dict)
+        return Constraint(
+            a=ai,
+            polyrow_a=polyrow_a,
+            b=bi,
+            polyrow_b=polyrow_b,
+            A_poly=A_poly,
+            A_sparse=Ai_sparse,
+            known=known,
+            index=index,
+            mat_var_dict=mat_var_dict,
             template_idx=template_idx,
         )
 

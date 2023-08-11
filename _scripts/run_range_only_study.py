@@ -67,9 +67,7 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             learner,
             param_list=n_positions_list,
             n_seeds=n_seeds,
-            tightness="rank",
             recompute=recompute,
-            add_original=False,
         )
 
         df = df[df.type != "original"]

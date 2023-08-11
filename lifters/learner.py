@@ -31,6 +31,9 @@ TOL_RANK_ONE = 1e7
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
 
+USE_KNOWN = True
+
+
 class Learner(object):
     """
     Class to incrementally learn and augment constraint templates until we reach tightness.
@@ -55,14 +58,12 @@ class Learner(object):
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)
         self.templates_poly_ = None  # for plotting only: all templats stacked in one
 
-        # A_matrices contains the generated PolyMatrices (induced from the templates)
-        self.a_current_ = []  # current basis formed from a matrices
-
         # new representation, making sure we don't compute the same thing twice.
         self.constraints = []
         self.templates = []
         self.constraint_index = 0
         self.index_tested = set()
+        self.templates_known = None
 
         # list of dual costs
         self.df_tight = None
@@ -133,7 +134,10 @@ class Learner(object):
     def is_tight(self, verbose=False, data_dict={}):
         tightness = self.lifter.TIGHTNESS
 
-        A_list = [constraint.A_sparse_ for constraint in self.constraints]
+        A_list = []
+        if USE_KNOWN:
+            A_list += self.lifter.get_A_known()
+        A_list += [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
@@ -210,7 +214,6 @@ class Learner(object):
         tightness="rank",
         use_last=None,
         use_bisection=False,
-        use_known=False,
     ):
         from solvers.sparse import solve_lambda
         from solvers.sparse import bisection, brute_force
@@ -268,7 +271,7 @@ class Learner(object):
         B_list = self.lifter.get_B_known()
 
         force_first = 1
-        if use_known:
+        if USE_KNOWN:
             force_first += len(A_known)
 
         if reorder:
@@ -368,15 +371,20 @@ class Learner(object):
         except StopIteration:
             return False
 
-    def learn_templates(self, use_known=False, plot=False, data_dict=None):
+    def learn_templates(self, plot=False, data_dict=None):
         templates = []
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-        if use_known:
-            Y = np.vstack(
-                [Y] + [c.a_.toarray() for c in self.templates if c.a_ is not None]
-            )
+        if USE_KNOWN:
+            a_vectors = []
+            for c in self.templates:
+                ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
+                a_vectors.append(ai)
+            for c in self.templates_known:
+                ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
+                a_vectors.append(ai)
+            Y = np.vstack([Y] + a_vectors)
 
         if plot:
             fig, ax = plt.subplots()
@@ -573,30 +581,27 @@ class Learner(object):
                     del constraints[idx]
         return constraints
 
-    def add_known_templates(self):
+    def create_known_templates(self):
+        # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay
         n_known = 0
+        self.templates_known = []
         for i, Ai in enumerate(
             self.lifter.get_A_known(self.mat_var_dict, output_poly=True)
         ):
-            Ai_sparse = Ai.get_matrix(variables=self.mat_var_dict)
-            a = self.lifter.get_vec(Ai_sparse, correct=True)
-
-            bi = self.lifter.augment_using_zero_padding(a)
-            template = Constraint.init_from_b(
+            template = Constraint.init_from_A_poly(
+                lifter=self.lifter,
+                A_poly=Ai,
+                known=True,
                 index=self.constraint_index + i,
                 mat_var_dict=self.mat_var_dict,
-                b=bi,
-                lifter=self.lifter,
-                convert_to_polyrow=self.apply_templates_to_others,
-                known=True,
             )
             self.constraint_index += 1
-            self.templates.append(template)
+            self.templates_known.append(template)
             n_known += 1
-        print(f"using {n_known} known constraints")
+        print(f"using {n_known} new known constraints")
         return n_known
 
-    def run(self, use_known=True, verbose=False, plot=False):
+    def run(self, verbose=False, plot=False):
         data = []
         success = False
 
@@ -608,17 +613,15 @@ class Learner(object):
             print(f"======== {self.mat_vars} ========")
 
             n_new = 0
-            if use_known:
-                n_new += self.add_known_templates()
+            if USE_KNOWN:
+                n_new += self.create_known_templates()
 
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
 
             print(f"-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
-            n_new_learned, n_all = self.learn_templates(
-                use_known=use_known, plot=plot, data_dict=data_dict
-            )
+            n_new_learned, n_all = self.learn_templates(plot=plot, data_dict=data_dict)
             n_new += n_new_learned
             print(
                 f"found {n_new_learned} learned templates, new total learned: {n_all} "
@@ -647,9 +650,7 @@ class Learner(object):
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")
-            is_tight = self.is_tight(
-                verbose=verbose, data_dict=data_dict
-            )
+            is_tight = self.is_tight(verbose=verbose, data_dict=data_dict)
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)
@@ -865,16 +866,7 @@ class Learner(object):
         ax.set_title(title)
         if fname_root != "":
             savefig(fig, fname_root + "_eigs.png")
-
         return
-        ratios = [e[0] / e[1] for e in self.ranks]
-        fig, ax = plt.subplots()
-        xticks = range(len(ratios))
-        ax.semilogy(xticks, ratios)
-        ax.set_xticks(xticks, labels)
-        ax.set_title(title)
-        if fname_root != "":
-            savefig(fig, fname_root + "_ratios.png")
 
     def save_matrices_sparsity(self, A_matrices=None, fname_root="", title=""):
         if A_matrices is None:
