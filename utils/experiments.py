@@ -308,6 +308,8 @@ def save_tightness_order(
             savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.pdf")
 
     if use_bisection:
+        if any(df["dual cost"] < 0):
+            ax_cost.set_yscale("symlog")
         ax_cost.legend()
     else:
         ax_cost.legend(
@@ -374,7 +376,6 @@ def run_scalability_new(
     param_list: list,
     n_seeds: int = 1,
     recompute=False,
-    use_bisection=False,
 ):
     import pickle
 
@@ -419,11 +420,8 @@ def run_scalability_new(
 
     except (AssertionError, FileNotFoundError) as e:
         print(e)
-
         t1 = time.time()
-        idx_subset_original, idx_subset_reorder = tightness_study(
-            learner,
-        )
+        idx_subset_original, idx_subset_reorder = tightness_study(learner)
 
         order_dict = {}
         orig_dict["t determine required"] = time.time() - t1
@@ -438,10 +436,11 @@ def run_scalability_new(
             pickle.dump(learner, f)
 
     if learner is not None:
-        save_tightness_order(learner, fname_root + "_new", use_bisection=use_bisection)
+        save_tightness_order(learner, fname_root + "_new", use_bisection=True)
 
     fname = fname_root + "_df_all.pkl"
     try:
+        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         # assert set(param_list).issubset(df.N.unique())
@@ -474,29 +473,36 @@ def run_scalability_new(
                     n_successful_seeds += 1
 
                     # apply the templates to all new landmarks
+                    all_constraints = learner.templates_known + learner.constraints
+                    template_indices = sorted([t.index for t in learner.templates + learner.templates_known])
                     t1 = time.time()
                     if new_order is not None:
                         template_unique_idx = set()
+
                         for i in new_order:
-                            template_unique_idx.add(
-                                learner.constraints[i - 1].template_idx
-                            )
+                            # the first constraint ALWAYS corresponds to A0, whichs not part of our templates.
+                            if i > 0:
+                                new_index = all_constraints[i-1].template_idx
+                                assert new_index in template_indices 
+                                template_unique_idx.add(new_index)
 
                         new_learner.templates = []
                         for t in template_unique_idx:
                             template = [
                                 template
-                                for template in learner.templates
+                                for template in learner.templates + learner.templates_known
                                 if template.index == t
                             ][0]
 
-                            # (make sure the dimensions of the constraints are correct)
-                            scaled_template = template.scale_to_new_lifter(new_lifter)
-                            new_learner.templates.append(scaled_template)
+                            if not template.known:
+                                # (make sure the dimensions of the constraints are correct)
+                                scaled_template = template.scale_to_new_lifter(new_lifter)
+                                new_learner.templates.append(scaled_template)
                     else:
                         new_learner.templates = learner.templates
                     # apply the templates
                     data_dict[f"n templates"] = len(new_learner.templates)
+                    new_learner.create_known_templates()
                     n_new, n_total = new_learner.apply_templates(reapply_all=True)
                     data_dict[f"n constraints"] = n_total
                     data_dict[f"t create constraints"] = time.time() - t1
@@ -615,9 +621,8 @@ def run_oneshot_experiment(
     learner: Learner,
     fname_root,
     plots,
-    use_known=True,
 ):
-    learner.run(verbose=True, use_known=use_known, plot=True)
+    learner.run(verbose=True, plot=True)
 
     if "svd" in plots:
         fig = plt.gcf()
@@ -629,7 +634,6 @@ def run_oneshot_experiment(
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner,
         use_bisection=True,
-        use_known=use_known,
     )
     if "tightness" in plots:
         save_tightness_order(learner, fname_root, figsize=4, use_bisection=True)

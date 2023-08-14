@@ -93,11 +93,12 @@ class Constraint(object):
         index: int = 0,
         template_idx: int = None,
     ):
-        Ai_sparse = A_poly.get_matrix(variables=mat_var_dict)
-        ai = lifter.get_vec(Ai_sparse, correct=True)
+        Ai_sparse_small= A_poly.get_matrix(variables=mat_var_dict)
+        ai = lifter.get_vec(Ai_sparse_small, correct=True)
         bi = lifter.augment_using_zero_padding(ai)
         polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
         polyrow_a = lifter.convert_a_to_polyrow(ai, mat_var_dict)
+        Ai_sparse = A_poly.get_matrix(variables=lifter.var_dict)
         return Constraint(
             a=ai,
             polyrow_a=polyrow_a,
@@ -133,7 +134,15 @@ class Constraint(object):
         )
 
     def scale_to_new_lifter(self, lifter: StateLifter):
-        target_dict_unroll = lifter.var_dict_unroll
-        self.A_sparse_ = self.A_poly_.get_matrix(target_dict_unroll)
-        self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+
+        if self.known:
+            # known matrices are stored in origin variables, not unrolled form
+            self.A_sparse_ = self.A_poly_.get_matrix(lifter.var_dict)
+            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+
+        else:
+            # known matrices are stored in origin variables, not unrolled form
+            target_dict_unroll = lifter.var_dict_unroll
+            self.A_sparse_ = self.A_poly_.get_matrix(target_dict_unroll)
+            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
         return self

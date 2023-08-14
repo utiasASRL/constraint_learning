@@ -13,7 +13,7 @@ from utils.experiments import (
 RECOMPUTE = True
 N_SEEDS = 1
 
-WAHBA = False
+WAHBA = True
 MONO = True
 
 
@@ -48,7 +48,6 @@ def lifter_tightness(
             learner,
             fname_root,
             plots,
-            use_known=True,
         )
 
 

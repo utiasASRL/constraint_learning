@@ -12,7 +12,7 @@ SOLVER = "MOSEK"
 # see https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
 LAMBDA_REL_GAP = 0.1
 
-def bisection(function, inputs, left, right):
+def bisection(function, inputs, left_num, right_num):
     """
     functions is cost tightness or rank tightness, which is of shape
               .-----
@@ -23,8 +23,9 @@ def bisection(function, inputs, left, right):
            *===*       middle tight --> look in left half
     """
     A_list, df_data = inputs
-    left_tight = function(A_list[:left+1], df_data)
-    right_tight = function(A_list[:right+1], df_data)
+
+    left_tight = function(A_list[:left_num+1], df_data)
+    right_tight = function(A_list[:right_num+1], df_data)
     
     if left_tight and right_tight:
         print("Warning: not a valid starting interval, both left and right already tight!")
@@ -37,16 +38,16 @@ def bisection(function, inputs, left, right):
     assert right_tight
     # start at 0
 
-    middle = (right + left) // 2
-    middle_tight = function(A_list[:middle + 1], df_data)
+    middle_num = (right_num + left_num) // 2
+    middle_tight = function(A_list[:middle_num+1], df_data)
 
     if middle_tight: # look in the left half next
-        right = middle
+        right_num = middle_num
     else:
-        left = middle
-    if right == left + 1:
+        left_num = middle_num
+    if right_num == left_num + 1:
         return
-    return bisection(function, inputs, left, right)
+    return bisection(function, inputs, left_num=left_num, right_num=right_num)
 
 def brute_force(function, inputs, left, right):
     A_list, df_data = inputs
@@ -64,7 +65,7 @@ def solve_lambda(
     xhat,
     B_list=[],
     force_first=1,
-    adjust=True,
+    adjust=False,
     solver=SOLVER,
     opts=solver_options[SOLVER],
     primal=False,
@@ -88,6 +89,7 @@ def solve_lambda(
         """
         m = len(A_b_list)
         y = cp.Variable(shape=(m,))
+        epsilon = cp.Variable()
 
         k = len(B_list)
         if k > 0:
@@ -97,16 +99,17 @@ def solve_lambda(
         H = Q_here + cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [u[i] * Bi for (i, Bi) in enumerate(B_list)])
 
         if k > 0:
-            objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u))
+            objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u) + epsilon)
         else:
-            objective = cp.Minimize(cp.norm1(y[force_first:]))
+            objective = cp.Minimize(cp.norm1(y[force_first:]) + epsilon)
 
-        constraints = [H >> 0]
-        constraints += [H @ xhat == 0]
+        constraints = [H >> 0] # >> 0 denotes positive SEMI-definite
+
+        #constraints += [H @ xhat == 0]
+        constraints += [H @ xhat <= epsilon]
+        constraints += [H @ xhat >= -epsilon]
         if k > 0:
             constraints += [u >= 0]
-        #constraints += [H @ xhat <= 1e-8]
-        #constraints += [H @ xhat >= 1e-8]
 
         cprob = cp.Problem(objective, constraints)
         opts["verbose"] = verbose
@@ -121,6 +124,7 @@ def solve_lambda(
             lamda = None 
             X = None
         else:
+            print("solve_lamda: epsilon is", epsilon.value)
             lamda = y.value
             X = constraints[0].dual_value
 
