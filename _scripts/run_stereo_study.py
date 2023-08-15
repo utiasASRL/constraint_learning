@@ -3,8 +3,8 @@ import matplotlib.pylab as plt
 
 import matplotlib
 
-matplotlib.use("TkAgg")
-plt.ion()
+# matplotlib.use("TkAgg")
+# plt.ion()
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 

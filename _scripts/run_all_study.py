@@ -22,13 +22,13 @@ def generate_results(lifters, seed=0):
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         dict_list, success = learner.run(
-            verbose=True, use_known=False, plot=False
+            verbose=True, plot=False
         )
         if not success:
             raise RuntimeError(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True, use_known=True)
+        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True)
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1

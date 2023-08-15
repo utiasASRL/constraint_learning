@@ -1,9 +1,6 @@
 import matplotlib
 import matplotlib.pylab as plt
 
-matplotlib.use("TkAgg")
-plt.ion()
-
 import autograd.numpy as np
 
 from lifters.robust_pose_lifter import RobustPoseLifter

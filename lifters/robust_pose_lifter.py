@@ -4,9 +4,6 @@ from copy import deepcopy
 import matplotlib
 import matplotlib.pylab as plt
 
-matplotlib.use("TkAgg")
-plt.ion()
-
 import autograd.numpy as np
 
 from lifters.state_lifter import StateLifter
