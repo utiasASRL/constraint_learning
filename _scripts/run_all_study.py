@@ -29,7 +29,9 @@ def generate_results(lifters, seed=0):
             )
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True, tightness=learner.lifter.TIGHTNESS)
+        indices = learner.generate_minimal_subset(
+            reorder=True, use_bisection=True, tightness=learner.lifter.TIGHTNESS
+        )
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
@@ -45,20 +47,14 @@ def generate_results(lifters, seed=0):
 
 def run_all(recompute=RECOMPUTE):
     lifters = [
-        (
-            RangeOnlyLocLifter,
-            dict(n_positions=3, n_landmarks=10, d=3, level="no"),
-        ),
-        (
-            RangeOnlyLocLifter,
-            dict(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        ),
-        # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-        # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-        # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
-        # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-        # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+        #(Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        #(Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+        #(WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+        #(MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+        #(WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+        #(MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
     try:

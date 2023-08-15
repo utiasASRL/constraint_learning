@@ -133,6 +133,7 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except Exception as e:
+            print(e)
             cost = None
             X = None
             H = None
@@ -184,6 +185,7 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except Exception as e:
+            print(e)
             cost = None
             X = None
             H = None
