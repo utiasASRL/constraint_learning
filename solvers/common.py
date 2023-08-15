@@ -26,7 +26,7 @@ solver_options = {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
             "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
             "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
-            #"MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
+            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
             # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
@@ -169,7 +169,10 @@ def solve_sdp_cvxpy(
 
         # We want the lagrangian to be H := Q - sum l_i * A_i + sum u_i * B_i.
         # With this choice, l_0 will be negative
-        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [-u[i] * Bi for (i, Bi) in enumerate(B_list)])
+        LHS = cp.sum(
+            [y[i] * Ai for (i, Ai) in enumerate(As)]
+            + [-u[i] * Bi for (i, Bi) in enumerate(B_list)]
+        )
         constraints = [LHS << Q_here]
         if k > 0:
             constraints.append(u >= 0)
@@ -200,7 +203,9 @@ def solve_sdp_cvxpy(
                     i_nnz = np.where(mu > 1e-10)[0]
                     if len(i_nnz):
                         for i in i_nnz:
-                            print(f"Warning: is constraint {i} active? (mu={mu[i]:.4e}):")
+                            print(
+                                f"Warning: is constraint {i} active? (mu={mu[i]:.4e}):"
+                            )
                             print(np.trace(B_list[i] @ X))
                 msg = "converged"
             else:
@@ -213,9 +218,14 @@ def solve_sdp_cvxpy(
     # reverse Q adjustment
     if cost:
         cost = cost * scale + offset
+
+        H = Q_here - cp.sum(
+            [yvals[i] * Ai for (i, Ai) in enumerate(As)]
+            + [-u[i] * Bi for (i, Bi) in enumerate(B_list)]
+        )
         yvals[0] = yvals[0] * scale + offset
-        H *= scale
-        H[0, 0] += offset
+        # H *= scale
+        # H[0, 0] += offset
 
     info = {"H": H, "yvals": yvals, "cost": cost, "msg": msg}
     return X, info
@@ -244,9 +254,9 @@ def find_local_minimum(
             t_local, msg, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
-            #t_local, msg, cost_solver = lifter.local_solver_new(
+            # t_local, msg, cost_solver = lifter.local_solver_new(
             #    t_init, y=y, verbose=verbose
-            #)
+            # )
         except NotImplementedError:
             print("Warning: local solver not implemented.")
             return None, None

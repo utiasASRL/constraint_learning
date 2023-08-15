@@ -13,6 +13,7 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 
 RECOMPUTE = True
 
+
 def generate_results(lifters, seed=0):
     all_list = []
     for Lifter, dict in lifters:
@@ -21,14 +22,14 @@ def generate_results(lifters, seed=0):
 
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        dict_list, success = learner.run(
-            verbose=True, plot=False
-        )
+        dict_list, success = learner.run(verbose=True, plot=False)
         if not success:
-            raise RuntimeError(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
+            raise RuntimeError(
+                f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
+            )
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True)
+        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True, tightness=learner.lifter.TIGHTNESS)
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
@@ -47,29 +48,17 @@ def run_all(recompute=RECOMPUTE):
         (
             RangeOnlyLocLifter,
             dict(n_positions=3, n_landmarks=10, d=3, level="no"),
-        ),  
+        ),
         (
             RangeOnlyLocLifter,
             dict(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        ),  
-        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),  
-        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),  
-        (
-            WahbaLifter,
-            dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1),
-        ),   
-        (
-            MonoLifter,
-            dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
-        ),  
-        (
-            WahbaLifter,
-            dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
-        ),   
-        (
-            MonoLifter,
-            dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-        ),  
+        ),
+        # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+        # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+        # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+        # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
     try:

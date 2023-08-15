@@ -137,7 +137,7 @@ class Learner(object):
 
         A_list = []
         if USE_KNOWN:
-            #A_list += self.lifter.get_A_known()
+            # A_list += self.lifter.get_A_known()
             A_list += [constraint.A_sparse_ for constraint in self.templates_known]
         A_list += [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
@@ -261,10 +261,9 @@ class Learner(object):
             else:
                 return new_data["cost_tight"]
 
-
         A_known = []
         if USE_KNOWN:
-            #A_known = self.lifter.get_A_known()
+            # A_known = self.lifter.get_A_known()
             A_known += [constraint.A_sparse_ for constraint in self.templates_known]
         A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
@@ -291,14 +290,14 @@ class Learner(object):
                 print("Sanity checks:")
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
-                assert info['msg'] == "converged"
+                assert info["msg"] == "converged"
                 E, V = np.linalg.eigh(X)
                 print("eigenvalues of X", E)
                 xhat_from_X = np.sqrt(E[-1]) * V[:, -1]
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
                 print("Hx=", info["H"] @ xhat)
-                print("Hx=", info["H"] @ xhat_from_X)
+                print("Hx_from_X=", info["H"] @ xhat_from_X)
                 eigs = np.linalg.eigvalsh(info["H"].toarray())
                 print("eigs of H", eigs)
                 return None
@@ -308,7 +307,7 @@ class Learner(object):
             redundant_idx = np.argsort(np.abs(lamdas[force_first:]))[::-1]
             # example: force_first is 4
             # [0, 1, 2, 3], 4 + [1, 0, 2] = [0, 1, 2, 3, 5, 4, 6]
-            sorted_idx = np.r_[np.arange(force_first), force_first + redundant_idx] 
+            sorted_idx = np.r_[np.arange(force_first), force_first + redundant_idx]
         else:
             # if force_first is 7, then
             # sorted idx is simply 7, 8, 9, ..., 20
@@ -326,9 +325,13 @@ class Learner(object):
 
         df_data = {}
         if use_bisection:
-            bisection(function, (inputs, df_data), left_num=start_idx, right_num=len(inputs))
+            bisection(
+                function, (inputs, df_data), left_num=start_idx, right_num=len(inputs)
+            )
         else:
-            brute_force(function, (inputs, df_data), left_num=start_idx, right_num=len(inputs))
+            brute_force(
+                function, (inputs, df_data), left_num=start_idx, right_num=len(inputs)
+            )
 
         df_tight = pd.DataFrame(df_data.values(), index=df_data.keys())
         if self.df_tight is None:
@@ -393,7 +396,7 @@ class Learner(object):
             var_subset = set(c.A_poly_.get_variables())
             if var_subset.issubset(self.mat_var_dict):
                 templates_known_sub.append(c)
-        
+
         new_index_set = set([t.index for t in templates_known_sub])
         print("new:", new_index_set)
         old_index_set = set([t.index for t in self.templates_known_sub])
@@ -401,8 +404,8 @@ class Learner(object):
         diff_index_set = new_index_set.difference(old_index_set)
 
         self.templates_known_sub = templates_known_sub
-        #all_idx = new_index_set.union(old_index_set)
-        #for idx in all_idx:
+        # all_idx = new_index_set.union(old_index_set)
+        # for idx in all_idx:
         #    matches = [t for t in templates_known_sub + self.templates_known_sub if t.index == idx]
         #    self.templates_known_sub.append(matches[0])
         return len(diff_index_set)
@@ -416,12 +419,13 @@ class Learner(object):
             a_vectors = []
             for c in self.templates:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
-                a_vectors.append(ai)
+                bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
+                a_vectors.append(bi)
             for c in self.templates_known_sub:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
-                a_vectors.append(ai)
+                bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
+                a_vectors.append(bi)
             Y = np.vstack([Y] + a_vectors)
-
 
         if plot:
             fig, ax = plt.subplots()
@@ -516,6 +520,9 @@ class Learner(object):
             ]
             new_constraints += template.applied_list
             self.constraint_index += len(constraints)
+
+        if not len(new_constraints):
+            return 0, 0
 
         # determine which of these constraints are actually independent, after reducing them to ai.
         print(f"found {len(new_constraints)} candidate constraints.")
@@ -619,9 +626,7 @@ class Learner(object):
         else:
             target_dict = self.lifter.var_dict
 
-        for i, Ai in enumerate(
-            self.lifter.get_A_known(target_dict, output_poly=True)
-        ):
+        for i, Ai in enumerate(self.lifter.get_A_known(target_dict, output_poly=True)):
             template = Constraint.init_from_A_poly(
                 lifter=self.lifter,
                 A_poly=Ai,
