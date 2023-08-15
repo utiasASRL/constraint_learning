@@ -78,6 +78,8 @@ def lifter_scalability_new(
         n_seeds=n_seeds,
         recompute=recompute,
     )
+    if df is None:
+        return
 
     fname_root = f"_results/scalability_{learner.lifter}"
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)

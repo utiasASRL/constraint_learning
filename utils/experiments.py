@@ -31,6 +31,9 @@ ylabels = {
     "zoom": "",
 }
 
+RESULTS_FOLDER = "_results"
+EARLY_STOP = True
+
 
 def create_newinstance(lifter, n_params):
     # TODO(FD): replace below with copy constructor
@@ -379,8 +382,8 @@ def run_scalability_new(
 ):
     import pickle
 
-    fname = f"_results/{learner.lifter}.pkl"
-    fname_root = f"_results/scalability_{learner.lifter}"
+    fname = f"{RESULTS_FOLDER}/{learner.lifter}.pkl"
+    fname_root = f"{RESULTS_FOLDER}/scalability_{learner.lifter}"
 
     try:
         assert not recompute, "forcing to recompute"
@@ -388,7 +391,7 @@ def run_scalability_new(
             learner = pickle.load(f)
             orig_dict = pickle.load(f)
         print(f"--------- read {fname} \n")
-    except (AssertionError, FileNotFoundError) as e:
+    except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         # find which of the constraints are actually necessary
         orig_dict = {}
@@ -418,7 +421,7 @@ def run_scalability_new(
             learner = None
         print(f"--------- read {fname} \n")
 
-    except (AssertionError, FileNotFoundError) as e:
+    except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         t1 = time.time()
         idx_subset_original, idx_subset_reorder = tightness_study(learner)
@@ -438,9 +441,11 @@ def run_scalability_new(
     if learner is not None:
         save_tightness_order(learner, fname_root + "_new", use_bisection=True)
 
+    if EARLY_STOP:
+        return None
+
     fname = fname_root + "_df_all.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         # assert set(param_list).issubset(df.N.unique())
@@ -472,45 +477,7 @@ def run_scalability_new(
                         continue
                     n_successful_seeds += 1
 
-                    # apply the templates to all new landmarks
-                    all_constraints = learner.templates_known + learner.constraints
-                    template_indices = sorted([t.index for t in learner.templates + learner.templates_known])
-                    t1 = time.time()
-                    if new_order is not None:
-                        template_unique_idx = set()
-
-                        for i in new_order:
-                            # the first constraint ALWAYS corresponds to A0, whichs not part of our templates.
-                            if i > 0:
-                                new_index = all_constraints[i-1].template_idx
-                                assert new_index in template_indices 
-                                template_unique_idx.add(new_index)
-
-                        new_learner.templates = []
-                        for t in template_unique_idx:
-                            template = [
-                                template
-                                for template in learner.templates + learner.templates_known
-                                if template.index == t
-                            ][0]
-
-                            if not template.known:
-                                # (make sure the dimensions of the constraints are correct)
-                                scaled_template = template.scale_to_new_lifter(new_lifter)
-                                new_learner.templates.append(scaled_template)
-                    else:
-                        new_learner.templates = learner.templates
-                    # apply the templates
-                    data_dict[f"n templates"] = len(new_learner.templates)
-                    new_learner.create_known_templates()
-                    n_new, n_total = new_learner.apply_templates(reapply_all=True)
-                    data_dict[f"n constraints"] = n_total
-                    data_dict[f"t create constraints"] = time.time() - t1
-
-                    # TODO(FD) below should not be necessary
-                    # new_learner.constraints = new_learner.clean_constraints(
-                    #    new_learner.constraints, [], remove_imprecise=False
-                    # )
+                    new_learner.scale_templates(learner, new_order, data_dict)
 
                     # determine tightness
                     if (

@@ -23,6 +23,7 @@ dependencies:
     - autograd>=1.6.2
 
     - pip:
+      - pymanopt>=2.1.1
       - sparseqr
       - asrl-pylgmath>=1.0.3
       - -e poly_matrix # build local poly_matrix submodule

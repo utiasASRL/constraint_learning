@@ -69,6 +69,8 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             n_seeds=n_seeds,
             recompute=recompute,
         )
+        if df is None:
+            continue
 
         df = df[df.type != "original"]
         fname_root = f"_results/scalability_{learner.lifter}"

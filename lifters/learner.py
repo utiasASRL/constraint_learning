@@ -641,6 +641,49 @@ class Learner(object):
         print(f"using {n_known} new known constraints")
         return n_known
 
+    def scale_templates(self, learner, new_order, data_dict={}):
+        """Use the templates in learner to populate the own templates etc."""
+        all_constraints = learner.templates_known + learner.constraints
+        template_indices = sorted(
+            [t.index for t in learner.templates + learner.templates_known]
+        )
+        t1 = time.time()
+        if new_order is not None:
+            template_unique_idx = set()
+
+            for i in new_order:
+                # the first constraint ALWAYS corresponds to A0, whichs not part of our templates.
+                if i > 0:
+                    new_index = all_constraints[i - 1].template_idx
+                    assert new_index in template_indices
+                    template_unique_idx.add(new_index)
+
+            self.templates = []
+            for t in template_unique_idx:
+                template = [
+                    template
+                    for template in learner.templates + learner.templates_known
+                    if template.index == t
+                ][0]
+
+                if not template.known:
+                    # (make sure the dimensions of the constraints are correct)
+                    scaled_template = template.scale_to_new_lifter(self.lifter)
+                    self.templates.append(scaled_template)
+        else:
+            self.templates = learner.templates
+        # apply the templates
+        data_dict[f"n templates"] = len(self.templates)
+        self.create_known_templates()
+        n_new, n_total = self.apply_templates(reapply_all=True)
+        data_dict[f"n constraints"] = n_total
+        data_dict[f"t create constraints"] = time.time() - t1
+
+        # TODO(FD) below should not be necessary
+        # self.constraints = self.clean_constraints(
+        #    self.constraints, [], remove_imprecise=False
+        # )
+
     def run(self, verbose=False, plot=False):
         data = []
         success = False

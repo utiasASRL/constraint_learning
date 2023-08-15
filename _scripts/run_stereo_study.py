@@ -102,6 +102,8 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
         n_seeds=n_seeds,
         recompute=recompute,
     )
+    if df is None:
+        return
 
     fname_root = f"_results/scalability_{learner.lifter}"
 
@@ -122,10 +124,10 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if tightness:
-        stereo_tightness(d=2)
+        # stereo_tightness(d=2)
         stereo_tightness(d=3)
     if scalability:
-        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
+        # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
         stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
 
 

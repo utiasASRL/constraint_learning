@@ -28,7 +28,7 @@ class RangeOnlyLocLifter(StateLifter):
     - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
     """
 
-    TIGHTNESS = "rank" 
+    TIGHTNESS = "rank"
     LEVELS = ["no", "quad"]
     LEVEL_NAMES = {
         "no": "$z_n$",
@@ -46,6 +46,7 @@ class RangeOnlyLocLifter(StateLifter):
             self.W = W
         else:
             self.W = np.ones((n_positions, n_landmarks))
+        self.y_ = None
 
         if variable_list == "all":
             variable_list = self.get_all_variables()
@@ -308,25 +309,27 @@ class RangeOnlyLocLifter(StateLifter):
         return self.ls_problem.get_Q().get_matrix(self.var_dict)
 
     def get_Q(self, noise: float = None) -> tuple:
-        # N x K matrix
-        if noise is None:
-            noise = NOISE
-        positions = self.theta.reshape(self.n_positions, -1)
-        y_gt = (
-            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
-            ** 2
-        )
-        y = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
-        Q = self.get_Q_from_y(y)
+        if self.y_ is None:
+            # N x K matrix
+            if noise is None:
+                noise = NOISE
+            positions = self.theta.reshape(self.n_positions, -1)
+            y_gt = (
+                np.linalg.norm(
+                    self.landmarks[None, :, :] - positions[:, None, :], axis=2
+                )
+                ** 2
+            )
+            self.y_ = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
+            cost2 = np.sum((self.y_ - y_gt) ** 2)
+        Q = self.get_Q_from_y(self.y_)
 
         # DEBUGGING
         x = self.get_x()
         cost1 = x.T @ Q @ x
-        cost2 = np.sum((y - y_gt) ** 2)
-        cost3 = self.get_cost(self.theta, y)
-        assert abs(cost1 - cost2) < 1e-10
+        cost3 = self.get_cost(self.theta, self.y_)
         assert abs(cost1 - cost3) < 1e-10
-        return Q, y
+        return Q, self.y_
 
     def get_sub_idx_x(self, sub_idx, add_z=True):
         sub_idx_x = [0]

@@ -73,7 +73,7 @@ class StateLifter(BaseClass):
 
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
-    TIGHTNESS = "cost" 
+    TIGHTNESS = "cost"
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
@@ -162,6 +162,10 @@ class StateLifter(BaseClass):
         if self.theta_ is None:
             self.theta_ = self.generate_random_theta()
         return self.theta_
+
+    @theta.setter
+    def theta(self, value):
+        self.theta_ = value
 
     @property
     def base_var_dict(self):
