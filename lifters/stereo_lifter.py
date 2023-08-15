@@ -49,6 +49,7 @@ class StereoLifter(StateLifter, ABC):
     def __init__(
         self, n_landmarks, d, level="no", param_level="no", variable_list=None
     ):
+        self.y_ = None
         self.n_landmarks = n_landmarks
         assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
         super().__init__(
@@ -223,23 +224,25 @@ class StereoLifter(StateLifter, ABC):
             return np.r_[1.0, parameters]
 
     def get_Q(self, noise: float = None) -> tuple:
-        if noise is None:
-            noise = NOISE
-        xtheta = get_xtheta_from_theta(self.theta, self.d)
-        T = get_T(xtheta, self.d)
+        if self.y_ is None:
+            if noise is None:
+                noise = NOISE
+            xtheta = get_xtheta_from_theta(self.theta, self.d)
+            T = get_T(xtheta, self.d)
 
-        y = []
+            self.y_ = np.zeros((self.n_landmarks, self.M_matrix.shape[0]))
+            for j in range(self.n_landmarks):
+                y_gt = T @ np.r_[self.landmarks[j], 1.0]
 
-        for j in range(self.n_landmarks):
-            y_gt = T @ np.r_[self.landmarks[j], 1.0]
-
-            # in 2d: y_gt[1]
-            # in 3d: y_gt[2]
-            y_gt /= y_gt[self.d - 1]
-            y_gt = self.M_matrix @ y_gt
-            y.append(y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt)))
-        Q = self.get_Q_from_y(y)
-        return Q, y
+                # in 2d: y_gt[1]
+                # in 3d: y_gt[2]
+                y_gt /= y_gt[self.d - 1]
+                y_gt = self.M_matrix @ y_gt
+                self.y_[j, :] = y_gt + np.random.normal(
+                    loc=0, scale=noise, size=len(y_gt)
+                )
+        Q = self.get_Q_from_y(self.y_)
+        return Q, self.y_
 
     def get_Q_from_y(self, y):
         """
@@ -280,7 +283,7 @@ class StereoLifter(StateLifter, ABC):
         t = self.theta
         cost_raw = self.get_cost(t, y)
         cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
+        assert abs(cost_raw - cost_Q) < 1e-8, cost_raw - cost_Q
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
         return Q
 

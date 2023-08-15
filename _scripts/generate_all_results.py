@@ -7,12 +7,12 @@ if __name__ == "__main__":
     n_seeds = 3
     recompute = True
     # run_all_study(recompute=True)
-    # run_stereo_study(
-    #    n_seeds=n_seeds, recompute=recompute, tightness=False, scalability=True
-    # )
-    run_range_only_study(
+    run_stereo_study(
         n_seeds=n_seeds, recompute=recompute, tightness=False, scalability=True
     )
+    # run_range_only_study(
+    #    n_seeds=n_seeds, recompute=recompute, tightness=False, scalability=True
+    # )
     # run_other_study(
     #    n_seeds=n_seeds, recompute=recompute, tightness=True, scalability=True
     # )

@@ -33,7 +33,7 @@ def create_lifter_from_data(
         level=level,
     )
     new_lifter.theta = exp.positions.flatten()
-    new_lifter.landmarks = exp.landmarks[["x", "y", "z"]].values
+    new_lifter.landmarks = exp.landmarks
     new_lifter.parameters = np.r_[1.0, new_lifter.landmarks.flatten()]
     new_lifter.W = exp.W_
     new_lifter.y_ = exp.y_
