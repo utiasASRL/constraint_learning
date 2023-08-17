@@ -13,6 +13,12 @@ from utils.geometry import (
 
 NOISE = 1.0  #
 
+NORMALIZE = False
+
+SOLVER_KWARGS = dict(
+    min_gradient_norm=1e-7, max_iterations=10000, min_step_size=1e-8, verbosity=1
+)
+
 
 class StereoLifter(StateLifter, ABC):
     """General lifter for stereo localization problem.
@@ -224,23 +230,24 @@ class StereoLifter(StateLifter, ABC):
             return np.r_[1.0, parameters]
 
     def get_Q(self, noise: float = None) -> tuple:
+        if noise is None:
+            noise = NOISE
+        xtheta = get_xtheta_from_theta(self.theta, self.d)
+        T = get_T(xtheta, self.d)
+
+        y_sim = np.zeros((self.n_landmarks, self.M_matrix.shape[0]))
+        for j in range(self.n_landmarks):
+            y_gt = T @ np.r_[self.landmarks[j], 1.0]
+
+            # in 2d: y_gt[1]
+            # in 3d: y_gt[2]
+            y_gt /= y_gt[self.d - 1]
+            y_gt = self.M_matrix @ y_gt
+            y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
+
         if self.y_ is None:
-            if noise is None:
-                noise = NOISE
-            xtheta = get_xtheta_from_theta(self.theta, self.d)
-            T = get_T(xtheta, self.d)
+            self.y_ = y_sim
 
-            self.y_ = np.zeros((self.n_landmarks, self.M_matrix.shape[0]))
-            for j in range(self.n_landmarks):
-                y_gt = T @ np.r_[self.landmarks[j], 1.0]
-
-                # in 2d: y_gt[1]
-                # in 3d: y_gt[2]
-                y_gt /= y_gt[self.d - 1]
-                y_gt = self.M_matrix @ y_gt
-                self.y_[j, :] = y_gt + np.random.normal(
-                    loc=0, scale=noise, size=len(y_gt)
-                )
         Q = self.get_Q_from_y(self.y_)
         return Q, self.y_
 
@@ -264,11 +271,12 @@ class StereoLifter(StateLifter, ABC):
         m = self.M_matrix[:, self.d - 1]
 
         ls_problem = LeastSquaresProblem()
-        for j in range(len(y)):
+        for j in range(y.shape[0]):
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
-        Q /= self.n_landmarks * self.d
+        if NORMALIZE:
+            Q /= self.n_landmarks * self.d
         # there is precision loss because Q is
 
         # sanity check
@@ -278,7 +286,9 @@ class StereoLifter(StateLifter, ABC):
         # can contain very large values.
         B = ls_problem.get_B_matrix(self.var_dict)
         errors = B @ x
-        cost_test = errors.T @ errors / (self.n_landmarks * self.d)
+        cost_test = errors.T @ errors
+        if NORMALIZE:
+            cost_test /= self.n_landmarks * self.d
 
         t = self.theta
         cost_raw = self.get_cost(t, y)
@@ -287,9 +297,7 @@ class StereoLifter(StateLifter, ABC):
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
         return Q
 
-    def local_solver_new(
-        self, t0, y, W=None, verbose=False, method="CG", **solver_kwargs
-    ):
+    def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
         from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
 
@@ -302,8 +310,13 @@ class StereoLifter(StateLifter, ABC):
         else:
             raise ValueError(method)
 
+        solver_kwargs = SOLVER_KWARGS
+        solver_kwargs.update(kwargs)
+
         if verbose:
             solver_kwargs["verbosity"] = 2
+        else:
+            solver_kwargs["verbosity"] = 1
 
         manifold = Product((SpecialOrthogonalGroup(self.d, k=1), Euclidean(self.d)))
 
@@ -318,7 +331,9 @@ class StereoLifter(StateLifter, ABC):
                 y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d - 1])
                 residual = y[i] - y_gt
                 cost += residual.T @ W @ residual
-            return cost / (self.n_landmarks * self.d)
+            if NORMALIZE:
+                return cost / (self.n_landmarks * self.d)
+            return cost
 
         euclidean_gradient = None  # set to None
         problem = pymanopt.Problem(

@@ -1,14 +1,16 @@
 import numpy as np
 
 
-def generate_random_pose(d=2):
+def generate_random_pose(d=2, size=1):
     if d == 2:
         n_angles = 1
     elif d == 3:
         n_angles = 3
     else:
         raise ValueError("d has to be 2 or 3.")
-    return np.r_[np.random.rand(d), np.random.rand(n_angles) * 2 * np.pi]
+    trans = np.random.rand(d) * size - size / 2
+    rot = np.random.rand(n_angles) * 2 * np.pi
+    return np.r_[trans, rot]
 
 
 def get_rot_matrix(rot):
@@ -47,12 +49,12 @@ def get_xtheta_from_C_r(C, r):
 
 def get_T(xtheta=None, d=None, theta=None):
     if theta is not None:
-        C, r = get_C_r_from_theta(theta, d)
+        C_cw, r_wc_c = get_C_r_from_theta(theta, d)
     else:
-        C, r = get_C_r_from_xtheta(xtheta, d)
+        C_cw, r_wc_c = get_C_r_from_xtheta(xtheta, d)
     T = np.zeros((d + 1, d + 1))
-    T[:d, :d] = C
-    T[:d, d] = r
+    T[:d, :d] = C_cw
+    T[:d, d] = r_wc_c
     T[-1, -1] = 1.0
     return T
 

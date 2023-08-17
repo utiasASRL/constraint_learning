@@ -234,7 +234,7 @@ def solve_sdp_cvxpy(
 
 
 def find_local_minimum(
-    lifter: StateLifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False
+    lifter: StateLifter, y, delta=1, verbose=False, n_inits=10, plot=False
 ):
     local_solutions = []
     costs = []
@@ -253,7 +253,7 @@ def find_local_minimum(
             ax.scatter(*a0.T, color=f"C{0}", marker="x")
 
         try:
-            t_local, msg, cost_solver = lifter.local_solver(
+            t_local, info, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
             # t_local, msg, cost_solver = lifter.local_solver_new(
@@ -279,5 +279,5 @@ def find_local_minimum(
         min_local_ind = np.argmin(costs)
         min_local_cost = costs[min_local_ind]
         best_local_solution = local_solutions[min_local_ind]
-        return best_local_solution, min_local_cost
-    return None, None
+        return best_local_solution, min_local_cost, info
+    return None, None, {}

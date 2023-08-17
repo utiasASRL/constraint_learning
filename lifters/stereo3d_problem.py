@@ -111,6 +111,12 @@ def generative_camera_model(
     return M @ p_c / p_c[:, None, 2]
 
 
+def _residuals(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
+    y_pred = generative_camera_model(M, T, p_w)
+    e = y - y_pred
+    return e.flatten()
+
+
 def _cost(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
     """Compute projection error
 
@@ -152,12 +158,13 @@ def local_solver(
     """
     assert max_iters > 0, "Maximum iterations must be positive"
 
+    info = {}
+
     i = 0
     perturb_mag = np.inf
     T_op = T_init.copy()
 
-    solved = True
-    while (perturb_mag > min_update_norm) and (i < max_iters):
+    while i < max_iters:
         delta = _delta(T_op @ p_w, M)
         beta = _u(y, T_op @ p_w, M)
         A = np.sum(
@@ -167,10 +174,20 @@ def local_solver(
         epsilon = _svdsolve(A, b)
         T_op = vec2tran(epsilon) @ T_op
         perturb_mag = np.linalg.norm(epsilon)
+        if perturb_mag <= min_update_norm:
+            info["success"] = True
+            info["msg"] = f"reached minimum stepsize after {i} iterations."
+            break
+
         if log:
             print("step size", perturb_mag)
         i = i + 1
         if i == max_iters:
-            solved = False
+            info["success"] = False
+            info["msg"] = f"reached maximum iterations ({max_iters})"
+
+    residuals = _residuals(T_op, p_w, y, W, M)
+    info["max res"] = np.max(np.abs(residuals))
+
     cost = _cost(T_op, p_w, y, W, M)
-    return solved, T_op, cost / (y.shape[0] * 3)
+    return info, T_op, cost

@@ -147,6 +147,9 @@ class Learner(object):
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
 
+        data_dict["q"] = self.solver_vars["qcqp_cost"]
+        data_dict["max res"] = self.solver_vars["max res"]
+
         if info["cost"] is None:
             self.ranks.append(np.zeros(self.lifter.get_dim_x()))
             print(f"Warning: solver failed with message: {info['msg']}")
@@ -180,35 +183,34 @@ class Learner(object):
                         f"Feasibility error too high! xAx:{error:.2e}, <X,A>:{errorX:.2e}"
                     )
             print(f"Maximum feasibility error at solution x: {max_error}")
-            return True
-        else:
-            final_cost = np.trace(self.solver_vars["Q"] @ X)
-            if abs(final_cost - info["cost"]) / info["cost"] >= 1e-3:
-                print(
-                    f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}"
-                )
 
-            eigs = np.linalg.eigvalsh(X)[::-1]
-            self.ranks.append(eigs)
+        data_dict["d"] = info["cost"]
 
-            if self.lifter.robust:
-                idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
-                wi = X[0, idx_xtheta : idx_xtheta + self.lifter.n_landmarks]
-                print("should be plus or minus ones:", wi.round(4))
+        # sanity check
+        final_cost = np.trace(self.solver_vars["Q"] @ X)
+        if abs(final_cost - info["cost"]) / info["cost"] >= 1e-1:
+            print(
+                f"Warning: cost is inconsistent: {final_cost:.3e}, {info['cost']:.3e}"
+            )
 
-            if tightness == "rank":
-                self.duality_gap_is_zero(
-                    info["cost"], verbose=False, data_dict=data_dict
-                )
-                tightness_val = self.is_rank_one(
-                    eigs, verbose=verbose, data_dict=data_dict
-                )
-            elif tightness == "cost":
-                self.is_rank_one(eigs, verbose=False, data_dict=data_dict)
-                tightness_val = self.duality_gap_is_zero(
-                    info["cost"], verbose=verbose, data_dict=data_dict
-                )
-            return tightness_val
+        eigs = np.linalg.eigvalsh(X)[::-1]
+        self.ranks.append(eigs)
+
+        if self.lifter.robust:
+            idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
+            wi = X[0, idx_xtheta : idx_xtheta + self.lifter.n_landmarks]
+            print("should be plus or minus ones:", wi.round(4))
+
+        cost_tight = self.duality_gap_is_zero(
+            info["cost"], verbose=tightness == "cost", data_dict=data_dict
+        )
+        rank_tight = self.is_rank_one(
+            eigs, verbose=tightness == "rank", data_dict=data_dict
+        )
+        if tightness == "rank":
+            return rank_tight
+        elif tightness == "cost":
+            return cost_tight
 
     def generate_minimal_subset(
         self,
@@ -353,12 +355,13 @@ class Learner(object):
 
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
-        qcqp_that, qcqp_cost = find_local_minimum(
+        qcqp_that, qcqp_cost, info = find_local_minimum(
             self.lifter, y=y, verbose=verbose, n_inits=1
         )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
+            self.solver_vars["max res"] = info["max res"]
             return True
 
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
@@ -368,7 +371,7 @@ class Learner(object):
         from solvers.common import solve_sdp_cvxpy
 
         if self.solver_vars is None:
-            self.find_local_solution()
+            self.find_local_solution(verbose=True)
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
@@ -470,12 +473,7 @@ class Learner(object):
                 for i, b in enumerate(basis_new)
             ]
             self.constraint_index += basis_new.shape[0]
-            print(f"found {len(templates)} candidate templates")
-
-            # at this point, templates is a mix of:
-            # (new and old) known constraints,
-            # previously found constraints,
-            # and new constraints.
+            print(f"found {len(templates)} independent templates")
 
             # we assume that all known constraints are linearly independent, and also
             # that all known+previously found constraints are linearly independent.
