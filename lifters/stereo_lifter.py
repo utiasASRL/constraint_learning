@@ -229,9 +229,10 @@ class StereoLifter(StateLifter, ABC):
             parameters = self.generate_random_landmarks(theta=theta).flatten()
             return np.r_[1.0, parameters]
 
-    def get_Q(self, noise: float = None) -> tuple:
+    def simulate_y(self, noise:float = None):
         if noise is None:
             noise = NOISE
+
         xtheta = get_xtheta_from_theta(self.theta, self.d)
         T = get_T(xtheta, self.d)
 
@@ -244,9 +245,14 @@ class StereoLifter(StateLifter, ABC):
             y_gt /= y_gt[self.d - 1]
             y_gt = self.M_matrix @ y_gt
             y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
+        return y_sim
+
+    def get_Q(self, noise: float = None) -> tuple:
+        if noise is None:
+            noise = NOISE
 
         if self.y_ is None:
-            self.y_ = y_sim
+            self.y_ = self.simulate_y(noise=noise)
 
         Q = self.get_Q_from_y(self.y_)
         return Q, self.y_
@@ -296,6 +302,16 @@ class StereoLifter(StateLifter, ABC):
         assert abs(cost_raw - cost_Q) < 1e-8, cost_raw - cost_Q
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
         return Q
+
+    def get_error(self, xtheta_hat):
+        xtheta_gt = get_xtheta_from_theta(self.theta, self.d)
+
+        C_hat, r_hat = get_C_r_from_xtheta(xtheta_hat, self.d)
+        C_gt, r_gt = get_C_r_from_xtheta(xtheta_gt, self.d)
+        r_error = np.linalg.norm(r_hat - r_gt)
+        C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(self.d))
+        return {"r error":r_error, "C error": C_error}
+
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt

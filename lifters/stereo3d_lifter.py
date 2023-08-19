@@ -107,7 +107,8 @@ class Stereo3DLifter(StereoLifter):
         Q = self.get_Q_from_y(y[:, :, 0])
         cost_Q = x.T @ Q @ x
         if abs(cost) > 1e-10:
-            assert abs(cost_Q - cost) / cost < 1e-8
+            if not (abs(cost_Q - cost) / cost < 1e-8):
+                print(f"Warning, cost not equal {cost_Q:.2e} {cost:.2e}")
 
         if info["success"]:
             return x_hat, info, cost

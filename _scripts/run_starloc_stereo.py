@@ -14,6 +14,9 @@ DATASET_ROOT = str(Path(__file__).parent.parent / "starloc")
 MAX_N_LANDMARKS = 10
 MIN_N_LANDMARKS = 8
 
+USE_GT = False
+SIM_NOISE = 0.1
+
 
 def create_lifter_from_data(
     dataset,
@@ -81,15 +84,18 @@ def create_lifter_from_data(
         new_lifter.theta = np.r_[r_0c_c, a_c0]
         new_lifter.landmarks = landmarks
         new_lifter.parameters = np.r_[1, landmarks.flatten()]
-        new_lifter.y_ = y
         new_lifter.M_matrix = M_matrix
+        if USE_GT: 
+            new_lifter.y_ = new_lifter.simulate_y(noise=SIM_NOISE)
+        else:
+            new_lifter.y_ = y
         return new_lifter
 
     else:
         data_type = "apriltag_cal_individual"
         exp = Experiment(DATASET_ROOT, dataset, data_type)
-        exp.get_stereo_measurements(time_idx=time_idx, stereo_type="gt_", extra_noise=1)
-        # exp.get_stereo_measurements(time_idx=time_idx, stereo_type="")
+        # exp.get_stereo_measurements(time_idx=time_idx, stereo_type="gt_", extra_noise=1)
+        exp.get_stereo_measurements(time_idx=time_idx, stereo_type="")
 
         new_lifter = Stereo3DLifter(
             n_landmarks=exp.landmarks.shape[0], level="urT", param_level="ppT"
@@ -97,8 +103,11 @@ def create_lifter_from_data(
         new_lifter.theta = exp.theta
         new_lifter.landmarks = exp.landmarks
         new_lifter.parameters = np.r_[1, exp.landmarks.flatten()]
-        new_lifter.y_ = exp.y_
         new_lifter.M_matrix = exp.M_matrix
+        if USE_GT: 
+            new_lifter.y_ = new_lifter.simulate_y(noise=SIM_NOISE)
+        else:
+            new_lifter.y_ = exp.y_
         return new_lifter
 
 
@@ -138,10 +147,13 @@ def run_all(dataset, out_name="", n_successful=100):
 
 
 if __name__ == "__main__":
-    dataset = "eight_s3"
-    # dataset = "starrynight"
+    #dataset = "eight_s3"
+    dataset = "starrynight"
 
-    fname = f"_results/{dataset}_output_res.pkl"
+    if USE_GT: 
+        fname = f"_results/{dataset}_output_res_gt.pkl"
+    else:
+        fname = f"_results/{dataset}_output_res.pkl"
     try:
         df = pd.read_pickle(fname)
     except FileNotFoundError:
