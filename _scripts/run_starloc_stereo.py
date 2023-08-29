@@ -14,6 +14,8 @@ DATASET_ROOT = str(Path(__file__).parent.parent / "starloc")
 MAX_N_LANDMARKS = 10
 MIN_N_LANDMARKS = 8
 
+RECOMPUTE = True
+
 
 def create_lifter_from_data(
     dataset,
@@ -88,8 +90,17 @@ def create_lifter_from_data(
     else:
         data_type = "apriltag_cal_individual"
         exp = Experiment(DATASET_ROOT, dataset, data_type)
-        exp.get_stereo_measurements(time_idx=time_idx, stereo_type="gt_", extra_noise=1)
-        # exp.get_stereo_measurements(time_idx=time_idx, stereo_type="")
+        # exp.get_stereo_measurements(
+        #    time_idx=time_idx, stereo_type="gt_", extra_noise=0.1
+        # )
+        exp.get_stereo_measurements(time_idx=time_idx, stereo_type="")
+
+        n_landmarks = exp.landmarks.shape[0]
+        if n_landmarks <= min_n_landmarks:
+            return None
+        elif n_landmarks > max_n_landmarks:
+            exp.landmarks = exp.landmarks[:max_n_landmarks]
+            exp.y_ = exp.y_[:max_n_landmarks, :]
 
         new_lifter = Stereo3DLifter(
             n_landmarks=exp.landmarks.shape[0], level="urT", param_level="ppT"
@@ -105,10 +116,10 @@ def create_lifter_from_data(
 def run_all(dataset, out_name="", n_successful=100):
     df_list = []
     counter = 0
-    for time_idx in np.arange(200, 1900):
+    for time_idx in np.arange(1900):
         new_lifter = create_lifter_from_data(dataset=dataset, time_idx=time_idx)
         if new_lifter is None:
-            print(f"skipping {time_idx} because not enough valid landmarks at all")
+            print(f"skipping {time_idx} because not enough valid landmarks")
             continue
 
         counter += 1
@@ -117,12 +128,13 @@ def run_all(dataset, out_name="", n_successful=100):
         )
         df_here["time index"] = time_idx
         df_here["n landmarks"] = new_lifter.n_landmarks
-        df_here["landmarks"] = [new_lifter.landmarks]
         x = new_lifter.get_x()
         t = x[1:4]
         C = x[4:13].reshape(3, 3)
-        df_here["t"] = [t]
-        df_here["C"] = [C]
+        if len(df_here) == 1:
+            df_here["landmarks"] = [new_lifter.landmarks]
+            df_here["t"] = [t]
+            df_here["C"] = [C]
         df_list.append(df_here)
 
         if counter >= n_successful:
@@ -137,20 +149,7 @@ def run_all(dataset, out_name="", n_successful=100):
     return df
 
 
-if __name__ == "__main__":
-    dataset = "eight_s3"
-    # dataset = "starrynight"
-
-    fname = f"_results/{dataset}_output_res.pkl"
-    try:
-        df = pd.read_pickle(fname)
-    except FileNotFoundError:
-        df = run_all(dataset, out_name=fname)
-        df.to_pickle(fname)
-        print("saved as", fname)
-
-    df.reset_index(inplace=True)
-
+def plot_other_stats(df):
     trans = np.array([*df.t.values])
     spread = np.empty(len(df))
     for i, row in df.iterrows():
@@ -158,7 +157,6 @@ if __name__ == "__main__":
             row.landmarks[None, :, :] - row.landmarks[:, None, :], axis=2
         )
         spread[i] = np.max(d_matrix)
-
     fig, ax = plt.subplots()
     sns.scatterplot(data=df, x=trans[:, 2], y="RDG", style="n landmarks", ax=ax)
     ax.set_yscale("log")
@@ -170,17 +168,11 @@ if __name__ == "__main__":
     ax.set_xlabel("landmark spread [m]")
 
     fig, ax = plt.subplots()
-    sns.scatterplot(data=df, x="q", y="RDG", style="n landmarks", ax=ax)
+    sns.scatterplot(x=df.q, y=df["max res"])
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.set_xlabel("q value")
-
-    # fig, ax = plt.subplots()
-    # sns.scatterplot(x=df.q, y=df["max res"])
-    # ax.set_yscale("log")
-    # ax.set_xscale("log")
-    # ax.set_xlabel("q value")
-    # ax.set_ylabel("max residual")
+    ax.set_ylabel("max residual")
 
     fig, ax = plt.subplots()
     sns.scatterplot(
@@ -195,4 +187,66 @@ if __name__ == "__main__":
     ax.set_yscale("log")
     ax.set_xscale("log")
     ax.set_xlabel("max residual")
+
+    fig, ax = plt.subplots()
+    sns.scatterplot(data=df, x="q", y="RDG", style="n landmarks", hue="dataset", ax=ax)
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.set_xlabel("q value")
+
+
+if __name__ == "__main__":
+    df_list = []
+    n_successful = 10
+    datasets = ["eight_s3", "starrynight"]
+    for dataset in datasets:
+        fname = f"_results/{dataset}_output_res_sr_{n_successful}.pkl"  # _res: residual error, sr: success rate local solver
+        try:
+            assert RECOMPUTE is False
+            df_all = pd.read_pickle(fname)
+        except (AssertionError, FileNotFoundError):
+            df_all = run_all(dataset, out_name=fname, n_successful=n_successful)
+        df_all["dataset"] = dataset
+        df_list.append(df_all)
+
+    constraint_type = "basic"
+    df = pd.concat(df_list)
+    df = df[df.type == constraint_type]
+    df["RDG"] = df["RDG"].abs()
+
+    fig, ax = plt.subplots()
+    sns.scatterplot(
+        data=df, x="cond Hess", y="RDG", style="n landmarks", ax=ax, hue="dataset"
+    )
+    ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    ax.set_yscale("log")
+    ax.set_xscale("log")
+    ax.set_ylabel("absolute RDG")
+    ax.set_xlabel("Hessian condition number")
+
+    plt.show()
+    print("done")
+
+
+elif False:
+    # dataset = "eight_s3"
+    dataset = "starrynight"
+    fname = f"_results/{dataset}_output_res_sr_10.pkl"  # _res: residual error, sr: success rate local solver
+    try:
+        df_all = pd.read_pickle(fname)
+    except FileNotFoundError:
+        df_all = run_all(dataset, out_name=fname, n_successful=10)
+        df_all.to_pickle(fname)
+        print("saved as", fname)
+
+    df_all.reset_index(inplace=True)
+    for constraint_type, df in df_all.groupby("type"):
+        # plot_other_stats(df)
+        fig, ax = plt.subplots()
+        sns.scatterplot(data=df, x="q", y="RDG", style="n landmarks", ax=ax)
+        ax.set_yscale("log")
+        ax.set_xscale("log")
+        ax.set_xlabel("q value")
+        ax.set_title(constraint_type)
+
     plt.show()

@@ -149,6 +149,10 @@ class Learner(object):
 
         data_dict["q"] = self.solver_vars["qcqp_cost"]
         data_dict["max res"] = self.solver_vars["max res"]
+        data_dict["cond Hess"] = self.solver_vars["cond Hess"]
+        data_dict["n local"] = self.solver_vars["n local"]
+        data_dict["n global"] = self.solver_vars["n global"]
+        data_dict["n fail"] = self.solver_vars["n fail"]
 
         if info["cost"] is None:
             self.ranks.append(np.zeros(self.lifter.get_dim_x()))
@@ -356,12 +360,12 @@ class Learner(object):
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=1
+            self.lifter, y=y, verbose=verbose, n_inits=10
         )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
-            self.solver_vars["max res"] = info["max res"]
+            self.solver_vars.update(info)
             return True
 
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)

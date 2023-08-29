@@ -238,11 +238,14 @@ def find_local_minimum(
 ):
     local_solutions = []
     costs = []
+    max_res = []
+    cond_Hess = []
 
     inits = [lifter.get_vec_around_gt(delta=0)]  # initialize at gt
     inits += [
         lifter.get_vec_around_gt(delta=delta) for i in range(n_inits - 1)
     ]  # around gt
+    info = {"success": False}
     for i, t_init in enumerate(inits):
         if plot:
             import matplotlib.pylab as plt
@@ -253,7 +256,7 @@ def find_local_minimum(
             ax.scatter(*a0.T, color=f"C{0}", marker="x")
 
         try:
-            t_local, info, cost_solver = lifter.local_solver(
+            t_local, info_here, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
             # t_local, msg, cost_solver = lifter.local_solver_new(
@@ -261,13 +264,15 @@ def find_local_minimum(
             # )
         except NotImplementedError:
             print("Warning: local solver not implemented.")
-            return None, None
+            return None, None, info
 
         # print(msg)
         if t_local is not None:
             # cost_lifter = lifter.get_cost(t_local, y=y)
             costs.append(cost_solver)
             local_solutions.append(t_local)
+            max_res.append(info_here["max res"])
+            cond_Hess.append(info_here["cond Hess"])
 
             if plot:
                 p0, a0 = lifter.get_positions_and_landmarks(t_local)
@@ -276,8 +281,15 @@ def find_local_minimum(
     local_solutions = np.array(local_solutions)
 
     if len(costs):
-        min_local_ind = np.argmin(costs)
-        min_local_cost = costs[min_local_ind]
-        best_local_solution = local_solutions[min_local_ind]
-        return best_local_solution, min_local_cost, info
-    return None, None, {}
+        info["success"] = True
+        costs = np.round(costs, 8)
+        global_cost = np.min(costs)
+        global_inds = np.where(costs == global_cost)[0]
+        info["n global"] = len(global_inds)
+        info["n local"] = len(costs) - info["n global"]
+        info["n fail"] = n_inits - len(costs)
+        info["max res"] = max_res[global_inds[0]]
+        info["cond Hess"] = cond_Hess[global_inds[0]]
+        global_solution = local_solutions[global_inds[0]]
+        return global_solution, global_cost, info
+    return None, None, info

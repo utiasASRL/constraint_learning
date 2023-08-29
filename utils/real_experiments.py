@@ -144,7 +144,11 @@ class Experiment(object):
 
 
 def run_real_experiment(
-    new_lifter, add_oneshot=True, add_original=False, add_sorted=False
+    new_lifter,
+    add_oneshot=True,
+    add_original=False,
+    add_sorted=False,
+    from_scratch=False,
 ):
     # set distance measurements
     fname_root = f"_results/scalability_{new_lifter}"
@@ -167,7 +171,11 @@ def run_real_experiment(
 
         # apply the templates to all new landmarks
         new_learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
-        new_learner.scale_templates(learner, new_order, data_dict)
+
+        if from_scratch:
+            new_learner.run()
+        else:
+            new_learner.scale_templates(learner, new_order, data_dict)
 
         t1 = time.time()
         new_learner.is_tight(verbose=True, data_dict=data_dict)

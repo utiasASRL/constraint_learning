@@ -164,6 +164,8 @@ def local_solver(
     perturb_mag = np.inf
     T_op = T_init.copy()
 
+    if log:
+        print("step size \t cost")
     while i < max_iters:
         delta = _delta(T_op @ p_w, M)
         beta = _u(y, T_op @ p_w, M)
@@ -180,7 +182,7 @@ def local_solver(
             break
 
         if log:
-            print("step size", perturb_mag)
+            print(f"{perturb_mag:.5f} \t {_cost(T_op, p_w, y, W, M):.5f}")
         i = i + 1
         if i == max_iters:
             info["success"] = False
@@ -188,6 +190,8 @@ def local_solver(
 
     residuals = _residuals(T_op, p_w, y, W, M)
     info["max res"] = np.max(np.abs(residuals))
+    eigs = np.linalg.eigvalsh(A)
+    info["cond Hess"] = eigs[-1] / eigs[0]  # max eig / min eig
 
     cost = _cost(T_op, p_w, y, W, M)
     return info, T_op, cost
