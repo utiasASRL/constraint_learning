@@ -199,6 +199,7 @@ def run_real_experiment(
         data_dict[f"n constraints"] = data_new[0]["n templates"]
         data_dict["RDG"] = data_new[0]["RDG"]
         data_dict["SVR"] = data_new[0]["SVR"]
+        data_dict.update(data_new[0]["error dict"])
         df_data.append(deepcopy(data_dict))
 
     df = pd.DataFrame(df_data)

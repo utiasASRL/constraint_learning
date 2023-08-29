@@ -366,6 +366,7 @@ class Learner(object):
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
             self.solver_vars.update(info)
+            self.solver_vars["error dict"] = self.lifter.get_error(qcqp_that)
             return True
 
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
