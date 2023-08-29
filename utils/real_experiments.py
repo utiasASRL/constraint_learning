@@ -134,9 +134,9 @@ class Experiment(object):
             try:
                 assert all(np.abs(p_i - pixels.values) <= 100)
             except AssertionError:
+                print("WARNING: not good match in get_stereo_measurements...")
                 print("simulated pixels:", p_i)
                 print("measured pixels:", pixels.values)
-                raise
 
             if extra_noise > 0:
                 pixels += np.random.normal(scale=extra_noise, loc=0, size=len(pixels))
@@ -148,6 +148,7 @@ def run_real_experiment(
     add_oneshot=True,
     add_original=False,
     add_sorted=False,
+    add_basic=True,
     from_scratch=False,
 ):
     # set distance measurements
@@ -164,6 +165,9 @@ def run_real_experiment(
             continue
         if name == "sorted" and not add_sorted:
             print("skipping sorted")
+            continue
+        if name == "basic" and not add_basic:
+            print("skipping basic")
             continue
         print(f"=========== running {name} ===============")
         data_dict = {}

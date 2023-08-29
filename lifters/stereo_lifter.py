@@ -229,7 +229,7 @@ class StereoLifter(StateLifter, ABC):
             parameters = self.generate_random_landmarks(theta=theta).flatten()
             return np.r_[1.0, parameters]
 
-    def simulate_y(self, noise:float = None):
+    def simulate_y(self, noise: float = None):
         if noise is None:
             noise = NOISE
 
@@ -310,8 +310,11 @@ class StereoLifter(StateLifter, ABC):
         C_gt, r_gt = get_C_r_from_xtheta(xtheta_gt, self.d)
         r_error = np.linalg.norm(r_hat - r_gt)
         C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(self.d))
-        return {"r error":r_error, "C error": C_error}
-
+        return {
+            "r error": r_error,
+            "C error": C_error,
+            "total error": r_error + C_error,
+        }
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt

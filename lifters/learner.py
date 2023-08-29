@@ -148,11 +148,7 @@ class Learner(object):
         self.variable_list.append(self.mat_vars)
 
         data_dict["q"] = self.solver_vars["qcqp_cost"]
-        data_dict["max res"] = self.solver_vars["max res"]
-        data_dict["cond Hess"] = self.solver_vars["cond Hess"]
-        data_dict["n local"] = self.solver_vars["n local"]
-        data_dict["n global"] = self.solver_vars["n global"]
-        data_dict["n fail"] = self.solver_vars["n fail"]
+        data_dict.update(self.solver_vars)
 
         if info["cost"] is None:
             self.ranks.append(np.zeros(self.lifter.get_dim_x()))
@@ -366,7 +362,7 @@ class Learner(object):
             xhat = self.lifter.get_x(qcqp_that)
             self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
             self.solver_vars.update(info)
-            self.solver_vars["error dict"] = self.lifter.get_error(qcqp_that)
+            self.solver_vars.update(self.lifter.get_error(qcqp_that))
             return True
 
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)

@@ -8,6 +8,7 @@ import seaborn as sns
 from lifters.stereo3d_lifter import Stereo3DLifter
 from pylgmath.so3.operations import hat
 
+from utils.plotting_tools import savefig
 from utils.real_experiments import Experiment, run_real_experiment
 
 DATASET_ROOT = str(Path(__file__).parent.parent / "starloc")
@@ -17,7 +18,8 @@ MIN_N_LANDMARKS = 8
 USE_GT = False
 SIM_NOISE = 0.1
 
-RECOMPUTE = True
+RECOMPUTE = False
+
 
 def create_lifter_from_data(
     dataset,
@@ -86,7 +88,7 @@ def create_lifter_from_data(
         new_lifter.landmarks = landmarks
         new_lifter.parameters = np.r_[1, landmarks.flatten()]
         new_lifter.M_matrix = M_matrix
-        if USE_GT: 
+        if USE_GT:
             new_lifter.y_ = new_lifter.simulate_y(noise=SIM_NOISE)
         else:
             new_lifter.y_ = y
@@ -114,7 +116,7 @@ def create_lifter_from_data(
         new_lifter.landmarks = exp.landmarks
         new_lifter.parameters = np.r_[1, exp.landmarks.flatten()]
         new_lifter.M_matrix = exp.M_matrix
-        if USE_GT: 
+        if USE_GT:
             new_lifter.y_ = new_lifter.simulate_y(noise=SIM_NOISE)
         else:
             new_lifter.y_ = exp.y_
@@ -125,14 +127,22 @@ def run_all(dataset, out_name="", n_successful=100):
     df_list = []
     counter = 0
     for time_idx in np.arange(1900):
-        new_lifter = create_lifter_from_data(dataset=dataset, time_idx=time_idx)
+        try:
+            new_lifter = create_lifter_from_data(dataset=dataset, time_idx=time_idx)
+        except IndexError:
+            print(f"Warning: finished early: {counter}<{n_successful}")
+            break
         if new_lifter is None:
             print(f"skipping {time_idx} because not enough valid landmarks")
             continue
 
         counter += 1
         df_here = run_real_experiment(
-            new_lifter, add_oneshot=False, add_sorted=False, add_original=False
+            new_lifter,
+            add_oneshot=False,
+            add_sorted=True,
+            add_original=False,
+            add_basic=False,
         )
         df_here["time index"] = time_idx
         df_here["n landmarks"] = new_lifter.n_landmarks
@@ -154,6 +164,9 @@ def run_all(dataset, out_name="", n_successful=100):
                 print(f"===== saved intermediate as {out_name} ==========")
             print(df)
     df = pd.concat(df_list)
+    if out_name != "":
+        df.to_pickle(out_name)
+        print(f"===== saved final as {out_name} ==========")
     return df
 
 
@@ -202,13 +215,29 @@ def plot_other_stats(df):
     ax.set_xscale("log")
     ax.set_xlabel("q value")
 
+    for dataset, df_sub in df.groupby("dataset"):
+        fig, ax = plt.subplots()
+        fig.set_size_inches(5, 5)
+        ax.scatter(range(len(df_sub.RDG)), df_sub["n local"], label="local")
+        ax.scatter(range(len(df_sub.RDG)), df_sub["n global"], label="global")
+        ax.scatter(range(len(df_sub.RDG)), df_sub["n fail"], label="failed")
+        ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+        ax.set_ylabel("number")
+        ax.set_xlabel("index")
+        ax.set_title(dataset)
+        plt.tight_layout()
+
 
 if __name__ == "__main__":
     df_list = []
-    n_successful = 10
-    datasets = ["eight_s3", "starrynight"]
+    n_successful = 100
+    # datasets = ["eight_s3", "starrynight"]
+    datasets = ["zigzag_s3", "loop-2d_s4", "eight_s3", "starrynight"]
     for dataset in datasets:
-        fname = f"_results/{dataset}_output_res_sr_{n_successful}.pkl"  # _res: residual error, sr: success rate local solver
+        if USE_GT:
+            fname = f"_results/{dataset}_output_{n_successful}.pkl"
+        else:
+            fname = f"_results/{dataset}_output_{n_successful}_gt.pkl"
         try:
             assert RECOMPUTE is False
             df_all = pd.read_pickle(fname)
@@ -217,44 +246,37 @@ if __name__ == "__main__":
         df_all["dataset"] = dataset
         df_list.append(df_all)
 
-    constraint_type = "basic"
+    constraint_type = "sorted"
     df = pd.concat(df_list)
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
 
-    fig, ax = plt.subplots()
-    sns.scatterplot(
-        data=df, x="cond Hess", y="RDG", style="n landmarks", ax=ax, hue="dataset"
-    )
-    ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-    ax.set_yscale("log")
-    ax.set_xscale("log")
-    ax.set_ylabel("absolute RDG")
-    ax.set_xlabel("Hessian condition number")
-
-    plt.show()
-    print("done")
-
-
-elif False:
-    # dataset = "eight_s3"
-    dataset = "starrynight"
-    fname = f"_results/{dataset}_output_res_sr_10.pkl"  # _res: residual error, sr: success rate local solver
-    try:
-        df_all = pd.read_pickle(fname)
-    except FileNotFoundError:
-        df_all = run_all(dataset, out_name=fname, n_successful=10)
-        df_all.to_pickle(fname)
-        print("saved as", fname)
-
-    df_all.reset_index(inplace=True)
-    for constraint_type, df in df_all.groupby("type"):
-        # plot_other_stats(df)
+    for x in ["total error", "cond Hess", "max res", "q"]:
         fig, ax = plt.subplots()
-        sns.scatterplot(data=df, x="q", y="RDG", style="n landmarks", ax=ax)
+        fig.set_size_inches(5, 5)
+        sns.scatterplot(
+            data=df, x=x, y="RDG", style="n landmarks", ax=ax, hue="dataset"
+        )
+        ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
         ax.set_yscale("log")
         ax.set_xscale("log")
-        ax.set_xlabel("q value")
-        ax.set_title(constraint_type)
+        ax.set_ylabel("absolute RDG")
+        ax.set_xlabel(x)
+        plt.tight_layout()
+        savefig(fig, f"_results/stereo_{x.replace(' ', '_')}.pdf")
 
+    fig, ax = plt.subplots()
+    df["success rate"] = df["n global"] / (
+        df["n global"] + df["n fail"] + df["n local"]
+    )
+    sns.scatterplot(
+        data=df,
+        x="success rate",
+        y="RDG",
+        style="n landmarks",
+        ax=ax,
+        hue="dataset",
+    )
+    ax.set_yscale("log")
     plt.show()
+    print("done")
