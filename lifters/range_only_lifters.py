@@ -11,6 +11,7 @@ from poly_matrix.least_squares_problem import LeastSquaresProblem
 NOISE = 1e-2  # std deviation of distance noise
 
 METHOD = "BFGS"
+NORMALIZE = True
 
 # TODO(FD): parameters below are not all equivalent.
 SOLVER_KWARGS = {
@@ -222,22 +223,28 @@ class RangeOnlyLocLifter(StateLifter):
                 np.array([[0, 0, 0], [0, 0, 0], [0, 0, 2]]),
             ]
 
-    def get_cost(self, t, y, sub_idx=None):
-        """
-        get cost for given positions, landmarks and noise.
-
-        :param t: (positions, landmarks) tuple
-        """
-
+    def get_residuals(self, t, y):
         positions = t.reshape((-1, self.d))
         y_current = (
             np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
             ** 2
         )
+        return self.W * (y - y_current)
+
+    def get_cost(self, t, y, sub_idx=None):
+        """
+        get cost for given positions, landmarks and noise.
+
+        :param t: flattened positions of length Nd
+        :param y: N x K distance measurements
+        """
+        residuals = self.get_residuals(t, y)
         if sub_idx is None:
-            cost = np.sum(self.W * (y - y_current) ** 2)
+            cost = np.sum(residuals**2)
         else:
-            cost = np.sum((self.W * (y - y_current))[sub_idx] ** 2)
+            cost = np.sum(residuals[sub_idx] ** 2)
+        if NORMALIZE:
+            return cost / np.sum(self.W > 0)
         return cost
 
     def get_grad(self, t, y, sub_idx=None):
@@ -306,7 +313,10 @@ class RangeOnlyLocLifter(StateLifter):
                         f"z_{n}": mat,
                     }
                     self.ls_problem.add_residual(res_dict)
-        return self.ls_problem.get_Q().get_matrix(self.var_dict)
+        Q = self.ls_problem.get_Q().get_matrix(self.var_dict)
+        if NORMALIZE:
+            return Q / np.sum(self.W > 0)
+        return Q
 
     def get_Q(self, noise: float = None) -> tuple:
         if self.y_ is None:
@@ -344,6 +354,9 @@ class RangeOnlyLocLifter(StateLifter):
             ]
         return sub_idx_x
 
+    def get_error(self, that):
+        return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}
+
     def local_solver(
         self, t_init, y, verbose=False, method="BFGS", solver_kwargs=SOLVER_KWARGS
     ):
@@ -352,7 +365,7 @@ class RangeOnlyLocLifter(StateLifter):
         """
 
         # TODO(FD): split problem into individual points.
-        options = SOLVER_KWARGS[method]
+        options = solver_kwargs[method]
         options["disp"] = verbose
         sol = minimize(
             self.get_cost,
@@ -363,16 +376,25 @@ class RangeOnlyLocLifter(StateLifter):
             method=method,
             options=options,
         )
+
+        info = {}
+        info["success"] = sol.success
+        info["msg"] = sol.message + f"(# iterations: {sol.nit})"
         if sol.success:
             print("RangeOnly local solver:", sol.nit)
             that = sol.x
             rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
             assert abs(rel_error) < 1e-10, rel_error
+            residuals = self.get_residuals(that, y)
             cost = sol.fun
+            info["max res"] = np.max(np.abs(residuals))
+            hess = self.get_hess(that, y)
+            eigs = np.linalg.eigvalsh(hess.toarray())
+            info["cond Hess"] = eigs[-1] / eigs[0]
         else:
             that = cost = None
-        msg = sol.message + f"(# iterations: {sol.nit})"
-        return that, msg, cost
+            info["max res"] = None
+        return that, info, cost
 
     @property
     def var_dict(self):

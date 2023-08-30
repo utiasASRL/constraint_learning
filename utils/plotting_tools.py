@@ -6,7 +6,6 @@ from poly_matrix.poly_matrix import PolyMatrix
 
 plt = import_plt()
 
-
 def add_rectangles(ax, dict_sizes, color="red"):
     from matplotlib.patches import Rectangle
 

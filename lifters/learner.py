@@ -142,7 +142,7 @@ class Learner(object):
         A_list += [constraint.A_sparse_ for constraint in self.constraints]
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         B_list = self.lifter.get_B_known()
-        X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
+        X, info = self._test_tightness(A_b_list_all, B_list, verbose=verbose)
 
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
@@ -372,7 +372,7 @@ class Learner(object):
         from solvers.common import solve_sdp_cvxpy
 
         if self.solver_vars is None:
-            self.find_local_solution(verbose=True)
+            self.find_local_solution(verbose=verbose)
 
         # compute lambas by solving dual problem
         X, info = solve_sdp_cvxpy(
