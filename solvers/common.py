@@ -1,7 +1,10 @@
 import cvxpy as cp
 import numpy as np
+import matplotlib.pylab as plt
 
 from lifters.state_lifter import StateLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.stereo_lifter import StereoLifter
 
 TOL = 1e-10
 
@@ -78,8 +81,6 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
         Q_scale = 1.0
     Q_mat /= Q_scale
     if plot:
-        import matplotlib.pylab as plt
-
         fig, axs = plt.subplots(1, 2)
         axs[0].matshow(np.log10(np.abs(Q.toarray())))
         axs[1].matshow(np.log10(np.abs(Q_mat.toarray())))
@@ -234,12 +235,32 @@ def solve_sdp_cvxpy(
 
 
 def find_local_minimum(
-    lifter: StateLifter, y, delta=1, verbose=False, n_inits=10, plot=False
+    lifter: StateLifter, y, delta=1.0, verbose=False, n_inits=10, fname_root=""
 ):
+    def plot_frame(ax, theta=None, xtheta=None, color="k", marker="+", label=None):
+        p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
+        try:
+            C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
+            for i, col in enumerate(["r", "g", "b"]):
+                z_gt = C_cw[i, :]
+                length = 1 / np.linalg.norm(z_gt)
+                ax.plot(
+                    [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
+                    [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
+                    color=col,
+                    ls="--",
+                    alpha=0.5,
+                )
+        except Exception as e:
+            print("no orientation data avilable?")
+            print(e)
+        ax.scatter(*p_gt[:, :2].T, color=color, marker=marker, label=label)
+
     local_solutions = []
     costs = []
     max_res = []
     cond_Hess = []
+    failed = []
 
     inits = [lifter.get_vec_around_gt(delta=0)]  # initialize at gt
     inits += [
@@ -247,49 +268,94 @@ def find_local_minimum(
     ]  # around gt
     info = {"success": False}
     for i, t_init in enumerate(inits):
-        if plot:
-            import matplotlib.pylab as plt
-
-            fig, ax = plt.subplots()
-            p0, a0 = lifter.get_positions_and_landmarks(t_init)
-            ax.scatter(*p0.T, color=f"C{0}", marker="o")
-            ax.scatter(*a0.T, color=f"C{0}", marker="x")
-
         try:
             t_local, info_here, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
-            # t_local, msg, cost_solver = lifter.local_solver_new(
-            #    t_init, y=y, verbose=verbose
-            # )
         except NotImplementedError:
             print("Warning: local solver not implemented.")
             return None, None, info
 
-        # print(msg)
-        if t_local is not None:
-            # cost_lifter = lifter.get_cost(t_local, y=y)
-            costs.append(cost_solver)
-            local_solutions.append(t_local)
-            max_res.append(info_here["max res"])
-            cond_Hess.append(info_here["cond Hess"])
+        if t_local is None:
+            cost_solver = np.nan
+            t_local = np.nan
+            info_here["max_res"] = np.nan
+            info_here["cond_Hess"] = np.nan
+            failed.append(i)
 
-            if plot:
-                p0, a0 = lifter.get_positions_and_landmarks(t_local)
-                ax.scatter(*p0.T, color=f"C{1}", marker="*")
-                ax.scatter(*a0.T, color=f"C{1}", marker="+")
-    local_solutions = np.array(local_solutions)
+        costs.append(cost_solver)
+        local_solutions.append(t_local)
+        max_res.append(info_here["max res"])
+        cond_Hess.append(info_here["cond Hess"])
 
     if len(costs):
         info["success"] = True
         costs = np.round(costs, 8)
-        global_cost = np.min(costs)
+        global_cost = np.nanmin(costs)
+
+        local_costs = np.unique(costs[~np.isnan(costs) & (costs != global_cost)])
+
         global_inds = np.where(costs == global_cost)[0]
+        local_inds = np.where(np.isin(costs, local_costs))[0]
         info["n global"] = len(global_inds)
-        info["n local"] = len(costs) - info["n global"]
-        info["n fail"] = n_inits - len(costs)
+        info["n local"] = len(costs) - info["n global"] - len(failed)
+        info["n fail"] = len(failed)
         info["max res"] = max_res[global_inds[0]]
         info["cond Hess"] = cond_Hess[global_inds[0]]
+        info["local costs"] = local_costs
         global_solution = local_solutions[global_inds[0]]
+
+        if (info["n local"] or info["n fail"]) and fname_root != "":
+            fig, ax = plt.subplots()
+
+            try:
+                ax.scatter(
+                    *lifter.all_landmarks[:, :2].T, color=f"k", marker="+", alpha=0.2
+                )
+            except:
+                print("not plotting all landmarks.")
+            ax.scatter(*lifter.landmarks[:, :2].T, color=f"k", marker="+")
+
+            # plot ground truth, global and local costs only once.
+            plot_frame(ax, theta=lifter.theta, color="g", marker="+")
+            plot_frame(
+                ax,
+                xtheta=global_solution,
+                color="g",
+                marker="*",
+                label=f"global cost, q={global_cost:.2e}",
+            )
+            for local_cost in local_costs:
+                local_ind = np.where(costs == local_cost)[0][0]
+                xtheta = local_solutions[local_ind]
+                plot_frame(
+                    ax,
+                    xtheta=xtheta,
+                    color="r",
+                    marker="*",
+                    label=f"local cost, q={local_cost:.2e}",
+                )
+
+            # plot all solutions that converged to those.
+            for i in global_inds:
+                plot_frame(ax, xtheta=inits[i], color="g", marker=".")
+
+            for i in local_inds:
+                plot_frame(ax, xtheta=inits[i], color="r", marker=".")
+
+            ax.axis("equal")
+            fig.set_size_inches(5, 5)
+            ax.set_xlabel("x [m]")
+            ax.set_ylabel("y [m]")
+            ax.legend()
+            for i in range(100):
+                from utils.plotting_tools import savefig
+                import os
+
+                fname = f"{fname_root}_{i}_local.pdf"
+                if not os.path.exists(fname):
+                    savefig(fig, fname)
+                    break
         return global_solution, global_cost, info
+
     return None, None, info

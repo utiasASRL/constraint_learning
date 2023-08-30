@@ -303,6 +303,24 @@ class StereoLifter(StateLifter, ABC):
         assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
         return Q
 
+    def get_C_cw(self, theta=None, xtheta=None):
+        if xtheta is not None:
+            C_cw, __ = get_C_r_from_xtheta(xtheta, self.d)
+        elif theta is not None:
+            C_cw, __ = get_C_r_from_theta(theta, self.d)
+        else:
+            raise ValueError("Give either theta or xtheta")
+        return C_cw
+
+    def get_position(self, xtheta=None, theta=None):
+        if xtheta is not None:
+            C_cw, r_wc_c = get_C_r_from_xtheta(xtheta, self.d)
+        elif theta is not None:
+            C_cw, r_wc_c = get_C_r_from_theta(theta, self.d)
+        else:
+            raise ValueError("Give either theta or xtheta")
+        return (-C_cw.T @ r_wc_c)[None, :]
+
     def get_error(self, xtheta_hat):
         xtheta_gt = get_xtheta_from_theta(self.theta, self.d)
 

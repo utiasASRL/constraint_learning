@@ -275,6 +275,10 @@ class Experiment(object):
             new_lifter = Stereo3DLifter(
                 n_landmarks=self.landmarks.shape[0], level=level, param_level="ppT"
             )
+            if isinstance(self.all_landmarks, pd.DataFrame):
+                new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
+            else:
+                new_lifter.all_landmarks = self.all_landmarks
             new_lifter.theta = self.theta
             new_lifter.landmarks = self.landmarks
             new_lifter.parameters = np.r_[1, self.landmarks.flatten()]
@@ -312,7 +316,7 @@ class Experiment(object):
             else:
                 new_lifter.y_ = self.y_
         else:
-            raise ValueError(f"Unknown data_type {data_type}")
+            raise ValueError(f"Unknown data_type {self.data_type}")
         return new_lifter
 
 
@@ -323,10 +327,11 @@ def run_real_experiment(
     add_sorted=False,
     add_basic=True,
     from_scratch=False,
+    fname_root="",
 ):
     # set distance measurements
-    fname_root = f"_results/scalability_{new_lifter}"
-    fname = fname_root + "_order_dict.pkl"
+    fname_root_learn = f"_results/scalability_{new_lifter}"
+    fname = fname_root_learn + "_order_dict.pkl"
     with open(fname, "rb") as f:
         order_dict = pickle.load(f)
         learner = pickle.load(f)
@@ -355,6 +360,7 @@ def run_real_experiment(
             new_learner.scale_templates(learner, new_order, data_dict)
 
         t1 = time.time()
+        new_learner.find_local_solution(fname_root=fname_root)
         new_learner.is_tight(verbose=False, data_dict=data_dict)
         data_dict[f"t solve SDP"] = time.time() - t1
         df_data.append(deepcopy(data_dict))
@@ -389,10 +395,11 @@ def run_all(
     sim_noise=None,
     n_successful=100,
     out_name="",
+    stride=1,
 ):
     df_list = []
     counter = 0
-    for time_idx in np.arange(1900):
+    for time_idx in np.arange(0, 1900, step=stride):
         try:
             new_lifter = exp.get_lifter(
                 time_idx=time_idx,
@@ -410,12 +417,17 @@ def run_all(
             continue
 
         counter += 1
+        if counter < 10:
+            fname_root = out_name.split(".")[0]
+        else:
+            fname_root = ""
         df_here = run_real_experiment(
             new_lifter,
             add_oneshot=False,
             add_sorted=True,
             add_original=False,
             add_basic=False,
+            fname_root=fname_root,
         )
         df_here["time index"] = time_idx
         df_here["n landmarks"] = new_lifter.n_landmarks

@@ -354,6 +354,9 @@ class RangeOnlyLocLifter(StateLifter):
             ]
         return sub_idx_x
 
+    def get_position(self, theta):
+        return theta.reshape(self.n_positions, self.d)
+
     def get_error(self, that):
         return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}
 

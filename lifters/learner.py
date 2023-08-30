@@ -350,13 +350,13 @@ class Learner(object):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
 
-    def find_local_solution(self, verbose=False):
+    def find_local_solution(self, verbose=False, fname_root=""):
         from solvers.common import find_local_minimum
 
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=10
+            self.lifter, y=y, verbose=verbose, n_inits=10, fname_root=fname_root
         )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)

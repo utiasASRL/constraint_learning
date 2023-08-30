@@ -14,7 +14,7 @@ MIN_N_LANDMARKS = 8
 USE_GT = False
 SIM_NOISE = 0.1
 
-RECOMPUTE = False
+RECOMPUTE = True
 
 
 def load_experiment(dataset):
@@ -32,15 +32,15 @@ def load_experiment(dataset):
 
 if __name__ == "__main__":
     df_list = []
-    n_successful = 3
-    datasets = ["starrynight"]
+    n_successful = 100
+    datasets = ["starrynight"]  # , "zigzag_s3"]
 
     # datasets = ["zigzag_s3", "loop-2d_s4", "eight_s3", "starrynight"]
     for dataset in datasets:
         if USE_GT:
-            fname = f"_results/{dataset}_output_{n_successful}.pkl"
-        else:
             fname = f"_results/{dataset}_output_{n_successful}_gt.pkl"
+        else:
+            fname = f"_results/{dataset}_output_{n_successful}.pkl"
         try:
             assert RECOMPUTE is False
             df_all = pd.read_pickle(fname)
@@ -55,6 +55,7 @@ if __name__ == "__main__":
                 out_name=fname,
                 n_successful=n_successful,
                 level="urT",
+                stride=1,
             )
 
         df_all["dataset"] = dataset
