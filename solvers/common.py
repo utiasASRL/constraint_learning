@@ -235,27 +235,8 @@ def solve_sdp_cvxpy(
 
 
 def find_local_minimum(
-    lifter: StateLifter, y, delta=1.0, verbose=False, n_inits=10, fname_root=""
+    lifter: StateLifter, y, delta=1.0, verbose=False, n_inits=10, plot=False
 ):
-    def plot_frame(ax, theta=None, xtheta=None, color="k", marker="+", label=None):
-        p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
-        try:
-            C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
-            for i, col in enumerate(["r", "g", "b"]):
-                z_gt = C_cw[i, :]
-                length = 1 / np.linalg.norm(z_gt)
-                ax.plot(
-                    [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
-                    [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
-                    color=col,
-                    ls="--",
-                    alpha=0.5,
-                )
-        except Exception as e:
-            print("no orientation data avilable?")
-            print(e)
-        ax.scatter(*p_gt[:, :2].T, color=color, marker=marker, label=label)
-
     local_solutions = []
     costs = []
     max_res = []
@@ -296,16 +277,24 @@ def find_local_minimum(
         local_costs = np.unique(costs[~np.isnan(costs) & (costs != global_cost)])
 
         global_inds = np.where(costs == global_cost)[0]
+        global_solution = local_solutions[global_inds[0]]
         local_inds = np.where(np.isin(costs, local_costs))[0]
+
         info["n global"] = len(global_inds)
         info["n local"] = len(costs) - info["n global"] - len(failed)
         info["n fail"] = len(failed)
         info["max res"] = max_res[global_inds[0]]
         info["cond Hess"] = cond_Hess[global_inds[0]]
-        info["local costs"] = local_costs
-        global_solution = local_solutions[global_inds[0]]
 
-        if (info["n local"] or info["n fail"]) and fname_root != "":
+        for local_cost in local_costs:
+            local_ind = np.where(costs == local_cost)[0][0]
+            info[f"local solution {i}"] = local_solutions[local_ind]
+            info[f"local cost {i}"] = local_cost
+
+        # if (info["n local"] or info["n fail"]) and fname_root != "":
+        if plot:
+            from utils.plotting_tools import plot_frame
+
             fig, ax = plt.subplots()
 
             try:
@@ -317,45 +306,110 @@ def find_local_minimum(
             ax.scatter(*lifter.landmarks[:, :2].T, color=f"k", marker="+")
 
             # plot ground truth, global and local costs only once.
-            plot_frame(ax, theta=lifter.theta, color="g", marker="+")
+            plot_frame(lifter, ax, theta=lifter.theta, color="g", marker="+")
             plot_frame(
+                lifter,
                 ax,
                 xtheta=global_solution,
                 color="g",
                 marker="*",
-                label=f"global cost, q={global_cost:.2e}",
+                label=f"local candidate, q={global_cost:.2e}",
             )
             for local_cost in local_costs:
                 local_ind = np.where(costs == local_cost)[0][0]
                 xtheta = local_solutions[local_ind]
                 plot_frame(
+                    lifter,
                     ax,
                     xtheta=xtheta,
                     color="r",
                     marker="*",
-                    label=f"local cost, q={local_cost:.2e}",
+                    label=f"local candidate, q={local_cost:.2e}",
                 )
 
             # plot all solutions that converged to those.
             for i in global_inds:
-                plot_frame(ax, xtheta=inits[i], color="g", marker=".")
+                plot_frame(lifter, ax, xtheta=inits[i], color="g", marker=".")
 
             for i in local_inds:
-                plot_frame(ax, xtheta=inits[i], color="r", marker=".")
+                plot_frame(lifter, ax, xtheta=inits[i], color="r", marker=".")
 
             ax.axis("equal")
             fig.set_size_inches(5, 5)
             ax.set_xlabel("x [m]")
             ax.set_ylabel("y [m]")
             ax.legend()
-            for i in range(100):
-                from utils.plotting_tools import savefig
-                import os
-
-                fname = f"{fname_root}_{i}_local.pdf"
-                if not os.path.exists(fname):
-                    savefig(fig, fname)
-                    break
         return global_solution, global_cost, info
 
     return None, None, info
+
+
+def solve_certificate(
+    Q,
+    A_b_list,
+    xhat,
+    adjust=True,
+    solver=SOLVER,
+    verbose=False,
+    tol=None,
+):
+    """Solve certificate."""
+    opts = solver_options[solver]
+    opts["verbose"] = verbose
+
+    if tol:
+        adjust_tol([opts], tol)
+
+    Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
+
+    m = len(A_b_list)
+    y = cp.Variable(shape=(m,))
+
+    As, b = zip(*A_b_list)
+    b = np.concatenate([np.atleast_1d(bi) for bi in b])
+
+    H = cp.sum([Q_here] + [y[i] * Ai for (i, Ai) in enumerate(As)])
+    constraints = [H >> 0]
+    eps = cp.Variable()
+    constraints += [H @ xhat <= eps]
+    constraints += [H @ xhat >= -eps]
+
+    objective = cp.Minimize(eps)
+
+    cprob = cp.Problem(objective, constraints)
+    try:
+        cprob.solve(
+            solver=solver,
+            **opts,
+        )
+    except Exception as e:
+        eps = None
+        cost = None
+        X = None
+        H = None
+        yvals = None
+        msg = "infeasible / unknown"
+    else:
+        if np.isfinite(cprob.value):
+            cost = cprob.value
+            X = constraints[0].dual_value
+            H = H.value
+            yvals = [x.value for x in y]
+            msg = "converged"
+        else:
+            eps = None
+            cost = None
+            X = None
+            H = None
+            yvals = None
+            msg = "unbounded"
+
+    # reverse Q adjustment
+    if cost:
+        eps = eps.value
+        cost = cost * scale + offset
+        H = Q_here + cp.sum([yvals[i] * Ai for (i, Ai) in enumerate(As)])
+        yvals[0] = yvals[0] * scale + offset
+
+    info = {"X": X, "yvals": yvals, "cost": cost, "msg": msg, "eps": eps}
+    return H, info

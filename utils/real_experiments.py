@@ -3,52 +3,85 @@ import os
 import pickle
 import time
 
+
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
 from pylgmath.so3.operations import hat
 
-from lifters.learner import Learner
-
 from starloc.reader import read_landmarks, read_data, read_calib
-from utils.plotting_tools import savefig
 
+from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
+from utils.plotting_tools import savefig
+from utils.plotting_tools import plot_frame
+
 
 RANGE_TYPE = "range_calib"
+PLOT_NUMBER = 0
+
+
+def plot_local_vs_global(df, fname_root=""):
+    fig, ax = plt.subplots()
+    fig.set_size_inches(5, 5)
+    for i, row in df.iterrows():
+        # for ro, we don't have a certificate (it's always true because rank-1)
+        color = "g" if row.get("global solution cert", True) else "r"
+        ax.scatter(row["max res"], row.qcqp_cost, color=color, marker="o")
+
+        for key in row.index:
+            if key.startswith("local solution") and not ("cert" in key):
+                idx = int(key.split("local solution ")[-1])
+                cert = row.get(f"local solution {idx} cert", False)
+                color = "g" if cert == True else "r"
+                ax.scatter(
+                    row["max res"], row[f"local cost {idx}"], color=color, marker="o"
+                )
+    ax.scatter([], [], color="r", marker="o", label="uncertified")
+    ax.scatter([], [], color="g", marker="o", label="certified")
+    ax.legend()
+    ax.set_xscale("log")
+    ax.set_yscale("log")
+    ax.set_xlabel("maximum residual")
+    ax.set_ylabel("cost")
+    ax.grid()
+    if fname_root != "":
+        savefig(fig, fname_root + "_local_vs_global.pdf")
+    return fig, ax
 
 
 def plot_results(df, ylabel="RDG", fname_root=""):
+    label_names = {"max res": "maximum residual"}
     kwargs = {"edgecolor": "none"}
-    for x in ["total error", "cond Hess", "max res", "q"]:
+    for x in ["max res"]:  # ["total error", "cond Hess", "max res", "q"]:
         fig, ax = plt.subplots()
         fig.set_size_inches(5, 5)
-        sns.scatterplot(
-            data=df, x=x, y=ylabel, style="n landmarks", ax=ax, hue="dataset", **kwargs
-        )
-        ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+        sns.scatterplot(data=df, x=x, y=ylabel, ax=ax, hue="dataset", **kwargs)
+        # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+        ax.legend()
         ax.set_yscale("log")
         ax.set_xscale("log")
         ax.set_ylabel(ylabel)
-        ax.set_xlabel(x)
+        ax.set_xlabel(label_names.get(x, x))
+        ax.grid()
         if fname_root != "":
             savefig(fig, f"{fname_root}_{x.replace(' ', '_')}.pdf")
 
     fig, ax = plt.subplots()
+    fig.set_size_inches(5, 5)
     df["success rate"] = df["n global"] / (
         df["n global"] + df["n fail"] + df["n local"]
     )
-    sns.scatterplot(
+    sns.boxplot(
         data=df,
-        x="success rate",
-        y=ylabel,
-        style="n landmarks",
+        x="dataset",
+        y="success rate",
         ax=ax,
-        hue="dataset",
     )
-    ax.set_yscale("log")
+    if fname_root != "":
+        savefig(fig, f"{fname_root}_successrate.pdf")
 
 
 class Experiment(object):
@@ -96,7 +129,12 @@ class Experiment(object):
                 # fmt: on
 
     def get_range_measurements(
-        self, time_idx=0, n_positions=None, combine_measurements=True, min_n_landmarks=4
+        self,
+        time_idx=0,
+        n_positions=None,
+        combine_measurements=True,
+        min_n_landmarks=4,
+        max_n_landmarks=None,
     ):
         if not "position_idx" in self.data.columns:
             if combine_measurements:
@@ -134,11 +172,23 @@ class Experiment(object):
 
         assert len(data_here.position_idx.unique()) == n_positions
 
-        landmarks = self.all_landmarks.loc[
-            self.all_landmarks.id.isin(data_here.to_id.unique())
-        ]
+        unique_ids = data_here.to_id.unique()
+        if max_n_landmarks is not None:
+            seed = int(data_here.time_s.values[0] * 1000)
+
+            np.random.seed(seed)
+            unique_ids = np.random.choice(unique_ids, max_n_landmarks, replace=False)
+
+            # unique_ids = [4, 9, 11, 12]  # top (11, 12 high)
+            # unique_ids = [4, 9, 6, 7]  # inclined (6, 7 low)
+            # unique_ids = [4, 5, 6, 12]  # diagonal (6, 12 vertical)
+            # unique_ids = [9, 5, 7, 11]  # diagonal (7, 11 vertical)
+
+        landmarks = self.all_landmarks.loc[self.all_landmarks.id.isin(unique_ids)]
+
         self.landmarks = landmarks[["x", "y", "z"]].values
         self.landmark_ids = list(landmarks.id.values)
+        print(f"using landmark ids: {self.landmark_ids}")
         n_landmarks = self.landmarks.shape[0]
 
         # y_ is of shape n_positions * n_landmarks
@@ -152,9 +202,12 @@ class Experiment(object):
             position_idx = position_ids.index(position_id)
             self.positions[position_idx, :] = position
             for __, row in df_sub.iterrows():
+                if not row.to_id in self.landmark_ids:
+                    continue
                 landmark_idx = self.landmark_ids.index(row.to_id)
+
                 self.W_[position_idx, landmark_idx] = 1.0
-                self.y_[position_idx, landmark_idx] = row[RANGE_TYPE]
+                self.y_[position_idx, landmark_idx] = row[RANGE_TYPE] ** 2
 
     def get_stereo_measurements(self, time_idx=0):
         """
@@ -289,16 +342,14 @@ class Experiment(object):
                 new_lifter.y_ = self.y_
 
         elif self.data_type == "uwb":
-            if min_n_landmarks or max_n_landmarks:
-                raise NotImplementedError(
-                    "min / max landmarks not implemented for range measurements yet"
-                )
             combine_measurements = True
-            n_positions = 3
+            n_positions = 1
             self.get_range_measurements(
                 time_idx=time_idx,
                 n_positions=n_positions,
                 combine_measurements=combine_measurements,
+                min_n_landmarks=min_n_landmarks,
+                max_n_landmarks=max_n_landmarks,
             )
 
             new_lifter = RangeOnlyLocLifter(
@@ -308,6 +359,10 @@ class Experiment(object):
                 level=level,
             )
             new_lifter.theta = self.positions.flatten()
+            if isinstance(self.all_landmarks, pd.DataFrame):
+                new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
+            else:
+                new_lifter.all_landmarks = self.all_landmarks
             new_lifter.landmarks = self.landmarks
             new_lifter.parameters = np.r_[1.0, new_lifter.landmarks.flatten()]
             new_lifter.W = self.W_
@@ -336,6 +391,8 @@ def run_real_experiment(
         order_dict = pickle.load(f)
         learner = pickle.load(f)
 
+    plot = fname_root != ""
+
     df_data = []
     for name, new_order in order_dict.items():
         if name == "original" and not add_original:
@@ -359,10 +416,35 @@ def run_real_experiment(
         else:
             new_learner.scale_templates(learner, new_order, data_dict)
 
+        new_learner.find_local_solution(plot=plot)
+
         t1 = time.time()
-        new_learner.find_local_solution(fname_root=fname_root)
         new_learner.is_tight(verbose=False, data_dict=data_dict)
         data_dict[f"t solve SDP"] = time.time() - t1
+
+        success = new_learner.find_global_solution(data_dict=data_dict)
+
+        if plot:
+            fig = plt.gcf()
+            ax = plt.gca()
+
+            if success:
+                that = data_dict["global theta"]
+                cost = data_dict["global cost"]
+
+                plot_frame(
+                    new_learner.lifter,
+                    ax,
+                    theta=that,
+                    color="k",
+                    marker="o",
+                    label=f"global minimum, q={cost:.2e}",
+                    facecolors="none",
+                )
+            ax.legend()
+            fname = f"{fname_root}_local.pdf"
+            savefig(fig, fname)
+
         df_data.append(deepcopy(data_dict))
 
     # try oneshot
@@ -399,6 +481,7 @@ def run_all(
 ):
     df_list = []
     counter = 0
+    fig, ax = plt.subplots()
     for time_idx in np.arange(0, 1900, step=stride):
         try:
             new_lifter = exp.get_lifter(
@@ -415,10 +498,15 @@ def run_all(
         if new_lifter is None:
             print(f"skipping {time_idx} because not enough valid landmarks")
             continue
+        ax.scatter(*new_lifter.landmarks[:, :2].T, color="k", marker="+")
+        plot_frame(new_lifter, ax, theta=new_lifter.theta, color="blue", marker="o")
 
         counter += 1
-        if counter < 10:
-            fname_root = out_name.split(".")[0]
+        if counter >= n_successful:
+            break
+
+        if counter < PLOT_NUMBER:
+            fname_root = out_name.split(".")[0] + f"_{counter}"
         else:
             fname_root = ""
         df_here = run_real_experiment(
@@ -433,14 +521,24 @@ def run_all(
         df_here["n landmarks"] = new_lifter.n_landmarks
         df_list.append(df_here)
 
-        if counter >= n_successful:
-            break
-        elif counter % 10 == 0:
+        if counter % 10 == 0:
             df = pd.concat(df_list)
             if out_name != "":
                 df.to_pickle(out_name)
                 print(f"===== saved intermediate as {out_name} ==========")
             print(df)
+
+    fig.set_size_inches(5, 5)
+    ax.set_xlabel("x [m]")
+    ax.set_ylabel("y [m]")
+    if not "starrynight" in out_name:
+        ax.set_xlim([-6.2, 4.1])
+        ax.set_ylim([-6.2, 4.1])
+    else:
+        ax.axis("equal")
+    ax.grid()
+    savefig(fig, out_name.split(".")[0] + "_poses.pdf")
+
     df = pd.concat(df_list)
     if out_name != "":
         df.to_pickle(out_name)

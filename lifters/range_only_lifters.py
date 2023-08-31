@@ -36,6 +36,22 @@ class RangeOnlyLocLifter(StateLifter):
         "quad": "$\\boldsymbol{y}_n$",
     }
 
+    def get_vec_around_gt(self, delta: float = 0):
+        """Sample around ground truth.
+        :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
+        """
+        if delta == 0:
+            return self.theta
+        else:
+            bbox_max = np.max(self.landmarks, axis=0) * 2
+            bbox_min = np.min(self.landmarks, axis=0) * 2
+            pos = (
+                np.random.rand(self.n_positions, self.d)
+                * (bbox_max - bbox_min)[None, :]
+                + bbox_min[None, :]
+            )
+            return pos.flatten()
+
     def __init__(
         self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None
     ):
@@ -318,20 +334,20 @@ class RangeOnlyLocLifter(StateLifter):
             return Q / np.sum(self.W > 0)
         return Q
 
+    def simulate_y(self, noise: float = None):
+        # N x K matrix
+        if noise is None:
+            noise = NOISE
+        positions = self.theta.reshape(self.n_positions, -1)
+        y_gt = (
+            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
+            ** 2
+        )
+        return y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
+
     def get_Q(self, noise: float = None) -> tuple:
         if self.y_ is None:
-            # N x K matrix
-            if noise is None:
-                noise = NOISE
-            positions = self.theta.reshape(self.n_positions, -1)
-            y_gt = (
-                np.linalg.norm(
-                    self.landmarks[None, :, :] - positions[:, None, :], axis=2
-                )
-                ** 2
-            )
-            self.y_ = y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
-            cost2 = np.sum((self.y_ - y_gt) ** 2)
+            self.y_ = self.simulate_y(noise=noise)
         Q = self.get_Q_from_y(self.y_)
 
         # DEBUGGING
@@ -354,14 +370,25 @@ class RangeOnlyLocLifter(StateLifter):
             ]
         return sub_idx_x
 
-    def get_position(self, theta):
-        return theta.reshape(self.n_positions, self.d)
+    def get_theta(self, x):
+        return x[1 : self.d + 1]
+
+    def get_position(self, theta=None, xtheta=None):
+        if theta is not None:
+            return theta.reshape(self.n_positions, self.d)
+        elif xtheta is not None:
+            return xtheta.reshape(self.n_positions, self.d)
 
     def get_error(self, that):
         return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}
 
     def local_solver(
-        self, t_init, y, verbose=False, method="BFGS", solver_kwargs=SOLVER_KWARGS
+        self,
+        t_init,
+        y,
+        verbose=False,
+        method="BFGS",
+        solver_kwargs=SOLVER_KWARGS,
     ):
         """
         :param t_init: (positions, landmarks) tuple
@@ -397,6 +424,7 @@ class RangeOnlyLocLifter(StateLifter):
         else:
             that = cost = None
             info["max res"] = None
+            info["cond Hess"] = None
         return that, info, cost
 
     @property

@@ -1,5 +1,7 @@
 import numpy as np
 
+from scipy.spatial.transform import Rotation as R
+
 
 def generate_random_pose(d=2, size=1):
     if d == 2:
@@ -13,10 +15,13 @@ def generate_random_pose(d=2, size=1):
     return np.r_[trans, rot]
 
 
-def get_rot_matrix(rot):
-    from scipy.spatial.transform import Rotation as R
+def get_euler(C):
+    r = R.from_matrix(C)
+    return r.as_euler("xyz")
 
-    """ return the desired parameterization """
+
+def get_rot_matrix(rot):
+    """return the desired parameterization"""
     if np.ndim(rot) == 0 or len(rot) == 1:
         if np.ndim(rot) == 1:
             rot = float(rot[0])
@@ -65,7 +70,19 @@ def get_xtheta_from_theta(theta, d):
     alpha = theta[d : d + n_rot]
     C = get_rot_matrix(alpha)
     c = C.flatten("F")  # col-wise flatten
-    theta = np.r_[pos, c]
+    xtheta = np.r_[pos, c]
+    return xtheta
+
+
+def get_theta_from_xtheta(xtheta, d):
+    from utils.geometry import get_euler
+
+    pos = xtheta[1 : d + 1]
+    c = xtheta[d + 1 : d + 1 + d**2]
+    C = c.reshape(d, d)
+
+    alpha = get_euler(C.T)
+    theta = np.r_[pos, alpha]
     return theta
 
 

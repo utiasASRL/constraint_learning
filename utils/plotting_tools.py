@@ -6,6 +6,28 @@ from poly_matrix.poly_matrix import PolyMatrix
 
 plt = import_plt()
 
+
+def plot_frame(
+    lifter, ax, theta=None, xtheta=None, color="k", marker="+", label=None, **kwargs
+):
+    p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
+    try:
+        C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
+        for i, col in enumerate(["r", "g", "b"]):
+            z_gt = C_cw[i, :]
+            length = 1 / np.linalg.norm(z_gt)
+            ax.plot(
+                [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
+                [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
+                color=col,
+                ls="--",
+                alpha=0.5,
+            )
+    except Exception as e:
+        pass
+    ax.scatter(*p_gt[:, :2].T, color=color, marker=marker, label=label, **kwargs)
+
+
 def add_rectangles(ax, dict_sizes, color="red"):
     from matplotlib.patches import Rectangle
 

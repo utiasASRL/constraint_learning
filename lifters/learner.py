@@ -7,6 +7,7 @@ import scipy.sparse as sp
 import sparseqr as sqr
 
 from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
+from utils.common import rank_project
 
 plt = import_plt()
 
@@ -30,8 +31,8 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-
 USE_KNOWN = True
+GLOBAL_THRESH = 1e-3
 
 
 class Learner(object):
@@ -72,6 +73,8 @@ class Learner(object):
         self.dual_costs = []
         self.variable_list = []
         self.solver_vars = None
+
+        self.tightness_dict = {"rank": None, "cost": None}
 
     @property
     def mat_var_dict(self):
@@ -132,17 +135,20 @@ class Learner(object):
         )
         return res
 
-    def is_tight(self, verbose=False, data_dict={}):
-        tightness = self.lifter.TIGHTNESS
+    def is_tight(self, verbose=False, data_dict={}, tightness=None):
+        if tightness is None:
+            tightness = self.lifter.TIGHTNESS
 
-        A_list = []
-        if USE_KNOWN:
-            # A_list += self.lifter.get_A_known()
-            A_list += [constraint.A_sparse_ for constraint in self.templates_known]
-        A_list += [constraint.A_sparse_ for constraint in self.constraints]
-        A_b_list_all = self.lifter.get_A_b_list(A_list)
+        if self.tightness_dict[tightness] is not None:
+            return self.tightness_dict[tightness]
+
+        A_b_list_all = self.get_A_b_list()
+        A_list = [A for A, __ in A_b_list_all]  # for debugging only
+
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=verbose)
+
+        self.solver_vars["X"] = X
 
         self.dual_costs.append(info["cost"])
         self.variable_list.append(self.mat_vars)
@@ -207,10 +213,21 @@ class Learner(object):
         rank_tight = self.is_rank_one(
             eigs, verbose=tightness == "rank", data_dict=data_dict
         )
+        self.tightness_dict["rank"] = rank_tight
+        self.tightness_dict["cost"] = cost_tight
         if tightness == "rank":
             return rank_tight
         elif tightness == "cost":
             return cost_tight
+
+    def get_A_b_list(self):
+        A_known = []
+        if USE_KNOWN:
+            # A_known = self.lifter.get_A_known()
+            A_known += [constraint.A_sparse_ for constraint in self.templates_known]
+        A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
+        A_b_list_all = self.lifter.get_A_b_list(A_list)
+        return A_b_list_all
 
     def generate_minimal_subset(
         self,
@@ -263,17 +280,12 @@ class Learner(object):
             else:
                 return new_data["cost_tight"]
 
-        A_known = []
-        if USE_KNOWN:
-            # A_known = self.lifter.get_A_known()
-            A_known += [constraint.A_sparse_ for constraint in self.templates_known]
-        A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
-        A_b_list_all = self.lifter.get_A_b_list(A_list)
+        A_b_list_all = self.get_A_b_list()
         B_list = self.lifter.get_B_known()
 
         force_first = 1
         if USE_KNOWN:
-            force_first += len(A_known)
+            force_first += len(self.templates_known)
 
         if reorder:
             # find the importance of each constraint
@@ -293,9 +305,7 @@ class Learner(object):
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
                 assert info["msg"] == "converged"
-                E, V = np.linalg.eigh(X)
-                print("eigenvalues of X", E)
-                xhat_from_X = np.sqrt(E[-1]) * V[:, -1]
+                xhat_from_X, info = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
                 print("Hx=", info["H"] @ xhat)
@@ -350,13 +360,13 @@ class Learner(object):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
 
-    def find_local_solution(self, verbose=False, fname_root=""):
+    def find_local_solution(self, verbose=False, plot=False):
         from solvers.common import find_local_minimum
 
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=10, fname_root=fname_root
+            self.lifter, y=y, verbose=verbose, n_inits=10, plot=plot
         )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
@@ -364,8 +374,52 @@ class Learner(object):
             self.solver_vars.update(info)
             self.solver_vars.update(self.lifter.get_error(qcqp_that))
             return True
-
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
+
+    def find_global_solution(self, data_dict={}):
+        if self.tightness_dict["rank"] == True:
+            X = self.solver_vars["X"]
+            x, info = rank_project(X, p=1)
+            print("rank projection info:", info)
+        else:
+            """Try to solve dual problem."""
+            xhat = self.solver_vars["xhat"]
+
+            from solvers.common import solve_certificate
+
+            A_b_list_all = self.get_A_b_list()
+            H, info = solve_certificate(
+                self.solver_vars["Q"], A_b_list_all, xhat, adjust=True
+            )
+            if info["eps"] is not None:
+                print(f"global solution eps: {info['eps']:.2e}")
+                cert = abs(info["eps"]) <= GLOBAL_THRESH
+                data_dict["global solution cert"] = cert
+
+            if info["eps"] and cert:
+                x = xhat
+            else:
+                x = None
+
+            # sanity check: solve wtih local minimum
+            keys = [key for key in data_dict.keys() if key.startswith("local solution")]
+            for key in keys:
+                x_local = data_dict[key]
+                x_local = self.lifter.get_x(theta=x_local)
+                H, info = solve_certificate(
+                    self.solver_vars["Q"], A_b_list_all, x_local, adjust=True
+                )
+                if info["eps"] is not None:
+                    print(f"local solution eps: {info['eps']:.2e}")
+                    cert = abs(info["eps"]) <= GLOBAL_THRESH
+                    data_dict[key + " cert"] = cert
+
+        if x is not None:
+            theta = self.lifter.get_theta(x)
+            cost = self.lifter.get_cost(theta, self.solver_vars["y"])
+            data_dict["global theta"] = theta
+            data_dict["global cost"] = cost
+            return True
         return False
 
     def _test_tightness(self, A_b_list_all, B_list=[], verbose=False):

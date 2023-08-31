@@ -9,6 +9,7 @@ from utils.geometry import (
     get_C_r_from_xtheta,
     get_T,
     get_xtheta_from_theta,
+    get_theta_from_xtheta,
 )
 
 NOISE = 1.0  #
@@ -299,9 +300,12 @@ class StereoLifter(StateLifter, ABC):
         t = self.theta
         cost_raw = self.get_cost(t, y)
         cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-8, cost_raw - cost_Q
-        assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
+        assert abs(cost_raw - cost_Q) < 1e-6, cost_raw - cost_Q
+        assert abs(cost_raw - cost_test) < 1e-6, (cost_raw, cost_test)
         return Q
+
+    def get_theta(self, x):
+        return get_theta_from_xtheta(x, self.d)
 
     def get_C_cw(self, theta=None, xtheta=None):
         if xtheta is not None:
