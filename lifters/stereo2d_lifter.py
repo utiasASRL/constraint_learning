@@ -52,6 +52,8 @@ class Stereo2DLifter(StereoLifter):
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
         )
+        if NORMALIZE:
+            cost /= self.n_landmarks * self.d
         xtheta_hat = get_xtheta_from_theta(phi_hat, self.d)
         # cost /= self.n_landmarks * self.d
         info = {"success": success, "msg": "converged"}
