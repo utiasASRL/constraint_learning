@@ -100,7 +100,7 @@ class Stereo3DLifter(StereoLifter):
             print("Stereo3D local solver:", info["msg"])
 
         if NORMALIZE:
-            cost /= self.landmarks * self.d
+            cost /= self.n_landmarks * self.d
 
         x_hat = get_xtheta_from_T(T_hat)
         x = self.get_x(theta=x_hat)
