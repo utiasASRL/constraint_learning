@@ -310,7 +310,7 @@ class Learner(object):
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
                 assert info["msg"] == "converged"
-                xhat_from_X, info = rank_project(X, p=1)
+                xhat_from_X, __ = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
                 print("Hx=", info["H"] @ xhat)

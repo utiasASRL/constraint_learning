@@ -12,7 +12,7 @@ SOLVER = "MOSEK"
 # see https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
 LAMBDA_REL_GAP = 0.1
 
-MINIMIZE_EPSILON = False
+EPSILON = 1e-6  # set to None to minimize epsilon
 
 
 def bisection(function, inputs, left_num, right_num):
@@ -96,11 +96,11 @@ def solve_lambda(
         """
         m = len(A_b_list)
         y = cp.Variable(shape=(m,))
-        
-        if MINIMIZE_EPSILON:
+
+        if EPSILON is None:
             epsilon = cp.Variable()
         else:
-            epsilon = 0.0
+            epsilon = EPSILON
 
         k = len(B_list)
         if k > 0:
@@ -112,16 +112,18 @@ def solve_lambda(
             + [u[i] * Bi for (i, Bi) in enumerate(B_list)]
         )
 
-        if k > 0:
+        if k > 0 and EPSILON is None:
             objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u) + epsilon)
-        elif MINIMIZE_EPSILON:
+        elif k > 0:  # EPSILONS is fixed
+            objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u))
+        elif EPSILON is None:
             objective = cp.Minimize(cp.norm1(y[force_first:]) + epsilon)
-        else:
+        else:  # EPSILONS is fixed
             objective = cp.Minimize(cp.norm1(y[force_first:]))
 
         constraints = [H >> 0]  # >> 0 denotes positive SEMI-definite
 
-        if MINIMIZE_EPSILON:
+        if EPSILON != 0:
             constraints += [H @ xhat <= epsilon]
             constraints += [H @ xhat >= -epsilon]
         else:
