@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 
 from utils.experiments import plot_scalability, save_table
 from lifters.learner import Learner
@@ -10,11 +11,14 @@ from utils.experiments import (
     run_scalability_new,
 )
 
-RECOMPUTE = True
+RECOMPUTE = False
 N_SEEDS = 1
 
 WAHBA = True
 MONO = True
+
+RESULTS_DIR = "_results"
+# RESULTS_DIR = "_results_server"
 
 
 def lifter_tightness(
@@ -46,7 +50,7 @@ def lifter_tightness(
             apply_templates=False,
             n_inits=1,
         )
-        fname_root = f"_results/{lifter}_seed{seed}"
+        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
         run_oneshot_experiment(
             learner,
             fname_root,
@@ -75,16 +79,18 @@ def lifter_scalability_new(
         n_outliers=n_outliers,
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         recompute=recompute,
+        results_folder=RESULTS_DIR,
     )
     if df is None:
         return
 
-    fname_root = f"_results/scalability_{learner.lifter}"
+    fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs.values()]
 
@@ -140,4 +146,4 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(scalability=True, tightness=False)

@@ -379,12 +379,21 @@ def run_scalability_new(
     param_list: list,
     n_seeds: int = 1,
     recompute=False,
+    results_folder=RESULTS_FOLDER,
 ):
     import pickle
 
-    fname = f"{RESULTS_FOLDER}/{learner.lifter}.pkl"
-    fname_root = f"{RESULTS_FOLDER}/scalability_{learner.lifter}"
+    fname_root = f"{results_folder}/scalability_{learner.lifter}"
+    fname_all = fname_root + "_complete.pkl"
+    try:
+        assert recompute is False
+        df = pd.read_pickle(fname_all)
+        print("read", fname_all)
+        return df
+    except (AssertionError, FileNotFoundError) as e:
+        print(e)
 
+    fname = f"{results_folder}/{learner.lifter}.pkl"
     try:
         assert not recompute, "forcing to recompute"
         with open(fname, "rb") as f:
@@ -585,6 +594,10 @@ def run_scalability_new(
     if df_oneshot is not None:
         df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
+
+    df.to_pickle(fname_all)
+    print("wrote df as", fname_all)
+
     return df
 
 
