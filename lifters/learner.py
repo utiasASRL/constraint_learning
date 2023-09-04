@@ -46,6 +46,7 @@ class Learner(object):
         variable_list: list,
         apply_templates: bool = True,
         noise: float = None,
+        n_inits: int = 10,
     ):
         self.noise = noise
         self.lifter = lifter
@@ -74,6 +75,10 @@ class Learner(object):
         self.variable_list = []
         self.solver_vars = None
 
+        self.n_inits = n_inits
+        self.reset_tightness_dict()
+
+    def reset_tightness_dict(self):
         self.tightness_dict = {"rank": None, "cost": None}
 
     @property
@@ -143,7 +148,7 @@ class Learner(object):
             return self.tightness_dict[tightness]
 
         A_b_list_all = self.get_A_b_list()
-        A_list = [A for A, __ in A_b_list_all]  # for debugging only
+        A_list = [A for A, __ in A_b_list_all[1:]]  # for debugging only
 
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=verbose)
@@ -366,7 +371,7 @@ class Learner(object):
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=10, plot=plot
+            self.lifter, y=y, verbose=verbose, n_inits=self.n_inits, plot=plot
         )
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
@@ -456,9 +461,7 @@ class Learner(object):
                 templates_known_sub.append(c)
 
         new_index_set = set([t.index for t in templates_known_sub])
-        print("new:", new_index_set)
         old_index_set = set([t.index for t in self.templates_known_sub])
-        print("old:", old_index_set)
         diff_index_set = new_index_set.difference(old_index_set)
 
         self.templates_known_sub = templates_known_sub
@@ -515,7 +518,6 @@ class Learner(object):
                 break
 
         if basis_new.shape[0]:
-            print(f"found {basis_new.shape[0]} basis vectors")
             templates += [
                 Constraint.init_from_b(
                     index=self.constraint_index + i,
@@ -528,7 +530,6 @@ class Learner(object):
                 for i, b in enumerate(basis_new)
             ]
             self.constraint_index += basis_new.shape[0]
-            print(f"found {len(templates)} independent templates")
 
             # we assume that all known constraints are linearly independent, and also
             # that all known+previously found constraints are linearly independent.
@@ -578,7 +579,6 @@ class Learner(object):
             return 0, 0
 
         # determine which of these constraints are actually independent, after reducing them to ai.
-        print(f"found {len(new_constraints)} candidate constraints.")
         indep_constraints = self.clean_constraints(
             new_constraints=new_constraints,
             before_constraints=[],
@@ -789,7 +789,8 @@ class Learner(object):
 
             t1 = time.time()
             print(f"-------- checking tightness ----------")
-            is_tight = self.is_tight(verbose=verbose, data_dict=data_dict)
+            self.reset_tightness_dict()
+            is_tight = self.is_tight(verbose=False, data_dict=data_dict)
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)

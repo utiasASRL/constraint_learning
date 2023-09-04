@@ -228,6 +228,15 @@ class RobustPoseLifter(StateLifter, ABC):
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
+    def get_error(self, theta_hat):
+        from utils.geometry import get_pose_errors_from_xtheta
+
+        xtheta_hat_pose = theta_hat[: self.d + self.d**2]
+
+        n_rot = self.d * (self.d - 1) // 2
+        xtheta_gt_pose = get_xtheta_from_theta(self.theta[: self.d + n_rot], self.d)
+        return get_pose_errors_from_xtheta(xtheta_hat_pose, xtheta_gt_pose, self.d)
+
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
@@ -365,7 +374,18 @@ class RobustPoseLifter(StateLifter, ABC):
             if abs(res.cost) > 1e-10:
                 assert abs(pen) / res.cost <= 1e-1, (pen, res.cost)
             cost_penalized -= pen
-        return theta_hat, res.stopping_criterion, cost_penalized
+
+        success = ("min step_size" in res.stopping_criterion) or (
+            "min grad norm" in res.stopping_criterion
+        )
+        info = {
+            "success": success,
+            "msg": res.stopping_criterion,
+        }
+        if success:
+            return theta_hat, info, cost_penalized
+        else:
+            return None, info, cost_penalized
 
     def test_and_add(self, A_list, Ai, output_poly):
         x = self.get_x()

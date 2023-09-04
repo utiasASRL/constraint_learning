@@ -260,14 +260,12 @@ def find_local_minimum(
         if t_local is None:
             cost_solver = np.nan
             t_local = np.nan
-            info_here["max_res"] = np.nan
-            info_here["cond_Hess"] = np.nan
             failed.append(i)
 
         costs.append(cost_solver)
         local_solutions.append(t_local)
-        max_res.append(info_here["max res"])
-        cond_Hess.append(info_here["cond Hess"])
+        max_res.append(info_here.get("max res", np.nan))
+        cond_Hess.append(info_here.get("cond Hess", np.nan))
 
     if len(costs):
         info["success"] = True

@@ -91,3 +91,14 @@ def get_xtheta_from_T(T):
     C = T[:-1, :-1]
     r = T[:-1, -1]
     return np.r_[r, C.flatten("F")]
+
+def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
+    C_hat, r_hat = get_C_r_from_xtheta(xtheta_hat, d)
+    C_gt, r_gt = get_C_r_from_xtheta(xtheta_gt, d)
+    r_error = np.linalg.norm(r_hat - r_gt)
+    C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(d))
+    return {
+        "r error": r_error,
+        "C error": C_error,
+        "total error": r_error + C_error,
+    }

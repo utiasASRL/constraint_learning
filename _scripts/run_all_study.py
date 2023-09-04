@@ -21,7 +21,7 @@ def generate_results(lifters, seed=0):
         lifter = Lifter(**dict)
 
         print(f"\n\n ======================== {lifter} ==========================")
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         dict_list, success = learner.run(verbose=True, plot=False)
         if not success:
             raise RuntimeError(
@@ -48,13 +48,13 @@ def generate_results(lifters, seed=0):
 def run_all(recompute=RECOMPUTE):
     lifters = [
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-        #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-        #(Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-        #(Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-        #(WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-        #(MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
-        #(WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-        #(MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        (Stereo3DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
     try:
@@ -90,7 +90,7 @@ def run_all(recompute=RECOMPUTE):
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
             out(
-                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & EVR \\\\ \n"
+                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
             )
             out(f"\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):

@@ -10,7 +10,10 @@ from utils.geometry import (
     get_T,
     get_xtheta_from_theta,
     get_theta_from_xtheta,
+    get_pose_errors_from_xtheta
 )
+
+
 
 NOISE = 1.0  #
 
@@ -137,11 +140,18 @@ class StereoLifter(StateLifter, ABC):
 
         # TODO(FD) below is a bit hacky, these two variables should not both be called theta.
         # theta is either (x, y, alpha) or (x, y, z, a1, a2, a3)
-        if len(theta) in [3, 6]:
-            C, r = get_C_r_from_theta(theta, self.d)
-        # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
-        elif len(theta) == 12:
-            C, r = get_C_r_from_xtheta(theta, self.d)
+        if self.d == 2:
+            if len(theta) == 3:
+                C, r = get_C_r_from_theta(theta, self.d)
+            elif len(theta) == 6:
+                C, r = get_C_r_from_xtheta(theta, self.d)
+        elif self.d == 3:
+            if len(theta) == 6:
+                # theta is (x, y, C.flatten()), technically this should be called xtheta!
+                C, r = get_C_r_from_theta(theta, self.d)
+            elif len(theta) == 12:
+                # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
+                C, r = get_C_r_from_xtheta(theta, self.d)
 
         if self.param_level != "no":
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
@@ -327,16 +337,7 @@ class StereoLifter(StateLifter, ABC):
 
     def get_error(self, xtheta_hat):
         xtheta_gt = get_xtheta_from_theta(self.theta, self.d)
-
-        C_hat, r_hat = get_C_r_from_xtheta(xtheta_hat, self.d)
-        C_gt, r_gt = get_C_r_from_xtheta(xtheta_gt, self.d)
-        r_error = np.linalg.norm(r_hat - r_gt)
-        C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(self.d))
-        return {
-            "r error": r_error,
-            "C error": C_error,
-            "total error": r_error + C_error,
-        }
+        return get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, self.d)
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
