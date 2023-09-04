@@ -53,7 +53,7 @@ def range_only_tightness():
 
 
 def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
-    n_positions_list = [10, 15, 20, 25, 30]
+    n_positions_list = [10, 15]  # , 20, 25, 30]
     for level in ["no", "quad"]:
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)

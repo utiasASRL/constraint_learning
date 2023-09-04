@@ -175,7 +175,9 @@ def solve_sdp_cvxpy(
             [y[i] * Ai for (i, Ai) in enumerate(As)]
             + [-u[i] * Bi for (i, Bi) in enumerate(B_list)]
         )
+        # this does not include symmetry of Q!!
         constraints = [LHS << Q_here]
+        constraints += [LHS == LHS.T]
         if k > 0:
             constraints.append(u >= 0)
 

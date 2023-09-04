@@ -192,7 +192,7 @@ def plot_scalability(
         axs[key].add_patch(
             Rectangle(
                 [extra_plot_xlim[0], extra_plot_ylim[0]],
-                width=np.diff(extra_plot_xlim)[[0]],
+                width=np.diff(extra_plot_xlim)[0],
                 height=np.diff(extra_plot_ylim)[0],
                 edgecolor="k",
                 facecolor="none",
@@ -201,7 +201,7 @@ def plot_scalability(
         axs["zoom"].add_patch(
             Rectangle(
                 [extra_plot_xlim[0], extra_plot_ylim[0]],
-                width=np.diff(extra_plot_xlim)[[0]],
+                width=np.diff(extra_plot_xlim)[0],
                 height=np.diff(extra_plot_ylim)[0],
                 edgecolor="k",
                 facecolor="none",
@@ -470,7 +470,9 @@ def run_scalability_new(
                     # doesn't matter because we don't use the usual pipeline.
                     # variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
                     new_learner = Learner(
-                        lifter=new_lifter, variable_list=new_lifter.variable_list, n_inits=1
+                        lifter=new_lifter,
+                        variable_list=new_lifter.variable_list,
+                        n_inits=1,
                     )
                     success = new_learner.find_local_solution()
                     if not success:
@@ -491,7 +493,7 @@ def run_scalability_new(
                     else:
                         print(f"=========== tightness test: {name} ===============")
                         t1 = time.time()
-                        new_learner.is_tight(verbose=True)
+                        new_learner.is_tight(verbose=False)
                         data_dict[f"t solve SDP"] = time.time() - t1
                     df_data.append(deepcopy(data_dict))
                     if n_successful_seeds >= n_seeds:
@@ -553,7 +555,7 @@ def run_scalability_new(
                     lifter=new_lifter,
                     variable_list=variable_list,
                     apply_templates=False,
-                    n_inits=1
+                    n_inits=1,
                 )
 
                 success = new_learner.find_local_solution()
@@ -578,6 +580,7 @@ def run_scalability_new(
 
             df_oneshot = pd.DataFrame(df_data)
             df_oneshot.to_pickle(fname)
+            print("saved oneshot as", fname)
 
     if df_oneshot is not None:
         df = pd.concat([df, df_oneshot], axis=0)
