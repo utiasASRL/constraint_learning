@@ -41,7 +41,7 @@ def lifter_tightness(
             n_outliers=n_outliers if robust else 0,
         )
         learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
+            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False, n_inits=1
         )
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(

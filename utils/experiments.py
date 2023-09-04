@@ -470,7 +470,7 @@ def run_scalability_new(
                     # doesn't matter because we don't use the usual pipeline.
                     # variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
                     new_learner = Learner(
-                        lifter=new_lifter, variable_list=new_lifter.variable_list
+                        lifter=new_lifter, variable_list=new_lifter.variable_list, n_inits=1
                     )
                     success = new_learner.find_local_solution()
                     if not success:
@@ -553,6 +553,7 @@ def run_scalability_new(
                     lifter=new_lifter,
                     variable_list=variable_list,
                     apply_templates=False,
+                    n_inits=1
                 )
 
                 success = new_learner.find_local_solution()
