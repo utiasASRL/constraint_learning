@@ -39,14 +39,16 @@ def range_only_tightness():
             variable_list="all",
         )
         learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
+            lifter=lifter,
+            variable_list=lifter.variable_list,
+            apply_templates=False,
+            n_inits=1,
         )
         fname_root = f"_results/{lifter}_seed{seed}"
         run_oneshot_experiment(
             learner,
             fname_root,
             plots,
-            use_known=False,
         )
 
 
@@ -62,7 +64,7 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             level=level,
             variable_list=variable_list,
         )
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         df = run_scalability_new(
             learner,
             param_list=n_positions_list,

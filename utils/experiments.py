@@ -631,16 +631,14 @@ def run_oneshot_experiment(
         savefig(fig, fname_root + "_matrices.pdf")
 
         if idx_subset_reorder is not None and len(idx_subset_reorder):
-            A_matrices = [
-                learner.constraints[i - 1].A_poly_ for i in idx_subset_reorder
-            ]
+            constraints = learner.templates_known + learner.constraints
+            A_matrices = [constraints[i - 1].A_poly_ for i in idx_subset_reorder[1:]]
             fig, ax = learner.save_matrices_sparsity(A_matrices)
             savefig(fig, fname_root + "_matrices-sparsity-reorder.pdf")
 
         if idx_subset_original is not None and len(idx_subset_original):
-            A_matrices = [
-                learner.constraints[i - 1].A_poly_ for i in idx_subset_original
-            ]
+            constraints = learner.templates_known + learner.constraints
+            A_matrices = [constraints[i - 1].A_poly_ for i in idx_subset_original[1:]]
             fig, ax = learner.save_matrices_sparsity(A_matrices)
             savefig(fig, fname_root + "_matrices-sparsity-original.pdf")
 

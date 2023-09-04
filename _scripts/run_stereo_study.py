@@ -135,4 +135,4 @@ if __name__ == "__main__":
     # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    run_all()
+    run_all(tightness=False)

@@ -71,7 +71,7 @@ def lifter_scalability_new(
         robust=robust,
         n_outliers=n_outliers,
     )
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+    learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,

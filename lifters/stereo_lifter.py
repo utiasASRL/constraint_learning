@@ -10,9 +10,8 @@ from utils.geometry import (
     get_T,
     get_xtheta_from_theta,
     get_theta_from_xtheta,
-    get_pose_errors_from_xtheta
+    get_pose_errors_from_xtheta,
 )
-
 
 
 NOISE = 1.0  #
@@ -52,8 +51,8 @@ class StereoLifter(StateLifter, ABC):
         ["h", "z_0"],
         ["h", "x", "z_0"],
         ["h", "z_0", "z_1"],
-        ["h", "x", "z_0", "z_1"],
-        ["h", "z_0", "z_1", "z_2"],
+        ["h", "x", "z_0", "z_1"],  # should achieve tightness here
+        # ["h", "z_0", "z_1", "z_2"],
     ]
 
     def __init__(

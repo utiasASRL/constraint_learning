@@ -855,7 +855,7 @@ class Learner(object):
 
     def generate_templates_poly(self, constraints=None, factor_out_parameters=False):
         if constraints is None:
-            constraints = self.constraints
+            constraints = self.templates_known + self.constraints
 
         plot_rows = []
         plot_row_labels = []
