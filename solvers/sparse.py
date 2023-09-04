@@ -76,7 +76,7 @@ def solve_lambda(
     solver=SOLVER,
     opts=solver_options[SOLVER],
     primal=False,
-    verbose=True,
+    verbose=False,
     tol=None,
 ):
     """Determine lambda with an SDP.
