@@ -66,7 +66,7 @@ class StateLifter(BaseClass):
     NORMALIZE = False
 
     # how much to oversample (>= 1)
-    FACTOR = 2.0
+    FACTOR = 1.2
 
     # number of times we remove bad samples from data matrix
     N_CLEANING_STEPS = 1  # was 3
@@ -902,11 +902,17 @@ class StateLifter(BaseClass):
             basis = Q[:, sorted_idx[rank:]].T
         elif method == "qrp":
             # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
+
+            assert Y.shape[0] >= Y.shape[1], "only tall matrices supported"
+
             Q, R, p = la.qr(Y, pivoting=True, mode="economic")
             S = np.abs(np.diag(R))
             rank = np.sum(S > self.EPS_SVD)
             R1, R2 = R[:rank, :rank], R[:rank, rank:]
+            # [R1  R2]  @  [R1^-1 @ R2] = [R2 - R2]
+            # [0   0 ]     [    -I    ]   [0]
             N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
+
             basis = np.zeros(N.T.shape)
             basis[:, p] = N.T
         else:
