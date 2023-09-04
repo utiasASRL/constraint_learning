@@ -19,7 +19,7 @@ NOISE = 1.0  #
 NORMALIZE = True
 
 SOLVER_KWARGS = dict(
-    min_gradient_norm=1e-7, max_iterations=10000, min_step_size=1e-8, verbosity=1
+    min_gradient_norm=1e-6, max_iterations=10000, min_step_size=1e-10, verbosity=1
 )
 
 

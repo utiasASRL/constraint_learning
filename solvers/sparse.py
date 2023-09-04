@@ -12,7 +12,7 @@ SOLVER = "MOSEK"
 # see https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
 LAMBDA_REL_GAP = 0.1
 
-EPSILON = 1e-6  # set to None to minimize epsilon
+EPSILON = 1e-4  # set to None to minimize epsilon
 
 
 def bisection(function, inputs, left_num, right_num):

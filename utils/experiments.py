@@ -412,7 +412,6 @@ def run_scalability_new(
 
     fname = fname_root + "_order_dict.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         try:
             with open(fname, "rb") as f:
