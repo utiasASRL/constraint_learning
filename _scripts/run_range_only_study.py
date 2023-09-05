@@ -7,12 +7,17 @@ from utils.plotting_tools import savefig
 from utils.experiments import plot_scalability, save_table
 from utils.experiments import run_oneshot_experiment, run_scalability_new
 
+DEBUG = True
+
 N_SEEDS = 10
 RECOMPUTE = True
 
 n_positions = 3
 n_landmarks = 10
 d = 3
+
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():
@@ -44,7 +49,7 @@ def range_only_tightness():
             apply_templates=False,
             n_inits=1,
         )
-        fname_root = f"_results/{lifter}_seed{seed}"
+        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
         run_oneshot_experiment(
             learner,
             fname_root,
@@ -53,7 +58,10 @@ def range_only_tightness():
 
 
 def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
-    n_positions_list = [10, 15]  # , 20, 25, 30]
+    if DEBUG:
+        n_positions_list = [10, 15]
+    else:
+        n_positions_list = [10, 15, 20, 25, 30]
     for level in ["no", "quad"]:
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -75,7 +83,7 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             continue
 
         df = df[df.type != "original"]
-        fname_root = f"_results/scalability_{learner.lifter}"
+        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
 
         df_sub = df[df.type != "oneshot"]["t solve SDP"]
         ylim = [df_sub.min(), df_sub.max()]

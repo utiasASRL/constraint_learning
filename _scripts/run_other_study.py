@@ -1,5 +1,4 @@
 import numpy as np
-import pandas as pd
 
 from utils.experiments import plot_scalability, save_table
 from lifters.learner import Learner
@@ -11,10 +10,12 @@ from utils.experiments import (
     run_scalability_new,
 )
 
-RECOMPUTE = False
+DEBUG = True
+
+RECOMPUTE = True
 N_SEEDS = 1
 
-WAHBA = True
+WAHBA = False
 MONO = True
 
 RESULTS_DIR = "_results"
@@ -64,10 +65,10 @@ def lifter_scalability_new(
     level = "xwT"
     variable_list = None  # use the default one for the first step.
 
-    if d == 2:
-        n_landmarks_list = [5, 10, 15, 20, 25, 30]
-    elif d == 3:
-        n_landmarks_list = [10, 11, 12, 13, 14, 15]  # , 20, 25, 30]
+    if DEBUG:
+        n_landmarks_list = [10, 11]  # , 12, 13, 14, 15]  # , 20, 25, 30]
+    else:
+        n_landmarks_list = [10, 11, 12, 13, 14, 15]
 
     np.random.seed(0)
     lifter = Lifter(

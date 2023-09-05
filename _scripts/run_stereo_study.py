@@ -1,8 +1,6 @@
 import numpy as np
 import matplotlib.pylab as plt
 
-import matplotlib
-
 # matplotlib.use("TkAgg")
 # plt.ion()
 # matplotlib.use('Agg') # non-interactive
@@ -11,7 +9,6 @@ import matplotlib
 from utils.experiments import (
     run_scalability_new,
     run_oneshot_experiment,
-    run_scalability_plot,
 )
 from utils.experiments import plot_scalability, save_table
 from utils.plotting_tools import savefig
@@ -21,8 +18,13 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import savefig
 
+DEBUG = True
+
 RECOMPUTE = False
 N_SEEDS = 10
+
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def stereo_tightness(d=2, n_landmarks=None):
@@ -61,16 +63,17 @@ def stereo_tightness(d=2, n_landmarks=None):
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
-        fname_root = f"_results/{lifter}_seed{seed}"
+        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
 
         run_oneshot_experiment(learner, fname_root, plots)
 
 
 def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
-    if d == 2:
-        n_landmarks_list = [5, 10, 15, 20, 25, 30]
-    elif d == 3:
+    if DEBUG:
+        n_landmarks_list = [10, 15]
+    else:
         n_landmarks_list = [10, 15, 20, 25, 30]
+
     level = "urT"
     param_level = "ppT"
 
@@ -105,7 +108,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     if df is None:
         return
 
-    fname_root = f"_results/scalability_{learner.lifter}"
+    fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
 
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
@@ -123,12 +126,11 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+    d = 2 if DEBUG else 3
     if scalability:
-        # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
-        stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
+        stereo_scalability_new(d=d, n_seeds=n_seeds, recompute=recompute)
     if tightness:
-        # stereo_tightness(d=2)
-        stereo_tightness(d=3)
+        stereo_tightness(d=d)
 
 
 if __name__ == "__main__":

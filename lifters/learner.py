@@ -471,6 +471,7 @@ class Learner(object):
         #    self.templates_known_sub.append(matches[0])
         return len(diff_index_set)
 
+    # @profile
     def learn_templates(self, plot=False, data_dict=None):
         templates = []
 
@@ -553,7 +554,6 @@ class Learner(object):
             return n_new, n_all
         return 0, len(self.constraints)
 
-    # @profile
     def apply_templates(self, reapply_all=False):
         # the new templates are all the ones corresponding to the new matrix variables.
         new_constraints = []
@@ -590,7 +590,6 @@ class Learner(object):
         self.constraints = indep_constraints
         return n_new, n_all
 
-    # @profile
     def clean_constraints(
         self,
         new_constraints,
@@ -737,6 +736,7 @@ class Learner(object):
         #    self.constraints, [], remove_imprecise=False
         # )
 
+    # @profile
     def run(self, verbose=False, plot=False):
         data = []
         success = False

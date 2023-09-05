@@ -32,7 +32,7 @@ ylabels = {
 }
 
 RESULTS_FOLDER = "_results"
-EARLY_STOP = False
+EARLY_STOP = True
 
 
 def create_newinstance(lifter, n_params):
@@ -419,6 +419,9 @@ def run_scalability_new(
             pickle.dump(orig_dict, f)
         print("wrote intermediate as", fname)
 
+    if EARLY_STOP:
+        return None
+
     fname = fname_root + "_order_dict.pkl"
     try:
         assert not recompute, "forcing to recompute"
@@ -447,11 +450,9 @@ def run_scalability_new(
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
 
-    if learner is not None:
-        save_tightness_order(learner, fname_root + "_new", use_bisection=True)
-
-    if EARLY_STOP:
-        return None
+    # below is redundant.
+    # if learner is not None:
+    #    save_tightness_order(learner, fname_root + "_new", use_bisection=True)
 
     fname = fname_root + "_df_all.pkl"
     try:

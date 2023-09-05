@@ -8,7 +8,6 @@ if __name__ == "__main__":
     recompute = True
     tightness = True
     scalability = True
-    run_all_study(recompute=True)
     run_other_study(
         n_seeds=n_seeds,
         recompute=recompute,
@@ -27,3 +26,4 @@ if __name__ == "__main__":
         tightness=tightness,
         scalability=scalability,
     )
+    run_all_study(recompute=True)

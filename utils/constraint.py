@@ -43,6 +43,7 @@ class Constraint(object):
         self.applied_list = []
 
     @staticmethod
+    # @profile
     def init_from_b(
         index: int,
         b: np.ndarray,
@@ -57,9 +58,12 @@ class Constraint(object):
         a_full = lifter.get_vec(A_sparse, sparse=True)
         # a_full = lifter.augment_using_zero_padding(a, mat_var_dict)
         if convert_to_polyrow:
-            A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
+            # A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
+            A_poly, __ = PolyMatrix.init_from_sparse(
+                A_sparse, var_dict=lifter.var_dict, unfold=True
+            )
             polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
-            polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
+            # polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
             return Constraint(
                 index=index,
                 a=a,
@@ -67,7 +71,7 @@ class Constraint(object):
                 A_sparse=A_sparse,
                 A_poly=A_poly,
                 polyrow_b=polyrow_b,
-                polyrow_a=polyrow_a,
+                # polyrow_a=polyrow_a,
                 a_full=a_full,
                 mat_var_dict=mat_var_dict,
                 known=known,
@@ -93,7 +97,7 @@ class Constraint(object):
         index: int = 0,
         template_idx: int = None,
     ):
-        Ai_sparse_small= A_poly.get_matrix(variables=mat_var_dict)
+        Ai_sparse_small = A_poly.get_matrix(variables=mat_var_dict)
         ai = lifter.get_vec(Ai_sparse_small, correct=True)
         bi = lifter.augment_using_zero_padding(ai)
         polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
@@ -134,7 +138,6 @@ class Constraint(object):
         )
 
     def scale_to_new_lifter(self, lifter: StateLifter):
-
         if self.known:
             # known matrices are stored in origin variables, not unrolled form
             self.A_sparse_ = self.A_poly_.get_matrix(lifter.var_dict)
