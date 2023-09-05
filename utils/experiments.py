@@ -32,7 +32,7 @@ ylabels = {
 }
 
 RESULTS_FOLDER = "_results"
-EARLY_STOP = True
+EARLY_STOP = False
 
 
 def create_newinstance(lifter, n_params):

@@ -4,7 +4,7 @@ from _scripts.run_range_only_study import run_all as run_range_only_study
 from _scripts.run_other_study import run_all as run_other_study
 
 if __name__ == "__main__":
-    n_seeds = 3
+    n_seeds = 10
     recompute = True
     tightness = True
     scalability = True

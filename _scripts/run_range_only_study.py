@@ -7,7 +7,7 @@ from utils.plotting_tools import savefig
 from utils.experiments import plot_scalability, save_table
 from utils.experiments import run_oneshot_experiment, run_scalability_new
 
-DEBUG = True
+DEBUG = False
 
 N_SEEDS = 10
 RECOMPUTE = True
@@ -16,8 +16,8 @@ n_positions = 3
 n_landmarks = 10
 d = 3
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results"
+# RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():

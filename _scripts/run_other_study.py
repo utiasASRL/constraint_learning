@@ -10,7 +10,7 @@ from utils.experiments import (
     run_scalability_new,
 )
 
-DEBUG = True
+DEBUG = False
 
 RECOMPUTE = True
 N_SEEDS = 1

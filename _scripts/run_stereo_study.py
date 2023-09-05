@@ -18,13 +18,13 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import savefig
 
-DEBUG = True
+DEBUG = False
 
 RECOMPUTE = False
 N_SEEDS = 10
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results"
+# RESULTS_DIR = "_results_server"
 
 
 def stereo_tightness(d=2, n_landmarks=None):
