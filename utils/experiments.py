@@ -451,8 +451,8 @@ def run_scalability_new(
             pickle.dump(learner, f)
 
     # below is redundant.
-    # if learner is not None:
-    #    save_tightness_order(learner, fname_root + "_new", use_bisection=True)
+    if learner is not None:
+        save_tightness_order(learner, fname_root + "_new", use_bisection=True)
 
     fname = fname_root + "_df_all.pkl"
     try:
