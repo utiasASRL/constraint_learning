@@ -20,27 +20,53 @@ from utils.plotting_tools import plot_frame
 
 
 RANGE_TYPE = "range_calib"
-PLOT_NUMBER = 0
+PLOT_NUMBER = 10
 
 
-def plot_local_vs_global(df, fname_root=""):
+def plot_local_vs_global(df, fname_root="", cost_thresh=None):
     fig, ax = plt.subplots()
     fig.set_size_inches(5, 5)
     for i, row in df.iterrows():
         # for ro, we don't have a certificate (it's always true because rank-1)
-        color = "g" if row.get("global solution cert", True) else "r"
-        ax.scatter(row["max res"], row.qcqp_cost, color=color, marker="o")
+        if row.get("global solution cert", True):  # solution is certified
+            if cost_thresh and row.qcqp_cost < cost_thresh:  # it is global minimum
+                color = "C0"  # true positive
+            elif cost_thresh and row.qcqp_cost >= cost_thresh:  # it is local minimum
+                color = "C3"  # false positive, should never happen!!
+            else:
+                color = "C0"
+        else:  # non-certified
+            if cost_thresh and row.qcqp_cost < cost_thresh:  # it is a global minimum
+                color = "C2"  # false negative
+            elif cost_thresh and row.qcqp_cst >= cost_thresh:
+                color = "C1"  # true negative
+            else:
+                color = "C1"
 
+        ax.scatter(row["max res"], row.qcqp_cost, color=color, marker="o")
         for key in row.index:
             if key.startswith("local solution") and not ("cert" in key):
                 idx = int(key.split("local solution ")[-1])
                 cert = row.get(f"local solution {idx} cert", False)
-                color = "g" if cert == True else "r"
-                ax.scatter(
-                    row["max res"], row[f"local cost {idx}"], color=color, marker="o"
-                )
-    ax.scatter([], [], color="r", marker="o", label="uncertified")
-    ax.scatter([], [], color="g", marker="o", label="certified")
+                cost = row[f"local cost {idx}"]
+                if not np.isnan(cert) and cert:  # certified
+                    if cost_thresh and cost < cost_thresh:
+                        color = "C0"  # true positive
+                    elif cost_thresh and cost > cost_thresh:
+                        color = "C3"
+                    else:
+                        color = "C0"
+                else:
+                    if cost_thresh and cost < cost_thresh:
+                        color = "C2"
+                    elif cost_thresh and cost > cost_thresh:
+                        color = "C1"
+                    else:
+                        color = "C1"
+                ax.scatter(row["max res"], cost, color=color, marker="o")
+    ax.scatter([], [], color="C0", marker="o", label="true positive")
+    ax.scatter([], [], color="C1", marker="o", label="true negative")
+    ax.scatter([], [], color="C2", marker="o", label="false negative")
     ax.legend()
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -52,14 +78,21 @@ def plot_local_vs_global(df, fname_root=""):
     return fig, ax
 
 
-def plot_results(df, ylabel="RDG", fname_root=""):
+hue_order = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
+
+
+def plot_results(df, ylabel="RDG", fname_root="", thresh=None):
     label_names = {"max res": "maximum residual"}
     kwargs = {"edgecolor": "none"}
     for x in ["max res"]:  # ["total error", "cond Hess", "max res", "q"]:
         fig, ax = plt.subplots()
         fig.set_size_inches(5, 5)
-        sns.scatterplot(data=df, x=x, y=ylabel, ax=ax, hue="dataset", **kwargs)
+        sns.scatterplot(
+            data=df, x=x, y=ylabel, ax=ax, hue="dataset", hue_order=hue_order, **kwargs
+        )
         # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+        if thresh is not None:
+            ax.axhline(thresh, color="k", ls=":", label="tightness threshold")
         ax.legend()
         ax.set_yscale("log")
         ax.set_xscale("log")
@@ -67,7 +100,7 @@ def plot_results(df, ylabel="RDG", fname_root=""):
         ax.set_xlabel(label_names.get(x, x))
         ax.grid()
         if fname_root != "":
-            savefig(fig, f"{fname_root}_{x.replace(' ', '_')}.pdf")
+            savefig(fig, f"{fname_root}_{x.replace(' ', '_')}_{ylabel}.pdf")
 
     fig, ax = plt.subplots()
     fig.set_size_inches(5, 5)
@@ -438,8 +471,9 @@ def run_real_experiment(
                     theta=that,
                     color="k",
                     marker="o",
-                    label=f"global minimum, q={cost:.2e}",
+                    label=f"global min, q={cost:.2e}",
                     facecolors="none",
+                    s=50,
                 )
             ax.legend()
             fname = f"{fname_root}_local.pdf"
@@ -521,7 +555,6 @@ def run_all(
         counter += 1
         if counter >= n_successful:
             break
-        continue
 
         if counter < PLOT_NUMBER:
             fname_root = out_name.split(".")[0] + f"_{counter}"
@@ -561,7 +594,6 @@ def run_all(
         add_scalebar(ax, size=1, size_vertical=0.03, loc="lower right", fontsize=40)
     ax.axis("off")
     savefig(fig, out_name.split(".")[0] + "_poses.pdf")
-    return
 
     df = pd.concat(df_list)
     if out_name != "":

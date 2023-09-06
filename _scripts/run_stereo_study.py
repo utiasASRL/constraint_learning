@@ -101,7 +101,9 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
     if lifter.d == 2:
-        run_scalability_plot(learner, recompute=recompute)
+        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+        run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
+        return
 
     df = run_scalability_new(
         learner,
@@ -118,7 +120,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(8, 3)
-    axs["t create constraints"].legend(loc="lower right")
+    axs[0].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
 
     # fig, ax = plot_scalability(df, log=True, start="n ")
@@ -131,12 +133,16 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
+        print("========== Stereo2D scalability ===========")
         stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
         if not DEBUG:
+            print("========== Stereo3D scalability ===========")
             stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
     if tightness:
+        print("========== Stereo2D tightness ===========")
         stereo_tightness(d=2)
         if not DEBUG:
+            print("========== Stereo3D tightness ===========")
             stereo_tightness(d=3)
 
 

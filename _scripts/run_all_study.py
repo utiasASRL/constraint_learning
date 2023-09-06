@@ -13,6 +13,8 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 
 RECOMPUTE = True
 
+RESULTS_DIR = "_results_server"
+
 
 def generate_results(lifters, seed=0):
     all_list = []
@@ -57,9 +59,11 @@ def run_all(recompute=RECOMPUTE):
         (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
+    fname = f"{RESULTS_DIR}/all_df_new.pkl"
     try:
         assert recompute is False
-        df = pd.read_pickle("_results/all_df_new.pkl")
+        df = pd.read_pickle(fname)
+        print(f"read {fname}")
         lifters_str = set([str(L(**d)) for L, d in lifters])
         assert lifters_str.issubset(
             df.lifter.unique().astype(str)
@@ -68,7 +72,7 @@ def run_all(recompute=RECOMPUTE):
     except (FileNotFoundError, AssertionError) as e:
         print(e)
         df = generate_results(lifters)
-        df.to_pickle("_results/all_df_new.pkl")
+        df.to_pickle(fname)
 
     times = {
         "t learn templates": "$t_n$",
@@ -86,7 +90,7 @@ def run_all(recompute=RECOMPUTE):
         "stereo2d_urT_ppT": "stereo (2d)",
         "stereo3d_urT_ppT": "stereo (3d)",
     }
-    fname = "_results/all_df.tex"
+    fname = f"{RESULTS_DIR}/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
             out(

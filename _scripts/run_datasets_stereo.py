@@ -19,6 +19,8 @@ SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
+RESULTS_DIR = "_results"
+
 
 def load_experiment(dataset):
     if dataset == "starrynight":
@@ -35,15 +37,15 @@ def load_experiment(dataset):
 
 if __name__ == "__main__":
     df_list = []
-    n_successful = 100
+    n_successful = 10  # was 100
 
     datasets = ["starrynight", "loop-2d_s4", "eight_s3", "zigzag_s3"]
     # datasets = ["starrynight"]
     for dataset in datasets:
         if USE_GT:
-            fname = f"_results/stereo_{dataset}_{n_successful}_gt.pkl"
+            fname = f"{RESULTS_DIR}/stereo_{dataset}_{n_successful}_gt.pkl"
         else:
-            fname = f"_results/stereo_{dataset}_{n_successful}.pkl"
+            fname = f"{RESULTS_DIR}/stereo_{dataset}_{n_successful}.pkl"
         try:
             assert RECOMPUTE is False
             df_all = pd.read_pickle(fname)
@@ -69,9 +71,14 @@ if __name__ == "__main__":
     constraint_type = "sorted"
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
-    fname_root = "_results/stereo"
+    fname_root = f"{RESULTS_DIR}/stereo"
 
-    plot_local_vs_global(df, fname_root=fname_root)
-    plot_results(df, ylabel="RDG", fname_root=fname_root)
+    # cost below is found empirically
+    plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
+
+    from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
+
+    plot_results(df, ylabel="RDG", fname_root=fname_root, thresh=TOL_REL_GAP)
+    plot_results(df, ylabel="SVR", fname_root=fname_root, thresh=TOL_RANK_ONE)
     plt.show()
     print("done")

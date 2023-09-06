@@ -16,6 +16,8 @@ def plot_frame(
     marker="+",
     label=None,
     scale=1.0,
+    ls="--",
+    alpha=0.5,
     **kwargs,
 ):
     p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
@@ -28,12 +30,21 @@ def plot_frame(
                 [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
                 [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
                 color=col,
-                ls="--",
-                alpha=0.5,
+                ls=ls,
+                alpha=alpha,
+                zorder=-1,
             )
     except Exception as e:
         pass
-    ax.scatter(*p_gt[:, :2].T, color=color, marker=marker, label=label, **kwargs)
+    ax.scatter(
+        *p_gt[:, :2].T,
+        color=color,
+        marker=marker,
+        label=label,
+        zorder=1,
+        **kwargs,
+    )
+    return
 
 
 def add_rectangles(ax, dict_sizes, color="red"):
@@ -207,6 +218,7 @@ def plot_matrices(df_tight, fname_root):
                 title=matrix_type,
             )
             savefig(fig, fname)
+
 
 def add_scalebar(
     ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1

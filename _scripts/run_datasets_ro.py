@@ -24,10 +24,12 @@ SIM_NOISE = 1.0
 
 RECOMPUTE = True
 
+RESULTS_DIR = "_results"
+
 
 if __name__ == "__main__":
     datasets = ["zigzag_s3", "loop-2d_s4", "eight_s3"]
-    n_successful = 100
+    n_successful = 10  # was 100
     level = "quad"
 
     df_list = []
@@ -35,9 +37,9 @@ if __name__ == "__main__":
         exp = Experiment(DATASET_ROOT, dataset, data_type="uwb", from_id=1)
 
         if USE_GT:
-            fname = f"_results/ro_{dataset}_{level}_{n_successful}_gt.pkl"
+            fname = f"{RESULTS_DIR}/ro_{dataset}_{level}_{n_successful}_gt.pkl"
         else:
-            fname = f"_results/ro_{dataset}_{level}_{n_successful}.pkl"
+            fname = f"{RESULTS_DIR}/ro_{dataset}_{level}_{n_successful}.pkl"
 
         try:
             assert RECOMPUTE is False
@@ -61,8 +63,12 @@ if __name__ == "__main__":
 
     df = pd.concat(df_list)
 
-    fname_root = f"_results/ro_{level}"
+    fname_root = f"{RESULTS_DIR}/ro_{level}"
     plot_local_vs_global(df, fname_root=fname_root)
-    plot_results(df, ylabel="SVR", fname_root=fname_root)
+
+    from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
+
+    plot_results(df, ylabel="SVR", fname_root=fname_root, thresh=TOL_RANK_ONE)
+    plot_results(df, ylabel="RDG", fname_root=fname_root, thresh=TOL_REL_GAP)
     plt.show()
     print("done")
