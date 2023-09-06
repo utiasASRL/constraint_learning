@@ -98,11 +98,11 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
             variable_list=variable_list,
         )
 
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-
     if lifter.d == 2:
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         run_scalability_plot(learner, recompute=recompute)
 
+    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
@@ -132,7 +132,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
         stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
-        #if not DEBUG:
+        # if not DEBUG:
         #    stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
     if tightness:
         stereo_tightness(d=2)
