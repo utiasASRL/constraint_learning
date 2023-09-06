@@ -16,8 +16,8 @@ n_positions = 3
 n_landmarks = 10
 d = 3
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():

@@ -18,8 +18,8 @@ N_SEEDS = 1
 WAHBA = True
 MONO = True
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def lifter_tightness(
