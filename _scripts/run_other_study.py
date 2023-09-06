@@ -15,7 +15,7 @@ DEBUG = False
 RECOMPUTE = True
 N_SEEDS = 1
 
-WAHBA = False
+WAHBA = True
 MONO = True
 
 RESULTS_DIR = "_results"
