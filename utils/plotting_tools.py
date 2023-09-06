@@ -207,3 +207,30 @@ def plot_matrices(df_tight, fname_root):
                 title=matrix_type,
             )
             savefig(fig, fname)
+
+def add_scalebar(
+    ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1
+):
+    """Add a scale bar to the plot.
+
+    :param ax: axis to use.
+    :param size: size of scale bar.
+    :param size_vertical: height (thckness) of the bar
+    :param loc: location (same syntax as for matplotlib legend)
+    """
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+    import matplotlib.font_manager as fm
+
+    fontprops = fm.FontProperties(size=fontsize)
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        size,
+        "{} m".format(size),
+        loc,
+        pad=pad,
+        color=color,
+        frameon=False,
+        size_vertical=size_vertical,
+        fontproperties=fontprops,
+    )
+    ax.add_artist(scalebar)

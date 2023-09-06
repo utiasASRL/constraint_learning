@@ -19,16 +19,16 @@ if __name__ == "__main__":
         tightness=tightness,
         scalability=scalability,
     )
-    # run_other_study(
-    #    n_seeds=n_seeds,
-    #    recompute=recompute,
-    #    tightness=tightness,
-    #    scalability=scalability,
-    # )
-    # run_range_only_study(
-    #    n_seeds=n_seeds,
-    #    recompute=recompute,
-    #    tightness=tightness,
-    #    scalability=scalability,
-    # )
-    # run_all_study(recompute=True)
+    run_other_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        tightness=tightness,
+        scalability=scalability,
+    )
+    run_range_only_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        tightness=tightness,
+        scalability=scalability,
+    )
+    run_all_study(recompute=True)

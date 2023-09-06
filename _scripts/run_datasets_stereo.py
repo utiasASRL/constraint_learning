@@ -5,7 +5,7 @@ import pandas as pd
 
 import matplotlib
 
-matplotlib.use("Agg")  # non-interactive
+matplotlib.use("TkAgg")  # non-interactive
 
 from utils.real_experiments import Experiment
 from utils.real_experiments import run_all, plot_results, plot_local_vs_global
@@ -37,7 +37,8 @@ if __name__ == "__main__":
     df_list = []
     n_successful = 100
 
-    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
+    datasets = ["starrynight", "loop-2d_s4", "eight_s3", "zigzag_s3"]
+    # datasets = ["starrynight"]
     for dataset in datasets:
         if USE_GT:
             fname = f"_results/stereo_{dataset}_{n_successful}_gt.pkl"
