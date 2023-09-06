@@ -48,7 +48,7 @@ def unravel_multi_index_triu(flat_indices, shape):
 
 class StateLifter(BaseClass):
     # consider singular value zero below this
-    EPS_SVD = 1e-7
+    EPS_SVD = 1e-5
 
     # set elements below this threshold to zero.
     EPS_SPARSE = 1e-9
