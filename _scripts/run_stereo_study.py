@@ -132,8 +132,8 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
         stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
-        if not DEBUG:
-            stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
+        #if not DEBUG:
+        #    stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
     if tightness:
         stereo_tightness(d=2)
         if not DEBUG:

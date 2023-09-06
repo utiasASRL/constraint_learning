@@ -6,20 +6,20 @@ from _scripts.run_other_study import run_all as run_other_study
 if __name__ == "__main__":
     n_seeds = 10
     recompute = True
-    tightness = True
+    tightness = False
     scalability = True
-    run_other_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-    )
-    run_range_only_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-    )
+    #run_other_study(
+    #    n_seeds=n_seeds,
+    #    recompute=recompute,
+    #    tightness=tightness,
+    #    scalability=scalability,
+    #)
+    #run_range_only_study(
+    #    n_seeds=n_seeds,
+    #    recompute=recompute,
+    #    tightness=tightness,
+    #    scalability=scalability,
+    #)
     run_stereo_study(
         n_seeds=n_seeds,
         recompute=recompute,
