@@ -9,6 +9,7 @@ import matplotlib.pylab as plt
 from utils.experiments import (
     run_scalability_new,
     run_oneshot_experiment,
+    run_scalability_plot,
 )
 from utils.experiments import plot_scalability, save_table
 from utils.plotting_tools import savefig
@@ -98,7 +99,10 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
         )
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    # run_scalability_plot(learner)
+
+    if lifter.d == 2:
+        run_scalability_plot(learner, recompute=recompute)
+
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
@@ -126,11 +130,14 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
-    d = 2 if DEBUG else 3
     if scalability:
-        stereo_scalability_new(d=d, n_seeds=n_seeds, recompute=recompute)
+        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
+        if not DEBUG:
+            stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
     if tightness:
-        stereo_tightness(d=d)
+        stereo_tightness(d=2)
+        if not DEBUG:
+            stereo_tightness(d=3)
 
 
 if __name__ == "__main__":

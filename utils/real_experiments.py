@@ -499,11 +499,29 @@ def run_all(
             print(f"skipping {time_idx} because not enough valid landmarks")
             continue
         ax.scatter(*new_lifter.landmarks[:, :2].T, color="k", marker="+")
-        plot_frame(new_lifter, ax, theta=new_lifter.theta, color="blue", marker="o")
+        if "starrynight" in out_name:
+            plot_frame(
+                new_lifter,
+                ax,
+                theta=new_lifter.theta,
+                color="blue",
+                marker="o",
+                scale=0.1,
+            )
+        else:
+            plot_frame(
+                new_lifter,
+                ax,
+                theta=new_lifter.theta,
+                color="blue",
+                marker="o",
+                scale=1.0,
+            )
 
         counter += 1
         if counter >= n_successful:
             break
+        continue
 
         if counter < PLOT_NUMBER:
             fname_root = out_name.split(".")[0] + f"_{counter}"
@@ -528,16 +546,22 @@ def run_all(
                 print(f"===== saved intermediate as {out_name} ==========")
             print(df)
 
+    from utils.plotting_tools import add_scalebar
+
     fig.set_size_inches(5, 5)
     ax.set_xlabel("x [m]")
     ax.set_ylabel("y [m]")
     if not "starrynight" in out_name:
         ax.set_xlim([-6.2, 4.1])
         ax.set_ylim([-6.2, 4.1])
+        size = np.diff(ax.get_ylim())[0]
+        add_scalebar(ax, size=1, size_vertical=1 / size, loc="lower right", fontsize=40)
     else:
         ax.axis("equal")
-    ax.grid()
+        add_scalebar(ax, size=1, size_vertical=0.03, loc="lower right", fontsize=40)
+    ax.axis("off")
     savefig(fig, out_name.split(".")[0] + "_poses.pdf")
+    return
 
     df = pd.concat(df_list)
     if out_name != "":

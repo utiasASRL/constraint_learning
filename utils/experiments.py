@@ -1,5 +1,6 @@
 import time
 from copy import deepcopy
+import pickle
 
 import pandas as pd
 import numpy as np
@@ -348,24 +349,38 @@ def tightness_study(learner: Learner, use_bisection=True):
     return idx_subset_original, idx_subset_reorder
 
 
-def run_scalability_plot(learner: Learner):
+def run_scalability_plot(learner: Learner, recompute=False):
     fname_root = f"_results/scalability_{learner.lifter}"
-    data, success = learner.run(
-        verbose=True, use_known=False, plot=False, tightness=learner.lifter.TIGHTNESS
-    )
-    df = pd.DataFrame(data)
+    fname = fname_root + "_plot.pkl"
+    try:
+        assert not recompute, "forcing to recompute"
+        with open(fname, "rb") as f:
+            learner = pickle.load(f)
+            df = pickle.load(f)
+        print(f"--------- read {fname} \n")
+    except (AssertionError, FileNotFoundError, AttributeError) as e:
+        print(e)
+        # find which of the constraints are actually necessary
+        data, success = learner.run(verbose=True, plot=False)
+        df = pd.DataFrame(data)
+        with open(fname, "wb") as f:
+            pickle.dump(learner, f)
+            pickle.dump(df, f)
+        print("wrote intermediate as", fname)
+
     fig, ax = plot_scalability_new(df, start="t ")
     savefig(fig, fname_root + f"_small.pdf")
 
-    idx_subset_original, idx_subset_reorder = tightness_study(learner, original=False)
+    idx_subset_reorder = learner.generate_minimal_subset(
+        reorder=True, tightness=learner.lifter.TIGHTNESS, use_bisection=True
+    )
     templates_poly = learner.generate_templates_poly(factor_out_parameters=False)
     add_columns = {
-        "required (reordered)": idx_subset_reorder,
+        "required (sorted)": idx_subset_reorder,
     }
     df = learner.get_sorted_df(templates_poly=templates_poly, add_columns=add_columns)
-    title = (
-        ""  # f"substitution level: {learner.lifter.LEVEL_NAMES[learner.lifter.level]}"
-    )
+    title = ""
+
     fig, ax = learner.save_sorted_templates(
         df, title=title, drop_zero=True, simplify=True
     )
@@ -381,8 +396,6 @@ def run_scalability_new(
     recompute=False,
     results_folder=RESULTS_FOLDER,
 ):
-    import pickle
-
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
     fname_all = fname_root + "_complete.pkl"
     try:
@@ -409,10 +422,6 @@ def run_scalability_new(
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
-
-        # df = pd.DataFrame(data)
-        # fig, ax = plot_scalability_new(df, start="t ")
-        # savefig(fig, fname_root + f"_small.pdf")
 
         with open(fname, "wb") as f:
             pickle.dump(learner, f)

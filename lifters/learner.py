@@ -864,13 +864,18 @@ class Learner(object):
         for constraint in constraints:
             mat_vars = constraint.mat_var_dict
             i = constraint.index
-            if factor_out_parameters:
+            if factor_out_parameters:  # use a and not b.
                 if constraint.polyrow_a_ is not None:
                     plot_rows.append(constraint.polyrow_a_)
                 else:
-                    polyrow_a = self.lifter.convert_a_to_polyrow(
-                        constraint.a_, constraint.mat_var_dict
-                    )
+                    if constraint.a_ is not None:
+                        polyrow_a = self.lifter.convert_a_to_polyrow(
+                            constraint.a_, constraint.mat_var_dict
+                        )
+                    elif constraint.a_full_ is not None:
+                        polyrow_a = self.lifter.convert_a_to_polyrow(
+                            constraint.a_full_, constraint.mat_var_dict
+                        )
                     plot_rows.append(polyrow_a)
             else:
                 plot_rows.append(constraint.polyrow_b_)
@@ -888,7 +893,7 @@ class Learner(object):
 
         # make sure variable_dict_j is ordered correctly.
         templates_poly.variable_dict_j = self.lifter.var_dict_row(
-            mat_vars, force_parameters_off=not factor_out_parameters
+            mat_vars, force_parameters_off=factor_out_parameters
         )
         return templates_poly
 
@@ -899,24 +904,27 @@ class Learner(object):
 
         # convert to poly matrix for plotting purposes only.
         poly_matrix = PolyMatrix(symmetric=False)
-        keys = set()
+        keys_j = []
+        keys_i = []
         for i, row in df.iterrows():
             for k, val in row[~row.isna()].items():
                 if "order" in k or "required" in k:
                     continue
                 poly_matrix[i, k] = val
-                keys.add(k)
+                keys_j.append(k)
+                keys_i.append(i)
 
         variables_j = self.lifter.var_dict_row(
             var_subset=self.lifter.var_dict, force_parameters_off=False
         )
-        assert keys.issubset(variables_j)
+        assert set(keys_j).issubset(variables_j)
         if drop_zero:
-            variables_j = {k: v for k, v in variables_j.items() if k in keys}
+            variables_j = {k: v for k, v in variables_j.items() if k in keys_j}
+        variables_i = {i: 1 for i in keys_i}
         fig, ax = plot_basis(
             poly_matrix,
             variables_j=variables_j,
-            variables_i=list(df.index.values),
+            variables_i=variables_i,
             discrete=True,
         )
         ax.set_yticklabels([])
