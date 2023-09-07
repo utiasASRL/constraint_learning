@@ -13,13 +13,13 @@ matplotlib.use("Agg")
 if __name__ == "__main__":
     import sys
 
-    run_datasets_stereo(recompute=True, n_successful=10)
-    run_datasets_ro(recompute=True, n_successful=10)
+    run_datasets_ro(recompute=False, n_successful=100)
+    run_datasets_stereo(recompute=False, n_successful=100)
 
     sys.exit()
 
-    # run_dataset_stereo(recompute=True, n_successful=10)
-    # run_dataset_ro(recompute=True, n_successful=10)
+    run_datasets_ro(recompute=True, n_successful=10)
+    run_datasets_stereo(recompute=True, n_successful=10)
 
     n_seeds = 10
     recompute = False
