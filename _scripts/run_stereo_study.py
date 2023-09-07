@@ -24,8 +24,8 @@ DEBUG = False
 RECOMPUTE = True
 N_SEEDS = 10
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def stereo_tightness(d=2, n_landmarks=None):

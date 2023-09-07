@@ -99,9 +99,9 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_orde
             y=ylabel,
             ax=ax,
             hue="dataset",
-            hue_order=hue_order,
+            hue_order=datasets,
             style="dataset",
-            style_order=hue_order,
+            style_order=datasets,
             **kwargs,
         )
         # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])

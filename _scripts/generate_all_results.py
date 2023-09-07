@@ -7,18 +7,11 @@ from _scripts.run_datasets_ro import run_all as run_datasets_ro
 
 
 import matplotlib
+
 matplotlib.use("Agg")
 
 if __name__ == "__main__":
     import sys
-
-    run_datasets_stereo(recompute=True, n_successful=100)
-    #run_datasets_ro(recompute=True, n_successful=100)
-
-    sys.exit()
-
-    run_datasets_ro(recompute=True, n_successful=10)
-    run_datasets_stereo(recompute=True, n_successful=10)
 
     n_seeds = 10
     recompute = False
@@ -44,3 +37,9 @@ if __name__ == "__main__":
         tightness=tightness,
         scalability=scalability,
     )
+
+    run_datasets_stereo(recompute=False, n_successful=100)
+    run_datasets_ro(recompute=False, n_successful=100)
+
+    run_datasets_ro(recompute=True, n_successful=10)
+    run_datasets_stereo(recompute=True, n_successful=10)
