@@ -3,7 +3,10 @@ from pathlib import Path
 import matplotlib.pylab as plt
 import matplotlib
 
-matplotlib.use("TkAgg")  # non-interactive
+try:
+    matplotlib.use("TkAgg")  # non-interactive
+except:
+    pass
 
 import pandas as pd
 

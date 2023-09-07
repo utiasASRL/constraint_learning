@@ -5,7 +5,10 @@ import pandas as pd
 
 import matplotlib
 
-matplotlib.use("TkAgg")  # non-interactive
+try:
+    matplotlib.use("TkAgg")  # non-interactive
+except:
+    pass
 
 from utils.real_experiments import Experiment
 from utils.real_experiments import run_experiments, plot_results, plot_local_vs_global
@@ -37,7 +40,6 @@ def load_experiment(dataset):
 
 def run_all(recompute=RECOMPUTE, n_successful=10):
     df_list = []
-    n_successful = 10  # was 100
 
     datasets = ["starrynight", "loop-2d_s4", "eight_s3", "zigzag_s3"]
     # datasets = ["starrynight"]
