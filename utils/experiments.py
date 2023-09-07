@@ -535,9 +535,9 @@ def run_scalability_new(
             #    df_oneshot = None
             #    break
 
-            if isinstance(learner.lifter, Stereo2DLifter) and n_params > 25:
+            if isinstance(learner.lifter, Stereo2DLifter) and n_params >= 20:
                 print(
-                    f"skipping N={n_params} for stereo2D because this will cause out of memory error."
+                    f"skipping N={n_params} for stereo2D because so slow."
                 )
                 continue
             if isinstance(learner.lifter, Stereo3DLifter) and n_params > 15:
