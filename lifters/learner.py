@@ -13,8 +13,14 @@ plt = import_plt()
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+from solvers.common import find_local_minimum
+from solvers.common import solve_certificate
+from solvers.common import solve_sdp_cvxpy
+from solvers.sparse import solve_lambda
+from solvers.sparse import bisection, brute_force
 from utils.plotting_tools import savefig
 from utils.constraint import Constraint
+
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -241,9 +247,6 @@ class Learner(object):
         use_last=None,
         use_bisection=False,
     ):
-        from solvers.sparse import solve_lambda
-        from solvers.sparse import bisection, brute_force
-
         def function(A_b_list_here, df_data):
             """Function for bisection or brute_force"""
             if len(A_b_list_here) in df_data.keys():
@@ -300,7 +303,7 @@ class Learner(object):
                 self.solver_vars["xhat"],
                 B_list=B_list,
                 force_first=force_first,
-                tol=1e-10,
+                tol=TOL,
                 adjust=True,
                 verbose=False,
             )
@@ -366,8 +369,6 @@ class Learner(object):
         return minimal_indices
 
     def find_local_solution(self, verbose=False, plot=False):
-        from solvers.common import find_local_minimum
-
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q(noise=self.noise)
         qcqp_that, qcqp_cost, info = find_local_minimum(
@@ -389,8 +390,6 @@ class Learner(object):
         else:
             """Try to solve dual problem."""
             xhat = self.solver_vars["xhat"]
-
-            from solvers.common import solve_certificate
 
             A_b_list_all = self.get_A_b_list()
             H, info = solve_certificate(
@@ -428,8 +427,6 @@ class Learner(object):
         return False
 
     def _test_tightness(self, A_b_list_all, B_list=[], verbose=False):
-        from solvers.common import solve_sdp_cvxpy
-
         if self.solver_vars is None:
             self.find_local_solution(verbose=verbose)
 

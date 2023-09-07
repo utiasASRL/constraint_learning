@@ -6,7 +6,7 @@ from lifters.state_lifter import StateLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo_lifter import StereoLifter
 
-TOL = 1e-10
+TOL = 1e-10  # can be overwritten by a parameter.
 
 # Reference for MOSEK parameters explanations:
 # https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
