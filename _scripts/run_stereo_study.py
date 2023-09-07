@@ -24,8 +24,8 @@ DEBUG = False
 RECOMPUTE = False
 N_SEEDS = 10
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def stereo_tightness(d=2, n_landmarks=None):
@@ -98,11 +98,13 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
             variable_list=variable_list,
         )
 
-    if lifter.d == 2:
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_plot(learner, recompute=recompute)
-
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+
+    if lifter.d == 2:
+        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        run_scalability_plot(learner, recompute=recompute,fname_root=fname_root)
+
     df = run_scalability_new(
         learner,
         param_list=n_landmarks_list,
@@ -118,7 +120,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(8, 3)
-    axs["t create constraints"].legend(loc="lower right")
+    axs[0].legend(loc="lower right")
     savefig(fig, fname_root + f"_t.pdf")
 
     # fig, ax = plot_scalability(df, log=True, start="n ")
@@ -131,12 +133,15 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
-        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
-        # if not DEBUG:
-        #    stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
+        print("========== Stereo2D scalability ===========")
+        # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
+        if not DEBUG:
+            stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
     if tightness:
+        print("========== Stereo2D tightness ===========")
         stereo_tightness(d=2)
         if not DEBUG:
+            print("========== Stereo3D tightness ===========")
             stereo_tightness(d=3)
 
 
@@ -144,4 +149,4 @@ if __name__ == "__main__":
     # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    run_all()
+    run_all(tightness=False, scalability=True)

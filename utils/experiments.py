@@ -27,12 +27,12 @@ rename_dict = {
     "t check tightness": "solve SDP",
 }
 ylabels = {
-    "t solve SDP": "time to solve SDP [s]",
-    "t create constraints": "time to create constraints [s]",
+    "t solve SDP": "solve SDP",
+    "t create constraints": "create constraints",
     "zoom": "",
 }
 
-RESULTS_FOLDER = "_results"
+RESULTS_FOLDER = "_results_server"
 EARLY_STOP = False
 
 
@@ -118,6 +118,66 @@ def plot_scalability_new(df, log=True, start="t "):
 def plot_scalability(
     df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]
 ):
+    if len(extra_plot_ylim):
+        return plot_scalability_zoom(
+            df, log, start, legend_idx, extra_plot_ylim, extra_plot_xlim
+        )
+    import seaborn as sns
+
+    dict_ = plot_dict[start]
+    var_name = dict_["var_name"]
+
+    df_plot = df[df.type != "original"]
+
+    df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
+    df_plot = df_plot.replace({"sorted": "sufficient", "basic": "all"})
+    df_plot = df_plot.melt(
+        id_vars=["N", "type"],
+        value_vars=[v for v in df_plot.columns if v.startswith(start)],
+        value_name=dict_["value_name"],
+        var_name=var_name,
+    )
+    df_plot.replace(rename_dict, inplace=True)
+    var_name_list = list(df_plot[var_name].unique())
+    fig, axs = plt.subplots(1, len(var_name_list), sharex=True, sharey=True)
+
+    def plot_here(ax, df_sub, add_legend):
+        remove = []
+        for type_, df_per_type in df_sub.groupby("type"):
+            values = df_per_type[dict_["value_name"]]
+            if (~values.isna()).sum() <= 1:
+                ax.scatter(df_per_type.N, values, marker="o", label=type_, color="k")
+                remove.append(type_)
+            if add_legend:
+                ax.legend(loc="lower right")
+
+        df_sub = df_sub[~df_sub.type.isin(remove)]
+        values = df_sub[dict_["value_name"]]
+        sns.lineplot(
+            df_sub,
+            x="N",
+            y=dict_["value_name"],
+            style="type",
+            ax=ax,
+            legend=add_legend,
+            color="k",
+        )
+
+    for i, key in enumerate(var_name_list):
+        df_sub = df_plot[df_plot[var_name] == key]
+        plot_here(axs[i], df_sub, i == legend_idx)
+
+    for i, ax in enumerate(axs):
+        key = var_name_list[i]
+        title = ylabels[key]
+        ax.set_title(title, visible=True)
+        ax.set_yscale("log")
+    return fig, axs
+
+
+def plot_scalability_zoom(
+    df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]
+):
     import seaborn as sns
     from matplotlib.ticker import MaxNLocator
     from matplotlib import gridspec
@@ -139,7 +199,7 @@ def plot_scalability(
     df_plot.replace(rename_dict, inplace=True)
     var_name_list = list(df_plot[var_name].unique())
     fig = plt.figure()
-    axs = {}
+    axs = []
     sharex = None
     sharey = None
     gs = gridspec.GridSpec(
@@ -148,22 +208,22 @@ def plot_scalability(
         width_ratios=len(var_name_list) * [2] + add_extra * [1],
     )
     for i, key in enumerate(var_name_list):
-        axs[key] = plt.subplot(gs[i], sharex=sharex, sharey=sharey)
+        axs.append(plt.subplot(gs[i], sharex=sharex, sharey=sharey))
         # axs[key] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i, sharex=sharex, sharey=sharey)
-        sharex = axs[key]
-        sharey = axs[key]
+        sharex = axs[i]
+        sharey = axs[i]
     if add_extra:
-        axs["zoom"] = plt.subplot(gs[i + 1], sharex=None, sharey=None)
+        axs.append(plt.subplot(gs[i + 1], sharex=None, sharey=None))
         # axs["zoom"] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i+1, sharex=None, sharey=None)
 
-    def plot_here(ax, df_sub, last):
+    def plot_here(ax, df_sub, add_legend):
         remove = []
         for type_, df_per_type in df_sub.groupby("type"):
             values = df_per_type[dict_["value_name"]]
             if (~values.isna()).sum() <= 1:
                 ax.scatter(df_per_type.N, values, marker="o", label=type_, color="k")
                 remove.append(type_)
-            if last:
+            if add_legend:
                 ax.legend(loc="lower right")
 
         df_sub = df_sub[~df_sub.type.isin(remove)]
@@ -174,23 +234,22 @@ def plot_scalability(
             y=dict_["value_name"],
             style="type",
             ax=ax,
-            legend=last,
+            legend=add_legend,
             color="k",
         )
 
-    for key, df_sub in df_plot.groupby(var_name):
-        last = key == var_name_list[legend_idx]
-        plot_here(axs[key], df_sub, last)
-        # ax.xaxis.set_major_locator(MaxNLocator(integer=True))
+    for i, key in enumerate(var_name_list):
+        df_sub = df_plot[df_plot[var_name] == key]
+        plot_here(axs[i], df_sub, i == legend_idx)
 
     if len(extra_plot_ylim):
         from matplotlib.patches import Rectangle
 
-        plot_here(axs["zoom"], df_sub, last=False)
-        axs["zoom"].set_xlim(*extra_plot_xlim)
-        axs["zoom"].set_ylim(*extra_plot_ylim)
-        axs["zoom"].set_title("zoom")
-        axs[key].add_patch(
+        plot_here(axs[-1], df_sub, add_legend=False)
+        axs[-1].set_xlim(*extra_plot_xlim)
+        axs[-1].set_ylim(*extra_plot_ylim)
+        axs[-1].set_title("zoom")
+        axs[-2].add_patch(
             Rectangle(
                 [extra_plot_xlim[0], extra_plot_ylim[0]],
                 width=np.diff(extra_plot_xlim)[0],
@@ -199,7 +258,7 @@ def plot_scalability(
                 facecolor="none",
             )
         )
-        axs["zoom"].add_patch(
+        axs[-1].add_patch(
             Rectangle(
                 [extra_plot_xlim[0], extra_plot_ylim[0]],
                 width=np.diff(extra_plot_xlim)[0],
@@ -208,17 +267,25 @@ def plot_scalability(
                 facecolor="none",
             )
         )
+        axs[-1].set_xticks(df_plot.N.unique())
+        axs[-1].grid("on")
+        axs[-1].set_title("zoom")
 
-    for key, ax in axs.items():
-        if log:
-            ax.set_yscale("log")
-        if key != "zoom":
-            ax.set_xticks(df_plot.N.unique())
-            ax.set_ylabel(ylabels[key], visible=True)
-            ax.grid("on")
+    for i, ax in enumerate(axs):
+        try:
+            key = var_name_list[i]
+            title = ylabels[key]
+        except:
+            title = "zoom"
+        ax.set_title(title, visible=True)
+        ax.set_yscale("log")
+        if i > 0:
+            ax.set_yticklabels([])
+            ax.set_ylabel("")
         else:
-            ax.axis("off")
-        # axs[operation].legend(loc="lower right")
+            ax.set_ylabel("time [s]")
+
+    # axs[operation].legend(loc="lower right")
     # axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     return fig, axs
 
@@ -349,8 +416,7 @@ def tightness_study(learner: Learner, use_bisection=True):
     return idx_subset_original, idx_subset_reorder
 
 
-def run_scalability_plot(learner: Learner, recompute=False):
-    fname_root = f"_results/scalability_{learner.lifter}"
+def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
     fname = fname_root + "_plot.pkl"
     try:
         assert not recompute, "forcing to recompute"

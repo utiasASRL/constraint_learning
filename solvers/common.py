@@ -297,23 +297,30 @@ def find_local_minimum(
 
             fig, ax = plt.subplots()
 
-            try:
-                ax.scatter(
-                    *lifter.all_landmarks[:, :2].T, color=f"k", marker="+", alpha=0.2
-                )
-            except:
-                print("not plotting all landmarks.")
+            ax.scatter(
+                *lifter.all_landmarks[:, :2].T, color=f"k", marker="+", alpha=0.0
+            )
             ax.scatter(*lifter.landmarks[:, :2].T, color=f"k", marker="+")
 
             # plot ground truth, global and local costs only once.
-            plot_frame(lifter, ax, theta=lifter.theta, color="g", marker="+")
+            plot_frame(
+                lifter,
+                ax,
+                theta=lifter.theta,
+                color="k",
+                marker="*",
+                ls="-",
+                alpha=1.0,
+                s=100,
+                label=None,
+            )
             plot_frame(
                 lifter,
                 ax,
                 xtheta=global_solution,
                 color="g",
                 marker="*",
-                label=f"local candidate, q={global_cost:.2e}",
+                label=f"candidate, q={global_cost:.2e}",
             )
             for local_cost in local_costs:
                 local_ind = np.where(costs == local_cost)[0][0]
@@ -324,21 +331,21 @@ def find_local_minimum(
                     xtheta=xtheta,
                     color="r",
                     marker="*",
-                    label=f"local candidate, q={local_cost:.2e}",
+                    label=f"candidate, q={local_cost:.2e}",
                 )
 
-            # plot all solutions that converged to those.
-            for i in global_inds:
-                plot_frame(lifter, ax, xtheta=inits[i], color="g", marker=".")
-
-            for i in local_inds:
-                plot_frame(lifter, ax, xtheta=inits[i], color="r", marker=".")
+            # plot all solutions that converged to those (for RO only, for stereo it's too crowded)
+            if isinstance(lifter, RangeOnlyLocLifter):
+                for i in global_inds[1:]:  # first one corresponds to ground truth
+                    plot_frame(lifter, ax, xtheta=inits[i], color="g", marker=".")
+                for i in local_inds:
+                    plot_frame(lifter, ax, xtheta=inits[i], color="r", marker=".")
 
             ax.axis("equal")
             fig.set_size_inches(5, 5)
             ax.set_xlabel("x [m]")
             ax.set_ylabel("y [m]")
-            ax.legend()
+            ax.legend(framealpha=1.0)
         return global_solution, global_cost, info
 
     return None, None, info

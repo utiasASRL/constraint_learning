@@ -18,8 +18,8 @@ N_SEEDS = 1
 WAHBA = True
 MONO = True
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def lifter_tightness(
@@ -93,7 +93,7 @@ def lifter_scalability_new(
 
     fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
     fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
-    [ax.set_ylim(10, 1000) for ax in axs.values()]
+    [ax.set_ylim(10, 1000) for ax in axs]
 
     fig.set_size_inches(8, 3)
     # axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
