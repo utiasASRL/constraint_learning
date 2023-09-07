@@ -8,7 +8,7 @@ import matplotlib
 matplotlib.use("TkAgg")  # non-interactive
 
 from utils.real_experiments import Experiment
-from utils.real_experiments import run_all, plot_results, plot_local_vs_global
+from utils.real_experiments import run_experiments, plot_results, plot_local_vs_global
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 MAX_N_LANDMARKS = 8  # 10
@@ -35,7 +35,7 @@ def load_experiment(dataset):
     return exp
 
 
-if __name__ == "__main__":
+def run_all(recompute=RECOMPUTE, n_successful=10):
     df_list = []
     n_successful = 10  # was 100
 
@@ -47,11 +47,11 @@ if __name__ == "__main__":
         else:
             fname = f"{RESULTS_DIR}/stereo_{dataset}_{n_successful}.pkl"
         try:
-            assert RECOMPUTE is False
+            assert recompute is False
             df_all = pd.read_pickle(fname)
         except (AssertionError, FileNotFoundError):
             exp = load_experiment(dataset)
-            df_all = run_all(
+            df_all = run_experiments(
                 exp,
                 min_n_landmarks=MIN_N_LANDMARKS,
                 max_n_landmarks=MAX_N_LANDMARKS,
@@ -82,3 +82,7 @@ if __name__ == "__main__":
     plot_results(df, ylabel="SVR", fname_root=fname_root, thresh=TOL_RANK_ONE)
     plt.show()
     print("done")
+
+
+if __name__ == "__main__":
+    run_all()

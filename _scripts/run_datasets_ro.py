@@ -9,7 +9,7 @@ import pandas as pd
 
 from utils.real_experiments import (
     Experiment,
-    run_all,
+    run_experiments,
     plot_results,
     plot_local_vs_global,
 )
@@ -27,10 +27,9 @@ RECOMPUTE = True
 RESULTS_DIR = "_results"
 
 
-if __name__ == "__main__":
-    datasets = ["zigzag_s3", "loop-2d_s4", "eight_s3"]
-    n_successful = 10  # was 100
+def run_all(recompute=RECOMPUTE, n_successful=100):
     level = "quad"
+    datasets = ["zigzag_s3", "loop-2d_s4", "eight_s3"]
 
     df_list = []
     for dataset in datasets:
@@ -42,10 +41,10 @@ if __name__ == "__main__":
             fname = f"{RESULTS_DIR}/ro_{dataset}_{level}_{n_successful}.pkl"
 
         try:
-            assert RECOMPUTE is False
+            assert recompute is False
             df_all = pd.read_pickle(fname)
         except (AssertionError, FileNotFoundError):
-            df_all = run_all(
+            df_all = run_experiments(
                 exp,
                 min_n_landmarks=MIN_N_LANDMARKS,
                 max_n_landmarks=MAX_N_LANDMARKS,
@@ -72,3 +71,7 @@ if __name__ == "__main__":
     plot_results(df, ylabel="RDG", fname_root=fname_root, thresh=TOL_REL_GAP)
     plt.show()
     print("done")
+
+
+if __name__ == "__main__":
+    run_all()

@@ -420,9 +420,12 @@ def run_real_experiment(
     # set distance measurements
     fname_root_learn = f"_results/scalability_{new_lifter}"
     fname = fname_root_learn + "_order_dict.pkl"
-    with open(fname, "rb") as f:
-        order_dict = pickle.load(f)
-        learner = pickle.load(f)
+    try:
+        with open(fname, "rb") as f:
+            order_dict = pickle.load(f)
+            learner = pickle.load(f)
+    except FileNotFoundError:
+        print("cannot read {fname}, need to run run_stereo_study first.")
 
     plot = fname_root != ""
 
@@ -502,7 +505,7 @@ def run_real_experiment(
     return df
 
 
-def run_all(
+def run_experiments(
     exp: Experiment,
     level,
     min_n_landmarks,

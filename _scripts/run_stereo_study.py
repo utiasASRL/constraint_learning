@@ -21,11 +21,11 @@ from utils.plotting_tools import savefig
 
 DEBUG = False
 
-RECOMPUTE = False
+RECOMPUTE = True
 N_SEEDS = 10
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results"
+# RESULTS_DIR = "_results_server"
 
 
 def stereo_tightness(d=2, n_landmarks=None):
@@ -134,7 +134,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
         print("========== Stereo2D scalability ===========")
-        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
+        # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
         if not DEBUG:
             print("========== Stereo3D scalability ===========")
             stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
@@ -150,4 +150,4 @@ if __name__ == "__main__":
     # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    run_all()
+    run_all(tightness=False, scalability=True)
