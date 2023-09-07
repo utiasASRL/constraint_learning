@@ -26,24 +26,30 @@ PLOT_NUMBER = 10
 def plot_local_vs_global(df, fname_root="", cost_thresh=None):
     fig, ax = plt.subplots()
     fig.set_size_inches(5, 5)
+    style = {
+        "tp": {"color": "C0", "marker": "o"},
+        "tn": {"color": "C1", "marker": "x"},
+        "fn": {"color": "C2", "marker": "s"},
+    }
     for i, row in df.iterrows():
         # for ro, we don't have a certificate (it's always true because rank-1)
+        type_ = None
         if row.get("global solution cert", True):  # solution is certified
             if cost_thresh and row.qcqp_cost < cost_thresh:  # it is global minimum
-                color = "C0"  # true positive
+                type_ = "tp"
             elif cost_thresh and row.qcqp_cost >= cost_thresh:  # it is local minimum
-                color = "C3"  # false positive, should never happen!!
+                raise ValueError("false positive detected")
             else:
-                color = "C0"
+                type_ = "tp"
         else:  # non-certified
             if cost_thresh and row.qcqp_cost < cost_thresh:  # it is a global minimum
-                color = "C2"  # false negative
+                type_ = "fn"
             elif cost_thresh and row.qcqp_cst >= cost_thresh:
-                color = "C1"  # true negative
+                type_ = "tn"
             else:
-                color = "C1"
+                type_ = "tn"
 
-        ax.scatter(row["max res"], row.qcqp_cost, color=color, marker="o")
+        ax.scatter(row["max res"], row.qcqp_cost, **style[type_])
         for key in row.index:
             if key.startswith("local solution") and not ("cert" in key):
                 idx = int(key.split("local solution ")[-1])
@@ -51,22 +57,22 @@ def plot_local_vs_global(df, fname_root="", cost_thresh=None):
                 cost = row[f"local cost {idx}"]
                 if not np.isnan(cert) and cert:  # certified
                     if cost_thresh and cost < cost_thresh:
-                        color = "C0"  # true positive
+                        type_ = "tp"
                     elif cost_thresh and cost > cost_thresh:
-                        color = "C3"
+                        raise ValueError("false positive detected")
                     else:
-                        color = "C0"
+                        type_ = "tp"
                 else:
                     if cost_thresh and cost < cost_thresh:
-                        color = "C2"
+                        type_ = "fn"
                     elif cost_thresh and cost > cost_thresh:
-                        color = "C1"
+                        type_ = "tn"
                     else:
-                        color = "C1"
-                ax.scatter(row["max res"], cost, color=color, marker="o")
-    ax.scatter([], [], color="C0", marker="o", label="true positive")
-    ax.scatter([], [], color="C1", marker="o", label="true negative")
-    ax.scatter([], [], color="C2", marker="o", label="false negative")
+                        type_ = "tn"
+                ax.scatter(row["max res"], cost, **style[type_])
+
+    for key, style_dict in style.items():
+        ax.scatter([], [], **style_dict, label=key)
     ax.legend()
     ax.set_xscale("log")
     ax.set_yscale("log")
@@ -81,19 +87,27 @@ def plot_local_vs_global(df, fname_root="", cost_thresh=None):
 hue_order = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
 
 
-def plot_results(df, ylabel="RDG", fname_root="", thresh=None):
+def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_order):
     label_names = {"max res": "maximum residual"}
     kwargs = {"edgecolor": "none"}
     for x in ["max res"]:  # ["total error", "cond Hess", "max res", "q"]:
         fig, ax = plt.subplots()
         fig.set_size_inches(5, 5)
         sns.scatterplot(
-            data=df, x=x, y=ylabel, ax=ax, hue="dataset", hue_order=hue_order, **kwargs
+            data=df,
+            x=x,
+            y=ylabel,
+            ax=ax,
+            hue="dataset",
+            hue_order=hue_order,
+            style="dataset",
+            style_order=hue_order,
+            **kwargs,
         )
         # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
         if thresh is not None:
             ax.axhline(thresh, color="k", ls=":", label="tightness threshold")
-        ax.legend()
+        ax.legend(framealpha=1.0)
         ax.set_yscale("log")
         ax.set_xscale("log")
         ax.set_ylabel(ylabel)
@@ -113,8 +127,8 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None):
         y="success rate",
         ax=ax,
     )
-    if fname_root != "":
-        savefig(fig, f"{fname_root}_successrate.pdf")
+    # if fname_root != "":
+    #    savefig(fig, f"{fname_root}_successrate.pdf")
 
 
 class Experiment(object):
@@ -210,12 +224,15 @@ class Experiment(object):
             seed = int(data_here.time_s.values[0] * 1000)
 
             np.random.seed(seed)
-            unique_ids = np.random.choice(unique_ids, max_n_landmarks, replace=False)
-
-            # unique_ids = [4, 9, 11, 12]  # top (11, 12 high)
-            # unique_ids = [4, 9, 6, 7]  # inclined (6, 7 low)
-            # unique_ids = [4, 5, 6, 12]  # diagonal (6, 12 vertical)
-            # unique_ids = [9, 5, 7, 11]  # diagonal (7, 11 vertical)
+            # unique_ids = np.random.choice(unique_ids, max_n_landmarks, replace=False)
+            degenerate_list = [
+                [4, 9, 11, 12],  # top (11, 12 high)
+                [4, 9, 6, 7],  # inclined (6, 7 low)
+                [4, 5, 6, 12],  # diagonal (6, 12 vertical)
+                [9, 5, 7, 11],  # diagonal (7, 11 vertical)
+                [4, 6, 7, 12],  # diagonal
+            ]
+            unique_ids = degenerate_list[np.random.choice(len(degenerate_list))]
 
         landmarks = self.all_landmarks.loc[self.all_landmarks.id.isin(unique_ids)]
 
@@ -425,7 +442,8 @@ def run_real_experiment(
             order_dict = pickle.load(f)
             learner = pickle.load(f)
     except FileNotFoundError:
-        print("cannot read {fname}, need to run run_stereo_study first.")
+        print(f"cannot read {fname}, need to run run_stereo_study first.")
+        return
 
     plot = fname_root != ""
 
@@ -474,11 +492,11 @@ def run_real_experiment(
                     theta=that,
                     color="k",
                     marker="o",
-                    label=f"global min, q={cost:.2e}",
+                    label=f"global min",
                     facecolors="none",
                     s=50,
                 )
-            ax.legend()
+            ax.legend(framealpha=1.0, loc="lower left")
             fname = f"{fname_root}_local.pdf"
             savefig(fig, fname)
 
@@ -515,10 +533,13 @@ def run_experiments(
     n_successful=100,
     out_name="",
     stride=1,
+    plot_poses=False,
 ):
     df_list = []
     counter = 0
-    fig, ax = plt.subplots()
+    if plot_poses:
+        fig, ax = plt.subplots()
+
     for time_idx in np.arange(0, 1900, step=stride):
         try:
             new_lifter = exp.get_lifter(
@@ -535,25 +556,27 @@ def run_experiments(
         if new_lifter is None:
             print(f"skipping {time_idx} because not enough valid landmarks")
             continue
-        ax.scatter(*new_lifter.landmarks[:, :2].T, color="k", marker="+")
-        if "starrynight" in out_name:
-            plot_frame(
-                new_lifter,
-                ax,
-                theta=new_lifter.theta,
-                color="blue",
-                marker="o",
-                scale=0.1,
-            )
-        else:
-            plot_frame(
-                new_lifter,
-                ax,
-                theta=new_lifter.theta,
-                color="blue",
-                marker="o",
-                scale=1.0,
-            )
+
+        if plot_poses:
+            ax.scatter(*new_lifter.landmarks[:, :2].T, color="k", marker="+")
+            if "starrynight" in out_name:
+                plot_frame(
+                    new_lifter,
+                    ax,
+                    theta=new_lifter.theta,
+                    color="blue",
+                    marker="o",
+                    scale=0.1,
+                )
+            else:
+                plot_frame(
+                    new_lifter,
+                    ax,
+                    theta=new_lifter.theta,
+                    color="blue",
+                    marker="o",
+                    scale=1.0,
+                )
 
         counter += 1
         if counter >= n_successful:
@@ -582,21 +605,24 @@ def run_experiments(
                 print(f"===== saved intermediate as {out_name} ==========")
             print(df)
 
-    from utils.plotting_tools import add_scalebar
+    if plot_poses:
+        from utils.plotting_tools import add_scalebar
 
-    fig.set_size_inches(5, 5)
-    ax.set_xlabel("x [m]")
-    ax.set_ylabel("y [m]")
-    if not "starrynight" in out_name:
-        ax.set_xlim([-6.2, 4.1])
-        ax.set_ylim([-6.2, 4.1])
-        size = np.diff(ax.get_ylim())[0]
-        add_scalebar(ax, size=1, size_vertical=1 / size, loc="lower right", fontsize=40)
-    else:
-        ax.axis("equal")
-        add_scalebar(ax, size=1, size_vertical=0.03, loc="lower right", fontsize=40)
-    ax.axis("off")
-    savefig(fig, out_name.split(".")[0] + "_poses.pdf")
+        fig.set_size_inches(5, 5)
+        ax.set_xlabel("x [m]")
+        ax.set_ylabel("y [m]")
+        if not "starrynight" in out_name:
+            ax.set_xlim([-6.2, 4.1])
+            ax.set_ylim([-6.2, 4.1])
+            size = np.diff(ax.get_ylim())[0]
+            add_scalebar(
+                ax, size=1, size_vertical=1 / size, loc="lower right", fontsize=40
+            )
+        else:
+            ax.axis("equal")
+            add_scalebar(ax, size=1, size_vertical=0.03, loc="lower right", fontsize=40)
+        ax.axis("off")
+        savefig(fig, out_name.split(".")[0] + "_poses.pdf")
 
     df = pd.concat(df_list)
     if out_name != "":

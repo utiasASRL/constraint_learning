@@ -17,8 +17,8 @@ if __name__ == "__main__":
 
     sys.exit()
 
-    # run_dataset_stereo(recompute=True, n_successful=10)
-    # run_dataset_ro(recompute=True, n_successful=10)
+    run_datasets_ro(recompute=True, n_successful=10)
+    run_datasets_stereo(recompute=True, n_successful=10)
 
     n_seeds = 10
     recompute = False

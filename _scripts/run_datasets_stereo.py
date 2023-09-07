@@ -22,7 +22,7 @@ SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server"
 
 
 def load_experiment(dataset):
@@ -41,8 +41,8 @@ def load_experiment(dataset):
 def run_all(recompute=RECOMPUTE, n_successful=10):
     df_list = []
 
-    datasets = ["starrynight", "loop-2d_s4", "eight_s3", "zigzag_s3"]
-    # datasets = ["starrynight"]
+    # don't change order! (because of plotting)
+    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
     for dataset in datasets:
         if USE_GT:
             fname = f"{RESULTS_DIR}/stereo_{dataset}_{n_successful}_gt.pkl"
@@ -51,6 +51,7 @@ def run_all(recompute=RECOMPUTE, n_successful=10):
         try:
             assert recompute is False
             df_all = pd.read_pickle(fname)
+            print(f"read {fname}")
         except (AssertionError, FileNotFoundError):
             exp = load_experiment(dataset)
             df_all = run_experiments(
@@ -69,21 +70,34 @@ def run_all(recompute=RECOMPUTE, n_successful=10):
             df_all["dataset"] = dataset
             df_list.append(df_all)
 
-    df = pd.concat(df_list)
-    constraint_type = "sorted"
-    df = df[df.type == constraint_type]
-    df["RDG"] = df["RDG"].abs()
-    fname_root = f"{RESULTS_DIR}/stereo"
+    if n_successful > 10:
+        df = pd.concat(df_list)
+        constraint_type = "sorted"
+        df = df[df.type == constraint_type]
+        df["RDG"] = df["RDG"].abs()
+        fname_root = f"{RESULTS_DIR}/stereo"
 
-    # cost below is found empirically
-    plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
+        # cost below is found empirically
+        plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
 
-    from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
+        from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
 
-    plot_results(df, ylabel="RDG", fname_root=fname_root, thresh=TOL_REL_GAP)
-    plot_results(df, ylabel="SVR", fname_root=fname_root, thresh=TOL_RANK_ONE)
-    plt.show()
-    print("done")
+        plot_results(
+            df,
+            ylabel="RDG",
+            fname_root=fname_root,
+            thresh=TOL_REL_GAP,
+            datasets=datasets,
+        )
+        plot_results(
+            df,
+            ylabel="SVR",
+            fname_root=fname_root,
+            thresh=TOL_RANK_ONE,
+            datasets=datasets,
+        )
+        plt.show()
+        print("done")
 
 
 if __name__ == "__main__":
