@@ -18,13 +18,13 @@ if __name__ == "__main__":
     tightness = False
     scalability = True
 
+    run_all_study(recompute=recompute)
     run_range_only_study(
         n_seeds=n_seeds,
         recompute=recompute,
         tightness=tightness,
         scalability=scalability,
     )
-    run_all_study(recompute=recompute)
     run_other_study(
         n_seeds=n_seeds,
         recompute=recompute,

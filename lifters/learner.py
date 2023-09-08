@@ -767,6 +767,7 @@ class Learner(object):
             )
             if n_new == 0:
                 print("new variables didn't have any effect")
+                data.append(data_dict)
                 continue
 
             # apply the pattern to all landmarks
