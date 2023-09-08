@@ -96,11 +96,11 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
         fig.set_size_inches(8, 3)
-        axs[-1].legend(loc="upper right")  # , bbox_to_anchor=[1.0, 1.0])
+        axs[-1].legend(loc="upper right", fontsize=10)  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
-        tex_name = fname_root + f"_n.tex"
-        save_table(df, tex_name)
+        # tex_name = fname_root + f"_n.tex"
+        # save_table(df, tex_name)
 
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):

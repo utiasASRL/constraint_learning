@@ -92,20 +92,20 @@ def lifter_scalability_new(
         return
 
     fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
-    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
     [ax.set_ylim(10, 1000) for ax in axs]
 
     fig.set_size_inches(8, 3)
-    # axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
+    axs[0].legend(loc="upper right", fontsize=10)
     savefig(fig, fname_root + f"_t.pdf")
 
     # fig, ax = plot_scalability(df, log=True, start="n ")
     # axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-    fig.set_size_inches(5, 3)
-    savefig(fig, fname_root + f"_n.pdf")
+    # fig.set_size_inches(5, 3)
+    # savefig(fig, fname_root + f"_n.pdf")
 
-    tex_name = fname_root + f"_n.tex"
-    save_table(df, tex_name)
+    # tex_name = fname_root + f"_n.tex"
+    # save_table(df, tex_name)
 
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):

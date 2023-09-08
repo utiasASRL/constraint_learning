@@ -32,7 +32,9 @@ def generate_results(lifters, seed=0):
 
         t1 = time.time()
         indices = learner.generate_minimal_subset(
-            reorder=True, use_bisection=True, tightness=learner.lifter.TIGHTNESS
+            reorder=True,
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+            tightness=learner.lifter.TIGHTNESS,
         )
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")

@@ -103,7 +103,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     if lifter.d == 2:
         fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_plot(learner, recompute=recompute,fname_root=fname_root)
+        run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
 
     df = run_scalability_new(
         learner,
@@ -120,7 +120,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
     fig.set_size_inches(8, 3)
-    axs[0].legend(loc="lower right")
+    axs[0].legend(loc="upper right", fontsize=10)
     savefig(fig, fname_root + f"_t.pdf")
 
     # fig, ax = plot_scalability(df, log=True, start="n ")

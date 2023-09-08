@@ -55,10 +55,10 @@ def bisection(function, inputs, left_num, right_num):
     return bisection(function, inputs, left_num=left_num, right_num=right_num)
 
 
-def brute_force(function, inputs, left, right):
+def brute_force(function, inputs, left_num, right_num):
     A_list, df_data = inputs
     tightness_counter = 0
-    for idx in range(left, right + 1):
+    for idx in range(left_num, right_num + 1):
         is_tight = function(A_list[:idx], df_data)
         if is_tight:
             tightness_counter += 1

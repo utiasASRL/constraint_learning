@@ -33,7 +33,7 @@ ylabels = {
 }
 
 RESULTS_FOLDER = "_results_server"
-EARLY_STOP = False
+EARLY_STOP = True
 
 
 def create_newinstance(lifter, n_params):
@@ -130,7 +130,13 @@ def plot_scalability(
     df_plot = df[df.type != "original"]
 
     df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
-    df_plot = df_plot.replace({"sorted": "sufficient", "basic": "all"})
+    df_plot = df_plot.replace(
+        {
+            "sorted": "\\textsc{AutoTemplate} (suff.)",
+            "basic": "\\textsc{AutoTemplate} (all)",
+            "from scratch": "\\textsc{AutoTight}",
+        }
+    )
     df_plot = df_plot.melt(
         id_vars=["N", "type"],
         value_vars=[v for v in df_plot.columns if v.startswith(start)],
@@ -149,7 +155,7 @@ def plot_scalability(
                 ax.scatter(df_per_type.N, values, marker="o", label=type_, color="k")
                 remove.append(type_)
             if add_legend:
-                ax.legend(loc="lower right")
+                ax.legend()
 
         df_sub = df_sub[~df_sub.type.isin(remove)]
         values = df_sub[dict_["value_name"]]
@@ -494,9 +500,6 @@ def run_scalability_new(
             pickle.dump(orig_dict, f)
         print("wrote intermediate as", fname)
 
-    if EARLY_STOP:
-        return None
-
     fname = fname_root + "_order_dict.pkl"
     try:
         assert not recompute, "forcing to recompute"
@@ -511,7 +514,9 @@ def run_scalability_new(
     except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         t1 = time.time()
-        idx_subset_original, idx_subset_reorder = tightness_study(learner)
+        idx_subset_original, idx_subset_reorder = tightness_study(
+            learner, use_bisection=learner.lifter.TIGHTNESS == "cost"
+        )
 
         order_dict = {}
         orig_dict["t determine required"] = time.time() - t1
@@ -525,9 +530,15 @@ def run_scalability_new(
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
 
-    # below is redundant.
     if learner is not None:
-        save_tightness_order(learner, fname_root + "_new", use_bisection=True)
+        save_tightness_order(
+            learner,
+            fname_root + "_new",
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+        )
+
+    if EARLY_STOP:
+        return None
 
     fname = fname_root + "_df_all.pkl"
     try:
@@ -602,9 +613,7 @@ def run_scalability_new(
             #    break
 
             if isinstance(learner.lifter, Stereo2DLifter) and n_params >= 20:
-                print(
-                    f"skipping N={n_params} for stereo2D because so slow."
-                )
+                print(f"skipping N={n_params} for stereo2D because so slow.")
                 continue
             if isinstance(learner.lifter, Stereo3DLifter) and n_params > 15:
                 print(
@@ -693,7 +702,7 @@ def run_oneshot_experiment(
 
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner,
-        use_bisection=True,
+        use_bisection=False,
     )
     if "tightness" in plots:
         save_tightness_order(learner, fname_root, figsize=4, use_bisection=True)

@@ -762,7 +762,9 @@ class Learner(object):
             print(
                 f"found {n_new_learned} learned templates, new total learned: {n_all} "
             )
-            data_dict["n templates"] = len(self.templates)
+            data_dict["n templates"] = (
+                len(self.templates) + len(self.templates_known) + 1
+            )
             if n_new == 0:
                 print("new variables didn't have any effect")
                 continue
@@ -775,7 +777,7 @@ class Learner(object):
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
-                data_dict["n constraints"] = n_all
+                data_dict["n constraints"] = n_all + len(self.templates_known) + 1
                 data_dict["t apply templates"] = ttot
             else:
                 self.constraints = []
