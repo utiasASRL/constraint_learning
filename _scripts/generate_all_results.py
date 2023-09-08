@@ -7,8 +7,10 @@ from _scripts.run_datasets_ro import run_all as run_datasets_ro
 
 
 import matplotlib
-
-matplotlib.use("TkAgg")
+try:
+    matplotlib.use("TkAgg")
+except:
+    pass
 
 if __name__ == "__main__":
     import sys
@@ -19,6 +21,7 @@ if __name__ == "__main__":
     scalability = True
 
     run_all_study(recompute=recompute)
+    sys.exit()
     run_range_only_study(
         n_seeds=n_seeds,
         recompute=recompute,
