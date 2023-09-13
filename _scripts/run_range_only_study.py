@@ -95,8 +95,10 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
-        fig.set_size_inches(8, 3)
-        axs[-1].legend(loc="upper right", fontsize=10)  # , bbox_to_anchor=[1.0, 1.0])
+        fig.set_size_inches(4, 3)
+        axs[-1].legend(
+            loc="upper right", fontsize=10, framealpha=1.0
+        )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
         # tex_name = fname_root + f"_n.tex"

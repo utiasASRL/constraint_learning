@@ -7,6 +7,7 @@ from _scripts.run_datasets_ro import run_all as run_datasets_ro
 
 
 import matplotlib
+
 try:
     matplotlib.use("TkAgg")
 except:
@@ -20,21 +21,20 @@ if __name__ == "__main__":
     tightness = False
     scalability = True
 
-    run_all_study(recompute=recompute)
-    sys.exit()
-    run_range_only_study(
+    # run_all_study(recompute=recompute)
+    # run_range_only_study(
+    #    n_seeds=n_seeds,
+    #    recompute=recompute,
+    #    tightness=tightness,
+    #    scalability=scalability,
+    # )
+    run_stereo_study(
         n_seeds=n_seeds,
         recompute=recompute,
         tightness=tightness,
         scalability=scalability,
     )
     run_other_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-    )
-    run_stereo_study(
         n_seeds=n_seeds,
         recompute=recompute,
         tightness=tightness,

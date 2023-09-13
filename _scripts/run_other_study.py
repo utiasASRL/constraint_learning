@@ -17,6 +17,7 @@ N_SEEDS = 1
 
 WAHBA = True
 MONO = True
+ROBUST = True
 
 # RESULTS_DIR = "_results"
 RESULTS_DIR = "_results_server"
@@ -62,7 +63,10 @@ def lifter_tightness(
 def lifter_scalability_new(
     Lifter, d, n_landmarks, n_outliers, robust, n_seeds=N_SEEDS, recompute=RECOMPUTE
 ):
-    level = "xwT"
+    if robust:
+        level = "xwT"
+    else:
+        level = "no"
     variable_list = None  # use the default one for the first step.
 
     if DEBUG:
@@ -92,11 +96,11 @@ def lifter_scalability_new(
         return
 
     fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
-    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=0)
+    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs]
 
-    fig.set_size_inches(8, 3)
-    axs[0].legend(loc="upper right", fontsize=10)
+    fig.set_size_inches(4, 3)
+    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     savefig(fig, fname_root + f"_t.pdf")
 
     # fig, ax = plot_scalability(df, log=True, start="n ")
@@ -122,12 +126,22 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
             lifter_scalability_new(
                 WahbaLifter,
                 d=d,
-                n_landmarks=4 + n_outliers,
-                robust=True,
-                n_outliers=n_outliers,
+                n_landmarks=4,
+                robust=False,
+                n_outliers=0,
                 n_seeds=n_seeds,
                 recompute=recompute,
             )
+            if ROBUST:
+                lifter_scalability_new(
+                    WahbaLifter,
+                    d=d,
+                    n_landmarks=4 + n_outliers,
+                    robust=True,
+                    n_outliers=n_outliers,
+                    n_seeds=n_seeds,
+                    recompute=recompute,
+                )
     if MONO:
         print("================= Mono study ==================")
         from lifters.mono_lifter import MonoLifter
@@ -138,12 +152,22 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
             lifter_scalability_new(
                 MonoLifter,
                 d=d,
-                n_landmarks=5 + n_outliers,
-                robust=True,
-                n_outliers=n_outliers,
+                n_landmarks=5,
+                robust=False,
+                n_outliers=0,
                 n_seeds=n_seeds,
                 recompute=recompute,
             )
+            if ROBUST:
+                lifter_scalability_new(
+                    MonoLifter,
+                    d=d,
+                    n_landmarks=5 + n_outliers,
+                    robust=True,
+                    n_outliers=n_outliers,
+                    n_seeds=n_seeds,
+                    recompute=recompute,
+                )
 
 
 if __name__ == "__main__":
