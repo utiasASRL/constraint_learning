@@ -6,12 +6,12 @@ import matplotlib.pylab as plt
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from utils.experiments import (
+from utils.sim_experiments import (
     run_scalability_new,
     run_oneshot_experiment,
     run_scalability_plot,
 )
-from utils.experiments import plot_scalability, save_table
+from utils.sim_experiments import plot_scalability, save_table
 from utils.plotting_tools import savefig
 
 from lifters.learner import Learner
@@ -21,12 +21,8 @@ from utils.plotting_tools import savefig
 
 DEBUG = False
 
-RECOMPUTE = False
-N_SEEDS = 10
-
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
-
+RESULTS_DIR = "_results"
+#RESULTS_DIR = "_results_server"
 
 def stereo_tightness(d=2, n_landmarks=None):
     """
@@ -69,7 +65,7 @@ def stereo_tightness(d=2, n_landmarks=None):
         run_oneshot_experiment(learner, fname_root, plots)
 
 
-def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
+def stereo_scalability_new(n_seeds, recompute, d=2):
     if DEBUG:
         n_landmarks_list = [10, 15]
     else:
@@ -110,6 +106,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         recompute=recompute,
+        results_folder=RESULTS_DIR
     )
     if df is None:
         return
@@ -132,7 +129,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
     # save_table(df, tex_name)
 
 
-def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+def run_all(n_seeds, recompute, tightness=True, scalability=True):
     if scalability:
         print("========== Stereo2D scalability ===========")
         # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
@@ -147,7 +144,4 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
 
 
 if __name__ == "__main__":
-    # import warnings
-    # with warnings.catch_warnings():
-    #    warnings.simplefilter("error")
-    run_all(tightness=False, scalability=True)
+    run_all(n_seeds=1, recompute=False)

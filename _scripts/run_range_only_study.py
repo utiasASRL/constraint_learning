@@ -4,20 +4,18 @@ from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 from utils.plotting_tools import savefig
-from utils.experiments import plot_scalability, save_table
-from utils.experiments import run_oneshot_experiment, run_scalability_new
+from utils.sim_experiments import plot_scalability, save_table
+from utils.sim_experiments import run_oneshot_experiment, run_scalability_new
 
-DEBUG = False
-
-N_SEEDS = 10
-RECOMPUTE = True
 
 n_positions = 3
 n_landmarks = 10
 d = 3
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+DEBUG = False
+
+RESULTS_DIR = "_results"
+#RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():
@@ -57,7 +55,7 @@ def range_only_tightness():
         )
 
 
-def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
+def range_only_scalability_new(n_seeds, recompute):
     if DEBUG:
         n_positions_list = [10, 15]
     else:
@@ -88,9 +86,8 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
         fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
 
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
-        ylim = []  # [df_sub.min(), df_sub.max()]
         fig, axs = plot_scalability(
-            df, log=True, start="t ", legend_idx=1, extra_plot_ylim=ylim
+            df, log=True, start="t ", legend_idx=1
         )
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
@@ -105,7 +102,7 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
         # save_table(df, tex_name)
 
 
-def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+def run_all(n_seeds, recompute, tightness=True, scalability=True):
     if scalability:
         range_only_scalability_new(recompute=recompute, n_seeds=n_seeds)
     if tightness:
@@ -113,4 +110,4 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(n_seeds=1, recompute=False)

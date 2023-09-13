@@ -32,8 +32,8 @@ ylabels = {
     "zoom": "",
 }
 
-RESULTS_FOLDER = "_results_server"
-EARLY_STOP = True
+RESULTS_FOLDER = "_results"
+EARLY_STOP = False
 
 
 def create_newinstance(lifter, n_params):
@@ -346,9 +346,9 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
 def run_scalability_new(
     learner: Learner,
     param_list: list,
+    results_folder: str,
     n_seeds: int = 1,
-    recompute=False,
-    results_folder=RESULTS_FOLDER,
+    recompute: bool =False,
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
     fname_all = fname_root + "_complete.pkl"
@@ -497,7 +497,7 @@ def run_scalability_new(
             if isinstance(learner.lifter, Stereo2DLifter) and n_params >= 20:
                 print(f"skipping N={n_params} for stereo2D because so slow.")
                 continue
-            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 15:
+            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 10:
                 print(
                     f"skipping N={n_params} for stereo3D because this will cause out of memory error."
                 )
@@ -513,7 +513,7 @@ def run_scalability_new(
                 and (learner.lifter.level == "quad")
                 and (n_params > 15)
             ):
-                print(f"skipping tightness test of RO with {n_params} because so slow")
+                print(f"skipping N={n_params} for {learner.lifter} because so slow.")
                 continue
 
             n_successful_seeds = 0
