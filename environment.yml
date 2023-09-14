@@ -27,4 +27,5 @@ dependencies:
       - sparseqr
       - asrl-pylgmath>=1.0.3
       - -e poly_matrix # build local poly_matrix submodule
+      - -e certifiable-tools
       - -e .  # build local lifting package

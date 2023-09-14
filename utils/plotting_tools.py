@@ -1,10 +1,100 @@
-from lifters.plotting_tools import import_plt
-import numpy as np
+def import_plt():
+    import matplotlib.pylab as plt
+    import shutil
 
-from lifters.plotting_tools import savefig, add_colorbar
+    usetex = True if shutil.which("latex") else False
+    plt.rcParams.update(
+        {
+            "text.usetex": usetex,
+            "font.family": "DejaVu Sans",
+            "font.size": 12,
+        }
+    )
+    plt.rc("text.latex", preamble=r"\usepackage{bm}")
+    return plt
+
+
+import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
 
+import os
+import numpy as np
+
 plt = import_plt()
+
+
+def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True, size=None):
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    divider = make_axes_locatable(ax)
+    if size is None:
+        w, h = fig.get_size_inches()
+        size = f"{5*h/w}%"
+    cax = divider.append_axes("right", size=size, pad=0.05)
+    if title is not None:
+        cax.set_ylabel(title)
+
+    if not visible:
+        cax.axis("off")
+        return
+
+    fig.colorbar(im, cax=cax, orientation="vertical")
+
+    # add symmetric nticks ticks: min and max, and equally spaced in between
+    if nticks is not None:
+        from math import floor
+
+        ticks = cax.get_yticks()
+        new_ticks = [ticks[0]]
+        step = floor(len(ticks) / (nticks - 1))
+        new_ticks += list(ticks[step + 1 :: step])
+        new_ticks += [ticks[-1]]
+        # print(f"reduce {ticks} to {new_ticks}")
+        assert len(new_ticks) == nticks
+        cax.set_yticks(ticks[::step])
+    return cax
+
+
+def add_scalebar(
+    ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1
+):
+    """Add a scale bar to the plot.
+
+    :param ax: axis to use.
+    :param size: size of scale bar.
+    :param size_vertical: height (thckness) of the bar
+    :param loc: location (same syntax as for matplotlib legend)
+    """
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+    import matplotlib.font_manager as fm
+
+    fontprops = fm.FontProperties(size=fontsize)
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        size,
+        "{} m".format(size),
+        loc,
+        pad=pad,
+        color=color,
+        frameon=False,
+        size_vertical=size_vertical,
+        fontproperties=fontprops,
+    )
+    ax.add_artist(scalebar)
+
+
+def make_dirs_safe(path):
+    """Make directory of input path, if it does not exist yet."""
+    dirname = os.path.dirname(path)
+    if not os.path.exists(dirname):
+        os.makedirs(dirname)
+
+
+def savefig(fig, name, verbose=True):
+    make_dirs_safe(name)
+    fig.savefig(name, bbox_inches="tight", pad_inches=0, dpi=200)
+    if verbose:
+        print(f"saved plot as {name}")
 
 
 def plot_frame(
@@ -131,8 +221,31 @@ def plot_tightness(df_tight, qcqp_cost, fname_root):
         savefig(fig, fname_root + f"_tightness.png")
 
 
+def plot_matrix(
+    Ai, vmin=None, vmax=None, nticks=None, title="", colorbar=True, fig=None, ax=None
+):
+    import matplotlib
+
+    if ax is None:
+        fig, ax = plt.subplots()
+    if fig is None:
+        fig = plt.gcf()
+
+    norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
+    if type(Ai) == np.ndarray:
+        im = ax.matshow(Ai, norm=norm)
+    else:
+        im = ax.matshow(Ai.toarray(), norm=norm)
+    ax.axis("off")
+    ax.set_title(title, y=1.0)
+    if colorbar:
+        add_colorbar(fig, ax, im, nticks=nticks)
+    else:
+        add_colorbar(fig, ax, im, nticks=nticks, visible=False)
+    return fig, ax, im
+
+
 def plot_matrices(df_tight, fname_root):
-    from lifters.plotting_tools import plot_matrix
     import itertools
     from math import ceil
 
@@ -220,29 +333,17 @@ def plot_matrices(df_tight, fname_root):
             savefig(fig, fname)
 
 
-def add_scalebar(
-    ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1
-):
-    """Add a scale bar to the plot.
-
-    :param ax: axis to use.
-    :param size: size of scale bar.
-    :param size_vertical: height (thckness) of the bar
-    :param loc: location (same syntax as for matplotlib legend)
-    """
-    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
-    import matplotlib.font_manager as fm
-
-    fontprops = fm.FontProperties(size=fontsize)
-    scalebar = AnchoredSizeBar(
-        ax.transData,
-        size,
-        "{} m".format(size),
-        loc,
-        pad=pad,
-        color=color,
-        frameon=False,
-        size_vertical=size_vertical,
-        fontproperties=fontprops,
-    )
-    ax.add_artist(scalebar)
+def plot_singular_values(S, eps=None, label="singular values", ax=None):
+    if ax is None:
+        fig, ax = plt.subplots()
+    else:
+        fig = plt.gcf()
+    fig.set_size_inches(4, 2)
+    ax.semilogy(S, marker="o", label=label)
+    if eps is not None:
+        ax.axhline(eps, color="C1")
+    ax.grid()
+    ax.set_xlabel("index")
+    ax.set_ylabel("magnitude of singular values")
+    ax.legend(loc="upper right")
+    return fig, ax

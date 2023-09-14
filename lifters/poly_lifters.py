@@ -8,7 +8,14 @@ from lifters.state_lifter import StateLifter
 class PolyLifter(StateLifter):
     def __init__(self, degree):
         self.degree = degree
-        super().__init__(theta_shape=(1,), M=self.M)
+        super().__init__(d=1)
+
+    @property
+    def var_dict(self):
+        if self.var_dict_ is None:
+            self.var_dict_ = {"h": 1, "t": 1}
+            self.var_dict_.update({f"z_{i}": 1 for i in range(self.M)})
+        return self.var_dict_
 
     @property
     def M(self):
@@ -43,7 +50,8 @@ class PolyLifter(StateLifter):
         from scipy.optimize import minimize
 
         sol = minimize(self.get_cost, t0)
-        return sol.x[0], sol.success, sol.fun
+        info = {"success": sol.success}
+        return sol.x[0], info, sol.fun
 
     def __repr__(self):
         return f"poly{self.degree}"
@@ -57,6 +65,15 @@ class Poly4Lifter(PolyLifter):
     def get_Q_mat(self):
         Q = np.r_[np.c_[2, 1, 0], np.c_[1, -1 / 2, -1 / 3], np.c_[0, -1 / 3, 1 / 4]]
         return Q
+
+    def get_A_known(self):
+        from poly_matrix import PolyMatrix
+
+        # z_0 = t^2
+        A_1 = PolyMatrix(symmetric=True)
+        A_1["h", "z_0"] = -1
+        A_1["t", "t"] = 2
+        return A_1.get_matrix(self.var_dict)
 
     def generate_random_setup(self):
         self.theta_ = np.array([-1])
@@ -76,6 +93,25 @@ class Poly6Lifter(PolyLifter):
             ]
             / 10
         )
+
+    def get_A_known(self):
+        from poly_matrix import PolyMatrix
+
+        # z_0 = t^2
+        A_1 = PolyMatrix(symmetric=True)
+        A_1["h", "z_0"] = -1
+        A_1["t", "t"] = 2
+
+        # z_1 = t^3 = t z_0
+        A_2 = PolyMatrix(symmetric=True)
+        A_2["h", "z_1"] = -1
+        A_2["t", "z_0"] = 1
+
+        # t^4 = z_1 t = z_0 z_0
+        B_0 = PolyMatrix(symmetric=True)
+        B_0["z_0", "z_0"] = 2
+        B_0["t", "z_1"] = -1
+        return [A_i.get_matrix(self.var_dict) for A_i in [A_1, A_2, B_0]]
 
     def generate_random_setup(self):
         self.theta_ = np.array([-1])

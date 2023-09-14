@@ -4,23 +4,21 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import sparseqr as sqr
 
-from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
-from utils.common import rank_project
-
-plt = import_plt()
+from cert_tools.linalg_tools import find_dependent_columns, rank_project
+from poly_matrix.poly_matrix import PolyMatrix
 
 from lifters.state_lifter import StateLifter
-from poly_matrix.poly_matrix import PolyMatrix
+from utils.constraint import Constraint
+from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
+from utils.plotting_tools import savefig, plot_singular_values
 from solvers.common import find_local_minimum
 from solvers.common import solve_certificate
 from solvers.common import solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
 from solvers.sparse import bisection, brute_force
-from utils.plotting_tools import savefig
-from utils.constraint import Constraint
 
+plt = import_plt()
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -501,8 +499,6 @@ class Learner(object):
             bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
 
             if plot:
-                from lifters.plotting_tools import plot_singular_values
-
                 if len(bad_idx):
                     plot_singular_values(
                         S, eps=self.lifter.EPS_SVD, label=f"run {i}", ax=ax
@@ -614,42 +610,10 @@ class Learner(object):
             if A_vec.shape[0] < A_vec.shape[1]:
                 print("Warning: fat matrix.")
 
-            # Use sparse rank revealing QR
-            # We "solve" a least squares problem to get the rank and permutations
-            # This is the cheapest way to use sparse QR, since it does not require
-            # explicit construction of the Q matrix. We can't do this with qr function
-            # because the "just return R" option is not exposed.
-            Z, R, E, rank = sqr.rz(
-                A_vec, np.zeros((A_vec.shape[0], 1)), tolerance=1e-10
-            )
-            # Sort the diagonal values. Note that SuiteSparse uses AMD/METIS ordering
-            # to acheive sparsity.
-            r_vals = np.abs(R.diagonal())
-            sort_inds = np.argsort(r_vals)[::-1]
-            if rank < A_vec.shape[1]:
-                print(f"clean_constraints: keeping {rank}/{A_vec.shape[1]} independent")
-
-            bad_idx = list(range(A_vec.shape[1]))
-            keep_idx = sorted(E[sort_inds[:rank]])[::-1]
-            for good_idx in keep_idx:
-                del bad_idx[good_idx]
-            # bad_idx = list(E[sort_inds[rank:]])
-
-            # Sanity check, removed because too expensive. It almost always passed anyways.
-            Z, R, E, rank_full = sqr.rz(
-                A_vec.tocsc()[:, keep_idx],
-                np.zeros((A_vec.shape[0], 1)),
-                tolerance=1e-10,
-            )
-            if rank_full != rank:
-                print(
-                    f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}."
-                )
-
+            bad_idx = find_dependent_columns(A_vec)
             if len(bad_idx):
                 for idx in sorted(bad_idx)[::-1]:
                     del constraints[idx]
-                assert len(constraints) == rank
 
         if remove_imprecise:
             error, bad_idx = self.lifter.test_constraints(

@@ -2,12 +2,13 @@ import itertools
 
 import numpy as np
 import matplotlib.pylab as plt
-import scipy.linalg as la
 import scipy.sparse as sp
+
 
 from utils.common import upper_triangular
 from lifters.base_class import BaseClass
 
+from cert_tools.linalg_tools import get_nullspace
 from poly_matrix import PolyMatrix, unroll
 
 
@@ -155,7 +156,7 @@ class StateLifter(BaseClass):
         assert (
             self.level == "no"
         ), "Need to overwrite get_level_dims to use level different than 'no'"
-        return 0
+        return {"no": 0}
 
     @property
     def theta(self):
@@ -449,37 +450,6 @@ class StateLifter(BaseClass):
             vector = np.r_[vector, mat[np.triu_indices(mat.shape[0])]]
         return np.array(vector)
 
-    def get_A_learned(
-        self,
-        A_known: list = [],
-        plot: bool = False,
-        incremental: bool = False,
-        normalize: bool = NORMALIZE,
-        method: str = METHOD,
-    ):
-        if incremental:
-            assert len(A_known) == 0
-            var_subset = ["h", "x", "z_0"]
-            basis_list = self.get_basis_list(
-                var_subset=var_subset,
-                A_known=A_known,
-                eps_svd=self.EPS_SVD,
-                plot=plot,
-                method=method,
-            )
-            basis_list_all = self.apply_templates(basis_list, normalize=normalize)
-            basis_learned = self.get_basis_from_poly_rows(basis_list_all)
-            A_learned = self.generate_matrices(basis_learned, normalize=normalize)
-        else:
-            basis_list = self.get_basis_list(
-                var_subset=self.var_dict,
-                A_known=A_known,
-                plot=plot,
-                method=method,
-            )
-            A_learned = self.generate_matrices(basis_list, normalize=normalize)
-        return A_learned
-
     def convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
         """Convert poly-row to reduced a.
 
@@ -629,95 +599,6 @@ class StateLifter(BaseClass):
         else:
             return None
 
-    def zero_pad_subvector_old(self, b, var_subset, target_subset=None):
-        """Add zero padding to b vector learned for a subset of variables(e.g. as obtained from learning method)"""
-        var_dict = self.get_var_dict(var_subset)
-        if target_subset is None:
-            target_subset = self.var_dict
-        dim_X = self.get_dim_X(var_subset)
-        param_dict = self.get_param_idx_dict(var_subset)
-
-        # default is that b is an augmented vector (with parameters)
-        if len(b) != dim_X * len(param_dict):
-            # can call this function with "a" vector (equivalent to b without parameters)
-            b = self.augment_using_zero_padding(b)
-
-        param_dict_target = self.get_param_idx_dict(target_subset)
-        dim_X_target = self.get_dim_X(target_subset)
-        bi_all = np.zeros(self.get_dim_Y(target_subset))
-        for p, key in enumerate(param_dict.keys()):
-            block = b[p * dim_X : (p + 1) * (dim_X)]
-            mat_small = self.create_symmetric(block, eps_sparse=self.EPS_SPARSE)
-            poly_mat, __ = PolyMatrix.init_from_sparse(mat_small, var_dict)
-            mat_target = poly_mat.get_matrix(target_subset).toarray()
-
-            pt = param_dict_target[key]
-            bi_all[pt * dim_X_target : (pt + 1) * dim_X_target] = mat_target[
-                np.triu_indices(mat_target.shape[0])
-            ]
-
-        # below doesn't pass. this would make for a cleaner implementation, consider fixing.
-        # poly_row = self.convert_b_to_polyrow(b, var_subset)
-        # row_target_dict = self.var_dict_all(target_subset)
-        # bi_all_test = poly_row.get_matrix(
-        #    (["h"], row_target_dict), output_type="dense"
-        # ).flatten()
-        # np.testing.assert_allclose(bi_all, bi_all_test)
-        return bi_all
-
-    def get_basis_list(
-        self,
-        var_subset,
-        A_known: list = [],
-        plot: bool = False,
-        method: str = METHOD,
-    ):
-        print("Warning: do not use get_basis_list anymore, it is not efficient.")
-        """Generate list of PolyRow basis vectors"""
-        basis_list = []
-
-        Y = self.generate_Y(var_subset=var_subset)
-        if len(A_known):
-            A_known = self.extract_A_known(A_known, var_subset, output_type="dense")
-            Y = np.r_[Y, A_known]
-            for i in range(A_known.shape[0]):
-                basis_list.append(self.convert_b_to_polyrow(A_known[i], var_subset))
-
-        for i in range(self.N_CLEANING_STEPS + 1):
-            # TODO(FD) can e enforce lin. independance to previously found
-            # matrices at this point?
-            basis_new, S = self.get_basis(Y, method=method)
-            corank = basis_new.shape[0]
-
-            if corank == 0:
-                print(f"{var_subset}: no new learned matrices found")
-                return basis_list
-            print(f"{var_subset}: {corank} learned matrices found")
-            self.test_S_cutoff(S, corank)
-            bad_bins = self.clean_Y(basis_new, Y, S[-corank:], plot)
-            if len(bad_bins) > 0:
-                print(f"deleting {len(bad_bins)}")
-                Y = np.delete(Y, bad_bins, axis=0)
-            else:
-                break
-
-        if plot:
-            from lifters.plotting_tools import plot_singular_values
-
-            plot_singular_values(S, eps=self.EPS_SVD)
-
-        # find out which of the constraints are linearly dependant of the others.
-        current_basis = None
-        for i, bi_sub in enumerate(basis_new):
-            bi_poly = self.convert_b_to_polyrow(bi_sub, var_subset, tol=self.EPS_SPARSE)
-            ai = self.get_reduced_a(bi_sub, var_subset)
-            basis_list.append(bi_poly)
-            if current_basis is None:
-                current_basis = ai[None, :]
-            else:
-                current_basis = np.r_[current_basis, ai[None, :]]
-        return basis_list
-
     def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
         """
         Apply the learned patterns in basis_list to all landmarks.
@@ -863,8 +744,9 @@ class StateLifter(BaseClass):
 
         :param A_known: if given, will generate basis that is orthogonal to these given constraints.
 
-        :return: basis
+        :return: basis, S
         """
+
         # if there is a known list of constraints, add them to the Y so that resulting nullspace is orthogonal to them
         if basis_known is not None:
             if len(A_known):
@@ -881,45 +763,10 @@ class StateLifter(BaseClass):
         if method != "qrp":
             print("using a method other than qrp is not recommended.")
 
-        if method == "svd":
-            U, S, Vh = np.linalg.svd(
-                Y
-            )  # nullspace of Y is in last columns of V / last rows of Vh
-            rank = np.sum(np.abs(S) > self.EPS_SVD)
-            basis = Vh[rank:, :]
-
-            # test that it is indeed a null space
-            np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
-        elif method == "qr":
-            # if Y.T = QR, the last n-r columns
-            # of R make up the nullspace of Y.
-            Q, R = np.linalg.qr(Y.T)
-            S = np.abs(np.diag(R))
-            sorted_idx = np.argsort(S)[::-1]
-            S = S[sorted_idx]
-            rank = np.where(S < self.EPS_SVD)[0][0]
-            # decreasing order
-            basis = Q[:, sorted_idx[rank:]].T
-        elif method == "qrp":
-            # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
-
-            assert Y.shape[0] >= Y.shape[1], "only tall matrices supported"
-
-            Q, R, p = la.qr(Y, pivoting=True, mode="economic")
-            S = np.abs(np.diag(R))
-            rank = np.sum(S > self.EPS_SVD)
-            R1, R2 = R[:rank, :rank], R[:rank, rank:]
-            # [R1  R2]  @  [R1^-1 @ R2] = [R2 - R2]
-            # [0   0 ]     [    -I    ]   [0]
-            N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
-
-            basis = np.zeros(N.T.shape)
-            basis[:, p] = N.T
-        else:
-            raise ValueError(method)
+        basis, info = get_nullspace(Y, method=method, tolerance=self.EPS_SVD)
 
         basis[np.abs(basis) < self.EPS_SPARSE] = 0.0
-        return basis, S
+        return basis, info["values"]
 
     def get_reduced_a(self, bi, var_subset=None, sparse=False):
         """
@@ -1072,9 +919,3 @@ class StateLifter(BaseClass):
                     param_dict[f"{pi}.{pj}"] = i
                 i += 1
         return param_dict
-
-    def get_hess(self, t, y):
-        raise NotImplementedError("hessian not implemented")
-
-    def get_grad(self, t, y):
-        raise NotImplementedError("grad not implemented")

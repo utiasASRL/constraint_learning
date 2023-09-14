@@ -6,7 +6,7 @@ import pandas as pd
 import numpy as np
 import matplotlib.pylab as plt
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -348,7 +348,7 @@ def run_scalability_new(
     param_list: list,
     results_folder: str,
     n_seeds: int = 1,
-    recompute: bool =False,
+    recompute: bool = False,
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
     fname_all = fname_root + "_complete.pkl"

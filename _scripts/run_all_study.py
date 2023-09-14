@@ -3,7 +3,7 @@ import time
 import pandas as pd
 import numpy as np
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
 from lifters.stereo2d_lifter import Stereo2DLifter

@@ -1,17 +1,16 @@
 import cvxpy as cp
-import numpy as np
 
-from .common import adjust_Q, adjust_tol, solver_options
+from solvers.common import adjust_tol, solver_options
+
+from cert_tools import adjust_Q
 
 VERBOSE = False
-SOLVER = "MOSEK"
 
 # for computing the lambda parameter, we are adding all possible constraints
 # and therefore we might run into numerical problems. Setting below to a high value
 # was found to lead to less cases where the solver terminates with "UNKNOWN" status.
 # see https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
 LAMBDA_REL_GAP = 0.1
-
 EPSILON = 1e-4  # set to None to minimize epsilon
 
 
@@ -73,8 +72,7 @@ def solve_lambda(
     B_list=[],
     force_first=1,
     adjust=False,
-    solver=SOLVER,
-    opts=solver_options[SOLVER],
+    opts=solver_options,
     primal=False,
     verbose=False,
     tol=None,
@@ -83,7 +81,7 @@ def solve_lambda(
     :param force_first: number of constraints on which we do not put a L1 cost, effectively encouraging the problem to use them.
     """
 
-    adjust_tol([opts], tol) if tol else None
+    adjust_tol(opts, tol) if tol else None
     Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
 
     if primal:
@@ -133,13 +131,9 @@ def solve_lambda(
 
         cprob = cp.Problem(objective, constraints)
         opts["verbose"] = verbose
-        if solver == "MOSEK":
-            opts["mosek_params"]["MSK_DPAR_INTPNT_CO_TOL_REL_GAP"] = LAMBDA_REL_GAP
+        opts["mosek_params"]["MSK_DPAR_INTPNT_CO_TOL_REL_GAP"] = LAMBDA_REL_GAP
         try:
-            cprob.solve(
-                solver=solver,
-                **opts,
-            )
+            cprob.solve(solver="MOSEK", **opts)
         except:
             lamda = None
             X = None
