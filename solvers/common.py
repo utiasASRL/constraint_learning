@@ -1,9 +1,12 @@
 import cvxpy as cp
 import numpy as np
+import matplotlib.pylab as plt
 
 from lifters.state_lifter import StateLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.stereo_lifter import StereoLifter
 
-TOL = 1e-10
+TOL = 1e-10  # can be overwritten by a parameter.
 
 # Reference for MOSEK parameters explanations:
 # https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
@@ -26,7 +29,7 @@ solver_options = {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
             "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
             "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
-            #"MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
+            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
             # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
@@ -78,8 +81,6 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
         Q_scale = 1.0
     Q_mat /= Q_scale
     if plot:
-        import matplotlib.pylab as plt
-
         fig, axs = plt.subplots(1, 2)
         axs[0].matshow(np.log10(np.abs(Q.toarray())))
         axs[1].matshow(np.log10(np.abs(Q_mat.toarray())))
@@ -133,6 +134,7 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except Exception as e:
+            print(e)
             cost = None
             X = None
             H = None
@@ -169,8 +171,13 @@ def solve_sdp_cvxpy(
 
         # We want the lagrangian to be H := Q - sum l_i * A_i + sum u_i * B_i.
         # With this choice, l_0 will be negative
-        LHS = cp.sum([y[i] * Ai for (i, Ai) in enumerate(As)] + [-u[i] * Bi for (i, Bi) in enumerate(B_list)])
+        LHS = cp.sum(
+            [y[i] * Ai for (i, Ai) in enumerate(As)]
+            + [-u[i] * Bi for (i, Bi) in enumerate(B_list)]
+        )
+        # this does not include symmetry of Q!!
         constraints = [LHS << Q_here]
+        constraints += [LHS == LHS.T]
         if k > 0:
             constraints.append(u >= 0)
 
@@ -181,6 +188,7 @@ def solve_sdp_cvxpy(
                 **opts,
             )
         except Exception as e:
+            print(e)
             cost = None
             X = None
             H = None
@@ -200,7 +208,9 @@ def solve_sdp_cvxpy(
                     i_nnz = np.where(mu > 1e-10)[0]
                     if len(i_nnz):
                         for i in i_nnz:
-                            print(f"Warning: is constraint {i} active? (mu={mu[i]:.4e}):")
+                            print(
+                                f"Warning: is constraint {i} active? (mu={mu[i]:.4e}):"
+                            )
                             print(np.trace(B_list[i] @ X))
                 msg = "converged"
             else:
@@ -213,59 +223,200 @@ def solve_sdp_cvxpy(
     # reverse Q adjustment
     if cost:
         cost = cost * scale + offset
+
+        H = Q_here - cp.sum(
+            [yvals[i] * Ai for (i, Ai) in enumerate(As)]
+            + [-u[i] * Bi for (i, Bi) in enumerate(B_list)]
+        )
         yvals[0] = yvals[0] * scale + offset
-        H *= scale
-        H[0, 0] += offset
+        # H *= scale
+        # H[0, 0] += offset
 
     info = {"H": H, "yvals": yvals, "cost": cost, "msg": msg}
     return X, info
 
 
 def find_local_minimum(
-    lifter: StateLifter, y, delta=1e-3, verbose=False, n_inits=10, plot=False
+    lifter: StateLifter, y, delta=1.0, verbose=False, n_inits=10, plot=False
 ):
     local_solutions = []
     costs = []
+    max_res = []
+    cond_Hess = []
+    failed = []
 
     inits = [lifter.get_vec_around_gt(delta=0)]  # initialize at gt
     inits += [
         lifter.get_vec_around_gt(delta=delta) for i in range(n_inits - 1)
     ]  # around gt
+    info = {"success": False}
     for i, t_init in enumerate(inits):
-        if plot:
-            import matplotlib.pylab as plt
-
-            fig, ax = plt.subplots()
-            p0, a0 = lifter.get_positions_and_landmarks(t_init)
-            ax.scatter(*p0.T, color=f"C{0}", marker="o")
-            ax.scatter(*a0.T, color=f"C{0}", marker="x")
-
         try:
-            t_local, msg, cost_solver = lifter.local_solver(
+            t_local, info_here, cost_solver = lifter.local_solver(
                 t_init, y=y, verbose=verbose
             )
-            #t_local, msg, cost_solver = lifter.local_solver_new(
-            #    t_init, y=y, verbose=verbose
-            #)
         except NotImplementedError:
             print("Warning: local solver not implemented.")
-            return None, None
+            return None, None, info
 
-        # print(msg)
-        if t_local is not None:
-            # cost_lifter = lifter.get_cost(t_local, y=y)
-            costs.append(cost_solver)
-            local_solutions.append(t_local)
+        if t_local is None:
+            cost_solver = np.nan
+            t_local = np.nan
+            failed.append(i)
 
-            if plot:
-                p0, a0 = lifter.get_positions_and_landmarks(t_local)
-                ax.scatter(*p0.T, color=f"C{1}", marker="*")
-                ax.scatter(*a0.T, color=f"C{1}", marker="+")
-    local_solutions = np.array(local_solutions)
+        costs.append(cost_solver)
+        local_solutions.append(t_local)
+        max_res.append(info_here.get("max res", np.nan))
+        cond_Hess.append(info_here.get("cond Hess", np.nan))
 
     if len(costs):
-        min_local_ind = np.argmin(costs)
-        min_local_cost = costs[min_local_ind]
-        best_local_solution = local_solutions[min_local_ind]
-        return best_local_solution, min_local_cost
-    return None, None
+        info["success"] = True
+        costs = np.round(costs, 8)
+        global_cost = np.nanmin(costs)
+
+        local_costs = np.unique(costs[~np.isnan(costs) & (costs != global_cost)])
+
+        global_inds = np.where(costs == global_cost)[0]
+        global_solution = local_solutions[global_inds[0]]
+        local_inds = np.where(np.isin(costs, local_costs))[0]
+
+        info["n global"] = len(global_inds)
+        info["n local"] = len(costs) - info["n global"] - len(failed)
+        info["n fail"] = len(failed)
+        info["max res"] = max_res[global_inds[0]]
+        info["cond Hess"] = cond_Hess[global_inds[0]]
+
+        for local_cost in local_costs:
+            local_ind = np.where(costs == local_cost)[0][0]
+            info[f"local solution {i}"] = local_solutions[local_ind]
+            info[f"local cost {i}"] = local_cost
+
+        # if (info["n local"] or info["n fail"]) and fname_root != "":
+        if plot:
+            from utils.plotting_tools import plot_frame
+
+            fig, ax = plt.subplots()
+
+            ax.scatter(
+                *lifter.all_landmarks[:, :2].T, color=f"k", marker="+", alpha=0.0
+            )
+            ax.scatter(*lifter.landmarks[:, :2].T, color=f"k", marker="+")
+
+            # plot ground truth, global and local costs only once.
+            plot_frame(
+                lifter,
+                ax,
+                theta=lifter.theta,
+                color="k",
+                marker="*",
+                ls="-",
+                alpha=1.0,
+                s=100,
+                label=None,
+            )
+            plot_frame(
+                lifter,
+                ax,
+                xtheta=global_solution,
+                color="g",
+                marker="*",
+                label=f"candidate, q={global_cost:.2e}",
+            )
+            for local_cost in local_costs:
+                local_ind = np.where(costs == local_cost)[0][0]
+                xtheta = local_solutions[local_ind]
+                plot_frame(
+                    lifter,
+                    ax,
+                    xtheta=xtheta,
+                    color="r",
+                    marker="*",
+                    label=f"candidate, q={local_cost:.2e}",
+                )
+
+            # plot all solutions that converged to those (for RO only, for stereo it's too crowded)
+            if isinstance(lifter, RangeOnlyLocLifter):
+                for i in global_inds[1:]:  # first one corresponds to ground truth
+                    plot_frame(lifter, ax, xtheta=inits[i], color="g", marker=".")
+                for i in local_inds:
+                    plot_frame(lifter, ax, xtheta=inits[i], color="r", marker=".")
+
+            ax.axis("equal")
+            fig.set_size_inches(5, 5)
+            ax.set_xlabel("x [m]")
+            ax.set_ylabel("y [m]")
+            ax.legend(framealpha=1.0)
+        return global_solution, global_cost, info
+
+    return None, None, info
+
+
+def solve_certificate(
+    Q,
+    A_b_list,
+    xhat,
+    adjust=True,
+    solver=SOLVER,
+    verbose=False,
+    tol=None,
+):
+    """Solve certificate."""
+    opts = solver_options[solver]
+    opts["verbose"] = verbose
+
+    if tol:
+        adjust_tol([opts], tol)
+
+    Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
+
+    m = len(A_b_list)
+    y = cp.Variable(shape=(m,))
+
+    As, b = zip(*A_b_list)
+    b = np.concatenate([np.atleast_1d(bi) for bi in b])
+
+    H = cp.sum([Q_here] + [y[i] * Ai for (i, Ai) in enumerate(As)])
+    constraints = [H >> 0]
+    eps = cp.Variable()
+    constraints += [H @ xhat <= eps]
+    constraints += [H @ xhat >= -eps]
+
+    objective = cp.Minimize(eps)
+
+    cprob = cp.Problem(objective, constraints)
+    try:
+        cprob.solve(
+            solver=solver,
+            **opts,
+        )
+    except Exception as e:
+        eps = None
+        cost = None
+        X = None
+        H = None
+        yvals = None
+        msg = "infeasible / unknown"
+    else:
+        if np.isfinite(cprob.value):
+            cost = cprob.value
+            X = constraints[0].dual_value
+            H = H.value
+            yvals = [x.value for x in y]
+            msg = "converged"
+        else:
+            eps = None
+            cost = None
+            X = None
+            H = None
+            yvals = None
+            msg = "unbounded"
+
+    # reverse Q adjustment
+    if cost:
+        eps = eps.value
+        cost = cost * scale + offset
+        H = Q_here + cp.sum([yvals[i] * Ai for (i, Ai) in enumerate(As)])
+        yvals[0] = yvals[0] * scale + offset
+
+    info = {"X": X, "yvals": yvals, "cost": cost, "msg": msg, "eps": eps}
+    return H, info

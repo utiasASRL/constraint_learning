@@ -8,10 +8,10 @@ class Constraint(object):
     """
     This class serves the main purpose of not recomputing representations of constraints more than once.
     """
+
     def __init__(
         self,
         index=0,
-        value=0,
         polyrow_a=None,
         polyrow_b=None,
         A_poly=None,
@@ -25,7 +25,6 @@ class Constraint(object):
         template_idx=0,
     ):
         self.index = index
-        self.value = value
         self.mat_var_dict = mat_var_dict
 
         self.b_ = b
@@ -44,6 +43,7 @@ class Constraint(object):
         self.applied_list = []
 
     @staticmethod
+    # @profile
     def init_from_b(
         index: int,
         b: np.ndarray,
@@ -58,9 +58,12 @@ class Constraint(object):
         a_full = lifter.get_vec(A_sparse, sparse=True)
         # a_full = lifter.augment_using_zero_padding(a, mat_var_dict)
         if convert_to_polyrow:
-            A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
+            # A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)
+            A_poly, __ = PolyMatrix.init_from_sparse(
+                A_sparse, var_dict=lifter.var_dict, unfold=True
+            )
             polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
-            polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
+            # polyrow_a = lifter.convert_a_to_polyrow(a, mat_var_dict)
             return Constraint(
                 index=index,
                 a=a,
@@ -68,7 +71,7 @@ class Constraint(object):
                 A_sparse=A_sparse,
                 A_poly=A_poly,
                 polyrow_b=polyrow_b,
-                polyrow_a=polyrow_a,
+                # polyrow_a=polyrow_a,
                 a_full=a_full,
                 mat_var_dict=mat_var_dict,
                 known=known,
@@ -82,6 +85,34 @@ class Constraint(object):
             a_full=a_full,
             mat_var_dict=mat_var_dict,
             known=known,
+            template_idx=template_idx,
+        )
+
+    @staticmethod
+    def init_from_A_poly(
+        lifter: StateLifter,
+        A_poly: PolyMatrix,
+        mat_var_dict: dict,
+        known: bool = False,
+        index: int = 0,
+        template_idx: int = None,
+    ):
+        Ai_sparse_small = A_poly.get_matrix(variables=mat_var_dict)
+        ai = lifter.get_vec(Ai_sparse_small, correct=True)
+        bi = lifter.augment_using_zero_padding(ai)
+        polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
+        polyrow_a = lifter.convert_a_to_polyrow(ai, mat_var_dict)
+        Ai_sparse = A_poly.get_matrix(variables=lifter.var_dict)
+        return Constraint(
+            a=ai,
+            polyrow_a=polyrow_a,
+            b=bi,
+            polyrow_b=polyrow_b,
+            A_poly=A_poly,
+            A_sparse=Ai_sparse,
+            known=known,
+            index=index,
+            mat_var_dict=mat_var_dict,
             template_idx=template_idx,
         )
 
@@ -107,7 +138,14 @@ class Constraint(object):
         )
 
     def scale_to_new_lifter(self, lifter: StateLifter):
-        target_dict_unroll = lifter.var_dict_unroll
-        self.A_sparse_ = self.A_poly_.get_matrix(target_dict_unroll)
-        self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+        if self.known:
+            # known matrices are stored in origin variables, not unrolled form
+            self.A_sparse_ = self.A_poly_.get_matrix(lifter.var_dict)
+            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+
+        else:
+            # known matrices are stored in origin variables, not unrolled form
+            target_dict_unroll = lifter.var_dict_unroll
+            self.A_sparse_ = self.A_poly_.get_matrix(target_dict_unroll)
+            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
         return self

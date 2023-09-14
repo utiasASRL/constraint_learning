@@ -111,6 +111,12 @@ def generative_camera_model(
     return M @ p_c / p_c[:, None, 2]
 
 
+def _residuals(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
+    y_pred = generative_camera_model(M, T, p_w)
+    e = y - y_pred
+    return e.flatten()
+
+
 def _cost(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
     """Compute projection error
 
@@ -135,9 +141,11 @@ def local_solver(
     p_w: np.array,
     W: np.array,
     M: np.array,
-    max_iters: int = 1000,
+    max_iters: int = 100,
     min_update_norm: float = 1e-10,
+    gtol=1e-6,
     log: bool = False,
+    backtracking: bool = True,
 ) -> tuple:
     """Solve the stereo localization problem with a gauss-newton method
 
@@ -152,25 +160,64 @@ def local_solver(
     """
     assert max_iters > 0, "Maximum iterations must be positive"
 
+    info = {}
+
     i = 0
     perturb_mag = np.inf
     T_op = T_init.copy()
 
-    solved = True
-    while (perturb_mag > min_update_norm) and (i < max_iters):
-        delta = _delta(T_op @ p_w, M)
-        beta = _u(y, T_op @ p_w, M)
-        A = np.sum(
-            delta @ (W + W.transpose((0, 2, 1))) @ delta.transpose((0, 2, 1)), axis=0
-        )
-        b = np.sum(-delta @ (W + W.transpose((0, 2, 1))) @ beta, axis=0)
-        epsilon = _svdsolve(A, b)
-        T_op = vec2tran(epsilon) @ T_op
-        perturb_mag = np.linalg.norm(epsilon)
+    if log:
+        print("step size \t cost \t backtrack")
+
+    rho = 0.5
+    alpha_bar = 1.0
+    c = 0.1
+
+    while i < max_iters:
+        Jk = _delta(T_op @ p_w, M)
+        rk = _u(y, T_op @ p_w, M)
+        A = np.sum(Jk @ Jk.transpose((0, 2, 1)), axis=0)
+        b = np.sum(-Jk @ rk, axis=0)
+        pk = _svdsolve(A, b)
+
+        if backtracking:
+            cost = _cost(T_op, p_w, y, W, M)
+            for j in range(10):
+                alpha = rho**j * alpha_bar
+                T_op_new = vec2tran(pk * alpha) @ T_op
+
+                cost_new = _cost(T_op_new, p_w, y, W, M)
+                grad_k = b
+                if cost_new <= cost + c * alpha * grad_k.T @ pk:
+                    break
+            # print(f"it {i}: found valid alpha after {j}")
+            perturb_mag = np.linalg.norm(pk * alpha)
+            T_op = T_op_new
+            cost = cost_new
+
+        rmse_g = np.linalg.norm(b) / np.sqrt(len(b))
+        if rmse_g <= gtol:  # rmse of gradient
+            info["success"] = True
+            info["msg"] = f"converged in gradient after {i} iterations."
+            break
+        elif perturb_mag <= min_update_norm:
+            info["success"] = True
+            info["msg"] = f"reached minimum stepsize after {i} iterations."
+            if rmse_g > 1e-5:
+                print(f"Warning: inaccurate gradient {rmse_g}")
+            break
+
         if log:
-            print("step size", perturb_mag)
+            print(f"{perturb_mag:.5f} \t {cost:.5f} \t {j}")
         i = i + 1
         if i == max_iters:
-            solved = False
+            info["success"] = False
+            info["msg"] = f"reached maximum iterations ({max_iters})"
+
+    residuals = _residuals(T_op, p_w, y, W, M)
+    info["max res"] = np.max(np.abs(residuals))
+    eigs = np.linalg.eigvalsh(A)
+    info["cond Hess"] = eigs[-1] / eigs[0]  # max eig / min eig
+
     cost = _cost(T_op, p_w, y, W, M)
-    return solved, T_op, cost / (y.shape[0] * 3)
+    return info, T_op, cost

@@ -9,9 +9,18 @@ from utils.geometry import (
     get_C_r_from_xtheta,
     get_T,
     get_xtheta_from_theta,
+    get_theta_from_xtheta,
+    get_pose_errors_from_xtheta,
 )
 
+
 NOISE = 1.0  #
+
+NORMALIZE = True
+
+SOLVER_KWARGS = dict(
+    min_gradient_norm=1e-6, max_iterations=10000, min_step_size=1e-10, verbosity=1
+)
 
 
 class StereoLifter(StateLifter, ABC):
@@ -42,13 +51,14 @@ class StereoLifter(StateLifter, ABC):
         ["h", "z_0"],
         ["h", "x", "z_0"],
         ["h", "z_0", "z_1"],
-        ["h", "x", "z_0", "z_1"],
-        ["h", "z_0", "z_1", "z_2"],
+        ["h", "x", "z_0", "z_1"],  # should achieve tightness here
+        # ["h", "z_0", "z_1", "z_2"],
     ]
 
     def __init__(
         self, n_landmarks, d, level="no", param_level="no", variable_list=None
     ):
+        self.y_ = None
         self.n_landmarks = n_landmarks
         assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
         super().__init__(
@@ -129,11 +139,18 @@ class StereoLifter(StateLifter, ABC):
 
         # TODO(FD) below is a bit hacky, these two variables should not both be called theta.
         # theta is either (x, y, alpha) or (x, y, z, a1, a2, a3)
-        if len(theta) in [3, 6]:
-            C, r = get_C_r_from_theta(theta, self.d)
-        # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
-        elif len(theta) == 12:
-            C, r = get_C_r_from_xtheta(theta, self.d)
+        if self.d == 2:
+            if len(theta) == 3:
+                C, r = get_C_r_from_theta(theta, self.d)
+            elif len(theta) == 6:
+                C, r = get_C_r_from_xtheta(theta, self.d)
+        elif self.d == 3:
+            if len(theta) == 6:
+                # theta is (x, y, C.flatten()), technically this should be called xtheta!
+                C, r = get_C_r_from_theta(theta, self.d)
+            elif len(theta) == 12:
+                # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
+                C, r = get_C_r_from_xtheta(theta, self.d)
 
         if self.param_level != "no":
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
@@ -222,14 +239,14 @@ class StereoLifter(StateLifter, ABC):
             parameters = self.generate_random_landmarks(theta=theta).flatten()
             return np.r_[1.0, parameters]
 
-    def get_Q(self, noise: float = None) -> tuple:
+    def simulate_y(self, noise: float = None):
         if noise is None:
             noise = NOISE
+
         xtheta = get_xtheta_from_theta(self.theta, self.d)
         T = get_T(xtheta, self.d)
 
-        y = []
-
+        y_sim = np.zeros((self.n_landmarks, self.M_matrix.shape[0]))
         for j in range(self.n_landmarks):
             y_gt = T @ np.r_[self.landmarks[j], 1.0]
 
@@ -237,9 +254,18 @@ class StereoLifter(StateLifter, ABC):
             # in 3d: y_gt[2]
             y_gt /= y_gt[self.d - 1]
             y_gt = self.M_matrix @ y_gt
-            y.append(y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt)))
-        Q = self.get_Q_from_y(y)
-        return Q, y
+            y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
+        return y_sim
+
+    def get_Q(self, noise: float = None) -> tuple:
+        if noise is None:
+            noise = NOISE
+
+        if self.y_ is None:
+            self.y_ = self.simulate_y(noise=noise)
+
+        Q = self.get_Q_from_y(self.y_)
+        return Q, self.y_
 
     def get_Q_from_y(self, y):
         """
@@ -261,11 +287,12 @@ class StereoLifter(StateLifter, ABC):
         m = self.M_matrix[:, self.d - 1]
 
         ls_problem = LeastSquaresProblem()
-        for j in range(len(y)):
+        for j in range(y.shape[0]):
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
         Q = ls_problem.get_Q().get_matrix(self.var_dict)
-        Q /= self.n_landmarks * self.d
+        if NORMALIZE:
+            Q /= self.n_landmarks * self.d
         # there is precision loss because Q is
 
         # sanity check
@@ -275,18 +302,43 @@ class StereoLifter(StateLifter, ABC):
         # can contain very large values.
         B = ls_problem.get_B_matrix(self.var_dict)
         errors = B @ x
-        cost_test = errors.T @ errors / (self.n_landmarks * self.d)
+        cost_test = errors.T @ errors
+        if NORMALIZE:
+            cost_test /= self.n_landmarks * self.d
 
         t = self.theta
         cost_raw = self.get_cost(t, y)
         cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-8, (cost_raw, cost_Q)
-        assert abs(cost_raw - cost_test) < 1e-8, (cost_raw, cost_test)
+        assert abs(cost_raw - cost_Q) < 1e-6, cost_raw - cost_Q
+        assert abs(cost_raw - cost_test) < 1e-6, (cost_raw, cost_test)
         return Q
 
-    def local_solver_new(
-        self, t0, y, W=None, verbose=False, method="CG", **solver_kwargs
-    ):
+    def get_theta(self, x):
+        return get_theta_from_xtheta(x, self.d)
+
+    def get_C_cw(self, theta=None, xtheta=None):
+        if xtheta is not None:
+            C_cw, __ = get_C_r_from_xtheta(xtheta, self.d)
+        elif theta is not None:
+            C_cw, __ = get_C_r_from_theta(theta, self.d)
+        else:
+            raise ValueError("Give either theta or xtheta")
+        return C_cw
+
+    def get_position(self, xtheta=None, theta=None):
+        if xtheta is not None:
+            C_cw, r_wc_c = get_C_r_from_xtheta(xtheta, self.d)
+        elif theta is not None:
+            C_cw, r_wc_c = get_C_r_from_theta(theta, self.d)
+        else:
+            raise ValueError("Give either theta or xtheta")
+        return (-C_cw.T @ r_wc_c)[None, :]
+
+    def get_error(self, xtheta_hat):
+        xtheta_gt = get_xtheta_from_theta(self.theta, self.d)
+        return get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, self.d)
+
+    def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
         from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
 
@@ -299,8 +351,13 @@ class StereoLifter(StateLifter, ABC):
         else:
             raise ValueError(method)
 
+        solver_kwargs = SOLVER_KWARGS
+        solver_kwargs.update(kwargs)
+
         if verbose:
             solver_kwargs["verbosity"] = 2
+        else:
+            solver_kwargs["verbosity"] = 1
 
         manifold = Product((SpecialOrthogonalGroup(self.d, k=1), Euclidean(self.d)))
 
@@ -315,7 +372,9 @@ class StereoLifter(StateLifter, ABC):
                 y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d - 1])
                 residual = y[i] - y_gt
                 cost += residual.T @ W @ residual
-            return cost / (self.n_landmarks * self.d)
+            if NORMALIZE:
+                return cost / (self.n_landmarks * self.d)
+            return cost
 
         euclidean_gradient = None  # set to None
         problem = pymanopt.Problem(

@@ -1,5 +1,8 @@
 _results/
+_results_server/
 _plots/
+starrynight/
+log/
 
 __pycache__
 *.ipynb_checkpoints/
@@ -7,3 +10,5 @@ venv/
 *.egg-info/
 *.vscode
 *.swp
+
+*.code-workspace

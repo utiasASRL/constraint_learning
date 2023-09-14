@@ -4,15 +4,18 @@ from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 from utils.plotting_tools import savefig
-from utils.experiments import plot_scalability, save_table
-from utils.experiments import run_oneshot_experiment, run_scalability_new
+from utils.sim_experiments import plot_scalability, save_table
+from utils.sim_experiments import run_oneshot_experiment, run_scalability_new
 
-N_SEEDS = 10
-RECOMPUTE = True
 
 n_positions = 3
 n_landmarks = 10
 d = 3
+
+DEBUG = False
+
+RESULTS_DIR = "_results"
+#RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():
@@ -39,20 +42,26 @@ def range_only_tightness():
             variable_list="all",
         )
         learner = Learner(
-            lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
+            lifter=lifter,
+            variable_list=lifter.variable_list,
+            apply_templates=False,
+            n_inits=1,
         )
-        fname_root = f"_results/{lifter}_seed{seed}"
+        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
         run_oneshot_experiment(
             learner,
             fname_root,
             plots,
-            use_known=False,
         )
 
 
-def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
-    n_positions_list = [10, 15, 20, 25, 30]
+def range_only_scalability_new(n_seeds, recompute):
+    if DEBUG:
+        n_positions_list = [10, 15]
+    else:
+        n_positions_list = [10, 15, 20, 25, 30]
     for level in ["no", "quad"]:
+        print(f"=========== RO {level} scalability ===========")
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
         lifter = RangeOnlyLocLifter(
@@ -62,36 +71,38 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             level=level,
             variable_list=variable_list,
         )
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         df = run_scalability_new(
             learner,
             param_list=n_positions_list,
             n_seeds=n_seeds,
-            tightness="rank",
             recompute=recompute,
-            add_original=False,
+            results_folder=RESULTS_DIR,
         )
+        if df is None:
+            continue
 
         df = df[df.type != "original"]
-        fname_root = f"_results/scalability_{learner.lifter}"
+        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
 
-        df_sub = df[df.type != "oneshot"]["t solve SDP"]
-        ylim = [df_sub.min(), df_sub.max()]
+        df_sub = df[df.type != "from scratch"]["t solve SDP"]
         fig, axs = plot_scalability(
-            df, log=True, start="t ", legend_idx=1, extra_plot_ylim=ylim
+            df, log=True, start="t ", legend_idx=1
         )
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
-        fig.set_size_inches(8, 3)
-        axs["t solve SDP"].legend(loc="upper right")  # , bbox_to_anchor=[1.0, 1.0])
+        fig.set_size_inches(4, 3)
+        axs[-1].legend(
+            loc="upper right", fontsize=10, framealpha=1.0
+        )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
-        tex_name = fname_root + f"_n.tex"
-        save_table(df, tex_name)
+        # tex_name = fname_root + f"_n.tex"
+        # save_table(df, tex_name)
 
 
-def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+def run_all(n_seeds, recompute, tightness=True, scalability=True):
     if scalability:
         range_only_scalability_new(recompute=recompute, n_seeds=n_seeds)
     if tightness:
@@ -99,4 +110,4 @@ def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=Tr
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(n_seeds=1, recompute=False)

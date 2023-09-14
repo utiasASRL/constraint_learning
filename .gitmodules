@@ -1,3 +1,6 @@
 [submodule "poly_matrix"]
 	path = poly_matrix
 	url = git@github.com:utiasASRL/poly_matrix
+[submodule "starloc"]
+	path = starloc
+	url = git@github.com:duembgen/starloc

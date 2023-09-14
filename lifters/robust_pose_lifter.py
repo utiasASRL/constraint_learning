@@ -4,9 +4,6 @@ from copy import deepcopy
 import matplotlib
 import matplotlib.pylab as plt
 
-matplotlib.use("TkAgg")
-plt.ion()
-
 import autograd.numpy as np
 
 from lifters.state_lifter import StateLifter
@@ -53,8 +50,8 @@ class RobustPoseLifter(StateLifter, ABC):
                 base + ["w_0", "w_1"],
                 base + ["w_0", "z_0"],
                 base + ["z_0", "z_1"],
-                base + ["w_0", "w_1", "z_0"],
-                base + ["w_0", "w_1", "z_0", "z_1"],
+                # base + ["w_0", "w_1", "z_0"],
+                # base + ["w_0", "w_1", "z_0", "z_1"],
             ]
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)
@@ -74,7 +71,7 @@ class RobustPoseLifter(StateLifter, ABC):
             - xwT: x kron w
             - xxT: x kron x
         """
-        self.beta = BETA
+        self.beta = beta
         self.n_landmarks = n_landmarks
 
         self.robust = robust
@@ -91,8 +88,8 @@ class RobustPoseLifter(StateLifter, ABC):
             param_level=param_level,
             d=d,
             variable_list=variable_list,
-            robust=robust,
             n_outliers=n_outliers,
+            robust=robust,
         )
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
@@ -231,6 +228,15 @@ class RobustPoseLifter(StateLifter, ABC):
             return np.r_[pc_cw, angles, w]
         return np.r_[pc_cw, angles]
 
+    def get_error(self, theta_hat):
+        from utils.geometry import get_pose_errors_from_xtheta
+
+        xtheta_hat_pose = theta_hat[: self.d + self.d**2]
+
+        n_rot = self.d * (self.d - 1) // 2
+        xtheta_gt_pose = get_xtheta_from_theta(self.theta[: self.d + n_rot], self.d)
+        return get_pose_errors_from_xtheta(xtheta_hat_pose, xtheta_gt_pose, self.d)
+
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
@@ -261,7 +267,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         cost = 0
         for i in range(self.n_landmarks):
-            res = self.residual_sq(R, t, self.landmarks[i], y[i])
+            res = self.residual(R, t, self.landmarks[i], y[i])
             if self.robust:
                 cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
             else:
@@ -344,20 +350,18 @@ class RobustPoseLifter(StateLifter, ABC):
 
         print("local solver sanity check:")
         print("final penalty:", self.penalty(t))
-
-        if self.robust:
-            for i in range(self.n_landmarks):
-                residual_sq = self.residual_sq(R, t, self.landmarks[i], y[i])
-                if i < self.n_outliers:
-                    print(f"outlier residual_sq: {residual_sq:.4e}")
-                    assert (
-                        residual_sq > self.beta**2
-                    ), f"outlier residual_sq too small: {residual_sq} <= {self.beta**2}"
-                else:
-                    print(f"inlier residual_sq: {residual_sq:.4e}")
-                    assert (
-                        residual_sq <= self.beta**2
-                    ), f"inlier residual_sq too large: {residual_sq} > {self.beta**2}"
+        for i in range(self.n_landmarks):
+            residual = self.residual_sq(R, t, self.landmarks[i], y[i])
+            if i < self.n_outliers:
+                print(f"outlier residual: {residual:.4e}")
+                assert (
+                    residual > self.beta
+                ), f"outlier residual too small: {residual} <= {self.beta}"
+            else:
+                print(f"inlier residual: {residual:.4e}")
+                assert (
+                    residual <= self.beta
+                ), f"inlier residual too large: {residual} > {self.beta}"
 
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
@@ -370,7 +374,18 @@ class RobustPoseLifter(StateLifter, ABC):
             if abs(res.cost) > 1e-10:
                 assert abs(pen) / res.cost <= 1e-1, (pen, res.cost)
             cost_penalized -= pen
-        return theta_hat, res.stopping_criterion, cost_penalized
+
+        success = ("min step_size" in res.stopping_criterion) or (
+            "min grad norm" in res.stopping_criterion
+        )
+        info = {
+            "success": success,
+            "msg": res.stopping_criterion,
+        }
+        if success:
+            return theta_hat, info, cost_penalized
+        else:
+            return None, info, cost_penalized
 
     def test_and_add(self, A_list, Ai, output_poly):
         x = self.get_x()
@@ -485,7 +500,6 @@ class RobustPoseLifter(StateLifter, ABC):
 
     @abstractmethod
     def residual_sq(self, R, t, pi, ui):
-        raise ValueError("do not call this")
         return
 
     @abstractmethod

@@ -1,6 +1,7 @@
 import autograd.numpy as np
 
-from lifters.stereo_lifter import StereoLifter
+from lifters.stereo_lifter import StereoLifter, NORMALIZE
+from utils.geometry import get_xtheta_from_theta
 
 
 def change_dimensions(a, y, x):
@@ -35,7 +36,10 @@ class Stereo2DLifter(StereoLifter):
 
         p_w, y, phi = change_dimensions(a, y, t)
         cost = _cost(phi, p_w, y, W, self.M_matrix)
-        return cost / (self.n_landmarks * self.d)
+        if NORMALIZE:
+            return cost / (self.n_landmarks * self.d)
+        else:
+            return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         from lifters.stereo2d_problem import local_solver
@@ -48,11 +52,15 @@ class Stereo2DLifter(StereoLifter):
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
         )
-        cost /= self.n_landmarks * self.d
+        if NORMALIZE:
+            cost /= self.n_landmarks * self.d
+        xtheta_hat = get_xtheta_from_theta(phi_hat, self.d)
+        # cost /= self.n_landmarks * self.d
+        info = {"success": success, "msg": "converged"}
         if success:
-            return phi_hat.flatten(), "converged", cost
+            return xtheta_hat, info, cost
         else:
-            return None, "didn't converge", cost
+            return None, info, cost
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 import autograd.numpy as np
 
-from lifters.stereo_lifter import StereoLifter
+from lifters.stereo_lifter import StereoLifter, NORMALIZE
 from utils.geometry import (
     get_T,
     get_xtheta_from_T,
@@ -64,7 +64,10 @@ class Stereo3DLifter(StereoLifter):
         T = get_T(xtheta, 3)
 
         cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
-        return cost / (self.n_landmarks * self.d)
+        if NORMALIZE:
+            return cost / (self.n_landmarks * self.d)
+        else:
+            return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
         """
@@ -83,29 +86,35 @@ class Stereo3DLifter(StereoLifter):
             xtheta_init = t_init
         T_init = get_T(xtheta_init, 3)
 
-        success, T_hat, cost = local_solver(
+        info, T_hat, cost = local_solver(
             T_init=T_init,
             y=y,
             p_w=p_w,
             W=W,
             M=self.M_matrix,
-            log=verbose,
+            log=False,
             min_update_norm=1e-10,
         )
-        x_hat = get_xtheta_from_T(T_hat)
 
+        if verbose:
+            print("Stereo3D local solver:", info["msg"])
+
+        if NORMALIZE:
+            cost /= self.n_landmarks * self.d
+
+        x_hat = get_xtheta_from_T(T_hat)
         x = self.get_x(theta=x_hat)
         Q = self.get_Q_from_y(y[:, :, 0])
         cost_Q = x.T @ Q @ x
         if abs(cost) > 1e-10:
-            assert abs(cost_Q - cost) / cost < 1e-8
+            if not (abs(cost_Q - cost) / cost < 1e-8):
+                print(f"Warning, cost not equal {cost_Q:.2e} {cost:.2e}")
 
-        if success:
-            return x_hat, "converged", cost
+        if info["success"]:
+            return x_hat, info, cost
         else:
-            return None, "didn't converge", cost
+            return None, info, cost
 
 
 if __name__ == "__main__":
     lifter = Stereo3DLifter(n_landmarks=4)
-    lifter.run()

@@ -13,6 +13,9 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 
 RECOMPUTE = True
 
+RESULTS_DIR = "_results_server"
+
+
 def generate_results(lifters, seed=0):
     all_list = []
     for Lifter, dict in lifters:
@@ -20,15 +23,19 @@ def generate_results(lifters, seed=0):
         lifter = Lifter(**dict)
 
         print(f"\n\n ======================== {lifter} ==========================")
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        dict_list, success = learner.run(
-            verbose=True, use_known=False, plot=False
-        )
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+        dict_list, success = learner.run(verbose=True, plot=False)
         if not success:
-            raise RuntimeError(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
+            raise RuntimeError(
+                f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
+            )
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(reorder=True, use_bisection=True, use_known=True)
+        indices = learner.generate_minimal_subset(
+            reorder=True,
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+            tightness=learner.lifter.TIGHTNESS,
+        )
         if indices is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
@@ -44,37 +51,21 @@ def generate_results(lifters, seed=0):
 
 def run_all(recompute=RECOMPUTE):
     lifters = [
-        (
-            RangeOnlyLocLifter,
-            dict(n_positions=3, n_landmarks=10, d=3, level="no"),
-        ),  
-        (
-            RangeOnlyLocLifter,
-            dict(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        ),  
-        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),  
-        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),  
-        (
-            WahbaLifter,
-            dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1),
-        ),   
-        (
-            MonoLifter,
-            dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
-        ),  
-        (
-            WahbaLifter,
-            dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
-        ),   
-        (
-            MonoLifter,
-            dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-        ),  
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+        (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
+    fname = f"{RESULTS_DIR}/all_df_new.pkl"
     try:
         assert recompute is False
-        df = pd.read_pickle("_results/all_df_new.pkl")
+        df = pd.read_pickle(fname)
+        print(f"read {fname}")
         lifters_str = set([str(L(**d)) for L, d in lifters])
         assert lifters_str.issubset(
             df.lifter.unique().astype(str)
@@ -83,7 +74,7 @@ def run_all(recompute=RECOMPUTE):
     except (FileNotFoundError, AssertionError) as e:
         print(e)
         df = generate_results(lifters)
-        df.to_pickle("_results/all_df_new.pkl")
+        df.to_pickle(fname)
 
     times = {
         "t learn templates": "$t_n$",
@@ -101,11 +92,11 @@ def run_all(recompute=RECOMPUTE):
         "stereo2d_urT_ppT": "stereo (2d)",
         "stereo3d_urT_ppT": "stereo (3d)",
     }
-    fname = "_results/all_df.tex"
+    fname = f"{RESULTS_DIR}/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
             out(
-                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & EVR \\\\ \n"
+                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
             )
             out(f"\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):

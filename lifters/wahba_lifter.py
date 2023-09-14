@@ -1,9 +1,6 @@
 import matplotlib
 import matplotlib.pylab as plt
 
-matplotlib.use("TkAgg")
-plt.ion()
-
 import autograd.numpy as np
 
 from lifters.robust_pose_lifter import RobustPoseLifter
@@ -16,6 +13,8 @@ NOISE_OUT = 1.0  # outlier noise
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
 USE_INEQ = False
+
+NORMALIZE = False
 
 
 class WahbaLifter(RobustPoseLifter):
@@ -58,12 +57,10 @@ class WahbaLifter(RobustPoseLifter):
     def residual_sq(self, R, t, pi, ui):
         # TODO: can easily extend below to matrix-weighted
         W = np.eye(self.d)
-        return (
-            (R @ pi + t - ui).T
-            @ W
-            @ (R @ pi + t - ui)
-            / (self.n_landmarks * self.d) ** 2
-        )
+        res_sq = (R @ pi + t - ui).T @ W @ (R @ pi + t - ui)
+        if NORMALIZE:
+            return res_sq / (self.n_landmarks * self.d) ** 2
+        return res_sq
 
     def get_Q(self, noise: float = None):
         if noise is None:
@@ -89,18 +86,20 @@ class WahbaLifter(RobustPoseLifter):
                 every cost term can be written as
                 (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
 
-        r       residual term:
+                residual term:
                 (Rpi + t - ui).T Wi (Rpi + t - ui) =
                 [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
                 ------x'-----   -----Pi'-----
                 - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui
                     -----x'------   ---------Pi_xl--------
                 + ui.T @ Wi @ ui
+                -----Pi_ll------
         """
         from poly_matrix.poly_matrix import PolyMatrix
 
         Q = PolyMatrix(symmetric=True)
-        norm = (self.n_landmarks * self.d) ** 2
+        if NORMALIZE:
+            norm = (self.n_landmarks * self.d) ** 2
 
         Wi = np.eye(self.d)
         for i in range(self.n_landmarks):
@@ -108,9 +107,14 @@ class WahbaLifter(RobustPoseLifter):
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
 
-            Pi_ll = ui.T @ Wi @ ui / norm
-            Pi_xl = -(Pi.T @ Wi @ ui)[:, None] / norm
-            Qi = Pi.T @ Wi @ Pi / norm
+            Pi_ll = ui.T @ Wi @ ui 
+            Pi_xl = -(Pi.T @ Wi @ ui)[:, None] 
+            Qi = Pi.T @ Wi @ Pi 
+            if NORMALIZE:
+                Pi_ll /= norm
+                Pi_xl /= norm
+                Qi /= norm
+
             if self.robust:
                 Qi /= self.beta**2
                 Pi_ll /= self.beta**2

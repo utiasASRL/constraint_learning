@@ -7,6 +7,46 @@ from poly_matrix.poly_matrix import PolyMatrix
 plt = import_plt()
 
 
+def plot_frame(
+    lifter,
+    ax,
+    theta=None,
+    xtheta=None,
+    color="k",
+    marker="+",
+    label=None,
+    scale=1.0,
+    ls="--",
+    alpha=0.5,
+    **kwargs,
+):
+    p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
+    try:
+        C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
+        for i, col in enumerate(["r", "g", "b"]):
+            z_gt = C_cw[i, :]
+            length = scale / np.linalg.norm(z_gt)
+            ax.plot(
+                [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
+                [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
+                color=col,
+                ls=ls,
+                alpha=alpha,
+                zorder=-1,
+            )
+    except Exception as e:
+        pass
+    ax.scatter(
+        *p_gt[:, :2].T,
+        color=color,
+        marker=marker,
+        label=label,
+        zorder=1,
+        **kwargs,
+    )
+    return
+
+
 def add_rectangles(ax, dict_sizes, color="red"):
     from matplotlib.patches import Rectangle
 
@@ -178,3 +218,31 @@ def plot_matrices(df_tight, fname_root):
                 title=matrix_type,
             )
             savefig(fig, fname)
+
+
+def add_scalebar(
+    ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1
+):
+    """Add a scale bar to the plot.
+
+    :param ax: axis to use.
+    :param size: size of scale bar.
+    :param size_vertical: height (thckness) of the bar
+    :param loc: location (same syntax as for matplotlib legend)
+    """
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+    import matplotlib.font_manager as fm
+
+    fontprops = fm.FontProperties(size=fontsize)
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        size,
+        "{} m".format(size),
+        loc,
+        pad=pad,
+        color=color,
+        frameon=False,
+        size_vertical=size_vertical,
+        fontproperties=fontprops,
+    )
+    ax.add_artist(scalebar)

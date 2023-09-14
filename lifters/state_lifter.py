@@ -48,7 +48,7 @@ def unravel_multi_index_triu(flat_indices, shape):
 
 class StateLifter(BaseClass):
     # consider singular value zero below this
-    EPS_SVD = 1e-7
+    EPS_SVD = 1e-5
 
     # set elements below this threshold to zero.
     EPS_SPARSE = 1e-9
@@ -66,14 +66,14 @@ class StateLifter(BaseClass):
     NORMALIZE = False
 
     # how much to oversample (>= 1)
-    FACTOR = 2.0
+    FACTOR = 1.2
 
     # number of times we remove bad samples from data matrix
     N_CLEANING_STEPS = 1  # was 3
 
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
-    TIGHTNESS = "cost" 
+    TIGHTNESS = "cost"
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
@@ -162,6 +162,10 @@ class StateLifter(BaseClass):
         if self.theta_ is None:
             self.theta_ = self.generate_random_theta()
         return self.theta_
+
+    @theta.setter
+    def theta(self, value):
+        self.theta_ = value
 
     @property
     def base_var_dict(self):
@@ -479,7 +483,7 @@ class StateLifter(BaseClass):
     def convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
         """Convert poly-row to reduced a.
 
-        poly-row has elements with keys "pk:l.xi:m.xj:n",
+        poly-row has elements with keys "pk:l-xi:m.xj:n",
         meaning this element corresponds to the l-th element of parameter i,
         and the m-n-th element of xj times xk.
         """
@@ -898,11 +902,17 @@ class StateLifter(BaseClass):
             basis = Q[:, sorted_idx[rank:]].T
         elif method == "qrp":
             # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
+
+            assert Y.shape[0] >= Y.shape[1], "only tall matrices supported"
+
             Q, R, p = la.qr(Y, pivoting=True, mode="economic")
             S = np.abs(np.diag(R))
             rank = np.sum(S > self.EPS_SVD)
             R1, R2 = R[:rank, :rank], R[:rank, rank:]
+            # [R1  R2]  @  [R1^-1 @ R2] = [R2 - R2]
+            # [0   0 ]     [    -I    ]   [0]
             N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
+
             basis = np.zeros(N.T.shape)
             basis[:, p] = N.T
         else:
