@@ -27,4 +27,5 @@ conda env create -f environment.yml
 
 ## Author
 
-Frederike Dümbgen
+- Frederike Dümbgen
+- Connor Holmes
