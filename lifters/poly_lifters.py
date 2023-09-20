@@ -113,5 +113,15 @@ class Poly6Lifter(PolyLifter):
         B_0["t", "z_1"] = -1
         return [A_i.get_matrix(self.var_dict) for A_i in [A_1, A_2, B_0]]
 
+    def get_D(self, that):
+        # TODO(FD) generalize and move to PolyLifter
+        D = np.r_[
+            np.c_[1.0, 0.0, 0.0, 0.0],
+            np.c_[that, 1.0, 0.0, 0.0],
+            np.c_[that**2, 2 * that, 1.0, 0.0],
+            np.c_[that**3, 3 * that**2, 3 * that, 1.0],
+        ]
+        return D
+
     def generate_random_setup(self):
         self.theta_ = np.array([-1])
