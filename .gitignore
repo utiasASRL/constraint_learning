@@ -12,3 +12,5 @@ venv/
 *.swp
 
 *.code-workspace
+solve_mosek.ptf
+solve_cvxpy*.ptf
