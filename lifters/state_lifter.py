@@ -96,7 +96,7 @@ class StateLifter(BaseClass):
             triu_i_nnz = triu[0][mask]
             triu_j_nnz = triu[1][mask]
             vec_nnz = vec[mask]
-        except:
+        except Exception:
             # vec is sparse
             len_vec = vec.shape[1]
             dim_x = get_dim_x(len_vec)
@@ -146,7 +146,7 @@ class StateLifter(BaseClass):
             try:
                 assert abs(S[-corank]) / self.EPS_SVD < 1e-1  # 1e-1  1e-10
                 assert abs(S[-corank - 1]) / self.EPS_SVD > 10  # 1e-11 1e-10
-            except:
+            except AssertionError:
                 print(
                     f"there might be a problem with the chosen threshold {self.EPS_SVD}:"
                 )
@@ -355,7 +355,7 @@ class StateLifter(BaseClass):
     def var_list_row(self, var_subset=None, force_parameters_off=False):
         if var_subset is None:
             var_subset = list(self.var_dict.keys())
-        elif type(var_subset) == dict:
+        elif type(var_subset) is dict:
             var_subset = list(var_subset.keys())
 
         label_list = []
@@ -387,8 +387,8 @@ class StateLifter(BaseClass):
 
     def var_dict_row(self, var_subset=None, force_parameters_off=False):
         return {
-            l: 1
-            for l in self.var_list_row(
+            label: 1
+            for label in self.var_list_row(
                 var_subset, force_parameters_off=force_parameters_off
             )
         }
@@ -396,7 +396,7 @@ class StateLifter(BaseClass):
     def get_basis_from_poly_rows(self, basis_poly_list, var_subset=None):
         var_dict = self.get_var_dict(var_subset=var_subset)
 
-        all_dict = {l: 1 for l in self.var_list_row(var_subset)}
+        all_dict = {label: 1 for label in self.var_list_row(var_subset)}
         basis_reduced = np.empty((0, len(all_dict)))
         for i, bi_poly in enumerate(basis_poly_list):
             # test that this constraint holds
@@ -450,7 +450,7 @@ class StateLifter(BaseClass):
             vector = np.r_[vector, mat[np.triu_indices(mat.shape[0])]]
         return np.array(vector)
 
-    def convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
+    def old_convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
         """Convert poly-row to reduced a.
 
         poly-row has elements with keys "pk:l-xi:m.xj:n",
@@ -552,7 +552,7 @@ class StateLifter(BaseClass):
 
         try:
             dim_a = len(a)
-        except:
+        except Exception:
             dim_a = a.shape[1]
         assert dim_a == dim_X
 
@@ -569,9 +569,9 @@ class StateLifter(BaseClass):
                     # TODO: use get_vec instead?
                     vals = val[np.triu_indices(val.shape[0])]
                 assert len(labels) == len(vals)
-                for l, v in zip(labels, vals):
+                for label, v in zip(labels, vals):
                     if np.any(np.abs(v) > self.EPS_SPARSE):
-                        poly_row["h", l] = v
+                        poly_row["h", label] = v
         return poly_row
 
     def convert_b_to_polyrow(self, b, var_subset, tol=1e-10) -> PolyMatrix:
@@ -819,7 +819,7 @@ class StateLifter(BaseClass):
         """
         try:
             n_basis = len(basis)
-        except:
+        except Exception:
             n_basis = basis.shape[0]
 
         if type(var_dict) is list:

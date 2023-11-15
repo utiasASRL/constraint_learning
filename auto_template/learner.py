@@ -38,6 +38,8 @@ PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 USE_KNOWN = True
 GLOBAL_THRESH = 1e-3
 
+METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
+
 
 class Learner(object):
     """
@@ -51,7 +53,9 @@ class Learner(object):
         apply_templates: bool = True,
         noise: float = None,
         n_inits: int = 10,
+        use_known: bool = USE_KNOWN,
     ):
+        self.use_known = use_known
         self.noise = noise
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
@@ -231,7 +235,7 @@ class Learner(object):
 
     def get_A_b_list(self):
         A_known = []
-        if USE_KNOWN:
+        if self.use_known:
             # A_known = self.lifter.get_A_known()
             A_known += [constraint.A_sparse_ for constraint in self.templates_known]
         A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
@@ -290,7 +294,7 @@ class Learner(object):
         B_list = self.lifter.get_B_known()
 
         force_first = 1
-        if USE_KNOWN:
+        if self.use_known:
             force_first += len(self.templates_known)
 
         if reorder:
@@ -359,9 +363,9 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_num = df_tight[df_tight.cost_tight == True].index.min()
+            min_num = df_tight[df_tight.cost_tight is True].index.min()
         elif tightness == "rank":
-            min_num = df_tight[df_tight.rank_tight == True].index.min()
+            min_num = df_tight[df_tight.rank_tight is True].index.min()
         if not np.isnan(min_num):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
@@ -381,7 +385,7 @@ class Learner(object):
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
 
     def find_global_solution(self, data_dict={}):
-        if self.tightness_dict["rank"] == True:
+        if self.tightness_dict["rank"] is True:
             X = self.solver_vars["X"]
             x, info = rank_project(X, p=1)
             print("rank projection info:", info)
@@ -472,7 +476,7 @@ class Learner(object):
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-        if USE_KNOWN:
+        if self.use_known:
             a_vectors = []
             for c in self.templates:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
@@ -490,7 +494,7 @@ class Learner(object):
         print(f"data matrix Y has shape {Y.shape} ")
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
             print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
-            basis_new, S = self.lifter.get_basis(Y)
+            basis_new, S = self.lifter.get_basis(Y, method=METHOD_NULL)
             print(f"...done")
             corank = basis_new.shape[0]
             if corank > 0:
@@ -702,7 +706,7 @@ class Learner(object):
         data = []
         success = False
 
-        if USE_KNOWN:
+        if self.use_known:
             self.create_known_templates()
 
         while 1:
@@ -713,7 +717,7 @@ class Learner(object):
             print(f"======== {self.mat_vars} ========")
 
             n_new = 0
-            if USE_KNOWN:
+            if self.use_known:
                 n_new += self.extract_known_templates()
 
             data_dict = {"variables": self.mat_vars}

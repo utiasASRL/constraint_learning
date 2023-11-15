@@ -1,3 +1,8 @@
+import os
+import numpy as np
+from poly_matrix.poly_matrix import PolyMatrix
+
+
 def import_plt():
     import matplotlib.pylab as plt
     import shutil
@@ -13,12 +18,6 @@ def import_plt():
     plt.rc("text.latex", preamble=r"\usepackage{bm}")
     return plt
 
-
-import numpy as np
-from poly_matrix.poly_matrix import PolyMatrix
-
-import os
-import numpy as np
 
 plt = import_plt()
 
@@ -222,7 +221,16 @@ def plot_tightness(df_tight, qcqp_cost, fname_root):
 
 
 def plot_matrix(
-    Ai, vmin=None, vmax=None, nticks=None, title="", colorbar=True, fig=None, ax=None
+    Ai,
+    vmin=None,
+    vmax=None,
+    nticks=None,
+    title="",
+    colorbar=True,
+    fig=None,
+    ax=None,
+    log=True,
+    discrete=False,
 ):
     import matplotlib
 
@@ -231,17 +239,29 @@ def plot_matrix(
     if fig is None:
         fig = plt.gcf()
 
-    norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
-    if type(Ai) == np.ndarray:
-        im = ax.matshow(Ai, norm=norm)
+    norm = None
+    if log:
+        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
+
+    cmap = plt.get_cmap("viridis")
+    colorbar_yticks = None
+    if discrete:
+        values = np.unique(Ai[Ai != 0])
+        nticks = None
+        cmap, norm, colorbar_yticks = initialize_discrete_cbar(values)
+
+    if type(Ai) is np.ndarray:
+        im = ax.matshow(Ai, norm=norm, cmap=cmap)
     else:
-        im = ax.matshow(Ai.toarray(), norm=norm)
+        im = ax.matshow(Ai.toarray(), norm=norm, cmap=cmap)
     ax.axis("off")
     ax.set_title(title, y=1.0)
     if colorbar:
-        add_colorbar(fig, ax, im, nticks=nticks)
+        cax = add_colorbar(fig, ax, im, nticks=nticks)
     else:
-        add_colorbar(fig, ax, im, nticks=nticks, visible=False)
+        cax = add_colorbar(fig, ax, im, nticks=nticks, visible=False)
+    if colorbar_yticks is not None:
+        cax.set_yticklabels(colorbar_yticks)
     return fig, ax, im
 
 
@@ -344,6 +364,7 @@ def plot_singular_values(S, eps=None, label="singular values", ax=None):
         ax.axhline(eps, color="C1")
     ax.grid()
     ax.set_xlabel("index")
-    ax.set_ylabel("magnitude of singular values")
-    ax.legend(loc="upper right")
+    ax.set_ylabel("abs. singular values")
+    if label is not None:
+        ax.legend(loc="upper right")
     return fig, ax

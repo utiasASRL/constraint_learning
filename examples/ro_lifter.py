@@ -76,16 +76,17 @@ if __name__ == "__main__":
     # number = 10
     # level = "no"
 
-    # number = 11
-    # level = "quad"
+    n_positions = 1
+    number = 11
+    level = "quad"
 
     # n_positions = 3
     # number = 12
     # level = "quad"
 
-    n_positions = 10
-    number = 13
-    level = "quad"
+    # n_positions = 10
+    # number = 13
+    # level = "quad"
 
     for centered in [False, True]:
         appendix = "c" if centered else ""
