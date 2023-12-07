@@ -50,10 +50,6 @@ def plot_poly_examples():
     plt.show()
     print("done")
 
-def plot_all_examples():
-
-
 
 if __name__ == "__main__":
-    # plot_poly_examples()
-    plot_all_examples()
+    plot_poly_examples()

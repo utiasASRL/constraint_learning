@@ -87,10 +87,21 @@ class Poly4Lifter(PolyLifter):
         if output_poly:
             return [A_1]
         else:
-            return A_1.get_matrix(self.var_dict)
+            return [A_1.get_matrix(self.var_dict)]
 
     def generate_random_setup(self):
         self.theta_ = np.array([-1])
+
+    def get_D(self, that):
+        # TODO(FD) generalize and move to PolyLifter
+        D = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [that, 1.0, 0.0],
+                [that**2, 2 * that, 1.0],
+            ]
+        )
+        return D
 
 
 class Poly6Lifter(PolyLifter):
