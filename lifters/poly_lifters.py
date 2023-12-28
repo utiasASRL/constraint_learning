@@ -41,10 +41,10 @@ class PolyLifter(StateLifter):
     def get_error(self, t):
         return {"MAE": float(abs(self.theta - t))}
 
-    def get_x(self, t=None, parameters=None, var_subset=None):
-        if t is None:
-            t = self.theta
-        return np.array([t**i for i in range(self.degree // 2 + 1)])
+    def get_x(self, theta=None, parameters=None, var_subset=None):
+        if theta is None:
+            theta = self.theta
+        return np.array([theta**i for i in range(self.degree // 2 + 1)])
 
     def get_Q(self, noise=1e-3):
         Q = self.get_Q_mat()

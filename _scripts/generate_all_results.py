@@ -8,14 +8,14 @@ from _scripts.run_datasets_ro import run_all as run_datasets_ro
 import matplotlib
 
 try:
-    # matplotlib.use("TkAgg")
-    matplotlib.use("Agg")
-except:
+    matplotlib.use("TkAgg")
+    # matplotlib.use("Agg") # no plotting
+except Exception as e:
     pass
 
 if __name__ == "__main__":
     n_seeds = 1  # was 10
-    recompute = False
+    recompute = True
     tightness = True
     scalability = True
 

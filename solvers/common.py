@@ -4,7 +4,6 @@ import matplotlib.pylab as plt
 
 from lifters.state_lifter import StateLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.stereo_lifter import StereoLifter
 
 from cert_tools import solve_sdp_mosek
 from cert_tools import solve_feasibility_sdp
@@ -212,7 +211,6 @@ def solve_sdp_cvxpy(
 
     info = {"H": H, "yvals": yvals, "cost": cost, "msg": msg}
     return X, info
-
 
 
 def solve_sdp_cvxpy_new(

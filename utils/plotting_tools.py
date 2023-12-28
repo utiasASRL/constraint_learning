@@ -368,3 +368,10 @@ def plot_singular_values(S, eps=None, label="singular values", ax=None):
     if label is not None:
         ax.legend(loc="upper right")
     return fig, ax
+
+
+def plot_aggregate_sparsity(mask):
+    fig, ax = plt.subplots()
+    ax.matshow(mask.toarray())
+    plt.show(block=False)
+    return fig, ax

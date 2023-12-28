@@ -5,7 +5,7 @@ import matplotlib
 
 try:
     matplotlib.use("TkAgg")  # non-interactive
-except:
+except Exception as e:
     pass
 
 import pandas as pd

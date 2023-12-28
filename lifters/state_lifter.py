@@ -170,9 +170,6 @@ class StateLifter(BaseClass):
 
     @property
     def base_var_dict(self):
-        var_dict = {}
-        # var_dict.update({f"c_{i}": self.d for i in range(self.d)})
-        # var_dict.update({"t": self.d})
         var_dict = {f"x": self.d**2 + self.d}
         return var_dict
 
@@ -307,6 +304,12 @@ class StateLifter(BaseClass):
         augment_var_dict = augment(self.var_dict)
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
+
+    def get_A_learned(self, var_dict=None, method=METHOD) -> list:
+        Y = self.generate_Y(var_subset=var_dict)
+        basis, S = self.get_basis(Y, method=method)
+        A_learned = self.generate_matrices(basis)
+        return A_learned
 
     def get_A_known(self, var_dict=None) -> list:
         return []

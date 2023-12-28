@@ -1,9 +1,7 @@
 import numpy as np
 
-from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, PolyLifter
+from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
-from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
@@ -14,8 +12,8 @@ d = 2
 n_landmarks = 3
 n_poses = 4
 Lifters = [
-    # (Poly4Lifter, dict()),
-    # (Poly6Lifter, dict()),
+    (Poly4Lifter, dict()),
+    (Poly6Lifter, dict()),
     (WahbaLifter, dict(n_landmarks=3, d=2, robust=False, level="no", n_outliers=0)),
     (MonoLifter, dict(n_landmarks=5, d=2, robust=False, level="no", n_outliers=0)),
     (WahbaLifter, dict(n_landmarks=5, d=2, robust=True, level="xwT", n_outliers=1)),

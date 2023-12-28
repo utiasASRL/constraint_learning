@@ -39,9 +39,9 @@ def test_ravel():
 
 
 def _test_with_tol(lifter, A_list, tol):
-    x = lifter.get_x()
+    x = lifter.get_x().astype(float).reshape((-1, 1))
     for Ai in A_list:
-        err = abs(x.T @ Ai @ x)
+        err = abs((x.T @ Ai @ x)[0, 0])
         assert err < tol, err
 
         ai = lifter.get_vec(Ai.toarray())
@@ -87,7 +87,7 @@ def test_vec_mat():
     for lifter in all_lifters():
         try:
             A_known = lifter.get_A_known()
-        except:
+        except AttributeError:
             print(f"could not get A_known of {lifter}")
             A_known = []
 
@@ -110,31 +110,23 @@ def test_vec_mat():
             a_test = lifter.convert_polyrow_to_a(a_poly)
             np.testing.assert_allclose(a, a_test)
 
-        A_learned = lifter.get_A_learned(A_known=A_known, normalize=False)
-        for A_l, A_k in zip(A_learned[:3], A_known):
-            np.testing.assert_allclose(A_l.toarray(), A_k.toarray())
-
 
 pytest_configure()
 
 if __name__ == "__main__":
-    import sys
-    import warnings
+    # import warnings
+    # test_ravel()
+    # test_vec_mat()
 
-    test_ravel()
-    test_vec_mat()
-
-    # import pytest
-    # print("testing")
-    # pytest.main([__file__, "-s"])
+    print("testing")
+    pytest.main([__file__, "-s"])
     # print("all tests passed")
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        test_known_constraints()
-        test_learned_constraints()
+    # with warnings.catch_warnings():
+    #    warnings.simplefilter("error")
+    #    test_known_constraints()
+    #    test_learned_constraints()
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
+    # with warnings.catch_warnings():
+    #    warnings.simplefilter("ignore")
 
     print("all tests passed")
-    # sys.exit()

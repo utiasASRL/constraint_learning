@@ -18,7 +18,9 @@ from solvers.common import solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
 from solvers.sparse import bisection, brute_force
 
+
 plt = import_plt()
+
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -228,6 +230,7 @@ class Learner(object):
         )
         self.tightness_dict["rank"] = rank_tight
         self.tightness_dict["cost"] = cost_tight
+
         if tightness == "rank":
             return rank_tight
         elif tightness == "cost":
@@ -363,9 +366,9 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_num = df_tight[df_tight.cost_tight is True].index.min()
+            min_num = df_tight[df_tight.cost_tight == True].index.min()
         elif tightness == "rank":
-            min_num = df_tight[df_tight.rank_tight is True].index.min()
+            min_num = df_tight[df_tight.rank_tight == True].index.min()
         if not np.isnan(min_num):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
