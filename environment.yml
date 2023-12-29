@@ -8,6 +8,7 @@ channels:
 dependencies:
     - python=3.10
     - pip=22.3
+    - flake8
 
     - numpy>=1.23.5
     - scipy>=1.9.3
