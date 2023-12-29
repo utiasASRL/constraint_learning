@@ -50,17 +50,20 @@ class PolyLifter(StateLifter):
         Q = self.get_Q_mat()
         return Q, None
 
-    def get_cost(self, t, *args, **kwargs):
+    def get_cost(self, theta, *args, **kwargs):
         Q = self.get_Q_mat()
-        x = self.get_x(t)
+        x = self.get_x(theta)
         return x.T @ Q @ x
+
+    def get_hess(self, *args, **kwargs):
+        raise NotImplementedError
 
     def local_solver(self, t0, *args, **kwargs):
         from scipy.optimize import minimize
 
         sol = minimize(self.get_cost, t0)
         info = {"success": sol.success}
-        return sol.x[0], info, sol.fun
+        return sol.x, info, sol.fun
 
     def __repr__(self):
         return f"poly{self.degree}"

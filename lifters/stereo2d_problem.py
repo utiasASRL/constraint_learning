@@ -29,14 +29,23 @@ def _T(phi):
         phi_flat = phi[:, 0]
     else:
         phi_flat = phi
-    x, y, theta = phi_flat
-    return np.array(
-        [
-            [np.cos(theta), -np.sin(theta), x],
-            [np.sin(theta), np.cos(theta), y],
-            [0, 0, 1],
-        ]
-    )
+    try:
+        x, y, theta = phi_flat
+        return np.array(
+            [
+                [np.cos(theta), -np.sin(theta), x],
+                [np.sin(theta), np.cos(theta), y],
+                [0, 0, 1],
+            ]
+        )
+    except ValueError:
+        x, y, *c = phi_flat
+        return np.vstack(
+            [
+                np.hstack([np.array(c).reshape((2, 2)).T, np.array([x, y])[:, None]]),
+                np.array([0, 0, 1]),
+            ]
+        )
 
 
 def generate_problem(N, sigma, M):

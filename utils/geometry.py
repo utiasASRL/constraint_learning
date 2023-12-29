@@ -92,6 +92,7 @@ def get_xtheta_from_T(T):
     r = T[:-1, -1]
     return np.r_[r, C.flatten("F")]
 
+
 def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
     C_hat, r_hat = get_C_r_from_xtheta(xtheta_hat, d)
     C_gt, r_gt = get_C_r_from_xtheta(xtheta_gt, d)

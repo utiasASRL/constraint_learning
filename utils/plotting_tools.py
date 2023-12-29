@@ -332,25 +332,7 @@ def plot_matrices(df_tight, fname_root):
 
         fname = fname_root + f"_{order_name}_{order_type}.png"
         savefig(fig, fname)
-
         return
-        matrix_agg = {
-            "A": A_agg.astype(int),
-            "H": H,
-            "Q": Q.toarray(),
-        }
-        for matrix_type, matrix in matrix_agg.items():
-            if matrix is None:
-                continue
-            fname = fname_root + f"_{order_name}_{order_type}_{matrix_type}.png"
-            fig, ax = plt.subplots()
-            plot_matrix(
-                ax=ax,
-                Ai=matrix,
-                colorbar=True,
-                title=matrix_type,
-            )
-            savefig(fig, fname)
 
 
 def plot_singular_values(S, eps=None, label="singular values", ax=None):

@@ -1,8 +1,11 @@
-import matplotlib.pylab as plt
 import numpy as np
 
 from _test.test_tools import all_lifters
-from lifters.state_lifter import unravel_multi_index_triu, ravel_multi_index_triu
+from lifters.state_lifter import (
+    unravel_multi_index_triu,
+    ravel_multi_index_triu,
+    StateLifter,
+)
 
 import pytest
 
@@ -85,6 +88,7 @@ def test_learned_constraints():
 def test_vec_mat():
     """Make sure that we can go back and forth from vec to mat."""
     for lifter in all_lifters():
+        assert isinstance(lifter, StateLifter)
         try:
             A_known = lifter.get_A_known()
         except AttributeError:
@@ -114,19 +118,21 @@ def test_vec_mat():
 pytest_configure()
 
 if __name__ == "__main__":
-    # import warnings
-    # test_ravel()
-    # test_vec_mat()
+    import warnings
 
-    print("testing")
-    pytest.main([__file__, "-s"])
+    test_ravel()
+    test_vec_mat()
+
+    # import pytest
+    # print("testing")
+    # pytest.main([__file__, "-s"])
     # print("all tests passed")
-    # with warnings.catch_warnings():
-    #    warnings.simplefilter("error")
-    #    test_known_constraints()
-    #    test_learned_constraints()
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        test_known_constraints()
+        test_learned_constraints()
 
-    # with warnings.catch_warnings():
-    #    warnings.simplefilter("ignore")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
 
     print("all tests passed")

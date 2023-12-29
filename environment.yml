@@ -8,6 +8,7 @@ channels:
 dependencies:
     - python=3.10
     - pip=22.3
+    - flake8
 
     - numpy>=1.23.5
     - scipy>=1.9.3
@@ -18,9 +19,11 @@ dependencies:
     - pytest>=7.2.2
     - jupyter>=1.0.0
     - black>=23.1.0
+    - autograd>=1.2.0
     - mosek
     - tbb=2020.2 # sparseqr conflict
     - autograd>=1.6.2
+    - chompack>=2.3.3
 
     - pip:
       - pymanopt>=2.1.1
