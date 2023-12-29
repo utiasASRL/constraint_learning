@@ -14,3 +14,5 @@ venv/
 *.code-workspace
 solve_mosek.ptf
 solve_cvxpy*.ptf
+build/
+dist/
