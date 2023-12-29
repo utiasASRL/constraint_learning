@@ -95,8 +95,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
             )
         except RuntimeWarning:
-            PENALTY_U *= 0.1
-            u = PENALTY_U
+            u *= 0.1
             return np.sum(
                 [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
             )
