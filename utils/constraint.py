@@ -118,9 +118,9 @@ class Constraint(object):
 
     @staticmethod
     def init_from_polyrow_b(
-        index: int,
         polyrow_b: PolyMatrix,
         lifter: StateLifter,
+        index: int = 0,
         known: bool = False,
         template_idx: int = None,
     ):

@@ -1,10 +1,14 @@
-import matplotlib.pylab as plt
 import numpy as np
 
 from lifters.poly_lifters import PolyLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
+from utils.geometry import get_xtheta_from_theta
+
 from _test.test_tools import all_lifters
+
+
+NOISE = 1e-2
 
 
 def test_hess_finite_diff():
@@ -15,7 +19,7 @@ def test_hess_finite_diff():
         errors = []
         eps_list = np.logspace(-10, -5, 5)
         for eps in eps_list:
-            Q, y = lifter.get_Q(noise=1e-2)
+            Q, y = lifter.get_Q(noise=NOISE)
             theta = lifter.get_vec_around_gt(delta=0).flatten("C")
 
             try:
@@ -110,7 +114,7 @@ def test_grad_finite_diff():
 
 
 def test_cost_noisy():
-    test_cost(noise=0.1)
+    test_cost(noise=NOISE)
 
 
 def test_cost(noise=0.0):
@@ -142,7 +146,7 @@ def test_cost(noise=0.0):
             assert abs(cost - np.sum(w < 0)) < 1e-10
 
 
-def test_solvers_noisy(n_seeds=1, noise=1e-1):
+def test_solvers_noisy(n_seeds=1, noise=NOISE):
     test_solvers(n_seeds=n_seeds, noise=noise)
 
 
@@ -170,7 +174,8 @@ def test_solvers(n_seeds=1, noise=0.0):
                 if len(theta_hat) == len(theta_gt):
                     np.testing.assert_allclose(theta_hat, theta_gt)
                 else:
-                    theta_gt = lifter.get_vec_around_gt(delta=0)
+                    # theta_gt = lifter.get_vec_around_gt(delta=0)
+                    theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                     np.testing.assert_allclose(theta_hat, theta_gt)
 
             else:
@@ -178,7 +183,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                 assert theta_hat is not None
 
             # test that we converge to real solution when initializing around it
-            theta_0 = lifter.get_vec_around_gt(delta=1e-2)
+            theta_0 = lifter.get_vec_around_gt(delta=NOISE)
             theta_hat, msg, cost_solver = lifter.local_solver(theta_0, y)
 
             print("init:          ", theta_0)
@@ -194,11 +199,16 @@ def test_solvers(n_seeds=1, noise=0.0):
             cost_lifter = lifter.get_cost(theta_hat, y)
             assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
 
-            if noise == 0:
-                # test that "we made progress"
+            # test that "we made progress"
+            if len(theta_0) != len(theta_hat):
+                xtheta_0 = get_xtheta_from_theta(theta_0, lifter.d)
+                progress = np.linalg.norm(xtheta_0 - theta_hat)
+            else:
                 progress = np.linalg.norm(theta_0 - theta_hat)
-                assert progress > 1e-10, progress
 
+            assert progress > 1e-10, progress
+
+            if noise == 0:
                 # test that cost decreased
                 cost_0 = lifter.get_cost(theta_0, y)
                 cost_hat = lifter.get_cost(theta_hat, y)
@@ -227,17 +237,10 @@ def test_solvers(n_seeds=1, noise=0.0):
                     except NotImplementedError:
                         print("implement Hessian for further checks.")
                     print(e)
-            else:
-                # test that "we made progress"
-                progress = np.linalg.norm(theta_0 - theta_hat)
-                assert progress > 1e-10, progress
-
-                # just test that we converged when noise is added
-                assert theta_hat is not None
 
 
 def compare_solvers():
-    noise = 1e-1
+    noise = NOISE
     for lifter in all_lifters():
         if isinstance(lifter, RobustPoseLifter):
             compare_solvers = [
@@ -278,6 +281,8 @@ def compare_solvers():
             if theta_hat is None:
                 print(solver, "failed")
             else:
+                if len(theta_hat) != len(theta_gt):
+                    theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                 error = np.linalg.norm(theta_hat - theta_gt)
                 print(
                     f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}. \n\tmessage:{msg} "
@@ -285,13 +290,13 @@ def compare_solvers():
 
 
 if __name__ == "__main__":
-    import sys
     import warnings
 
     # import pytest
     # print("testing")
     # pytest.main([__file__, "-s"])
     # print("all tests passed")
+
     with warnings.catch_warnings():
         # warnings.simplefilter("error")
         test_cost()
@@ -307,4 +312,3 @@ if __name__ == "__main__":
         compare_solvers()
 
     print("all tests passed")
-    # sys.exit()

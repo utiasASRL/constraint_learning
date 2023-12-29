@@ -170,9 +170,6 @@ class StateLifter(BaseClass):
 
     @property
     def base_var_dict(self):
-        var_dict = {}
-        # var_dict.update({f"c_{i}": self.d for i in range(self.d)})
-        # var_dict.update({"t": self.d})
         var_dict = {f"x": self.d**2 + self.d}
         return var_dict
 
@@ -307,6 +304,12 @@ class StateLifter(BaseClass):
         augment_var_dict = augment(self.var_dict)
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
+
+    def get_A_learned(self, A_known=[], var_dict=None, method=METHOD) -> list:
+        Y = self.generate_Y(var_subset=var_dict)
+        basis, S = self.get_basis(Y, A_known=A_known, method=method)
+        A_learned = self.generate_matrices(basis)
+        return A_learned
 
     def get_A_known(self, var_dict=None) -> list:
         return []
@@ -588,16 +591,6 @@ class StateLifter(BaseClass):
         for key, val in zip(var_list, b[mask]):
             poly_row["h", key] = val
         return poly_row
-
-    def zero_pad_subvector(self, b, var_subset, target_subset=None):
-        b_row = self.convert_b_to_polyrow(b, var_subset)
-        target_row_dict = self.var_dict_row(var_subset=target_subset)
-
-        # find out if the relevant variables of b are a subset of target_subset.
-        if set(b_row.variable_dict_j).issubset(target_row_dict):
-            return self.zero_pad_subvector_old(b, var_subset, target_subset)
-        else:
-            return None
 
     def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
         """

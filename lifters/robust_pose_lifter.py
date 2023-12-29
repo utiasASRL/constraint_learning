@@ -1,9 +1,6 @@
 from abc import abstractmethod, ABC
 from copy import deepcopy
 
-import matplotlib
-import matplotlib.pylab as plt
-
 import autograd.numpy as np
 
 from lifters.state_lifter import StateLifter
@@ -267,7 +264,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         cost = 0
         for i in range(self.n_landmarks):
-            res = self.residual(R, t, self.landmarks[i], y[i])
+            res = self.residual_sq(R, t, self.landmarks[i], y[i])
             if self.robust:
                 cost += (1 + w[i]) / self.beta**2 * res + 1 - w[i]
             else:
@@ -318,7 +315,7 @@ class RobustPoseLifter(StateLifter, ABC):
             return 0.5 * cost + self.penalty(t)
 
         @pymanopt.function.autograd(manifold)
-        def euclidean_gradient(R, t):
+        def euclidean_gradient_unused(R, t):
             grad_R = np.zeros(R.shape)
             grad_t = np.zeros(t.shape)
             for i in range(self.n_landmarks):
@@ -338,9 +335,9 @@ class RobustPoseLifter(StateLifter, ABC):
                     grad_t += Wi.T @ term
             return grad_R, grad_t
 
-        euclidean_gradient = None  # set to None
+        euclidean_gradient = None
         problem = pymanopt.Problem(
-            manifold, cost, euclidean_gradient=euclidean_gradient  #
+            manifold, cost, euclidean_gradient=euclidean_gradient
         )
         optimizer = Optimizer(**solver_kwargs)
 

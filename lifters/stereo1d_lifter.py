@@ -68,13 +68,13 @@ class Stereo1DLifter(StateLifter):
             if key == "h":
                 x_data.append(1.0)
             elif key == "x":
-                x_data.append(float(theta))
+                x_data.append(float(theta[0]))
             elif "z" in key:
                 idx = int(key.split("_")[-1])
                 if self.param_level == "p":
-                    x_data.append(float(1 / (theta - parameters[idx + 1])))
+                    x_data.append(float(1 / (theta[0] - parameters[idx + 1])))
                 elif self.param_level == "no":
-                    x_data.append(float(1 / (theta - self.landmarks[idx])))
+                    x_data.append(float(1 / (theta[0] - self.landmarks[idx])))
             else:
                 raise ValueError("unknown key in get_x", key)
         return np.array(x_data)

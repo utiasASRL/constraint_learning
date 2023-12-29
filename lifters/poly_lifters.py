@@ -41,26 +41,29 @@ class PolyLifter(StateLifter):
     def get_error(self, t):
         return {"MAE": float(abs(self.theta - t))}
 
-    def get_x(self, t=None, parameters=None, var_subset=None):
-        if t is None:
-            t = self.theta
-        return np.array([t**i for i in range(self.degree // 2 + 1)])
+    def get_x(self, theta=None, parameters=None, var_subset=None):
+        if theta is None:
+            theta = self.theta
+        return np.array([theta**i for i in range(self.degree // 2 + 1)])
 
     def get_Q(self, noise=1e-3):
         Q = self.get_Q_mat()
         return Q, None
 
-    def get_cost(self, t, *args, **kwargs):
+    def get_cost(self, theta, *args, **kwargs):
         Q = self.get_Q_mat()
-        x = self.get_x(t)
+        x = self.get_x(theta)
         return x.T @ Q @ x
+
+    def get_hess(self, *args, **kwargs):
+        raise NotImplementedError
 
     def local_solver(self, t0, *args, **kwargs):
         from scipy.optimize import minimize
 
         sol = minimize(self.get_cost, t0)
         info = {"success": sol.success}
-        return sol.x[0], info, sol.fun
+        return sol.x, info, sol.fun
 
     def __repr__(self):
         return f"poly{self.degree}"
