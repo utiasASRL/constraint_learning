@@ -8,12 +8,13 @@ from _scripts.run_datasets_ro import run_all as run_datasets_ro
 import matplotlib
 
 try:
-    matplotlib.use("TkAgg")
+    # matplotlib.use("TkAgg")
+    matplotlib.use("Agg")
 except:
     pass
 
 if __name__ == "__main__":
-    n_seeds = 1 # was 10
+    n_seeds = 1  # was 10
     recompute = False
     tightness = True
     scalability = True
@@ -38,12 +39,10 @@ if __name__ == "__main__":
         scalability=scalability,
     )
 
-
-
-    n_successful = 3 # was 100
-    run_datasets_stereo(recompute=False, n_successful=n_successful)
+    n_successful = 3  # was 100
     run_datasets_ro(recompute=False, n_successful=n_successful)
+    run_datasets_stereo(recompute=False, n_successful=n_successful)
 
-    n_successful = 3 # was 10
+    n_successful = 3  # was 10
     run_datasets_ro(recompute=True, n_successful=n_successful)
     run_datasets_stereo(recompute=True, n_successful=n_successful)

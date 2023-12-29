@@ -10,12 +10,13 @@ except:
 
 import pandas as pd
 
-from utils.real_experiments import (
+from auto_template.real_experiments import (
     Experiment,
     run_experiments,
     plot_results,
     plot_local_vs_global,
 )
+from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 
@@ -73,8 +74,6 @@ def run_all(recompute=RECOMPUTE, n_successful=100, plot_poses=False):
         fname_root = f"{RESULTS_DIR}/ro_{level}"
 
         plot_local_vs_global(df, fname_root=fname_root)
-
-        from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
 
         plot_results(
             df,

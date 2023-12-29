@@ -1,11 +1,11 @@
 import numpy as np
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 
 from utils.plotting_tools import savefig
-from utils.sim_experiments import plot_scalability, save_table
-from utils.sim_experiments import run_oneshot_experiment, run_scalability_new
+from auto_template.sim_experiments import plot_scalability
+from auto_template.sim_experiments import run_oneshot_experiment, run_scalability_new
 
 
 n_positions = 3
@@ -15,7 +15,7 @@ d = 3
 DEBUG = False
 
 RESULTS_DIR = "_results"
-#RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results_server"
 
 
 def range_only_tightness():
@@ -86,9 +86,7 @@ def range_only_scalability_new(n_seeds, recompute):
         fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
 
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
-        fig, axs = plot_scalability(
-            df, log=True, start="t ", legend_idx=1
-        )
+        fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 

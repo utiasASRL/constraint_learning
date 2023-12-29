@@ -4,23 +4,21 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import sparseqr as sqr
 
-from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
-from utils.common import rank_project
-
-plt = import_plt()
+from cert_tools.linalg_tools import find_dependent_columns, rank_project
+from poly_matrix.poly_matrix import PolyMatrix
 
 from lifters.state_lifter import StateLifter
-from poly_matrix.poly_matrix import PolyMatrix
+from utils.constraint import Constraint
+from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
+from utils.plotting_tools import savefig, plot_singular_values
 from solvers.common import find_local_minimum
 from solvers.common import solve_certificate
 from solvers.common import solve_sdp_cvxpy
 from solvers.sparse import solve_lambda
 from solvers.sparse import bisection, brute_force
-from utils.plotting_tools import savefig
-from utils.constraint import Constraint
 
+plt = import_plt()
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -40,6 +38,8 @@ PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 USE_KNOWN = True
 GLOBAL_THRESH = 1e-3
 
+METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
+
 
 class Learner(object):
     """
@@ -53,7 +53,9 @@ class Learner(object):
         apply_templates: bool = True,
         noise: float = None,
         n_inits: int = 10,
+        use_known: bool = USE_KNOWN,
     ):
+        self.use_known = use_known
         self.noise = noise
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
@@ -233,7 +235,7 @@ class Learner(object):
 
     def get_A_b_list(self):
         A_known = []
-        if USE_KNOWN:
+        if self.use_known:
             # A_known = self.lifter.get_A_known()
             A_known += [constraint.A_sparse_ for constraint in self.templates_known]
         A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
@@ -292,7 +294,7 @@ class Learner(object):
         B_list = self.lifter.get_B_known()
 
         force_first = 1
-        if USE_KNOWN:
+        if self.use_known:
             force_first += len(self.templates_known)
 
         if reorder:
@@ -361,9 +363,9 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_num = df_tight[df_tight.cost_tight == True].index.min()
+            min_num = df_tight[df_tight.cost_tight is True].index.min()
         elif tightness == "rank":
-            min_num = df_tight[df_tight.rank_tight == True].index.min()
+            min_num = df_tight[df_tight.rank_tight is True].index.min()
         if not np.isnan(min_num):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
@@ -383,7 +385,7 @@ class Learner(object):
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
 
     def find_global_solution(self, data_dict={}):
-        if self.tightness_dict["rank"] == True:
+        if self.tightness_dict["rank"] is True:
             X = self.solver_vars["X"]
             x, info = rank_project(X, p=1)
             print("rank projection info:", info)
@@ -474,7 +476,7 @@ class Learner(object):
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-        if USE_KNOWN:
+        if self.use_known:
             a_vectors = []
             for c in self.templates:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
@@ -492,7 +494,7 @@ class Learner(object):
         print(f"data matrix Y has shape {Y.shape} ")
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
             print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
-            basis_new, S = self.lifter.get_basis(Y)
+            basis_new, S = self.lifter.get_basis(Y, method=METHOD_NULL)
             print(f"...done")
             corank = basis_new.shape[0]
             if corank > 0:
@@ -501,8 +503,6 @@ class Learner(object):
             bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
 
             if plot:
-                from lifters.plotting_tools import plot_singular_values
-
                 if len(bad_idx):
                     plot_singular_values(
                         S, eps=self.lifter.EPS_SVD, label=f"run {i}", ax=ax
@@ -614,42 +614,10 @@ class Learner(object):
             if A_vec.shape[0] < A_vec.shape[1]:
                 print("Warning: fat matrix.")
 
-            # Use sparse rank revealing QR
-            # We "solve" a least squares problem to get the rank and permutations
-            # This is the cheapest way to use sparse QR, since it does not require
-            # explicit construction of the Q matrix. We can't do this with qr function
-            # because the "just return R" option is not exposed.
-            Z, R, E, rank = sqr.rz(
-                A_vec, np.zeros((A_vec.shape[0], 1)), tolerance=1e-10
-            )
-            # Sort the diagonal values. Note that SuiteSparse uses AMD/METIS ordering
-            # to acheive sparsity.
-            r_vals = np.abs(R.diagonal())
-            sort_inds = np.argsort(r_vals)[::-1]
-            if rank < A_vec.shape[1]:
-                print(f"clean_constraints: keeping {rank}/{A_vec.shape[1]} independent")
-
-            bad_idx = list(range(A_vec.shape[1]))
-            keep_idx = sorted(E[sort_inds[:rank]])[::-1]
-            for good_idx in keep_idx:
-                del bad_idx[good_idx]
-            # bad_idx = list(E[sort_inds[rank:]])
-
-            # Sanity check, removed because too expensive. It almost always passed anyways.
-            Z, R, E, rank_full = sqr.rz(
-                A_vec.tocsc()[:, keep_idx],
-                np.zeros((A_vec.shape[0], 1)),
-                tolerance=1e-10,
-            )
-            if rank_full != rank:
-                print(
-                    f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}."
-                )
-
+            bad_idx = find_dependent_columns(A_vec)
             if len(bad_idx):
                 for idx in sorted(bad_idx)[::-1]:
                     del constraints[idx]
-                assert len(constraints) == rank
 
         if remove_imprecise:
             error, bad_idx = self.lifter.test_constraints(
@@ -738,7 +706,7 @@ class Learner(object):
         data = []
         success = False
 
-        if USE_KNOWN:
+        if self.use_known:
             self.create_known_templates()
 
         while 1:
@@ -749,7 +717,7 @@ class Learner(object):
             print(f"======== {self.mat_vars} ========")
 
             n_new = 0
-            if USE_KNOWN:
+            if self.use_known:
                 n_new += self.extract_known_templates()
 
             data_dict = {"variables": self.mat_vars}

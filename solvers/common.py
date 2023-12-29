@@ -6,57 +6,27 @@ from lifters.state_lifter import StateLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo_lifter import StereoLifter
 
+from cert_tools import solve_sdp_mosek
+from cert_tools import solve_feasibility_sdp
+
 TOL = 1e-10  # can be overwritten by a parameter.
 
 # Reference for MOSEK parameters explanations:
 # https://docs.mosek.com/latest/pythonapi/parameters.html#doc-all-parameter-list
-
 VERBOSE = False
-SOLVER = "MOSEK"  # first choice
 solver_options = {
-    None: {},
-    "CVXOPT": {
-        "verbose": VERBOSE,
-        "refinement": 1,
-        "kktsolver": "qr",  # important so that we can solve with redundant constraints
-        "abstol": 1e-7,  # will be changed according to primal
-        "reltol": 1e-6,  # will be changed according to primal
-        "feastol": 1e-9,
-    },
-    "MOSEK": {
-        "verbose": VERBOSE,
-        "mosek_params": {
-            "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
-            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
-            "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
-            "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
-        },
+    "verbose": VERBOSE,
+    "mosek_params": {
+        "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
+        "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
+        "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
+        # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
+        # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
+        "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
+        "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
+        "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
     },
 }
-
-
-def adjust_tol(options, tol):
-    for opt in options:
-        if "mosek_params" in opt:
-            opt["mosek_params"].update(
-                {
-                    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_MU_RED": tol,
-                }
-            )
-        else:
-            opt.update(
-                {
-                    "abstol": tol,
-                    "reltol": tol,
-                    "feastol": tol,
-                }
-            )
 
 
 def adjust_Q(Q, offset=True, scale=True, plot=False):
@@ -88,12 +58,21 @@ def adjust_Q(Q, offset=True, scale=True, plot=False):
     return Q_mat, Q_scale, Q_offset
 
 
+def adjust_tol(options, tol):
+    options["mosek_params"].update(
+        {
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
+            "MSK_DPAR_INTPNT_CO_TOL_MU_RED": tol,
+        }
+    )
+
+
 def solve_sdp_cvxpy(
     Q,
     A_b_list,
     B_list=[],
     adjust=True,
-    solver=SOLVER,
     primal=False,
     verbose=True,
     tol=None,
@@ -110,11 +89,11 @@ def solve_sdp_cvxpy(
     Returns:
         _type_: (X, cost_out): solution matrix and output cost.
     """
-    opts = solver_options[solver]
+    opts = solver_options
     opts["verbose"] = verbose
 
     if tol:
-        adjust_tol([opts], tol)
+        adjust_tol(opts, tol)
 
     Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
     if primal:
@@ -129,8 +108,7 @@ def solve_sdp_cvxpy(
         cprob = cp.Problem(cp.Minimize(cp.trace(Q_here @ X)), constraints)
         try:
             cprob.solve(
-                solver=solver,
-                # save_file="solve_cvxpy_primal.ptf",
+                solver="MOSEK",
                 **opts,
             )
         except Exception as e:
@@ -184,7 +162,7 @@ def solve_sdp_cvxpy(
         cprob = cp.Problem(objective, constraints)
         try:
             cprob.solve(
-                solver=solver,
+                solver="MOSEK",
                 **opts,
             )
         except Exception as e:
@@ -234,6 +212,29 @@ def solve_sdp_cvxpy(
 
     info = {"H": H, "yvals": yvals, "cost": cost, "msg": msg}
     return X, info
+
+
+
+def solve_sdp_cvxpy_new(
+    Q,
+    A_b_list,
+    B_list=[],
+    adjust=True,
+    primal=False,
+    verbose=True,
+    tol=None,
+):
+    # TODO: below doesn't currently give the same results as when running the above function.
+    # Need to figure out why and fix this.
+    assert primal is False, "Option primal not supported anymore, it is less efficient."
+    assert len(B_list) == 0, "Inequality constraints not supported anymore."
+
+    opts = solver_options
+    opts["verbose"] = verbose
+    if tol:
+        adjust_tol(opts, tol)
+
+    return solve_sdp_mosek(Q, A_b_list, adjust=adjust, verbose=verbose)
 
 
 def find_local_minimum(
@@ -356,67 +357,12 @@ def solve_certificate(
     A_b_list,
     xhat,
     adjust=True,
-    solver=SOLVER,
     verbose=False,
     tol=None,
 ):
     """Solve certificate."""
-    opts = solver_options[solver]
+    opts = solver_options
     opts["verbose"] = verbose
-
     if tol:
-        adjust_tol([opts], tol)
-
-    Q_here, scale, offset = adjust_Q(Q) if adjust else (Q, 1.0, 0.0)
-
-    m = len(A_b_list)
-    y = cp.Variable(shape=(m,))
-
-    As, b = zip(*A_b_list)
-    b = np.concatenate([np.atleast_1d(bi) for bi in b])
-
-    H = cp.sum([Q_here] + [y[i] * Ai for (i, Ai) in enumerate(As)])
-    constraints = [H >> 0]
-    eps = cp.Variable()
-    constraints += [H @ xhat <= eps]
-    constraints += [H @ xhat >= -eps]
-
-    objective = cp.Minimize(eps)
-
-    cprob = cp.Problem(objective, constraints)
-    try:
-        cprob.solve(
-            solver=solver,
-            **opts,
-        )
-    except Exception as e:
-        eps = None
-        cost = None
-        X = None
-        H = None
-        yvals = None
-        msg = "infeasible / unknown"
-    else:
-        if np.isfinite(cprob.value):
-            cost = cprob.value
-            X = constraints[0].dual_value
-            H = H.value
-            yvals = [x.value for x in y]
-            msg = "converged"
-        else:
-            eps = None
-            cost = None
-            X = None
-            H = None
-            yvals = None
-            msg = "unbounded"
-
-    # reverse Q adjustment
-    if cost:
-        eps = eps.value
-        cost = cost * scale + offset
-        H = Q_here + cp.sum([yvals[i] * Ai for (i, Ai) in enumerate(As)])
-        yvals[0] = yvals[0] * scale + offset
-
-    info = {"X": X, "yvals": yvals, "cost": cost, "msg": msg, "eps": eps}
-    return H, info
+        adjust_tol(opts, tol)
+    return solve_feasibility_sdp(Q, A_b_list, xhat, adjust=adjust, sdp_opts=opts)

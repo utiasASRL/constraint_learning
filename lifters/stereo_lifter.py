@@ -1,4 +1,4 @@
-from abc import ABC, abstractproperty
+from abc import ABC
 
 import autograd.numpy as np
 

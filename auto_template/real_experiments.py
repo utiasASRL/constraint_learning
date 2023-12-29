@@ -3,7 +3,6 @@ import os
 import pickle
 import time
 
-
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
@@ -12,7 +11,7 @@ from pylgmath.so3.operations import hat
 
 from starloc.reader import read_landmarks, read_data, read_calib
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import savefig

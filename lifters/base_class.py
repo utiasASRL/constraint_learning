@@ -65,19 +65,15 @@ class BaseClass(ABC):
     def generate_random_setup(self):
         return
 
-    @abstractmethod
+    # @abstractmethod
     def generate_random_theta(self):
         pass
 
-    @abstractmethod
+    # @abstractmethod
     def sample_theta(self):
         return
 
-    @abstractmethod
-    def sample_theta(self):
-        return
-
-    @abstractmethod
+    # @abstractmethod
     def sample_parameters(self, x=None):
         return
 
@@ -89,7 +85,7 @@ class BaseClass(ABC):
     def get_p(self, parameters=None, var_subset=None) -> np.ndarray:
         return
 
-    @abstractmethod
+    # @abstractmethod
     def get_parameters(self, var_subset=None) -> list:
         return
 
@@ -100,3 +96,6 @@ class BaseClass(ABC):
     def get_Q(self, noise=1e-3):
         Warning("get_Q not implemented yet")
         return None, None
+
+    def get_A_known(self):
+        return []

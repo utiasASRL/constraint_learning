@@ -10,8 +10,13 @@ try:
 except:
     pass
 
-from utils.real_experiments import Experiment
-from utils.real_experiments import run_experiments, plot_results, plot_local_vs_global
+from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
+from auto_template.real_experiments import Experiment
+from auto_template.real_experiments import (
+    run_experiments,
+    plot_results,
+    plot_local_vs_global,
+)
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 MAX_N_LANDMARKS = 8  # 10
@@ -79,8 +84,6 @@ def run_all(recompute=RECOMPUTE, n_successful=10):
 
         # cost below is found empirically
         plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
-
-        from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
 
         plot_results(
             df,

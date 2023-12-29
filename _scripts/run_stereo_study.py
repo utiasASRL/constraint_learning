@@ -6,15 +6,13 @@ import matplotlib.pylab as plt
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from utils.sim_experiments import (
+from auto_template.learner import Learner
+from auto_template.sim_experiments import (
+    plot_scalability,
     run_scalability_new,
     run_oneshot_experiment,
     run_scalability_plot,
 )
-from utils.sim_experiments import plot_scalability, save_table
-from utils.plotting_tools import savefig
-
-from lifters.learner import Learner
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import savefig
@@ -22,7 +20,8 @@ from utils.plotting_tools import savefig
 DEBUG = False
 
 RESULTS_DIR = "_results"
-#RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results_server"
+
 
 def stereo_tightness(d=2, n_landmarks=None):
     """
@@ -106,7 +105,7 @@ def stereo_scalability_new(n_seeds, recompute, d=2):
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         recompute=recompute,
-        results_folder=RESULTS_DIR
+        results_folder=RESULTS_DIR,
     )
     if df is None:
         return
