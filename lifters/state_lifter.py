@@ -592,7 +592,6 @@ class StateLifter(BaseClass):
             poly_row["h", key] = val
         return poly_row
 
-
     def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
         """
         Apply the learned patterns in basis_list to all landmarks.

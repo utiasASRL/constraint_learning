@@ -258,7 +258,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         try:
             R, t = get_C_r_from_theta(x, self.d)
-        except:
+        except Exception:
             R, t = get_C_r_from_xtheta(x, self.d)
 
         cost = 0
