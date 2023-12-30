@@ -164,7 +164,7 @@ class StereoLifter(StateLifter, ABC):
                 # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
                 C, r = get_C_r_from_xtheta(theta, self.d)
 
-        if self.param_level != "no":
+        if (self.param_level != "no") and (len(parameters) > 1):
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
         else:
             landmarks = self.landmarks
@@ -269,9 +269,17 @@ class StereoLifter(StateLifter, ABC):
                 < 1e-10
             )
 
+        if var_dict is None:
+            var_dict = self.var_dict
+
         A_known = []
         z_dim = self.get_level_dims()[self.level]
-        for j in range(self.n_landmarks):
+
+        if "x" not in var_dict or "h" not in var_dict:
+            return A_known
+        landmarks = [j for j in range(self.n_landmarks) if f"z_{j}" in var_dict]
+        for j in landmarks:
+            # one complete constraint has x, z_j and h.
             pj = self.landmarks[j]
             for i in range(self.d):
                 A = PolyMatrix()
@@ -295,7 +303,7 @@ class StereoLifter(StateLifter, ABC):
                 if output_poly:
                     A_known.append(A)
                 else:
-                    A_known.append(A.get_matrix(self.var_dict))
+                    A_known.append(A.get_matrix(var_dict))
         return A_known
 
     def sample_theta(self):
@@ -326,17 +334,18 @@ class StereoLifter(StateLifter, ABC):
             y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
         return y_sim
 
-    def get_Q(self, noise: float = None) -> tuple:
-        if noise is None:
-            noise = NOISE
-
+    def get_Q(
+        self, noise: float = None, output_poly: bool = False, use_cliques: list = []
+    ) -> tuple:
         if self.y_ is None:
+            if noise is None:
+                noise = NOISE
             self.y_ = self.simulate_y(noise=noise)
 
-        Q = self.get_Q_from_y(self.y_)
+        Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
         return Q, self.y_
 
-    def get_Q_from_y(self, y):
+    def get_Q_from_y(self, y, output_poly=False, use_cliques=[]):
         """
         The least squares problem reads
         min_T \sum_{n=0}^{N-1} || y - Mtilde@z ||
@@ -345,6 +354,11 @@ class StereoLifter(StateLifter, ABC):
         y is of length d*2, corresponding to the measured pixel values in left and right image.
         """
         from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+        if len(use_cliques):
+            js = use_cliques
+        else:
+            js = range(y.shape[0])
 
         # in 2d: M_tilde is 2 by 6, with first 2 columns: M[:, [0, 2]]
         # in 3d: M_tilde is 4 by 12, with first 3 columns: M[:, [0, 1, 3]]
@@ -356,13 +370,15 @@ class StereoLifter(StateLifter, ABC):
         m = self.M_matrix[:, self.d - 1]
 
         ls_problem = LeastSquaresProblem()
-        for j in range(y.shape[0]):
+        for j in js:
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
-        Q = ls_problem.get_Q().get_matrix(self.var_dict)
+        if output_poly:
+            Q = ls_problem.get_Q()
+        else:
+            Q = ls_problem.get_Q().get_matrix(self.var_dict)
         if NORMALIZE:
             Q /= self.n_landmarks * self.d
-        # there is precision loss because Q is
 
         # sanity check
         x = self.get_x()
@@ -375,11 +391,14 @@ class StereoLifter(StateLifter, ABC):
         if NORMALIZE:
             cost_test /= self.n_landmarks * self.d
 
-        t = self.theta
-        cost_raw = self.get_cost(t, y)
-        cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-6, cost_raw - cost_Q
-        assert abs(cost_raw - cost_test) < 1e-6, (cost_raw, cost_test)
+        if output_poly:
+            cost_Q = x.T @ Q.get_matrix(self.var_dict).toarray() @ x
+        else:
+            cost_Q = x.T @ Q.toarray() @ x
+        assert abs(cost_test - cost_Q) < 1e-6, (cost_test, cost_Q)
+        if not len(use_cliques):
+            cost_raw = self.get_cost(self.theta, y)
+            assert abs(cost_test - cost_raw) < 1e-6, (cost_test, cost_raw)
         return Q
 
     def get_theta(self, x):

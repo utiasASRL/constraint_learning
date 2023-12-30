@@ -25,7 +25,7 @@ dependencies:
     - autograd>=1.6.2
 
     - pip:
-      - chompack>=2.3.3
+      - chompack>=2.3.1
       - pymanopt>=2.1.1
       - sparseqr
       - asrl-pylgmath>=1.0.3

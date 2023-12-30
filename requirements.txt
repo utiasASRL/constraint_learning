@@ -10,7 +10,7 @@ black>=23.1.0
 autograd>=1.6.2
 mosek
 pymanopt>=2.1.1
-chompack>=2.3.3
+chompack>=2.3.1
 sparseqr
 asrl-pylgmath>=1.0.3
 -e poly_matrix/

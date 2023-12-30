@@ -290,8 +290,6 @@ class StateLifter(BaseClass):
         Ai = self.create_symmetric(
             vec, correct=correct, eps_sparse=self.EPS_SPARSE, sparse=sparse
         )
-        assert Ai.shape[0] == self.get_dim_x(var_dict)
-
         if var_dict is None:
             return Ai
 
@@ -306,9 +304,38 @@ class StateLifter(BaseClass):
         return Ai_poly.get_matrix(all_var_dict)
 
     def get_A_learned(self, A_known=[], var_dict=None, method=METHOD) -> list:
-        Y = self.generate_Y(var_subset=var_dict)
-        basis, S = self.get_basis(Y, A_known=A_known, method=method)
-        A_learned = self.generate_matrices(basis)
+        import time
+
+        t1 = time.time()
+        Y = self.generate_Y(var_subset=var_dict, factor=1.0)
+        print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
+        t1 = time.time()
+        basis, S = self.get_basis(
+            Y, A_known=A_known, method=method, var_subset=var_dict
+        )
+        print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
+        t1 = time.time()
+        A_learned = self.generate_matrices(basis, var_dict=var_dict)
+        print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
+        return A_learned
+
+    def get_A_learned_simple(self, A_known=[], var_dict=None, method=METHOD) -> list:
+        import time
+
+        if len(A_known):
+            raise ValueError("cannot deal with A_known in simple learning")
+
+        t1 = time.time()
+        Y = self.generate_Y_simple(var_subset=var_dict, factor=1.5)
+        print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
+        t1 = time.time()
+        basis, S = self.get_basis(
+            Y, A_known=A_known, method=method, var_subset=var_dict
+        )
+        print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
+        t1 = time.time()
+        A_learned = self.generate_matrices_simple(basis, var_dict=var_dict)
+        print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
         return A_learned
 
     def get_A_known(self, var_dict=None) -> list:
@@ -452,37 +479,6 @@ class StateLifter(BaseClass):
             mat = sub_mat.get_matrix(self.var_dict).toarray()
             vector = np.r_[vector, mat[np.triu_indices(mat.shape[0])]]
         return np.array(vector)
-
-    def old_convert_polyrow_to_a(self, poly_row, var_subset, correct=True):
-        """Convert poly-row to reduced a.
-
-        poly-row has elements with keys "pk:l-xi:m.xj:n",
-        meaning this element corresponds to the l-th element of parameter i,
-        and the m-n-th element of xj times xk.
-        """
-        parameters = self.get_p()
-        param_dict = self.get_param_idx_dict()
-
-        jj = []
-        data = []
-        for j, key in enumerate(poly_row.variable_dict_j):
-            param, var_keys = key.split("-")
-            keyi_m, keyj_n = var_keys.split(".")
-            m = keyi_m.split(":")[-1]
-            n = keyj_n.split(":")[-1]
-            if param in ["h", "h.h"]:
-                param_val = 1.0
-            else:
-                param_val = parameters[param_dict[param]]
-
-            # divide off-diagonal elements by sqrt(2)
-            newval = poly_row["h", key] * param_val
-            if correct and not ((keyi_m == keyj_n) and (m == n)):
-                newval /= np.sqrt(2)
-
-            jj.append(j)
-            data.append(newval.flatten()[0])
-        return sp.csr_array((data, ([0] * len(jj), jj)), (1, self.get_dim_X()))
 
     def convert_b_to_Apoly(self, new_template, var_dict):
         ai_sub = self.get_reduced_a(new_template, var_dict, sparse=True)
@@ -688,6 +684,20 @@ class StateLifter(BaseClass):
     def get_dim_P(self, var_subset=None):
         return len(self.get_p(var_subset=var_subset))
 
+    def generate_Y_simple(self, var_subset, factor):
+        # need at least dim_Y different random setups
+        dim_Y = self.get_dim_X(var_subset)
+        n_seeds = int(dim_Y * factor)
+        Y = np.empty((n_seeds, dim_Y))
+        for seed in range(n_seeds):
+            np.random.seed(seed)
+
+            theta = self.sample_theta()
+            x = self.get_x(theta, parameters=[1.0], var_subset=var_subset)
+            X = np.outer(x, x)
+            Y[seed, :] = self.get_vec(X)
+        return Y
+
     def generate_Y(self, factor=FACTOR, ax=None, var_subset=None):
         # need at least dim_Y different random setups
         dim_Y = self.get_dim_Y(var_subset)
@@ -731,6 +741,7 @@ class StateLifter(BaseClass):
         Y,
         A_known: list = [],
         basis_known: np.ndarray = None,
+        var_subset: dict() = None,
         method=METHOD,
     ):
         """Generate basis from lifted state matrix Y.
@@ -749,7 +760,12 @@ class StateLifter(BaseClass):
             Y = np.vstack([Y, basis_known.T])
         elif len(A_known):
             A = np.vstack(
-                [self.augment_using_zero_padding(self.get_vec(a)) for a in A_known]
+                [
+                    self.augment_using_zero_padding(
+                        self.get_vec(a), var_subset=var_subset
+                    )
+                    for a in A_known
+                ]
             )
             Y = np.vstack([Y, A])
 
@@ -804,7 +820,7 @@ class StateLifter(BaseClass):
         p = self.get_p(parameters, var_subset=var_subset)
         return np.kron(p, x)
 
-    def generate_matrices(
+    def generate_matrices_simple(
         self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10, var_dict=None
     ):
         """
@@ -820,8 +836,63 @@ class StateLifter(BaseClass):
 
         A_list = []
         for i in range(n_basis):
+            ai = basis[i]
+            Ai = self.get_mat(ai, sparse=sparse, correct=True, var_dict=None)
+            # Normalize the matrix
+            if normalize and not sparse:
+                # Ai /= np.max(np.abs(Ai))
+                Ai /= np.linalg.norm(Ai, p=2)
+            elif normalize and sparse:
+                Ai /= sp.linalg.norm(Ai, ord="fro")
+            # Sparsify and truncate
+            if sparse:
+                Ai.eliminate_zeros()
+            else:
+                Ai[np.abs(Ai) < trunc_tol] = 0.0
+            # add to list
+            A_list.append(Ai)
+        return A_list
+
+    def generate_matrices(
+        self, basis, normalize=NORMALIZE, sparse=True, trunc_tol=1e-10, var_dict=None
+    ):
+        """
+        Generate constraint matrices from the rows of the nullspace basis matrix.
+        """
+        try:
+            n_basis = len(basis)
+        except Exception:
+            n_basis = basis.shape[0]
+
+        if type(var_dict) is list:
+            var_dict = self.get_var_dict(var_dict)
+
+        A_list = []
+        basis_reduced = []
+        for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict)
-            Ai = self.get_mat(ai, sparse=sparse, var_dict=var_dict, correct=True)
+            basis_reduced.append(ai)
+
+        # TODO(FD) not the cheapest way to create a coo_array
+        basis_reduced = sp.csr_array(np.array(basis_reduced))
+
+        import sparseqr as sqr
+
+        Z, R, E, rank = sqr.rz(
+            basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
+        )
+        r_vals = np.abs(R.diagonal())
+        sort_inds = np.argsort(r_vals)[::-1]
+        keep_idx = sorted(E[sort_inds[:rank]])
+        basis_reduced = basis_reduced[keep_idx, :]
+        *_, rank_new = sqr.rz(
+            basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
+        )
+        assert rank_new == rank
+
+        for i in range(basis_reduced.shape[0]):
+            ai = basis_reduced[[i], :].toarray().flatten()
+            Ai = self.get_mat(ai, sparse=sparse, correct=True, var_dict=None)
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
