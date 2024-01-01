@@ -62,39 +62,49 @@ class WahbaLifter(RobustPoseLifter):
             return res_sq / (self.n_landmarks * self.d) ** 2
         return res_sq
 
-    def get_Q(self, noise: float = None):
+    def get_Q(
+        self, noise: float = None, output_poly: bool = False, use_cliques: list = []
+    ):
         if noise is None:
             noise = NOISE
-        y = np.empty((self.n_landmarks, self.d))
-        n_angles = self.d * (self.d - 1) // 2
-        theta = self.theta[: self.d + n_angles]
-        R, t = get_C_r_from_theta(theta, self.d)
-        for i in range(self.n_landmarks):
-            pi = self.landmarks[i]
-            # ui = deepcopy(pi) #R @ pi + t
-            ui = R @ pi + t
-            if i < self.n_outliers:
-                ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
-            else:
-                ui += np.random.normal(scale=noise, loc=0, size=self.d)
-            y[i] = ui
-        Q = self.get_Q_from_y(y)
-        return Q, y
 
-    def get_Q_from_y(self, y):
-        """
-                every cost term can be written as
-                (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
+        if self.y_ is None:
+            self.y_ = np.empty((self.n_landmarks, self.d))
+            n_angles = self.d * (self.d - 1) // 2
+            theta = self.theta[: self.d + n_angles]
+            R, t = get_C_r_from_theta(theta, self.d)
+            for i in range(self.n_landmarks):
+                pi = self.landmarks[i]
+                # ui = deepcopy(pi) #R @ pi + t
+                ui = R @ pi + t
+                if i < self.n_outliers:
+                    ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
+                else:
+                    ui += np.random.normal(scale=noise, loc=0, size=self.d)
+                self.y_[i] = ui
+        Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
+        return Q, self.y_
 
-                residual term:
-                (Rpi + t - ui).T Wi (Rpi + t - ui) =
-                [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
-                ------x'-----   -----Pi'-----
-                - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui
-                    -----x'------   ---------Pi_xl--------
-                + ui.T @ Wi @ ui
-                -----Pi_ll------
+    def get_Q_from_y(self, y, output_poly: bool = False, use_cliques: list = []):
         """
+        every cost term can be written as
+        (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
+
+        residual term:
+        (Rpi + t - ui).T Wi (Rpi + t - ui) =
+        [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
+        ------x'-----   -----Pi'-----
+        - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui
+            -----x'------   ---------Pi_xl--------
+        + ui.T @ Wi @ ui
+        -----Pi_ll------
+        """
+
+        if len(use_cliques):
+            js = use_cliques
+        else:
+            js = list(range(self.n_landmarks))
+
         from poly_matrix.poly_matrix import PolyMatrix
 
         Q = PolyMatrix(symmetric=True)
@@ -102,14 +112,14 @@ class WahbaLifter(RobustPoseLifter):
             norm = (self.n_landmarks * self.d) ** 2
 
         Wi = np.eye(self.d)
-        for i in range(self.n_landmarks):
+        for i in js:
             pi = self.landmarks[i]
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
 
-            Pi_ll = ui.T @ Wi @ ui 
-            Pi_xl = -(Pi.T @ Wi @ ui)[:, None] 
-            Qi = Pi.T @ Wi @ Pi 
+            Pi_ll = ui.T @ Wi @ ui
+            Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
+            Qi = Pi.T @ Wi @ Pi
             if NORMALIZE:
                 Pi_ll /= norm
                 Pi_xl /= norm
@@ -155,6 +165,8 @@ class WahbaLifter(RobustPoseLifter):
                 Q["t", "h"] += Pi_xl[: self.d, :]
                 Q["c", "h"] += Pi_xl[self.d :, :]
                 Q["h", "h"] += Pi_ll  # on diagonal
+        if output_poly:
+            return 0.5 * Q
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 

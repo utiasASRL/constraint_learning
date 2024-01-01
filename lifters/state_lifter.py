@@ -303,39 +303,52 @@ class StateLifter(BaseClass):
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
 
-    def get_A_learned(self, A_known=[], var_dict=None, method=METHOD) -> list:
+    def get_A_learned(
+        self, A_known=[], var_dict=None, method=METHOD, verbose=False
+    ) -> list:
         import time
 
         t1 = time.time()
         Y = self.generate_Y(var_subset=var_dict, factor=1.0)
-        print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
         t1 = time.time()
         basis, S = self.get_basis(
             Y, A_known=A_known, method=method, var_subset=var_dict
         )
-        print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
         t1 = time.time()
         A_learned = self.generate_matrices(basis, var_dict=var_dict)
-        print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
         return A_learned
 
-    def get_A_learned_simple(self, A_known=[], var_dict=None, method=METHOD) -> list:
+    def get_A_learned_simple(
+        self, A_known=[], var_dict=None, method=METHOD, verbose=False
+    ) -> list:
         import time
-
-        if len(A_known):
-            raise ValueError("cannot deal with A_known in simple learning")
 
         t1 = time.time()
         Y = self.generate_Y_simple(var_subset=var_dict, factor=1.5)
-        print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"generate Y ({Y.shape}): {time.time() - t1:4.4f}")
         t1 = time.time()
+        if len(A_known):
+            basis_known = np.vstack(
+                [self.get_vec(Ai.get_matrix(var_dict)) for Ai in A_known]
+            ).T
+        else:
+            basis_known = None
         basis, S = self.get_basis(
-            Y, A_known=A_known, method=method, var_subset=var_dict
+            Y, basis_known=basis_known, method=method, var_subset=var_dict
         )
-        print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"get basis ({basis.shape})): {time.time() - t1:4.4f}")
         t1 = time.time()
         A_learned = self.generate_matrices_simple(basis, var_dict=var_dict)
-        print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
+        if verbose:
+            print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
         return A_learned
 
     def get_A_known(self, var_dict=None) -> list:

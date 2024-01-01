@@ -34,6 +34,7 @@ class BaseClass(ABC):
         # variables that get overwritten upon initialization
         self.theta_ = None
         self.var_dict_ = None
+        self.y_ = None
 
         self.d = d
         self.generate_random_setup()

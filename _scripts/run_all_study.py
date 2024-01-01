@@ -51,14 +51,14 @@ def generate_results(lifters, seed=0):
 
 def run_all(recompute=RECOMPUTE):
     lifters = [
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+        # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+        # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+        # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+        # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
         (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
-        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+        # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+        # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+        # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
     fname = f"{RESULTS_DIR}/all_df_new.pkl"

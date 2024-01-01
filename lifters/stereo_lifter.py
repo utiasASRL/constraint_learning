@@ -67,6 +67,22 @@ class StereoLifter(StateLifter, ABC):
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
 
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
+        vars = {
+            "h": self.var_dict["h"],
+            "x": self.var_dict["x"],
+        }
+        for j in used_landmarks:
+            vars.update({f"z_{j}": self.var_dict[f"z_{j}"]})
+        return vars
+
+    def base_size(self):
+        return self.var_dict["h"] + self.var_dict["x"]
+
+    def landmark_size(self):
+        return self.var_dict["z_0"]
+
     def get_all_variables(self):
         return [["h", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
 

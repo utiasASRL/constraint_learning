@@ -218,8 +218,8 @@ class Learner(object):
         self.ranks.append(eigs)
 
         if self.lifter.robust:
-            idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
-            wi = X[0, idx_xtheta : idx_xtheta + self.lifter.n_landmarks]
+            x_dim = self.lifter.d + self.lifter.d**2 + 1
+            wi = X[0, x_dim::x_dim]
             print("should be plus or minus ones:", wi.round(4))
 
         cost_tight = self.duality_gap_is_zero(

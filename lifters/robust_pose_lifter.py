@@ -103,25 +103,47 @@ class RobustPoseLifter(StateLifter, ABC):
     @property
     def var_dict(self):
         """Return key,size pairs of all variables."""
-        n = self.d**2 + self.d
         var_dict = {"h": 1, "t": self.d, "c": self.d**2}
         if not self.robust:
             return var_dict
-        var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
+
+        n = self.d**2 + self.d
         if self.level == "xwT":
-            var_dict.update({f"z_{i}": n for i in range(self.n_landmarks)})
+            for i in range(self.n_landmarks):
+                var_dict.update({f"w_{i}": 1, f"z_{i}": n})
         elif self.level == "xxT":
+            var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
             var_dict.update({"z_0": n**2})
         return var_dict
+
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
+        vars = {
+            "h": self.var_dict["h"],
+            "t": self.var_dict["t"],
+            "c": self.var_dict["c"],
+        }
+        for j in used_landmarks:
+            vars.update(
+                {f"w_{j}": self.var_dict[f"w_{j}"], f"z_{j}": self.var_dict[f"z_{j}"]}
+            )
+        return vars
+
+    def base_size(self):
+        return self.var_dict["h"] + self.var_dict["t"] + self.var_dict["c"]
+
+    def landmark_size(self):
+        return self.var_dict["z_0"] + self.var_dict["w_0"]
 
     def get_all_variables(self):
         all_variables = ["h", "t", "c"]
         if self.robust:
-            all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
-        if self.level == "xxT":
-            all_variables.append("z_0")
-        elif self.level == "xwT":
-            all_variables += [f"z_{i}" for i in range(self.n_landmarks)]
+            if self.level == "xxT":
+                all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
+                all_variables += ["z_0"]
+            elif self.level == "xwT":
+                for i in range(self.n_landmarks):
+                    all_variables += [f"w_{i}", f"z_{i}"]
         variable_list = [all_variables]
         return variable_list
 
@@ -177,20 +199,14 @@ class RobustPoseLifter(StateLifter, ABC):
                 j = int(key.split("_")[-1])
                 w_j = theta[-self.n_landmarks + j]
                 x_data.append(w_j)
-
-        if self.level == "no":
-            pass
-        elif self.level == "xxT":
-            if "z_0" in var_subset:
+            elif (self.level == "xxT") and (key == "z_0"):
                 x_vec = list(get_xtheta_from_C_r(R, t))
                 x_data += list(np.kron(x_vec, x_vec).flatten())
-        elif self.level == "xwT":
-            for key in var_subset:
-                if "z" in key:
-                    j = int(key.split("_")[-1])
-                    w_j = theta[-self.n_landmarks + j]
-                    x_vec = get_xtheta_from_C_r(R, t)
-                    x_data += list(x_vec * w_j)
+            elif (self.level == "xwT") and ("z" in key):
+                j = int(key.split("_")[-1])
+                w_j = theta[-self.n_landmarks + j]
+                x_vec = get_xtheta_from_C_r(R, t)
+                x_data += list(x_vec * w_j)
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
@@ -340,7 +356,13 @@ class RobustPoseLifter(StateLifter, ABC):
         )
         optimizer = Optimizer(**solver_kwargs)
 
-        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
+        if self.robust:
+            try:
+                R_0, t_0 = get_C_r_from_theta(t0[: -self.n_landmarks], self.d)
+            except ValueError:
+                R_0, t_0 = get_C_r_from_xtheta(t0[: -self.n_landmarks], self.d)
+        else:
+            R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
 
