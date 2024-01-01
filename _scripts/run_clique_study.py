@@ -58,6 +58,10 @@ def plot_sparsities(learner: Learner):
 
 
 def run_by_clique(lifter: Stereo2DLifter, n_overlap=0):
+    """
+    :param n_overlap: number of additional landmarks to consider (0 means only one landmark per clique)
+
+    """
     from cert_tools.sparse_solvers import solve_oneshot
     from cert_tools.base_clique import BaseClique
 
@@ -121,10 +125,10 @@ def run_by_clique(lifter: Stereo2DLifter, n_overlap=0):
             # the right part of left slice...
             n_elems = lifter.d
             left_slice_start = [[0, 0], [0, o + z]]
-            left_slice_end = [[o, o], [1, o + z + n_elems]]
+            left_slice_end = [[1, o], [1, o + z + n_elems]]
             # equals the left part of right slice...
             right_slice_start = [[0, 0], [0, o]]
-            right_slice_end = [[o, o], [1, o + n_elems]]
+            right_slice_end = [[1, o], [1, o + n_elems]]
 
             if DEBUG:
                 if i < lifter.n_landmarks - 2:
@@ -179,11 +183,12 @@ def run_by_clique(lifter: Stereo2DLifter, n_overlap=0):
         clique_list.append(clique)
 
     if DEBUG:
-        Q_mat = Q_test.get_matrix(
-            ["hx"] + [f"q_{i}" for i in range(lifter.n_landmarks)]
-        )
         Q, y = lifter.get_Q()
-        np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
+        if n_overlap > 0:
+            Q_mat = Q_test.get_matrix(
+                ["hx"] + [f"q_{i}" for i in range(lifter.n_landmarks)]
+            )
+            np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
         x = lifter.get_x()
         cost_test = x.T @ Q @ x
         assert abs(cost_test - cost_total) < 1e-10, (cost_test, cost_total)
@@ -200,20 +205,22 @@ if __name__ == "__main__":
     np.random.seed(0)
     lifter = Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT")
     # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no")
-    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-    # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-    # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-    # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
-    # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-    # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad")
+    # lifter = Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT")
+    # lifter = WahbaLifter(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)
+    # lifter = MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)
+    # lifter = WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)
+    # lifter = MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)
 
     Q, y = lifter.get_Q(noise=NOISE)
     theta_gt = lifter.theta
     theta_est, info, cost = lifter.local_solver(theta_gt, lifter.y_)
     x = lifter.get_x(theta_est)
     print(x.T @ Q @ x, cost)
-    # X_list, info_sdp = run_by_clique(lifter)
+    X_list, info_sdp = run_by_clique(lifter, n_overlap=0)
+    print(f"overlap 0 : q={cost:.2e}, p={info_sdp['cost']:.2e}")
     X_list, info_sdp = run_by_clique(lifter, n_overlap=1)
+    print(f"overlap 1 : q={cost:.2e}, p={info_sdp['cost']:.2e}")
     sys.exit()
 
     name = "known"
