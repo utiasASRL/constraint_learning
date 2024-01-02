@@ -554,7 +554,7 @@ class Learner(object):
             return n_new, n_all
         return 0, len(self.constraints)
 
-    def apply_templates(self, reapply_all=False):
+    def apply_templates(self):
         # the new templates are all the ones corresponding to the new matrix variables.
         new_constraints = []
         for template in self.templates:
@@ -745,7 +745,7 @@ class Learner(object):
             if self.apply_templates_to_others:
                 print(f"------- applying templates ---------")
                 t1 = time.time()
-                n_new, n_all = self.apply_templates(reapply_all=True)
+                n_new, n_all = self.apply_templates()
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 

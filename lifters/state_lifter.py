@@ -639,8 +639,13 @@ class StateLifter(BaseClass):
             return [bi_poly]
 
         variable_indices = self.get_variable_indices(self.var_dict)
-        # if z_0 is in this constraint, repeat the constraint for each landmark.
+
+        # For example, if z_0 is in this constraint, repeat the constraint for each landmark.
         for idx in itertools.combinations(variable_indices, len(unique_idx)):
+        #for i in range(len(variable_indices) - len(unique_idx) + 1):
+            # idx = [variable_indices[i + j] for j in range(len(unique_idx))]
+            if verbose:
+                print(idx, end=",")
             new_poly_row = PolyMatrix(symmetric=False)
             for key in bi_poly.variable_dict_j:
                 # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
@@ -656,8 +661,6 @@ class StateLifter(BaseClass):
                     .replace("xi", "x")
                     .replace("wi", "w")
                 )
-                if verbose and (key != key_ij):
-                    print("changed", key, "to", key_ij)
 
                 try:
                     params = key_ij.split("-")[0]
@@ -673,6 +676,8 @@ class StateLifter(BaseClass):
                     pass
                 new_poly_row["h", key_ij] = bi_poly["h", key]
             new_poly_rows.append(new_poly_row)
+        if verbose:
+            print("done")
         return new_poly_rows
 
     def get_vec_around_gt(self, delta: float = 0):

@@ -129,6 +129,17 @@ class RobustPoseLifter(StateLifter, ABC):
             )
         return vars
 
+    def get_clique_vars_ij(self, i, j):
+        return {
+            "h": self.var_dict["h"],
+            "t": self.var_dict["t"],
+            "c": self.var_dict["c"],
+            f"w_{i}": self.var_dict[f"w_{i}"],
+            f"z_{i}": self.var_dict[f"z_{i}"],
+            f"w_{j}": self.var_dict[f"w_{j}"],
+            f"z_{j}": self.var_dict[f"z_{j}"],
+        }
+
     def base_size(self):
         return self.var_dict["h"] + self.var_dict["t"] + self.var_dict["c"]
 
@@ -421,7 +432,7 @@ class RobustPoseLifter(StateLifter, ABC):
             var_dict = self.var_dict
 
         if "c" in var_dict:
-            # enforce diagonal
+            # enforce diagonal == 1
             for i in range(self.d):
                 Ei = np.zeros((self.d, self.d))
                 Ei[i, i] = 1.0
@@ -431,7 +442,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 Ai["h", "h"] = -1
                 self.test_and_add(A_list, Ai, output_poly=output_poly)
 
-            # enforce off-diagonal
+            # enforce off-diagonal == 0
             for i in range(self.d):
                 for j in range(i + 1, self.d):
                     Ei = np.zeros((self.d, self.d))
