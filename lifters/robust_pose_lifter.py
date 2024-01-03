@@ -41,15 +41,14 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             base = ["h", "t", "c"]
             return [
-                # base,
-                # base + ["w_0"],
-                # base + ["z_0"],
-                # base + ["w_0", "w_1"],
-                # base + ["w_0", "z_0"],
-                # base + ["z_0", "z_1"],
+                base,
+                base + ["w_0"],
+                base + ["z_0"],
+                base + ["w_0", "w_1"],
+                base + ["w_0", "z_0"],
+                base + ["z_0", "z_1"],
                 # base + ["w_0", "w_1", "z_0"],
-                base
-                + ["w_0", "w_1", "z_0", "z_1"],
+                # base + ["w_0", "w_1", "z_0", "z_1"],
             ]
 
     # Add any parameters here that describe the problem (e.g. number of landmarks etc.)

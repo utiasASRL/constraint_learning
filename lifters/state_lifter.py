@@ -76,6 +76,8 @@ class StateLifter(BaseClass):
     LOCAL_MAXITER = 100
     TIGHTNESS = "cost"
 
+    REDUCE_DEPENDENT = False
+
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
         return [
@@ -170,7 +172,7 @@ class StateLifter(BaseClass):
 
     @property
     def base_var_dict(self):
-        var_dict = {f"x": self.d**2 + self.d}
+        var_dict = {"x": self.d**2 + self.d}
         return var_dict
 
     @property
@@ -284,7 +286,7 @@ class StateLifter(BaseClass):
         # len(vec) = k = n(n+1)/2 -> dim_x = n =
         if var_dict is None:
             pass
-        elif not type(var_dict) is dict:
+        elif not isinstance(var_dict, dict):
             var_dict = {k: v for k, v in self.var_dict.items() if k in var_dict}
 
         Ai = self.create_symmetric(
@@ -398,7 +400,7 @@ class StateLifter(BaseClass):
     def var_list_row(self, var_subset=None, force_parameters_off=False):
         if var_subset is None:
             var_subset = list(self.var_dict.keys())
-        elif type(var_subset) is dict:
+        elif isinstance(var_subset, dict):
             var_subset = list(var_subset.keys())
 
         label_list = []
@@ -677,7 +679,7 @@ class StateLifter(BaseClass):
                             raise IndexError(
                                 "something went wrong in augment_basis_list"
                             )
-                except ValueError as e:
+                except ValueError:
                     pass
                 new_poly_row["h", key_ij] = bi_poly["h", key]
             new_poly_rows.append(new_poly_row)
@@ -854,7 +856,7 @@ class StateLifter(BaseClass):
         except Exception:
             n_basis = basis.shape[0]
 
-        if type(var_dict) is list:
+        if isinstance(var_dict, list):
             var_dict = self.get_var_dict(var_dict)
 
         A_list = []
@@ -887,7 +889,7 @@ class StateLifter(BaseClass):
         except Exception:
             n_basis = basis.shape[0]
 
-        if type(var_dict) is list:
+        if isinstance(var_dict, list):
             var_dict = self.get_var_dict(var_dict)
 
         A_list = []
@@ -895,23 +897,24 @@ class StateLifter(BaseClass):
         for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict)
             basis_reduced.append(ai)
+            
+        if self.REDUCE_DEPENDENT:
+            # TODO(FD) not the cheapest way to create a coo_array
+            basis_reduced = sp.csr_array(np.array(basis_reduced))
 
-        # TODO(FD) not the cheapest way to create a coo_array
-        basis_reduced = sp.csr_array(np.array(basis_reduced))
+            import sparseqr as sqr
 
-        import sparseqr as sqr
-
-        Z, R, E, rank = sqr.rz(
-            basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
-        )
-        r_vals = np.abs(R.diagonal())
-        sort_inds = np.argsort(r_vals)[::-1]
-        keep_idx = sorted(E[sort_inds[:rank]])
-        basis_reduced = basis_reduced[keep_idx, :]
-        *_, rank_new = sqr.rz(
-            basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
-        )
-        assert rank_new == rank
+            Z, R, E, rank = sqr.rz(
+                basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
+            )
+            r_vals = np.abs(R.diagonal())
+            sort_inds = np.argsort(r_vals)[::-1]
+            keep_idx = sorted(E[sort_inds[:rank]])
+            basis_reduced = basis_reduced[keep_idx, :]
+            *_, rank_new = sqr.rz(
+                basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
+            )
+            assert rank_new == rank
 
         for i in range(basis_reduced.shape[0]):
             ai = basis_reduced[[i], :].toarray().flatten()

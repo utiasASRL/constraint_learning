@@ -27,12 +27,13 @@ if USE_FUSION:
     # (of which there are many).
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 else:
+    # from solvers.common_bkp import solve_sdp_cvxpy as solve_sdp
+    # from solvers.sparse_bkp import solve_lambda as solve_lambda
     from cert_tools.sdp_solvers import solve_sdp_cvxpy as solve_sdp
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 
 
 plt = import_plt()
-
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -49,12 +50,14 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = True
+USE_KNOWN = True 
+USE_INCREMENTAL = True
+
 GLOBAL_THRESH = 1e-3
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
 
-ALL_PAIRS = False
+ALL_PAIRS = True
 
 
 class Learner(object):
@@ -70,8 +73,10 @@ class Learner(object):
         noise: float = None,
         n_inits: int = 10,
         use_known: bool = USE_KNOWN,
+        use_incremental: bool = USE_INCREMENTAL
     ):
         self.use_known = use_known
+        self.use_incremental = use_incremental
         self.noise = noise
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
@@ -244,7 +249,6 @@ class Learner(object):
         )
         self.tightness_dict["rank"] = rank_tight
         self.tightness_dict["cost"] = cost_tight
-
         if tightness == "rank":
             return rank_tight
         elif tightness == "cost":
@@ -495,17 +499,18 @@ class Learner(object):
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-        if self.use_known:
-            a_vectors = []
+        a_vectors = []
+        if self.use_incremental:
             for c in self.templates:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
                 a_vectors.append(bi)
+        elif self.use_known:
             for c in self.templates_known_sub:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
                 a_vectors.append(bi)
-            Y = np.vstack([Y] + a_vectors)
+        Y = np.vstack([Y] + a_vectors)
 
         if plot:
             fig, ax = plt.subplots()
