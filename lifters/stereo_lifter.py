@@ -50,8 +50,8 @@ class StereoLifter(StateLifter, ABC):
         ["h", "x"],
         ["h", "z_0"],
         ["h", "x", "z_0"],
-        ["h", "z_0", "z_1"],
-        ["h", "x", "z_0", "z_1"],  # should achieve tightness here
+        ["h", "z_0", "z_1"], # should achieve tightness here
+        # ["h", "x", "z_0", "z_1"],  
         # ["h", "z_0", "z_1", "z_2"],
     ]
 
@@ -60,7 +60,7 @@ class StereoLifter(StateLifter, ABC):
     ):
         self.y_ = None
         self.n_landmarks = n_landmarks
-        assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
+        assert self.M_matrix is not None, "Inheriting class must initialize M_matrix."
         super().__init__(
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
