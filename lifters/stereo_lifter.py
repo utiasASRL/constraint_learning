@@ -47,13 +47,10 @@ class StereoLifter(StateLifter, ABC):
         "uxT": "$\\boldsymbol{u}\\boldsymbol{x}^\\top_n$",
     }
     VARIABLE_LIST = [
+        ["h", "x"],
+        ["h", "z_0"],
         ["h", "x", "z_0"],
-        ["h", "x", "z_0", "z_1"],
-        # ["h", "z_0"],
-        # ["h", "x", "z_0"],
-        # ["h", "z_0", "z_1"],
-        # ["h", "x", "z_0", "z_1"],  # should achieve tightness here
-        # ["h", "z_0", "z_1", "z_2"],
+        ["h", "z_0", "z_1"],  # should achieve tightness here
     ]
 
     def __init__(

@@ -16,7 +16,7 @@ from solvers.common import find_local_minimum
 from solvers.common import solve_certificate
 from solvers.sparse import bisection, brute_force
 
-USE_FUSION = True
+USE_FUSION = False
 
 if USE_FUSION:
     from cert_tools.sdp_solvers import solve_sdp_fusion as solve_sdp
@@ -49,7 +49,7 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = False
+USE_KNOWN = True
 GLOBAL_THRESH = 1e-3
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
