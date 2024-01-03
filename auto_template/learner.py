@@ -49,7 +49,7 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = True
+USE_KNOWN = False
 GLOBAL_THRESH = 1e-3
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
