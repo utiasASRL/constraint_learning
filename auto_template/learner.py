@@ -141,9 +141,9 @@ class Learner(object):
             return res
 
         if res:
-            print(f"achieved cost tightness:")
+            print("achieved cost tightness:")
         else:
-            print(f"no cost tightness yet:")
+            print("no cost tightness yet:")
         print(
             f"qcqp cost={self.solver_vars['qcqp_cost']:.4e}, dual cost={dual_cost:.4e}"
         )
@@ -514,7 +514,7 @@ class Learner(object):
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
             print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
             basis_new, S = self.lifter.get_basis(Y, method=METHOD_NULL)
-            print(f"...done")
+            print("...done")
             corank = basis_new.shape[0]
             if corank > 0:
                 self.lifter.test_S_cutoff(S, corank)
@@ -710,11 +710,11 @@ class Learner(object):
         else:
             self.templates = learner.templates
         # apply the templates
-        data_dict[f"n templates"] = len(self.templates)
+        data_dict["n templates"] = len(self.templates)
         self.create_known_templates()
         n_new, n_total = self.apply_templates(reapply_all=True)
-        data_dict[f"n constraints"] = n_total
-        data_dict[f"t create constraints"] = time.time() - t1
+        data_dict["n constraints"] = n_total
+        data_dict["t create constraints"] = time.time() - t1
 
         # TODO(FD) below should not be necessary
         # self.constraints = self.clean_constraints(
@@ -743,7 +743,7 @@ class Learner(object):
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
 
-            print(f"-------- templates learning --------")
+            print("-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
             n_new_learned, n_all = self.learn_templates(plot=plot, data_dict=data_dict)
             n_new += n_new_learned
@@ -760,7 +760,7 @@ class Learner(object):
 
             # apply the pattern to all landmarks
             if self.apply_templates_to_others:
-                print(f"------- applying templates ---------")
+                print("------- applying templates ---------")
                 t1 = time.time()
                 n_new, n_all = self.apply_templates()
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
@@ -776,7 +776,7 @@ class Learner(object):
                     self.constraints.append(con)
 
             t1 = time.time()
-            print(f"-------- checking tightness ----------")
+            print("-------- checking tightness ----------")
             self.reset_tightness_dict()
             is_tight = self.is_tight(verbose=verbose, data_dict=data_dict)
             ttot = time.time() - t1
