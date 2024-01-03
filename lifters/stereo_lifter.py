@@ -48,7 +48,6 @@ class StereoLifter(StateLifter, ABC):
     }
     VARIABLE_LIST = [
         ["h", "x", "z_0"],
-        ["h", "x", "z_1"],
         ["h", "x", "z_0", "z_1"],
         # ["h", "z_0"],
         # ["h", "x", "z_0"],

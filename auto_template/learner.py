@@ -14,9 +14,21 @@ from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
 from utils.plotting_tools import savefig, plot_singular_values
 from solvers.common import find_local_minimum
 from solvers.common import solve_certificate
-from solvers.common import solve_sdp_cvxpy
-from solvers.sparse import solve_lambda
 from solvers.sparse import bisection, brute_force
+
+USE_FUSION = True
+
+if USE_FUSION:
+    from cert_tools.sdp_solvers import solve_sdp_fusion as solve_sdp
+
+    # from cert_tools.sdp_solvers import solve_lambda_fusion as solve_lambda
+    # TODO(FD) for some reason, cvxpy is much better at solving for lambda than
+    # the fusion API. My guess is that it deals better with redundant constraints
+    # (of which there are many).
+    from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
+else:
+    from cert_tools.sdp_solvers import solve_sdp_cvxpy as solve_sdp
+    from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 
 
 plt = import_plt()
@@ -37,10 +49,12 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = True
+USE_KNOWN = False
 GLOBAL_THRESH = 1e-3
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
+
+ALL_PAIRS = False
 
 
 class Learner(object):
@@ -310,21 +324,23 @@ class Learner(object):
                 force_first=force_first,
                 tol=TOL,
                 adjust=True,
-                verbose=False,
+                verbose=True,
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
                 print("Sanity checks:")
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
-                assert info["msg"] == "converged"
                 xhat_from_X, __ = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
-                print("Hx=", info["H"] @ xhat)
-                print("Hx_from_X=", info["H"] @ xhat_from_X)
-                eigs = np.linalg.eigvalsh(info["H"].toarray())
-                print("eigs of H", eigs)
+                try:
+                    print("Hx=", info["H"] @ xhat)
+                    print("Hx_from_X=", info["H"] @ xhat_from_X)
+                    eigs = np.linalg.eigvalsh(info["H"].toarray())
+                    print("eigs of H", eigs)
+                except KeyError:
+                    print("skipping H tests")
                 return None
 
             print("found valid lamdas")
@@ -436,10 +452,10 @@ class Learner(object):
             self.find_local_solution(verbose=verbose)
 
         # compute lambas by solving dual problem
-        X, info = solve_sdp_cvxpy(
+        X, info = solve_sdp(
             self.solver_vars["Q"],
             A_b_list_all,
-            B_list,
+            B_list=B_list,
             adjust=ADJUST_Q,
             verbose=verbose,
             primal=PRIMAL,
@@ -561,6 +577,7 @@ class Learner(object):
             constraints = self.lifter.apply_template(
                 template.polyrow_b_,
                 n_landmarks=self.lifter.n_landmarks,
+                all_pairs=ALL_PAIRS,
             )
             template.applied_list = [
                 Constraint.init_from_polyrow_b(
@@ -761,7 +778,7 @@ class Learner(object):
             t1 = time.time()
             print(f"-------- checking tightness ----------")
             self.reset_tightness_dict()
-            is_tight = self.is_tight(verbose=False, data_dict=data_dict)
+            is_tight = self.is_tight(verbose=verbose, data_dict=data_dict)
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)

@@ -17,7 +17,7 @@ from cert_tools.base_clique import BaseClique
 
 from poly_matrix import PolyMatrix
 
-COMPUTE_MINIMAL = False
+COMPUTE_MINIMAL = True
 DEBUG = True
 
 USE_KNOWN = True
@@ -28,6 +28,7 @@ NOISE_SEED = 5
 def plot_sparsities(learner: Learner):
     A_b_known = [(constraint.A_sparse_, 0) for constraint in learner.templates_known]
     A_b_all = learner.get_A_b_list()
+    A_b_suff = None
     if COMPUTE_MINIMAL:
         indices = learner.generate_minimal_subset(
             reorder=True,
@@ -35,10 +36,9 @@ def plot_sparsities(learner: Learner):
             tightness=learner.lifter.TIGHTNESS,
         )
         if indices is None:
-            print(f"{lifter}: did not find valid lamdas tightness.")
-        A_b_suff = [A_b_all[i] for i in indices]
-    else:
-        A_b_suff = None
+            print(f"{lifter}: did not find valid lamdas.")
+        else:
+            A_b_suff = [A_b_all[i] for i in indices]
 
     for A_b, name in zip([A_b_known, A_b_all, A_b_suff], ["known", "learned", "suff"]):
         if A_b is None:
@@ -53,7 +53,7 @@ def plot_sparsities(learner: Learner):
         df.attrs["mask_shape"] = mask.shape
         fname = f"_results/{title}_mask.pkl"
         df.to_pickle(fname)
-        print("wrote")
+        print("wrote", fname)
         fig, ax = investigate_sparsity(mask)
         ax.set_title(title)
         savefig(fig, f"_plots/{title}_cliques.png", verbose=True)
@@ -168,16 +168,16 @@ def run_by_clique(lifter: WahbaLifter, overlap_mode=0):
             fac0 = 1.0 if i == 0 else 0.5
             fac1 = 1.0 if i == lifter.n_landmarks - 2 else 0.5
 
-            # fmt: off
             Q_sub[:o, :o] += fac0 * Q_list[i][:o, :o]  # Q_0
-            Q_sub[:o, o:o+z] += fac0 * Q_list[i][:o, o:o+z]  # q_0
-            Q_sub[o:o+z, :o] += fac0 * Q_list[i][o:o+z, :o]  # q_0.T
-            Q_sub[o:o+z, o:o+z] += fac0 * Q_list[i][o:o+z, o:o+z]  # p_0
-            Q_sub[:o, :o] += fac1 * Q_list[i+1][:o, :o] # Q_1
-            Q_sub[:o, o+z:o+2*z] +=  fac1 * Q_list[i+1][:o, o:o+z] # q_1
-            Q_sub[o+z:o+2*z, :o] +=  fac1 * Q_list[i+1][o:o+z, :o] # q_1.T
-            Q_sub[o+z:o+2*z, o+z:o+2*z] += fac1 * Q_list[i+1][o:o+z, o:o+z] # p_1
-            # fmt: on
+            Q_sub[:o, o : o + z] += fac0 * Q_list[i][:o, o : o + z]  # q_0
+            Q_sub[o : o + z, :o] += fac0 * Q_list[i][o : o + z, :o]  # q_0.T
+            Q_sub[o : o + z, o : o + z] += fac0 * Q_list[i][o : o + z, o : o + z]  # p_0
+            Q_sub[:o, :o] += fac1 * Q_list[i + 1][:o, :o]  # Q_1
+            Q_sub[:o, o + z : o + 2 * z] += fac1 * Q_list[i + 1][:o, o : o + z]  # q_1
+            Q_sub[o + z : o + 2 * z, :o] += fac1 * Q_list[i + 1][o : o + z, :o]  # q_1.T
+            Q_sub[o + z : o + 2 * z, o + z : o + 2 * z] += (
+                fac1 * Q_list[i + 1][o : o + z, o : o + z]
+            )  # p_1
 
             clique, A_list = create_clique(vars, Q_sub, A_list)
             clique_list.append(clique)
@@ -217,16 +217,16 @@ def run_by_clique(lifter: WahbaLifter, overlap_mode=0):
                 vars = lifter.get_clique_vars_ij(i, j)
 
                 Q_sub = np.zeros((o + 2 * z, o + 2 * z))
-                # fmt: off
                 Q_sub[:o, :o] += fac0 * left[:o, :o]  # Q_0
-                Q_sub[:o, o:o+z] += fac0 * left[:o, o:o+z]  # q_0
-                Q_sub[o:o+z, :o] += fac0 * left[o:o+z, :o]  # q_0.T
-                Q_sub[o:o+z, o:o+z] += fac0 * left[o:o+z, o:o+z]  # p_0
-                Q_sub[:o, :o] += fac1 * right[:o, :o] # Q_1
-                Q_sub[:o, o+z:o+2*z] +=  fac1 * right[:o, o:o+z] # q_1
-                Q_sub[o+z:o+2*z, :o] +=  fac1 * right[o:o+z, :o] # q_1.T
-                Q_sub[o+z:o+2*z, o+z:o+2*z] += fac1 * right[o:o+z, o:o+z] # p_1
-                # fmt: on
+                Q_sub[:o, o : o + z] += fac0 * left[:o, o : o + z]  # q_0
+                Q_sub[o : o + z, :o] += fac0 * left[o : o + z, :o]  # q_0.T
+                Q_sub[o : o + z, o : o + z] += fac0 * left[o : o + z, o : o + z]  # p_0
+                Q_sub[:o, :o] += fac1 * right[:o, :o]  # Q_1
+                Q_sub[:o, o + z : o + 2 * z] += fac1 * right[:o, o : o + z]  # q_1
+                Q_sub[o + z : o + 2 * z, :o] += fac1 * right[o : o + z, :o]  # q_1.T
+                Q_sub[o + z : o + 2 * z, o + z : o + 2 * z] += (
+                    fac1 * right[o : o + z, o : o + z]
+                )  # p_1
 
                 clique, A_list = create_clique(vars, Q_sub, A_list)
                 clique_list.append(clique)
@@ -274,19 +274,7 @@ def run_by_clique(lifter: WahbaLifter, overlap_mode=0):
     return X_list, info
 
 
-if __name__ == "__main__":
-    import sys
-
-    np.random.seed(0)
-    # lifter = Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT")
-    # lifter = Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT")
-    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no")
-    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad")
-    lifter = WahbaLifter(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)
-    # lifter = MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)
-    # lifter = WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)
-    # lifter = MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)
-
+def solve_by_cliques(lifter, overlaps=[0]):
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()
     theta_gt = lifter.theta
@@ -295,12 +283,29 @@ if __name__ == "__main__":
     # theta_est, info, cost = lifter.local_solver(xtheta_gt, lifter.y_)
     x = lifter.get_x(theta_est)
     print(x.T @ Q @ x, cost)
-    for overlap in [0, 1, 2]:
+    for overlap in overlaps:
         X_list, info_sdp = run_by_clique(lifter, overlap_mode=overlap)
         print(f"overlap {overlap} : q={cost:.4e}, p={info_sdp['cost']:.4e}")
-    sys.exit()
 
-    name = "known"
+
+if __name__ == "__main__":
+    np.random.seed(0)
+    # lifter = Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT")
+    lifter = Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT")
+    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no")
+    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad")
+    # lifter = WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1)
+    # lifter = MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)
+    # lifter = WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)
+    # lifter = MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)
+
+    # overlaps = [0, 1, 2]
+    # solve_by_cliques(lifter, overlaps=overlaps)
+
+    name = ""  # recmompute
+    # name = "known"
+    # name = "learned"
+    # name = "suff"
     try:
         title = f"{lifter}_{name}"
         df = pd.read_pickle(f"_results/{title}_mask.pkl")
@@ -309,6 +314,7 @@ if __name__ == "__main__":
             shape=df.attrs["mask_shape"],
         )
         plt.matshow(mask.toarray())
+        investigate_sparsity(mask)
         print("done")
 
     except FileNotFoundError:

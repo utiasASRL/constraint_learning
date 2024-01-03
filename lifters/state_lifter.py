@@ -618,7 +618,7 @@ class StateLifter(BaseClass):
             )
         return new_poly_rows
 
-    def apply_template(self, bi_poly, n_landmarks=None, verbose=False):
+    def apply_template(self, bi_poly, n_landmarks=None, verbose=False, all_pairs=True):
         if n_landmarks is None:
             n_landmarks = self.n_landmarks
 
@@ -641,9 +641,14 @@ class StateLifter(BaseClass):
         variable_indices = self.get_variable_indices(self.var_dict)
 
         # For example, if z_0 is in this constraint, repeat the constraint for each landmark.
-        for idx in itertools.combinations(variable_indices, len(unique_idx)):
-        #for i in range(len(variable_indices) - len(unique_idx) + 1):
-            # idx = [variable_indices[i + j] for j in range(len(unique_idx))]
+        if all_pairs:
+            idx_list = list(itertools.combinations(variable_indices, len(unique_idx)))
+        else:
+            idx_list = [
+                [variable_indices[i + j] for j in range(len(unique_idx))]
+                for i in range(len(variable_indices) - len(unique_idx) + 1)
+            ]
+        for idx in idx_list:
             if verbose:
                 print(idx, end=",")
             new_poly_row = PolyMatrix(symmetric=False)
