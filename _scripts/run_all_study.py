@@ -98,7 +98,7 @@ def run_all(recompute=RECOMPUTE):
             out(
                 f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
             )
-            out(f"\\midrule \n")
+            out("\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
                 out(lifter_names[lifter] + " & ")
                 out(str(df_sub["n dims"].values) + " & ")
