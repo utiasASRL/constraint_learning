@@ -895,13 +895,12 @@ class StateLifter(BaseClass):
         A_list = []
         basis_reduced = []
         for i in range(n_basis):
-            ai = self.get_reduced_a(basis[i], var_dict)
+            ai = self.get_reduced_a(basis[i], var_dict, sparse=True)
             basis_reduced.append(ai)
+        # TODO(FD) not the cheapest way to create a sparse array 
+        basis_reduced = sp.vstack(basis_reduced)
             
         if self.REDUCE_DEPENDENT:
-            # TODO(FD) not the cheapest way to create a coo_array
-            basis_reduced = sp.csr_array(np.array(basis_reduced))
-
             import sparseqr as sqr
 
             Z, R, E, rank = sqr.rz(
