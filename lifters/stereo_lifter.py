@@ -63,13 +63,13 @@ class StereoLifter(StateLifter, ABC):
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
 
-    def get_clique_vars_ij(self, i, j):
-        return {
+    def get_clique_vars_ij(self, *args):
+        var_dict = {
             "h": self.var_dict["h"],
             "x": self.var_dict["x"],
-            f"z_{i}": self.var_dict[f"z_{i}"],
-            f"z_{j}": self.var_dict[f"z_{j}"],
         }
+        var_dict.update({f"z_{i}": self.var_dict[f"z_{i}"] for i in args})
+        return var_dict
 
     def get_clique_vars(self, i, n_overlap=0):
         used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
@@ -412,9 +412,9 @@ class StereoLifter(StateLifter, ABC):
             cost_test /= self.n_landmarks * self.d
 
         if output_poly:
-            cost_Q = x.T @ Q.get_matrix(self.var_dict).toarray() @ x
+            cost_Q = x.T @ Q.get_matrix(self.var_dict) @ x
         else:
-            cost_Q = x.T @ Q.toarray() @ x
+            cost_Q = x.T @ Q @ x
         assert abs(cost_test - cost_Q) < 1e-6, (cost_test, cost_Q)
         if not len(use_cliques):
             cost_raw = self.get_cost(self.theta, y)

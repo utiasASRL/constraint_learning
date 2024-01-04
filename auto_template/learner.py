@@ -177,7 +177,7 @@ class Learner(object):
             return self.tightness_dict[tightness]
 
         A_b_list_all = self.get_A_b_list()
-        A_list = [A for A, __ in A_b_list_all[1:]]  # for debugging only
+        A_list = [A for A, _ in A_b_list_all[1:]]  # for debugging only
 
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=verbose)
@@ -320,7 +320,7 @@ class Learner(object):
 
         if reorder:
             # find the importance of each constraint
-            __, lamdas = solve_lambda(
+            _, lamdas = solve_lambda(
                 self.solver_vars["Q"],
                 A_b_list_all,
                 self.solver_vars["xhat"],
@@ -335,7 +335,7 @@ class Learner(object):
                 print("Sanity checks:")
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
-                xhat_from_X, __ = rank_project(X, p=1)
+                xhat_from_X, _ = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
                 try:
@@ -386,9 +386,9 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_num = df_tight[df_tight.cost_tight == True].index.min()
+            min_num = df_tight[df_tight.cost_tight == 1].index.min()
         elif tightness == "rank":
-            min_num = df_tight[df_tight.rank_tight == True].index.min()
+            min_num = df_tight[df_tight.rank_tight == 1].index.min()
         if not np.isnan(min_num):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
@@ -717,7 +717,7 @@ class Learner(object):
         # apply the templates
         data_dict["n templates"] = len(self.templates)
         self.create_known_templates()
-        n_new, n_total = self.apply_templates(reapply_all=True)
+        _, n_total = self.apply_templates()
         data_dict["n constraints"] = n_total
         data_dict["t create constraints"] = time.time() - t1
 
@@ -952,7 +952,7 @@ class Learner(object):
         if "required (sorted)" in df.columns:
             from matplotlib.patches import Rectangle
 
-            for i, (__, row) in enumerate(df.iterrows()):
+            for i, (_, row) in enumerate(df.iterrows()):
                 if row["required (sorted)"] < 0:
                     ax.add_patch(
                         Rectangle(

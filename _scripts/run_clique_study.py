@@ -14,19 +14,16 @@ from solvers.chordal import investigate_sparsity, get_aggregate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
 from cert_tools.sparse_solvers import solve_oneshot
-from cert_tools.base_clique import BaseClique
-
-from poly_matrix import PolyMatrix
 
 COMPUTE_MINIMAL = True
-DEBUG = True
-
-USE_KNOWN = True
 
 NOISE_SEED = 5
 
-USE_FUSION = False
+USE_FUSION = True
 USE_PRIMAL = True
+USE_KNOWN = False
+
+VERBOSE = True
 
 
 def plot_sparsities(learner: Learner):
@@ -66,158 +63,10 @@ def plot_sparsities(learner: Learner):
         savefig(fig, f"_plots/{title}_mask.png", verbose=True)
 
 
-def run_by_clique(lifter: Stereo3DLifter, overlap_mode=0):
-    """
-    :param overlap_mode:
-        - 0: no overlap
-        - 1: add adjacent landmarks as overlapping
-        - 2: add all possible pairs of landmarks as overlapping
-
-    """
-
-    def create_clique(var_dict, Q_sub, A_list, X_sub):
-        if recreate_A_list or (len(A_list) == 0):
-            if USE_KNOWN:
-                A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
-                A_known = [A.get_matrix(var_dict) for A in A_known_poly]
-                A_learned = lifter.get_A_learned_simple(
-                    var_dict=var_dict, A_known=A_known_poly
-                )
-                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
-            else:
-                A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
-                A_list = [lifter.get_A0(var_dict)] + A_learned
-            print(
-                f"number of total constraints: known {len(A_list) - len(A_learned)}"
-                + f" + learned {len(A_learned)} = {len(A_list)}"
-            )
-
-        b_list = [1.0] + [0] * (len(A_list) - 1)
-        clique = BaseClique(
-            sp.csr_array(Q_sub), A_list, b_list, var_dict=var_dict, X=X_sub
-        )
-        return clique, A_list
-
-    def evaluate_clique(clique, vars):
-        x = lifter.get_x(var_subset=vars)
-        for A, b in zip(clique.A_list, clique.b_list):
-            err = abs(x.T @ A @ x - b)
-            assert err < 1e-9, err
-        return x.T @ clique.Q @ x
-
-    def create_Q(Q0, Q1, fac0, fac1):
-        Q_sub = np.zeros((o + 2 * z, o + 2 * z))
-        Q_sub[:o, :o] += fac0 * Q0[:o, :o]  # Q_0
-        Q_sub[:o, o : o + z] += fac0 * Q0[:o, o : o + z]  # q_0
-        Q_sub[o : o + z, :o] += fac0 * Q0[o : o + z, :o]  # q_0.T
-        Q_sub[o : o + z, o : o + z] += fac0 * Q0[o : o + z, o : o + z]  # p_0
-        Q_sub[:o, :o] += fac1 * Q1[:o, :o]  # Q_1
-        Q_sub[:o, o + z : o + 2 * z] += fac1 * Q1[:o, o : o + z]  # q_1
-        Q_sub[o + z : o + 2 * z, :o] += fac1 * Q1[o : o + z, :o]  # q_1.T
-        Q_sub[o + z : o + 2 * z, o + z : o + 2 * z] += fac1 * Q1[o : o + z, o : o + z]
-        return Q_sub
-
-    recreate_A_list = isinstance(lifter, StereoLifter)
-    o = lifter.base_size()
-    z = lifter.landmark_size()
-
-    A_list = []
-    clique_list = []
-    cost_total = 0
-
-    Q_list = []
-    for i in range(lifter.n_landmarks):
-        vars = lifter.get_clique_vars(i, n_overlap=0)
-        Q, __ = lifter.get_Q(output_poly=True, use_cliques=[i])
-        Q_list.append(Q.get_matrix(vars))
-
-    if DEBUG:
-        Q_test = PolyMatrix()
-
-    o = lifter.base_size()
-    z = lifter.landmark_size()
-    if overlap_mode == 0:
-        for i in range(lifter.n_landmarks - overlap_mode):
-            vars = lifter.get_clique_vars(i, n_overlap=overlap_mode)
-            Q_sub = Q_list[i]
-
-            x = lifter.get_x(var_subset=vars)
-            X_sub = np.outer(x, x)
-
-            clique, A_list = create_clique(vars, Q_sub, A_list, X_sub)
-            clique_list.append(clique)
-            if DEBUG:
-                cost_total += evaluate_clique(clique, vars)
-
-    elif overlap_mode == 1:
-        for i in range(lifter.n_landmarks - 1):
-            vars = lifter.get_clique_vars(i, n_overlap=1)
-
-            fac0 = 1.0 if i == 0 else 0.5
-            fac1 = 1.0 if i == lifter.n_landmarks - 2 else 0.5
-            Q_sub = create_Q(Q_list[i], Q_list[i + 1], fac0, fac1)
-
-            x = lifter.get_x(var_subset=vars)
-            X_sub = np.outer(x, x)
-
-            clique, A_list = create_clique(vars, Q_sub, A_list, X_sub)
-            clique_list.append(clique)
-
-            if DEBUG:
-                cost_total += evaluate_clique(clique, vars)
-                print(f"{fac0:.2f} * Q{i}, {fac1:.2f} * Q{i+1}")
-                Qi = Q_list[i].toarray()
-                Qii = Q_list[i + 1].toarray()
-                Q_test["hx", "hx"] += fac0 * Qi[:o, :o]
-                Q_test["hx", f"q_{i}"] += fac0 * Qi[:o, o : o + z]
-                Q_test[f"q_{i}", f"q_{i}"] += fac0 * Qi[o : o + z, o : o + z]
-                Q_test["hx", "hx"] += fac1 * Qii[:o, :o]
-                Q_test["hx", f"q_{i+1}"] += fac1 * Qii[:o, o : o + z]
-                Q_test[f"q_{i+1}", f"q_{i+1}"] += fac1 * Qii[o : o + z, o : o + z]
-
-    elif overlap_mode == 2:
-        for i in range(lifter.n_landmarks - 1):
-            fac0 = fac1 = 1 / (lifter.n_landmarks - 1)
-            for j in range(i + 1, lifter.n_landmarks):
-                vars = lifter.get_clique_vars_ij(i, j)
-
-                Q_sub = create_Q(Q_list[i], Q_list[j], fac0, fac1)
-
-                x = lifter.get_x(var_subset=vars)
-                X_sub = np.outer(x, x)
-
-                clique, A_list = create_clique(vars, Q_sub, A_list, X_sub)
-                clique_list.append(clique)
-                cost_total += evaluate_clique(clique, vars)
-
-                if DEBUG:
-                    Qi = Q_list[i].toarray()
-                    Qii = Q_list[j].toarray()
-                    Q_test["hx", "hx"] += fac0 * Qi[:o, :o]
-                    Q_test["hx", f"q_{i}"] += fac0 * Qi[:o, o : o + z]
-                    Q_test[f"q_{i}", f"q_{i}"] += fac0 * Qi[o : o + z, o : o + z]
-                    Q_test["hx", "hx"] += fac1 * Qii[:o, :o]
-                    Q_test["hx", f"q_{j}"] += fac1 * Qii[:o, o : o + z]
-                    Q_test[f"q_{j}", f"q_{j}"] += fac1 * Qii[o : o + z, o : o + z]
-
-    if DEBUG:
-        Q, y = lifter.get_Q()
-        if overlap_mode > 0:
-            Q_mat = Q_test.get_matrix(
-                ["hx"] + [f"q_{i}" for i in range(lifter.n_landmarks)]
-            )
-            np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
-        x = lifter.get_x()
-        cost_test = x.T @ Q @ x
-        assert abs(cost_test - cost_total) < 1e-10, (cost_test, cost_total)
-
-    X_list, info = solve_oneshot(
-        clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=True
-    )
-    return X_list, info
-
-
 def solve_by_cliques(lifter, overlaps=[0]):
+    # from _scripts.run_by_cliques_bkp import run_by_clique
+    from _scripts.generate_cliques import create_clique_list
+
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()
     theta_gt = lifter.theta
@@ -225,27 +74,20 @@ def solve_by_cliques(lifter, overlaps=[0]):
     # xtheta_gt = lifter.get_x()
     # theta_est, info, cost = lifter.local_solver(xtheta_gt, lifter.y_)
     x = lifter.get_x(theta_est)
-    print(x.T @ Q @ x, cost)
+    assert (x.T @ Q @ x - cost) / cost < 1e-7
     for overlap in overlaps:
-        X_list, info_sdp = run_by_clique(lifter, overlap_mode=overlap)
-        print(f"overlap {overlap} : q={cost:.4e}, p={info_sdp['cost']:.4e}")
+        print("creating cliques...", end="")
+        clique_list = create_clique_list(
+            lifter, overlap_mode=overlap, use_known=USE_KNOWN
+        )
+        print("solving...", end="")
+        X_list, info = solve_oneshot(
+            clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
+        )
+        print(f"results for overlap {overlap} : q={cost:.4e}, p={info['cost']:.4e}")
 
 
-if __name__ == "__main__":
-    np.random.seed(0)
-    lifter = Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT")
-    # lifter = Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT")
-    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no")
-    # lifter = RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad")
-    # lifter = WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1)
-    # lifter = MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)
-    # lifter = WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)
-    # lifter = MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)
-
-    # overlaps = [0, 1, 2]
-    overlaps = [0, 1, 2]
-    solve_by_cliques(lifter, overlaps=overlaps)
-
+def solve_in_one(lifter):
     name = ""  # recompute
     # name = "known"
     # name = "learned"
@@ -263,9 +105,34 @@ if __name__ == "__main__":
 
     except FileNotFoundError:
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
-        dict_list, success = learner.run(verbose=True, plot=False)
+        _, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(
                 f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
             )
         plot_sparsities(learner)
+
+
+if __name__ == "__main__":
+    np.random.seed(0)
+    # TODO(FD): Some running points
+    # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
+    # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
+    lifters = [
+        # Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT"),
+        Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT"),
+        # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
+        # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
+        # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
+        # WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
+        # MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
+        # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
+        # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
+    ]
+    # overlaps = [0, 1, 2]
+    overlaps = [0, 1, 2]
+    for lifter in lifters:
+        print(f"=============={lifter}===============")
+        # solve_in_one(lifter)
+        solve_by_cliques(lifter, overlaps=overlaps)
+    print("done")
