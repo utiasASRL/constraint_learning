@@ -15,46 +15,16 @@ USE_KNOWN = True
 
 
 def create_clique_list(
-    lifter: Stereo3DLifter, overlap_mode=0, use_known=USE_KNOWN, verbose=False
+    lifter: Stereo3DLifter, overlap_mode=0, n_vars=1, use_known=USE_KNOWN, verbose=False
 ):
     """
     :param overlap_mode:
         - 0: no overlap
         - 1: add adjacent landmarks as overlapping
-        - 2: add all possible pairs of landmarks as overlapping
+        - 2: add all possible tuples of landmarks as overlapping
 
+    :param n_vars: how many landmarks to include per clique.
     """
-
-    def create_clique(var_dict, Q_sub, A_list, X_sub):
-        if recreate_A_list or (len(A_list) == 0):
-            if use_known:
-                A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
-                A_known = [A.get_matrix(var_dict) for A in A_known_poly]
-                A_learned = lifter.get_A_learned_simple(
-                    var_dict=var_dict, A_known=A_known_poly
-                )
-                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
-            else:
-                A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
-                A_list = [lifter.get_A0(var_dict)] + A_learned
-            if verbose:
-                print(
-                    f"number of total constraints: known {len(A_list) - len(A_learned)}"
-                    + f" + learned {len(A_learned)} = {len(A_list)}"
-                )
-
-        b_list = [1.0] + [0] * (len(A_list) - 1)
-        clique = BaseClique(
-            sp.csr_array(Q_sub), A_list, b_list, var_dict=var_dict, X=X_sub
-        )
-        return clique, A_list
-
-    def evaluate_clique(clique, vars):
-        x = lifter.get_x(var_subset=vars)
-        for A, b in zip(clique.A_list, clique.b_list):
-            err = abs(x.T @ A @ x - b)
-            assert err < 1e-6, err
-        return x.T @ clique.Q @ x
 
     def create_Q(Q_list, factors):
         # each element Qi of Q_list corresponds to one clique: {"h", "x", "z_i"}
@@ -80,7 +50,7 @@ def create_clique_list(
     Q_list = []
     for i in range(lifter.n_landmarks):
         vars = lifter.get_clique_vars(i, n_overlap=0)
-        Q, __ = lifter.get_Q(output_poly=True, use_cliques=[i])
+        Q, _ = lifter.get_Q(output_poly=True, use_cliques=[i])
         Q_list.append(Q.get_matrix(vars))
 
     if DEBUG:
@@ -89,57 +59,92 @@ def create_clique_list(
     o = lifter.base_size()
     z = lifter.landmark_size()
     if overlap_mode == 0:
-        for i in range(lifter.n_landmarks):
-            vars = lifter.get_clique_vars(i, n_overlap=overlap_mode)
-            Q_sub = Q_list[i]
+        if lifter.n_landmarks % n_vars != 0:
+            raise ValueError(
+                "Cannot have cliques of different sizes (fusion doesn't like it): n_landmarks has to be multiple of n_vars"
+            )
+        for i in np.arange(lifter.n_landmarks, step=n_vars):
+            indices = list(range(i, min(i + n_vars, lifter.n_landmarks)))
+            vars = lifter.get_clique_vars_ij(*indices)
+            Q, _ = lifter.get_Q(output_poly=True, use_cliques=indices)
+            Q_sub = Q.get_matrix(vars)
             Q_subs.append(Q_sub)
             clique_vars.append(vars)
-    elif overlap_mode > 0:
+    elif (overlap_mode > 0) and (n_vars == 1):
+        raise ValueError("cannot have overlap with n_vars=1")
+    elif (overlap_mode > 0) and (n_vars > 1):
         if overlap_mode == 1:
-            tuples = zip(range(lifter.n_landmarks - 1), range(1, lifter.n_landmarks))
+            # {z_0, z_1, z_2}, {z_1, z_2, z_3}, ... , {z_{N-3}, z_{N-2}, z_{N-1}}
+            indices_list = [
+                list(range(i, i + n_vars))
+                for i in range(lifter.n_landmarks - n_vars + 1)
+            ]
+        elif overlap_mode == 2:
+            # all possible combinations of n_vars variables.
+            indices_list = list(
+                itertools.combinations(range(lifter.n_landmarks), n_vars)
+            )
         else:
-            tuples = itertools.combinations(range(lifter.n_landmarks), overlap_mode)
+            raise ValueError("unknown overlap mode, must be 0, 1, or 2")
 
-        for tuple_ in tuples:
-            vars = lifter.get_clique_vars_ij(*tuple_)
+        # represents how many times each variable group is represented.
+        factors = [
+            1 / sum(i in idx for idx in indices_list) for i in range(lifter.n_landmarks)
+        ]
 
-            # factors represents how many times each variable group is represented.
-            if overlap_mode == 1:
-                faci = 1.0 if tuple_[0] == 0 else 0.5
-                facj = 1.0 if tuple_[-1] == lifter.n_landmarks - 1 else 0.5
-                factors = [faci, facj]
-            elif overlap_mode == 2:
-                factors = [1 / (lifter.n_landmarks - 1)] * len(tuple_)
-            elif overlap_mode == 3:
-                factors = [
-                    1 / ((lifter.n_landmarks - 1) * (lifter.n_landmarks - 2) / 2)
-                ] * len(tuple_)
+        for indices in indices_list:
+            vars = lifter.get_clique_vars_ij(*indices)
 
-            Q_sub = create_Q([Q_list[t] for t in tuple_], factors)
+            Q_sub = create_Q(
+                [Q_list[t] for t in indices], [factors[t] for t in indices]
+            )
             Q_subs.append(Q_sub)
             clique_vars.append(vars)
 
             if DEBUG:
-                if verbose:
-                    print([f"{faci:.2f} * Q{t}" for t, faci in zip(tuple_, factors)])
-                for t, faci in zip(tuple_, factors):
-                    Qi = Q_list[t].toarray()
+                for i in indices:
+                    faci = factors[i]
+                    if verbose:
+                        print(f"{faci:.2f} * Q{i}")
+                    Qi = Q_list[i].toarray()
                     Q_test["hx", "hx"] += faci * Qi[:o, :o]
-                    Q_test["hx", f"q_{t}"] += faci * Qi[:o, o : o + z]
-                    Q_test[f"q_{t}", f"q_{t}"] += faci * Qi[o : o + z, o : o + z]
+                    Q_test["hx", f"q_{i}"] += faci * Qi[:o, o : o + z]
+                    Q_test[f"q_{i}", f"q_{i}"] += faci * Qi[o : o + z, o : o + z]
 
     A_list = []
     cost_total = 0
     for i in range(len(Q_subs)):
-        vars = clique_vars[i]
-        x = lifter.get_x(var_subset=vars)
+        var_dict = clique_vars[i]
+        x = lifter.get_x(var_subset=var_dict)
         X_sub = np.outer(x, x)
 
-        clique, A_list = create_clique(vars, Q_subs[i], A_list, X_sub)
-        clique.index = i
+        if recreate_A_list or (len(A_list) == 0):
+            if use_known:
+                A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
+                A_known = [A.get_matrix(var_dict) for A in A_known_poly]
+                A_learned = lifter.get_A_learned_simple(
+                    var_dict=var_dict, A_known=A_known_poly
+                )
+                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
+            else:
+                A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
+                A_list = [lifter.get_A0(var_dict)] + A_learned
+            if verbose:
+                print(
+                    f"number of total constraints: known {len(A_list) - len(A_learned)}"
+                    + f" + learned {len(A_learned)} = {len(A_list)}"
+                )
+        b_list = [1.0] + [0] * (len(A_list) - 1)
+        clique = BaseClique(
+            sp.csr_array(Q_subs[i]), A_list, b_list, var_dict=var_dict, X=X_sub, index=i
+        )
         clique_list.append(clique)
         if DEBUG:
-            cost_total += evaluate_clique(clique, vars)
+            x = lifter.get_x(var_subset=var_dict)
+            for A, b in zip(clique.A_list, clique.b_list):
+                err = abs(x.T @ A @ x - b)
+                assert err < 1e-6, err
+            cost_total += x.T @ clique.Q @ x
 
     if DEBUG:
         Q, y = lifter.get_Q()

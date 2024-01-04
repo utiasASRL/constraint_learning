@@ -63,7 +63,7 @@ def plot_sparsities(learner: Learner):
         savefig(fig, f"_plots/{title}_mask.png", verbose=True)
 
 
-def solve_by_cliques(lifter, overlaps=[0]):
+def solve_by_cliques(lifter, overlap_params):
     # from _scripts.run_by_cliques_bkp import run_by_clique
     from _scripts.generate_cliques import create_clique_list
 
@@ -75,16 +75,14 @@ def solve_by_cliques(lifter, overlaps=[0]):
     # theta_est, info, cost = lifter.local_solver(xtheta_gt, lifter.y_)
     x = lifter.get_x(theta_est)
     assert (x.T @ Q @ x - cost) / cost < 1e-7
-    for overlap in overlaps:
+    for overlap in overlap_params:
         print("creating cliques...", end="")
-        clique_list = create_clique_list(
-            lifter, overlap_mode=overlap, use_known=USE_KNOWN
-        )
+        clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
         print("solving...", end="")
         X_list, info = solve_oneshot(
             clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
         )
-        print(f"results for overlap {overlap} : q={cost:.4e}, p={info['cost']:.4e}")
+        print(f"results for {overlap} : q={cost:.4e}, p={info['cost']:.4e}")
 
 
 def solve_in_one(lifter):
@@ -131,8 +129,17 @@ if __name__ == "__main__":
     ]
     # overlaps = [0, 1, 2]
     overlaps = [0, 1, 2]
+    overlap_params = [
+        {"overlap_mode": 0, "n_vars": 1},
+        {"overlap_mode": 0, "n_vars": 2},
+        {"overlap_mode": 1, "n_vars": 2},
+        {"overlap_mode": 1, "n_vars": 3},
+        {"overlap_mode": 1, "n_vars": 4},
+        {"overlap_mode": 2, "n_vars": 2},
+        {"overlap_mode": 2, "n_vars": 3},
+    ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
         # solve_in_one(lifter)
-        solve_by_cliques(lifter, overlaps=overlaps)
+        solve_by_cliques(lifter, overlap_params=overlap_params)
     print("done")
