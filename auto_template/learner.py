@@ -50,7 +50,7 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = True 
+USE_KNOWN = True
 USE_INCREMENTAL = True
 
 GLOBAL_THRESH = 1e-3
@@ -73,7 +73,7 @@ class Learner(object):
         noise: float = None,
         n_inits: int = 10,
         use_known: bool = USE_KNOWN,
-        use_incremental: bool = USE_INCREMENTAL
+        use_incremental: bool = USE_INCREMENTAL,
     ):
         self.use_known = use_known
         self.use_incremental = use_incremental
@@ -726,7 +726,6 @@ class Learner(object):
         #    self.constraints, [], remove_imprecise=False
         # )
 
-    # @profile
     def run(self, verbose=False, plot=False):
         data = []
         success = False

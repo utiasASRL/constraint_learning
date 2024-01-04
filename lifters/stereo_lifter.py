@@ -63,6 +63,14 @@ class StereoLifter(StateLifter, ABC):
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
 
+    def get_clique_vars_ij(self, i, j):
+        return {
+            "h": self.var_dict["h"],
+            "x": self.var_dict["x"],
+            f"z_{i}": self.var_dict[f"z_{i}"],
+            f"z_{j}": self.var_dict[f"z_{j}"],
+        }
+
     def get_clique_vars(self, i, n_overlap=0):
         used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
         vars = {
@@ -360,7 +368,7 @@ class StereoLifter(StateLifter, ABC):
     def get_Q_from_y(self, y, output_poly=False, use_cliques=[]):
         """
         The least squares problem reads
-        min_T \sum_{n=0}^{N-1} || y - Mtilde@z ||
+        min_T sum_{n=0}^{N-1} || y - Mtilde@z ||
         where the first d elements of z correspond to u, and Mtilde contains the first d-1 and last element of M
         Mtilde is thus of shape d*2 by dim_z, where dim_z=d+dL (the additional Lasserre variables)
         y is of length d*2, corresponding to the measured pixel values in left and right image.
