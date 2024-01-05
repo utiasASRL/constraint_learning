@@ -351,14 +351,15 @@ def run_scalability_new(
     recompute: bool = False,
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
-    fname_all = fname_root + "_complete.pkl"
-    try:
-        assert recompute is False
-        df = pd.read_pickle(fname_all)
-        print("read", fname_all)
-        return df
-    except (AssertionError, FileNotFoundError) as e:
-        print(e)
+
+    # fname_all = fname_root + "_complete.pkl"
+    # try:
+    #    assert recompute is False
+    #    df = pd.read_pickle(fname_all)
+    #    print("read", fname_all)
+    #    return df
+    # except (AssertionError, FileNotFoundError) as e:
+    #    print(e)
 
     fname = f"{results_folder}/{learner.lifter}.pkl"
     try:
@@ -412,18 +413,19 @@ def run_scalability_new(
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
 
-    if learner is not None:
-        save_tightness_order(
-            learner,
-            fname_root + "_new",
-            use_bisection=learner.lifter.TIGHTNESS == "cost",
-        )
+    # if learner is not None:
+    #    save_tightness_order(
+    #        learner,
+    #        fname_root + "_new",
+    #        use_bisection=learner.lifter.TIGHTNESS == "cost",
+    #    )
 
     if EARLY_STOP:
         return None
 
     fname = fname_root + "_df_all.pkl"
     try:
+        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         # assert set(param_list).issubset(df.N.unique())
@@ -457,7 +459,21 @@ def run_scalability_new(
                         continue
                     n_successful_seeds += 1
 
-                    new_learner.scale_templates(learner, new_order, data_dict)
+                    # extract the templates from constraints
+                    t1 = time.time()
+                    if new_order is not None:
+                        new_learner.templates = learner.get_sufficient_templates(
+                            new_order, new_lifter
+                        )
+                    else:
+                        new_learner.templates = learner.templates
+
+                    # apply the templates, to generate constraints
+                    new_learner.create_known_templates()
+                    new_learner.apply_templates()
+                    data_dict["t create constraints"] = time.time() - t1
+                    data_dict["n templates"] = len(new_learner.templates)
+                    data_dict["n constraints"] = len(new_learner.constraints)
 
                     # determine tightness
                     if (

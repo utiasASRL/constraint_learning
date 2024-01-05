@@ -608,26 +608,65 @@ class StateLifter(BaseClass):
             poly_row["h", key] = val
         return poly_row
 
-    def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
-        """
-        Apply the learned patterns in basis_list to all landmarks.
+    # def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
+    # """
+    # Apply the learned patterns in basis_list to all landmarks.
 
-        :param basis_list: list of poly matrices.
-        """
+    #:param basis_list: list of poly matrices.
+    # """
 
-        if n_landmarks is None:
-            n_landmarks = self.n_landmarks
+    # if n_landmarks is None:
+    #    n_landmarks = self.n_landmarks
 
-        new_poly_rows = []
-        for bi_poly in basis_list:
-            new_poly_rows += self.apply_template(
-                bi_poly, n_landmarks=n_landmarks, verbose=verbose
+    # new_poly_rows = []
+    # for bi_poly in basis_list:
+    #    new_poly_rows += self.apply_template(
+    #        bi_poly, n_landmarks=n_landmarks, verbose=verbose
+    #    )
+    # return new_poly_rows
+
+    def apply_templates(
+        self, templates, starting_index=0, var_dict=None, all_pairs=None
+    ):
+        from utils.constraint import Constraint, remove_dependent_constraints
+
+        if all_pairs is None:
+            all_pairs = self.ALL_PAIRS
+        if var_dict is None:
+            var_dict = self.var_dict
+
+        new_constraints = []
+        index = starting_index
+        for template in templates:
+            constraints = self.apply_template(
+                template.polyrow_b_, var_dict=var_dict, all_pairs=all_pairs
             )
-        return new_poly_rows
+            template.applied_list = []
+            for new_constraint in constraints:
+                template.applied_list.append(
+                    Constraint.init_from_polyrow_b(
+                        index=index,
+                        polyrow_b=new_constraint,
+                        lifter=self,
+                        template_idx=template.index,
+                        known=template.known,
+                        mat_var_dict=var_dict,
+                    )
+                )
+                new_constraints += template.applied_list
+                index += 1
 
-    def apply_template(self, bi_poly, n_landmarks=None, verbose=False):
-        if n_landmarks is None:
-            n_landmarks = self.n_landmarks
+        if len(new_constraints):
+            remove_dependent_constraints(new_constraints)
+        return new_constraints
+
+    def apply_template(self, bi_poly, var_dict=None, verbose=False, all_pairs=None):
+        if all_pairs is None:
+            all_pairs = self.ALL_PAIRS
+
+        if var_dict is None:
+            var_dict = self.var_dict
+        landmarks = self.get_variable_indices(var_dict)
 
         new_poly_rows = []
         # find the number of variables that this constraint touches.
@@ -647,29 +686,31 @@ class StateLifter(BaseClass):
         elif len(unique_idx) > 2:
             raise ValueError("unexpected triple dependencies!")
 
-        variable_indices = self.get_variable_indices(self.var_dict)
-
         # For example, if z_0 is in this constraint, repeat the constraint for each landmark.
-        if self.ALL_PAIRS:
-            idx_list = list(itertools.combinations(variable_indices, len(unique_idx)))
+        if all_pairs:
+            idx_list = list(itertools.combinations(landmarks, len(unique_idx)))
         else:
             if len(unique_idx) == 1:
-                idx_list = [[i] for i in variable_indices]
+                idx_list = [[i] for i in landmarks]
             else:
                 # below creates, for example with CLIQUE_SIZE=3 and len(unique_idx)=2:
                 # [0, 1],[0, 2],[1, 2],[2, 3],[2, 4],[3, 4]
                 clique_size = max(self.CLIQUE_SIZE, len(unique_idx))
                 step = self.STEP_SIZE
                 idx_list = []
-                for i in np.arange(len(variable_indices), step=step):
-                    end_idx = min(i + clique_size, len(variable_indices))
+                for i in np.arange(len(landmarks) - clique_size + 1, step=step):
+                    end_idx = min(i + clique_size, len(landmarks))
                     for pair in itertools.combinations(
                         range(i, end_idx), len(unique_idx)
                     ):
-                        idx_list.append(tuple([variable_indices[p] for p in pair]))
+                        idx_list.append(tuple([landmarks[p] for p in pair]))
 
                 # remove duplicate tuples
                 idx_list = [t for t in {i: None for i in idx_list}]
+
+                # for debugging
+                # mask = sp.csr_array(([1]*len(idx_list), ([i[0] for i in idx_list], [i[1] for i in idx_list])), (len(landmarks), len(landmarks)))
+                # plt.matshow(mask.toarray())
 
         for idx in idx_list:
             if verbose:

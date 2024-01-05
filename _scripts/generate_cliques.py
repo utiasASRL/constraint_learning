@@ -1,4 +1,5 @@
 import itertools
+import pickle
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -9,13 +10,20 @@ from poly_matrix import PolyMatrix
 
 from lifters.stereo_lifter import StereoLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
+from utils.constraint import remove_dependent_constraints
 
 DEBUG = True
-USE_KNOWN = True
+USE_KNOWN = False
+USE_AUTOTEMPLATE = True
 
 
 def create_clique_list(
-    lifter: Stereo3DLifter, overlap_mode=0, n_vars=1, use_known=USE_KNOWN, verbose=False
+    lifter: Stereo3DLifter,
+    overlap_mode=0,
+    n_vars=1,
+    use_known=USE_KNOWN,
+    use_autotemplate=USE_AUTOTEMPLATE,
+    verbose=False,
 ):
     """
     :param overlap_mode:
@@ -37,6 +45,18 @@ def create_clique_list(
                 fac * Q[o : o + z, o : o + z]
             )  # p_0
         return Q_sub
+
+    if use_autotemplate:
+        fname = f"_results/scalability_{lifter}_order_dict.pkl"
+        try:
+            with open(fname, "rb") as f:
+                order_dict = pickle.load(f)
+                saved_learner = pickle.load(f)
+        except FileNotFoundError:
+            print(
+                f"did not find saved learner for {lifter}. Run run_..._study.py first."
+            )
+        templates = saved_learner.templates
 
     recreate_A_list = isinstance(lifter, StereoLifter)
     o = lifter.base_size()
@@ -87,7 +107,7 @@ def create_clique_list(
         else:
             raise ValueError("unknown overlap mode, must be 0, 1, or 2")
 
-        # represents how many times each variable group is represented.
+        # counts how many times each variable group is represented.
         factors = [
             1 / sum(i in idx for idx in indices_list) for i in range(lifter.n_landmarks)
         ]
@@ -119,7 +139,15 @@ def create_clique_list(
         X_sub = np.outer(x, x)
 
         if recreate_A_list or (len(A_list) == 0):
-            if use_known:
+            if use_autotemplate:
+                new_constraints = lifter.apply_templates(
+                    templates, var_dict=var_dict, all_pairs=True
+                )
+                remove_dependent_constraints(new_constraints)
+                A_list = [lifter.get_A0(var_dict)] + [
+                    t.A_sparse_ for t in new_constraints
+                ]
+            elif use_known:
                 A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
                 A_known = [A.get_matrix(var_dict) for A in A_known_poly]
                 A_learned = lifter.get_A_learned_simple(
@@ -134,6 +162,9 @@ def create_clique_list(
                     f"number of total constraints: known {len(A_list) - len(A_learned)}"
                     + f" + learned {len(A_learned)} = {len(A_list)}"
                 )
+
+        # A_agg = np.sum([np.abs(A) > 1e-10 for A in A_list])
+        # plt.matshow(A_agg.toarray())
         b_list = [1.0] + [0] * (len(A_list) - 1)
         clique = BaseClique(
             sp.csr_array(Q_subs[i]), A_list, b_list, var_dict=var_dict, X=X_sub, index=i

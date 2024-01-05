@@ -1,3 +1,5 @@
+import itertools
+
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
@@ -14,6 +16,8 @@ from solvers.chordal import investigate_sparsity, get_aggregate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
 from cert_tools.sparse_solvers import solve_oneshot
+from cert_tools.base_clique import BaseClique
+from poly_matrix import PolyMatrix
 
 COMPUTE_MINIMAL = True
 
@@ -63,7 +67,44 @@ def plot_sparsities(learner: Learner):
         savefig(fig, f"_plots/{title}_mask.png", verbose=True)
 
 
-def solve_by_cliques(lifter, overlap_params):
+def visualize_clique_list(clique_list, symmetric=True, fname=""):
+    mask = PolyMatrix(symmetric=symmetric)
+    Q_vals = PolyMatrix(symmetric=symmetric)
+    A_vals = PolyMatrix(symmetric=symmetric)
+    for c in clique_list:
+        assert isinstance(c, BaseClique)
+        for key_i, key_j in itertools.combinations_with_replacement(c.var_dict, 2):
+            Q_ij = c.get_Qij(key_i, key_j)
+            A_ij = c.get_Aij_agg(key_i, key_j).astype(float)
+
+            Q_vals[key_i, key_j] += Q_ij
+            A_vals[key_i, key_j] += A_ij
+
+            mask[key_i, key_j] += 1.0
+
+    # fig, ax, im = Q_vals.matshow()
+    # ax.set_title("Q")
+    # fig, ax, im = A_vals.matshow()
+    # ax.set_title("A agg")
+    for X, title in zip([Q_vals, A_vals], ["Q", "A"]):
+        fig, ax = plt.subplots()
+        plot_X = np.abs(X.get_matrix(X.variable_dict_i).toarray())
+        ax.matshow(np.log10(plot_X))
+        ax.set_title(title)
+        for i, c in enumerate(clique_list):
+            X.plot_box(
+                ax=ax, clique_keys=c.var_dict.keys(), symmetric=symmetric, color=f"C{i}"
+            )
+        if fname != "":
+            savefig(fig, fname + f"_{title}.png")
+
+    fig, ax, im = mask.matshow()
+    ax.set_title("clique mask")
+    if fname != "":
+        savefig(fig, fname + f"_mask.png")
+
+
+def solve_by_cliques(lifter, overlap_params, fname=""):
     # from _scripts.run_by_cliques_bkp import run_by_clique
     from _scripts.generate_cliques import create_clique_list
 
@@ -78,6 +119,10 @@ def solve_by_cliques(lifter, overlap_params):
     for overlap in overlap_params:
         print("creating cliques...", end="")
         clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
+        visualize_clique_list(
+            clique_list,
+            fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
+        )
         print("solving...", end="")
         X_list, info = solve_oneshot(
             clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
@@ -118,7 +163,7 @@ if __name__ == "__main__":
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
     lifters = [
         # Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT"),
-        Stereo3DLifter(n_landmarks=4, param_level="ppT", level="urT"),
+        Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
@@ -130,16 +175,21 @@ if __name__ == "__main__":
     # overlaps = [0, 1, 2]
     overlaps = [0, 1, 2]
     overlap_params = [
-        {"overlap_mode": 0, "n_vars": 1},
-        {"overlap_mode": 0, "n_vars": 2},
-        {"overlap_mode": 1, "n_vars": 2},
-        {"overlap_mode": 1, "n_vars": 3},
+        # {"overlap_mode": 0, "n_vars": 1},
+        # {"overlap_mode": 0, "n_vars": 2},
+        # {"overlap_mode": 1, "n_vars": 2},
+        # {"overlap_mode": 1, "n_vars": 3},
         {"overlap_mode": 1, "n_vars": 4},
-        {"overlap_mode": 2, "n_vars": 2},
-        {"overlap_mode": 2, "n_vars": 3},
+        {"overlap_mode": 1, "n_vars": 5},
+        # {"overlap_mode": 1, "n_vars": 6},
+        # {"overlap_mode": 1, "n_vars": 5},
+        # {"overlap_mode": 2, "n_vars": 2},
+        # {"overlap_mode": 2, "n_vars": 3},
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
         # solve_in_one(lifter)
-        solve_by_cliques(lifter, overlap_params=overlap_params)
+        solve_by_cliques(
+            lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
+        )
     print("done")
