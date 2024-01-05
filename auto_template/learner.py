@@ -50,14 +50,12 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = True
+USE_KNOWN = False
 USE_INCREMENTAL = True
 
 GLOBAL_THRESH = 1e-3
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
-
-ALL_PAIRS = True
 
 
 class Learner(object):
@@ -582,7 +580,6 @@ class Learner(object):
             constraints = self.lifter.apply_template(
                 template.polyrow_b_,
                 n_landmarks=self.lifter.n_landmarks,
-                all_pairs=ALL_PAIRS,
             )
             template.applied_list = [
                 Constraint.init_from_polyrow_b(
@@ -659,9 +656,11 @@ class Learner(object):
                     del constraints[idx]
         return constraints
 
-    def create_known_templates(self, unroll=False):
+    def create_known_templates(self, unroll=False, use_known=USE_KNOWN):
         # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay
         n_known = 0
+        if not use_known:
+            return n_known
         self.templates_known = []
         if unroll:
             target_dict = self.lifter.get_var_dict_unroll()
@@ -707,6 +706,7 @@ class Learner(object):
                     for template in learner.templates + learner.templates_known
                     if template.index == t
                 ][0]
+                assert isinstance(template, Constraint)
 
                 if not template.known:
                     # (make sure the dimensions of the constraints are correct)

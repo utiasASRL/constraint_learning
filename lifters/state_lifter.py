@@ -78,6 +78,11 @@ class StateLifter(BaseClass):
 
     REDUCE_DEPENDENT = False
 
+    # properties of template scaling
+    CLIQUE_SIZE = 5
+    STEP_SIZE = 1
+    ALL_PAIRS = False
+
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
         return [
@@ -620,7 +625,7 @@ class StateLifter(BaseClass):
             )
         return new_poly_rows
 
-    def apply_template(self, bi_poly, n_landmarks=None, verbose=False, all_pairs=True):
+    def apply_template(self, bi_poly, n_landmarks=None, verbose=False):
         if n_landmarks is None:
             n_landmarks = self.n_landmarks
 
@@ -639,17 +644,33 @@ class StateLifter(BaseClass):
 
         if len(unique_idx) == 0:
             return [bi_poly]
+        elif len(unique_idx) > 2:
+            raise ValueError("unexpected triple dependencies!")
 
         variable_indices = self.get_variable_indices(self.var_dict)
 
         # For example, if z_0 is in this constraint, repeat the constraint for each landmark.
-        if all_pairs:
+        if self.ALL_PAIRS:
             idx_list = list(itertools.combinations(variable_indices, len(unique_idx)))
         else:
-            idx_list = [
-                [variable_indices[i + j] for j in range(len(unique_idx))]
-                for i in range(len(variable_indices) - len(unique_idx) + 1)
-            ]
+            if len(unique_idx) == 1:
+                idx_list = [[i] for i in variable_indices]
+            else:
+                # below creates, for example with CLIQUE_SIZE=3 and len(unique_idx)=2:
+                # [0, 1],[0, 2],[1, 2],[2, 3],[2, 4],[3, 4]
+                clique_size = max(self.CLIQUE_SIZE, len(unique_idx))
+                step = self.STEP_SIZE
+                idx_list = []
+                for i in np.arange(len(variable_indices), step=step):
+                    end_idx = min(i + clique_size, len(variable_indices))
+                    for pair in itertools.combinations(
+                        range(i, end_idx), len(unique_idx)
+                    ):
+                        idx_list.append(tuple([variable_indices[p] for p in pair]))
+
+                # remove duplicate tuples
+                idx_list = [t for t in {i: None for i in idx_list}]
+
         for idx in idx_list:
             if verbose:
                 print(idx, end=",")
@@ -897,9 +918,8 @@ class StateLifter(BaseClass):
         for i in range(n_basis):
             ai = self.get_reduced_a(basis[i], var_dict, sparse=True)
             basis_reduced.append(ai)
-        # TODO(FD) not the cheapest way to create a sparse array 
         basis_reduced = sp.vstack(basis_reduced)
-            
+
         if self.REDUCE_DEPENDENT:
             import sparseqr as sqr
 

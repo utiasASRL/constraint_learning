@@ -372,7 +372,7 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
