@@ -56,6 +56,7 @@ def create_clique_list(
             print(
                 f"did not find saved learner for {lifter}. Run run_..._study.py first."
             )
+            raise
         templates = saved_learner.templates
 
     recreate_A_list = isinstance(lifter, StereoLifter)

@@ -315,7 +315,7 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
     except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         # find which of the constraints are actually necessary
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         df = pd.DataFrame(data)
         with open(fname, "wb") as f:
             pickle.dump(learner, f)
@@ -351,7 +351,6 @@ def run_scalability_new(
     recompute: bool = False,
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
-
     fname_all = fname_root + "_complete.pkl"
     # try:
     #    assert recompute is False

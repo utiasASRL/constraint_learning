@@ -5,7 +5,7 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 
-def remove_dependent_constraints(constraints):
+def remove_dependent_constraints(constraints, verbose=False):
     from cert_tools.linalg_tools import find_dependent_columns
 
     # find which constraints are lin. dep.
@@ -13,7 +13,7 @@ def remove_dependent_constraints(constraints):
         [constraint.a_full_ for constraint in constraints], format="coo"
     ).T
 
-    bad_idx = find_dependent_columns(A_vec)
+    bad_idx = find_dependent_columns(A_vec, verbose=verbose)
     if len(bad_idx):
         np.testing.assert_allclose(bad_idx, sorted(bad_idx))
         # important: by changing the order we

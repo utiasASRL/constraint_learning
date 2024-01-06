@@ -16,3 +16,4 @@ solve_mosek.ptf
 solve_cvxpy*.ptf
 build/
 dist/
+mosek_output.tmp

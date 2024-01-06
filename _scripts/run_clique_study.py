@@ -23,14 +23,14 @@ COMPUTE_MINIMAL = True
 
 NOISE_SEED = 5
 
-USE_FUSION = True
+USE_FUSION = False
 USE_PRIMAL = True
 USE_KNOWN = False
 
 VERBOSE = False
 
 
-def plot_sparsities(learner: Learner):
+def compute_sparsities(learner: Learner):
     A_b_known = [(constraint.A_sparse_, 0) for constraint in learner.templates_known]
     A_b_all = learner.get_A_b_list()
     A_b_suff = None
@@ -50,6 +50,7 @@ def plot_sparsities(learner: Learner):
             continue
 
         title = f"{learner.lifter}_{name}"
+
         mask = get_aggregate_sparsity(learner.solver_vars["Q"], A_b)
         I, J = mask.nonzero()
         df = pd.DataFrame()
@@ -59,12 +60,6 @@ def plot_sparsities(learner: Learner):
         fname = f"_results/{title}_mask.pkl"
         df.to_pickle(fname)
         print("wrote", fname)
-        fig, ax = investigate_sparsity(mask)
-        ax.set_title(title)
-        savefig(fig, f"_plots/{title}_cliques.png", verbose=True)
-        fig, ax = plot_aggregate_sparsity(mask)
-        ax.set_title(title)
-        savefig(fig, f"_plots/{title}_mask.png", verbose=True)
 
 
 def visualize_clique_list(clique_list, symmetric=True, fname=""):
@@ -119,10 +114,10 @@ def solve_by_cliques(lifter, overlap_params, fname=""):
     for overlap in overlap_params:
         print("creating cliques...", end="")
         clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
-        visualize_clique_list(
-            clique_list,
-            fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
-        )
+        # visualize_clique_list(
+        #    clique_list,
+        #    fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
+        # )
         print("solving...", end="")
         X_list, info = solve_oneshot(
             clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
@@ -142,9 +137,12 @@ def solve_in_one(lifter):
             (np.ones(len(df.indices_i)), [df.indices_i, df.indices_j]),
             shape=df.attrs["mask_shape"],
         )
-        plt.matshow(mask.toarray())
-        investigate_sparsity(mask)
-        print("done")
+        fig, ax = investigate_sparsity(mask)
+        ax.set_title(title)
+        savefig(fig, f"_plots/{title}_cliques.png", verbose=True)
+        fig, ax = plot_aggregate_sparsity(mask)
+        ax.set_title(title)
+        savefig(fig, f"_plots/{title}_mask.png", verbose=True)
 
     except FileNotFoundError:
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
@@ -153,7 +151,7 @@ def solve_in_one(lifter):
             raise RuntimeError(
                 f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
             )
-        plot_sparsities(learner)
+        compute_sparsities(learner)
 
 
 if __name__ == "__main__":
@@ -162,13 +160,13 @@ if __name__ == "__main__":
     # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
     lifters = [
-        # Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT"),
-        # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+        # Stereo2DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+        Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
-        MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
+        # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
     ]
@@ -176,15 +174,11 @@ if __name__ == "__main__":
     overlaps = [0, 1, 2]
     overlap_params = [
         # {"overlap_mode": 0, "n_vars": 1},
-        # {"overlap_mode": 0, "n_vars": 2},
         # {"overlap_mode": 1, "n_vars": 2},
-        {"overlap_mode": 1, "n_vars": 3},
-        {"overlap_mode": 1, "n_vars": 4},
+        # {"overlap_mode": 1, "n_vars": 3},
+        # {"overlap_mode": 1, "n_vars": 4},
         {"overlap_mode": 1, "n_vars": 5},
-        # {"overlap_mode": 1, "n_vars": 6},
-        # {"overlap_mode": 1, "n_vars": 5},
-        # {"overlap_mode": 2, "n_vars": 2},
-        # {"overlap_mode": 2, "n_vars": 3},
+        {"overlap_mode": 2, "n_vars": 2},
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")

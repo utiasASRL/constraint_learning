@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 
-from cert_tools.linalg_tools import rank_project
+from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from poly_matrix.poly_matrix import PolyMatrix
 
 from lifters.state_lifter import StateLifter
@@ -613,7 +613,19 @@ class Learner(object):
         to make sure all the matrices going into the SDP are in fact linearly independent.
         """
         if remove_dependent:
-            remove_dependent_constraints(constraints)
+            # find which constraints are lin. dep.
+            A_vec = sp.vstack(
+                [constraint.a_full_ for constraint in constraints], format="coo"
+            ).T
+
+            # make sure that matrix is tall (we have less constraints than number of dimensions of x)
+            if A_vec.shape[0] < A_vec.shape[1]:
+                print("Warning: fat matrix.")
+
+            bad_idx = find_dependent_columns(A_vec)
+            if len(bad_idx):
+                for idx in sorted(bad_idx)[::-1]:
+                    del constraints[idx]
 
         if remove_imprecise:
             error, bad_idx = self.lifter.test_constraints(
