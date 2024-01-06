@@ -27,7 +27,7 @@ USE_FUSION = True
 USE_PRIMAL = True
 USE_KNOWN = False
 
-VERBOSE = True
+VERBOSE = False
 
 
 def plot_sparsities(learner: Learner):
@@ -163,12 +163,12 @@ if __name__ == "__main__":
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
     lifters = [
         # Stereo2DLifter(n_landmarks=5, param_level="ppT", level="urT"),
-        Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+        # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
-        # MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
+        MonoLifter(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
     ]
@@ -178,7 +178,7 @@ if __name__ == "__main__":
         # {"overlap_mode": 0, "n_vars": 1},
         # {"overlap_mode": 0, "n_vars": 2},
         # {"overlap_mode": 1, "n_vars": 2},
-        # {"overlap_mode": 1, "n_vars": 3},
+        {"overlap_mode": 1, "n_vars": 3},
         {"overlap_mode": 1, "n_vars": 4},
         {"overlap_mode": 1, "n_vars": 5},
         # {"overlap_mode": 1, "n_vars": 6},

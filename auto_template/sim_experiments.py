@@ -352,7 +352,7 @@ def run_scalability_new(
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
 
-    # fname_all = fname_root + "_complete.pkl"
+    fname_all = fname_root + "_complete.pkl"
     # try:
     #    assert recompute is False
     #    df = pd.read_pickle(fname_all)

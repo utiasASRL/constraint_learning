@@ -129,16 +129,17 @@ class RobustPoseLifter(StateLifter, ABC):
             )
         return vars
 
-    def get_clique_vars_ij(self, i, j):
-        return {
+    def get_clique_vars_ij(self, *args):
+        var_dict = {
             "h": self.var_dict["h"],
             "t": self.var_dict["t"],
             "c": self.var_dict["c"],
-            f"w_{i}": self.var_dict[f"w_{i}"],
-            f"z_{i}": self.var_dict[f"z_{i}"],
-            f"w_{j}": self.var_dict[f"w_{j}"],
-            f"z_{j}": self.var_dict[f"z_{j}"],
         }
+        for i in args:
+            var_dict.update(
+                {f"w_{i}": self.var_dict[f"w_{i}"], f"z_{i}": self.var_dict[f"z_{i}"]}
+            )
+        return var_dict
 
     def base_size(self):
         return self.var_dict["h"] + self.var_dict["t"] + self.var_dict["c"]

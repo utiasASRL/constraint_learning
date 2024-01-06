@@ -9,7 +9,7 @@ from cert_tools.base_clique import BaseClique
 from poly_matrix import PolyMatrix
 
 from lifters.stereo_lifter import StereoLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.wahba_lifter import WahbaLifter
 from utils.constraint import remove_dependent_constraints
 
 DEBUG = True
@@ -18,7 +18,7 @@ USE_AUTOTEMPLATE = True
 
 
 def create_clique_list(
-    lifter: Stereo3DLifter,
+    lifter: WahbaLifter,
     overlap_mode=0,
     n_vars=1,
     use_known=USE_KNOWN,
