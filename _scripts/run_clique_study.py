@@ -1,4 +1,5 @@
 import itertools
+import pickle
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -30,8 +31,9 @@ USE_KNOWN = False
 VERBOSE = False
 
 
-def compute_sparsities(learner: Learner):
-    A_b_known = [(constraint.A_sparse_, 0) for constraint in learner.templates_known]
+def compute_sparsities(learner: Learner, appendix=""):
+    templates_known = learner.get_known_templates(use_known=True)
+    A_b_known = [(constraint.A_sparse_, 0) for constraint in templates_known]
     A_b_all = learner.get_A_b_list()
     A_b_suff = None
     if COMPUTE_MINIMAL:
@@ -57,7 +59,7 @@ def compute_sparsities(learner: Learner):
         df.loc[:, "indices_i"] = I
         df.loc[:, "indices_j"] = J
         df.attrs["mask_shape"] = mask.shape
-        fname = f"_results/{title}_mask.pkl"
+        fname = f"_results/{title}_mask{appendix}.pkl"
         df.to_pickle(fname)
         print("wrote", fname)
 
@@ -126,32 +128,59 @@ def solve_by_cliques(lifter, overlap_params, fname=""):
 
 
 def solve_in_one(lifter):
-    name = ""  # recompute
-    # name = "known"
-    # name = "learned"
-    # name = "suff"
+    # all_pairs = True
+    # appendix = "_all"
+
+    all_pairs = False
+    appendix = ""
+
     try:
-        title = f"{lifter}_{name}"
-        df = pd.read_pickle(f"_results/{title}_mask.pkl")
-        mask = sp.csr_array(
-            (np.ones(len(df.indices_i)), [df.indices_i, df.indices_j]),
-            shape=df.attrs["mask_shape"],
-        )
-        fig, ax = investigate_sparsity(mask)
-        ax.set_title(title)
-        savefig(fig, f"_plots/{title}_cliques.png", verbose=True)
-        fig, ax = plot_aggregate_sparsity(mask)
-        ax.set_title(title)
-        savefig(fig, f"_plots/{title}_mask.png", verbose=True)
+        # names = [""]  # recompute
+        names = ["known", "learned", "suff"]
+        for name in names:
+            title = f"{lifter}_{name}"
+            df = pd.read_pickle(f"_results/{title}_mask{appendix}.pkl")
+            mask = sp.csr_array(
+                (np.ones(len(df.indices_i)), [df.indices_i, df.indices_j]),
+                shape=df.attrs["mask_shape"],
+            )
+            fig, ax = investigate_sparsity(mask)
+            ax.set_title(title)
+            savefig(fig, f"_plots/{title}_cliques{appendix}.png", verbose=True)
+            fig, ax = plot_aggregate_sparsity(mask)
+            ax.set_title(title)
+            savefig(fig, f"_plots/{title}_mask{appendix}.png", verbose=True)
 
     except FileNotFoundError:
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
-        _, success = learner.run(verbose=False, plot=False)
-        if not success:
-            raise RuntimeError(
-                f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
+        # uses incremental learning
+        fname = f"_results/scalability_{lifter}_order_dict.pkl"
+        try:
+            with open(fname, "rb") as f:
+                order_dict = pickle.load(f)
+                saved_learner = pickle.load(f)
+        except FileNotFoundError:
+            print(
+                f"did not find saved learner for {lifter}. Run run_..._study.py first."
             )
-        compute_sparsities(learner)
+            raise
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+        learner.find_local_solution()  # populates solver_vars
+        learner.templates = saved_learner.templates
+        learner.apply_templates(all_pairs=all_pairs)
+        compute_sparsities(learner, appendix=appendix)
+        # new_constraints = lifter.apply_templates(
+        #    saved_learner.templates, var_dict=lifter.var_dict, all_pairs=False
+        # )
+        # remove_dependent_constraints(new_constraints)
+        # A_list = [lifter.get_A0(var_dict)] + [t.A_sparse_ for t in new_constraints]
+
+        # doesn't use incremental learning
+        # _, success = learner.run(verbose=False, plot=False)
+        # if not success:
+        #     raise RuntimeError(
+        #         f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
+        #     )
+        # compute_sparsities(learner)
 
 
 if __name__ == "__main__":
@@ -161,11 +190,11 @@ if __name__ == "__main__":
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
     lifters = [
         # Stereo2DLifter(n_landmarks=10, param_level="ppT", level="urT"),
-        Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+        # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
-        # WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
+        WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
@@ -178,12 +207,12 @@ if __name__ == "__main__":
         # {"overlap_mode": 1, "n_vars": 3},
         # {"overlap_mode": 1, "n_vars": 4},
         {"overlap_mode": 1, "n_vars": 5},
-        {"overlap_mode": 2, "n_vars": 2},
+        # {"overlap_mode": 2, "n_vars": 2},
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
-        # solve_in_one(lifter)
-        solve_by_cliques(
-            lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
-        )
+        solve_in_one(lifter)
+        # solve_by_cliques(
+        #    lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
+        # )
     print("done")

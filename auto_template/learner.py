@@ -328,6 +328,9 @@ class Learner(object):
             force_first += len(self.templates_known)
 
         if reorder:
+            if self.solver_vars is None:
+                self.find_local_solution()
+
             # find the importance of each constraint
             _, lamdas = solve_lambda(
                 self.solver_vars["Q"],
@@ -583,10 +586,10 @@ class Learner(object):
             return n_new, n_all
         return 0, len(self.constraints)
 
-    def apply_templates(self):
+    def apply_templates(self, all_pairs=True):
         # the new templates are all the ones corresponding to the new matrix variables.
         new_constraints = self.lifter.apply_templates(
-            self.templates, self.constraint_index
+            self.templates, self.constraint_index, all_pairs=all_pairs
         )
         self.constraint_index += len(new_constraints)
         if not len(new_constraints):
@@ -642,12 +645,12 @@ class Learner(object):
                     del constraints[idx]
         return constraints
 
-    def create_known_templates(self, unroll=False, use_known=USE_KNOWN):
+    def get_known_templates(self, unroll=False, use_known=USE_KNOWN):
         # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay
-        n_known = 0
+        templates_known = []
         if not use_known:
-            return n_known
-        self.templates_known = []
+            return templates_known
+
         if unroll:
             target_dict = self.lifter.get_var_dict_unroll()
         else:
@@ -663,10 +666,8 @@ class Learner(object):
                 mat_var_dict=self.lifter.var_dict,
             )
             self.constraint_index += 1
-            self.templates_known.append(template)
-            n_known += 1
-        print(f"using {n_known} new known constraints")
-        return n_known
+            templates_known.append(template)
+        return templates_known
 
     def get_sufficient_templates(self, new_order, new_lifter):
         """Use the templates in learner to populate the own templates and constraints."""
@@ -710,7 +711,9 @@ class Learner(object):
         success = False
 
         if self.use_known:
-            self.create_known_templates()
+            self.templates_known = self.get_known_templates()
+            n_known = len(self.templates_known)
+            print(f"using {n_known} new known constraints")
 
         while 1:
             # add one more variable to the list of variables to vary

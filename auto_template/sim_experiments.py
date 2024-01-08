@@ -468,7 +468,7 @@ def run_scalability_new(
                         new_learner.templates = learner.templates
 
                     # apply the templates, to generate constraints
-                    new_learner.create_known_templates()
+                    new_learner.templates_known = new_learner.get_known_templates()
                     new_learner.apply_templates()
                     data_dict["t create constraints"] = time.time() - t1
                     data_dict["n templates"] = len(new_learner.templates)
