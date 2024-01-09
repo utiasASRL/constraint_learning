@@ -22,8 +22,6 @@ VERBOSE = False
 def generate_results(lifter):
     saved_learner = read_saved_learner(lifter)
 
-    Q = None
-    cprob = None
     scale = 1.0
     offset = 0.0
 
@@ -145,9 +143,16 @@ def generate_results(lifter):
                         "n_outliers": n_outliers,
                         "n_landmarks": n_landmarks,
                         "clique_size": clique_size,
+                        "time_solve": time_solve,
+                        "primal": PRIMAL,
                     }
                 )
+            df = pd.DataFrame(results)
+            fname = f"_results/{lifter}_cliques.pkl"
+            df.to_pickle(fname)
+            print(f"saved intermediate as {fname}")
     df = pd.DataFrame(results)
+    df.to_pickle(f"_results/{lifter}_cliques.pkl")
     return df
 
 
