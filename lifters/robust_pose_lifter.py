@@ -189,15 +189,16 @@ class RobustPoseLifter(StateLifter, ABC):
             theta_here = theta
 
         if (self.d == 2) and len(theta_here) == 6:  # x, y, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
+            RT, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 2) and len(theta_here) == 3:  # x, y, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
+            RT, t = get_C_r_from_theta(theta_here, self.d)
         elif (self.d == 3) and len(theta_here) == 12:  # x, y, z, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
+            RT, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 3) and len(theta_here) == 6:  # x, y, z, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
+            RT, t = get_C_r_from_theta(theta_here, self.d)
         else:
             raise ValueError(theta_here)
+        R = RT.T
 
         x_data = []
         for key in var_subset:
@@ -321,6 +322,8 @@ class RobustPoseLifter(StateLifter, ABC):
 
         if verbose:
             solver_kwargs["verbosity"] = 2
+        else:
+            solver_kwargs["verbosity"] = 0
 
         # We assume that we know w! If we wanted to solve for w too we would need
         # IRLS or similar. Since we just care about getting the global solution
@@ -378,20 +381,25 @@ class RobustPoseLifter(StateLifter, ABC):
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
 
-        print("local solver sanity check:")
-        print("final penalty:", self.penalty(t))
+        if verbose:
+            print("local solver sanity check:")
+            print("final penalty:", self.penalty(t))
         for i in range(self.n_landmarks):
             residual = self.residual_sq(R, t, self.landmarks[i], y[i])
             if i < self.n_outliers:
-                print(f"outlier residual: {residual:.4e}")
+                if verbose:
+                    print(f"outlier residual: {residual:.4e}")
                 assert (
                     residual > self.beta
                 ), f"outlier residual too small: {residual} <= {self.beta}"
             else:
-                print(f"inlier residual: {residual:.4e}")
+                if verbose:
+                    print(f"inlier residual: {residual:.4e}")
                 assert (
-                    residual <= self.beta
+                    residual < self.beta
                 ), f"inlier residual too large: {residual} > {self.beta}"
+        if verbose:
+            print("qcqp cost:", res.cost)
 
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]

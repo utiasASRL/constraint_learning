@@ -1,3 +1,4 @@
+from copy import deepcopy
 import itertools
 import pickle
 
@@ -20,7 +21,7 @@ from cert_tools.sparse_solvers import solve_oneshot
 from cert_tools.base_clique import BaseClique
 from poly_matrix import PolyMatrix
 
-COMPUTE_MINIMAL = True
+COMPUTE_MINIMAL = False
 
 NOISE_SEED = 5
 
@@ -127,7 +128,19 @@ def solve_by_cliques(lifter, overlap_params, fname=""):
         print(f"results for {overlap} : q={cost:.4e}, p={info['cost']:.4e}")
 
 
-def solve_in_one(lifter):
+def read_saved_learner(lifter):
+    fname = f"_results/scalability_{lifter}_order_dict.pkl"
+    try:
+        with open(fname, "rb") as f:
+            order_dict = pickle.load(f)
+            saved_learner = pickle.load(f)
+    except FileNotFoundError:
+        print(f"did not find saved learner for {lifter}. Run run_..._study.py first.")
+        raise
+    return saved_learner
+
+
+def solve_in_one(lifter, overlap_params):
     # all_pairs = True
     # appendix = "_all"
 
@@ -135,8 +148,8 @@ def solve_in_one(lifter):
     appendix = ""
 
     try:
-        # names = [""]  # recompute
-        names = ["known", "learned", "suff"]
+        names = [""]  # recompute
+        # names = ["known", "learned", "suff"]
         for name in names:
             title = f"{lifter}_{name}"
             df = pd.read_pickle(f"_results/{title}_mask{appendix}.pkl")
@@ -153,21 +166,20 @@ def solve_in_one(lifter):
 
     except FileNotFoundError:
         # uses incremental learning
-        fname = f"_results/scalability_{lifter}_order_dict.pkl"
-        try:
-            with open(fname, "rb") as f:
-                order_dict = pickle.load(f)
-                saved_learner = pickle.load(f)
-        except FileNotFoundError:
-            print(
-                f"did not find saved learner for {lifter}. Run run_..._study.py first."
-            )
-            raise
+        saved_learner = read_saved_learner(lifter)
+        overlap_params = overlap_params[0]
+        if overlap_params["overlap_mode"] == 2:
+            lifter.ALL_PAIRS = True
+        elif overlap_params["overlap_mode"] == 1:
+            lifter.ALL_PAIRS = False
+            lifter.CLIQUE_SIZE = overlap_params["n_vars"]
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         learner.find_local_solution()  # populates solver_vars
         learner.templates = saved_learner.templates
-        learner.apply_templates(all_pairs=all_pairs)
-        compute_sparsities(learner, appendix=appendix)
+        learner.apply_templates()
+        learner.is_tight(verbose=True)
+        # compute_sparsities(learner, appendix=appendix)
+
         # new_constraints = lifter.apply_templates(
         #    saved_learner.templates, var_dict=lifter.var_dict, all_pairs=False
         # )
@@ -194,7 +206,17 @@ if __name__ == "__main__":
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
-        WahbaLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
+        WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
+        # with clique size 5:
+        # 5 to 1 worked.
+        # 10 to 4 failed. 10 to 3 worked. 10 to 2 worked.
+        # 15 to 6 failed. 15 to 5 failed. 15 to 4 almost. 15 to 3 worked.
+        # with clique size 6:
+        # 10 to 7 works. 10 to 6 worked. 10 to 5 worked. 10 to 4 worked.
+        # 15 to 11 fails. 15 to 10 worked. 15 to 7 worked. 15 to 6 worked. 15 to 5 worked
+        #                 20 to 15 almost.
+        # with clique size 7:
+        #                 20 to 15 worked.
         # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
@@ -206,12 +228,14 @@ if __name__ == "__main__":
         # {"overlap_mode": 1, "n_vars": 2},
         # {"overlap_mode": 1, "n_vars": 3},
         # {"overlap_mode": 1, "n_vars": 4},
-        {"overlap_mode": 1, "n_vars": 5},
+        # {"overlap_mode": 1, "n_vars": 5},
+        # {"overlap_mode": 1, "n_vars": 6},
+        {"overlap_mode": 1, "n_vars": 7},
         # {"overlap_mode": 2, "n_vars": 2},
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
-        solve_in_one(lifter)
+        solve_in_one(lifter, overlap_params)
         # solve_by_cliques(
         #    lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
         # )

@@ -62,26 +62,36 @@ class WahbaLifter(RobustPoseLifter):
             return res_sq / (self.n_landmarks * self.d) ** 2
         return res_sq
 
+    def sample_y(self, i, R, t, noise=NOISE):
+        if noise is None:
+            noise = NOISE
+        pi = self.landmarks[i]
+        # ui = deepcopy(pi) #R @ pi + t
+        ui = R @ pi + t
+        if i < self.n_outliers:
+            ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
+        else:
+            ui += np.random.normal(scale=noise, loc=0, size=self.d)
+        return ui
+
     def get_Q(
         self, noise: float = None, output_poly: bool = False, use_cliques: list = []
     ):
-        if noise is None:
-            noise = NOISE
-
         if self.y_ is None:
-            self.y_ = np.empty((self.n_landmarks, self.d))
             n_angles = self.d * (self.d - 1) // 2
             theta = self.theta[: self.d + n_angles]
+            self.y_ = np.empty((self.n_landmarks, self.d))
             R, t = get_C_r_from_theta(theta, self.d)
             for i in range(self.n_landmarks):
-                pi = self.landmarks[i]
-                # ui = deepcopy(pi) #R @ pi + t
-                ui = R @ pi + t
-                if i < self.n_outliers:
-                    ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
-                else:
-                    ui += np.random.normal(scale=noise, loc=0, size=self.d)
-                self.y_[i] = ui
+                valid_measurement = False
+                while not valid_measurement:
+                    y_i = self.sample_y(i, R, t, noise=noise)
+                    residual = self.residual_sq(R, t, self.landmarks[i], y_i)
+                    if i < self.n_outliers:
+                        valid_measurement = residual > self.beta
+                    else:
+                        valid_measurement = residual < self.beta
+                self.y_[i] = y_i
         Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
         return Q, self.y_
 

@@ -23,6 +23,12 @@ def bisection(function, inputs, left_num, right_num):
         return
     elif (not left_tight) and (not right_tight):
         print("Warning: problem is not tight on left or right.")
+        print(
+            "Dual cost:",
+            df_data[right_num]["dual cost"],
+            "eigs:",
+            df_data[right_num]["eigs"][:10],
+        )
         return
 
     assert not left_tight

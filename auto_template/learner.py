@@ -9,7 +9,7 @@ from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from poly_matrix.poly_matrix import PolyMatrix
 
 from lifters.state_lifter import StateLifter
-from utils.constraint import Constraint, remove_dependent_constraints
+from utils.constraint import Constraint
 from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
 from utils.plotting_tools import savefig, plot_singular_values
 from solvers.common import find_local_minimum
@@ -66,20 +66,22 @@ class Learner(object):
     def __init__(
         self,
         lifter: StateLifter,
-        variable_list: list,
+        variable_list: list = None,
         apply_templates: bool = True,
         noise: float = None,
         n_inits: int = 10,
         use_known: bool = USE_KNOWN,
         use_incremental: bool = USE_INCREMENTAL,
     ):
-        self.use_known = use_known
-        self.use_incremental = use_incremental
-        self.noise = noise
+        if variable_list is None:
+            variable_list = lifter.variable_list
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
-
         self.apply_templates_to_others = apply_templates
+        self.noise = noise
+
+        self.use_known = use_known
+        self.use_incremental = use_incremental
 
         self.mat_vars = ["h"]
 
@@ -279,9 +281,9 @@ class Learner(object):
         use_last=None,
         use_bisection=False,
     ):
-        def function(A_b_list_here, df_data):
+        def function(A_b_list_here, df_data, verbose=False):
             """Function for bisection or brute_force"""
-            if len(A_b_list_here) in df_data.keys():
+            if (len(A_b_list_here) in df_data.keys()) and not verbose:
                 new_data = df_data[len(A_b_list_here)]
             else:
                 new_data = {"lifter": str(self.lifter), "reorder": reorder}
@@ -314,6 +316,12 @@ class Learner(object):
                     new_data["rank_tight"] = False
                     print(f"{len(A_b_list_here)}: not rank-tight yet")
                 df_data[len(A_b_list_here)] = deepcopy(new_data)
+
+                if verbose:
+                    print(
+                        f"dual cost: {dual_cost:4.4e}, primal cost: {self.solver_vars['qcqp_cost']:4.4f}"
+                    )
+                    print(f"largest 10 eigenvalues: {eigs[:10]}")
 
             if tightness == "rank":
                 return new_data["rank_tight"]

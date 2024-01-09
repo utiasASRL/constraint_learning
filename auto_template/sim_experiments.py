@@ -36,7 +36,7 @@ RESULTS_FOLDER = "_results"
 EARLY_STOP = False
 
 
-def create_newinstance(lifter, n_params):
+def create_newinstance(lifter, n_params, n_outliers=None):
     # TODO(FD): replace below with copy constructor
     if type(lifter) == Stereo2DLifter:
         new_lifter = Stereo2DLifter(
@@ -67,7 +67,7 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
     elif type(lifter) == WahbaLifter:
         new_lifter = WahbaLifter(
@@ -76,7 +76,7 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
     else:
         raise ValueError(lifter)

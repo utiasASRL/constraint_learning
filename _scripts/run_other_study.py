@@ -113,18 +113,18 @@ def run_wahba(n_seeds, recompute, tightness=True, scalability=True):
 
     print("================= Wahba study ==================")
 
-    if tightness:
-        lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
+    # if tightness:
+    #    lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
     if scalability:
-        lifter_scalability_new(
-            WahbaLifter,
-            d=d,
-            n_landmarks=4,
-            robust=False,
-            n_outliers=0,
-            n_seeds=n_seeds,
-            recompute=recompute,
-        )
+        # lifter_scalability_new(
+        #    WahbaLifter,
+        #    d=d,
+        #    n_landmarks=4,
+        #    robust=False,
+        #    n_outliers=0,
+        #    n_seeds=n_seeds,
+        #    recompute=recompute,
+        # )
         lifter_scalability_new(
             WahbaLifter,
             d=d,
@@ -174,4 +174,5 @@ def run_all(n_seeds, recompute, tightness=True, scalability=True):
 
 if __name__ == "__main__":
     # run_all(n_seeds=1, recompute=True)
-    run_mono(n_seeds=1, recompute=True)
+    # run_mono(n_seeds=1, recompute=True)
+    run_wahba(n_seeds=1, recompute=True)
