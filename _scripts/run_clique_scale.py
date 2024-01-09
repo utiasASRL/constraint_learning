@@ -16,11 +16,7 @@ from lifters.wahba_lifter import WahbaLifter
 from _scripts.run_clique_study import read_saved_learner
 
 USE_PARAMETERS = True
-
-VERBOSE = True
-PRIMAL = False
-
-ADJUST_Q = False
+VERBOSE = False
 
 
 def generate_results(lifter):
@@ -36,12 +32,14 @@ def generate_results(lifter):
     options_cvxpy["verbose"] = VERBOSE
     if not USE_PARAMETERS:
         options_cvxpy["ignore_dpp"] = True
+    else:
+        options_cvxpy["ignore_dpp"] = False
 
     learner = Learner(lifter=lifter, n_inits=1)
     learner.find_local_solution()
 
     results = []
-    for n_landmarks in [6]:  # np.arange(10, 31, step=5):
+    for n_landmarks in np.arange(10, 31, step=5):
         print(f"landmarks: {n_landmarks}")
         new_lifter = create_newinstance(lifter, n_landmarks)
         for clique_size in [5, 6, 7]:
@@ -64,12 +62,13 @@ def generate_results(lifter):
                 ii, jj = mask.nonzero()
                 I = ii[jj >= ii]
                 J = jj[jj >= ii]
+                iiz, jjz = (mask == 0).nonzero()
+                Iz = iiz[jjz >= iiz]
+                Jz = jjz[jjz >= iiz]
 
                 Q = cp.Parameter(len(I))
                 As_vec = np.array([np.array(A[I, J]).flatten() for A in As])
 
-                factor = 2.0
-                As_vec[:, I == J] *= factor
             else:
                 Q = cp.Parameter(As[0].shape)
 
@@ -98,7 +97,7 @@ def generate_results(lifter):
                 if USE_PARAMETERS:
                     H = cp.Variable(As[0].shape, PSD=True)
                     constraints = [H[I, J] == Q - y @ As_vec]
-                    constraints += [H[J, I] == Q - y @ As_vec]
+                    constraints += [H[Iz, Jz] == 0]
                 else:
                     LHS = cp.sum([y[i] * As[i] for i in range(len(As))])
                     constraints = [LHS << Q]
@@ -118,7 +117,7 @@ def generate_results(lifter):
 
                 if USE_PARAMETERS:
                     values = np.array(Q_val[I, J]).flatten()
-                    values[I == J] *= factor
+                    # values[I == J] *= factor
                     Q.value = values
                 else:
                     Q.value = Q_val
