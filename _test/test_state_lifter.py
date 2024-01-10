@@ -1,6 +1,6 @@
 import numpy as np
 
-from _test.test_tools import all_lifters
+from _test.tools import all_lifters
 from lifters.state_lifter import (
     unravel_multi_index_triu,
     ravel_multi_index_triu,

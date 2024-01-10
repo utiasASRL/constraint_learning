@@ -10,6 +10,7 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
+from mwcerts.slam_lifter import MWSlamLifter
 
 d = 2
 n_landmarks = 3
@@ -34,6 +35,7 @@ Lifters = [
     (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
     (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
+Lifters = [(MWSlamLifter, dict(n_landmarks=5, d=3))]
 
 
 # Below, we always reset seeds to make sure tests are reproducible.

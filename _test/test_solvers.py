@@ -5,7 +5,7 @@ from lifters.mono_lifter import MonoLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
 from utils.geometry import get_xtheta_from_theta
 
-from _test.test_tools import all_lifters
+from _test.tools import all_lifters
 
 
 NOISE = 1e-2
