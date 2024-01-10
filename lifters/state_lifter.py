@@ -1,15 +1,13 @@
 import itertools
 
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
 import scipy.sparse as sp
-
-
-from utils.common import upper_triangular
-from lifters.base_class import BaseClass
-
 from cert_tools.linalg_tools import get_nullspace
+
+from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
+from utils.common import upper_triangular
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -170,10 +168,6 @@ class StateLifter(BaseClass):
         if self.theta_ is None:
             self.theta_ = self.generate_random_theta()
         return self.theta_
-
-    @theta.setter
-    def theta(self, value):
-        self.theta_ = value
 
     @property
     def base_var_dict(self):
@@ -788,7 +782,7 @@ class StateLifter(BaseClass):
                 else:
                     ax.scatter(*theta[:, :2].T)
 
-            x = self.get_x(theta, parameters, var_subset=var_subset)
+            x = self.get_x(theta=theta, parameters=parameters, var_subset=var_subset)
             X = np.outer(x, x)
 
             # generates [1*x, a1*x, ..., aK*x]
@@ -996,7 +990,7 @@ class StateLifter(BaseClass):
                 np.random.seed(i)
                 t = self.sample_theta()
                 p = self.get_parameters()
-                x = self.get_x(t, p)
+                x = self.get_x(theta=t, parameters=p)
 
                 constraint_violation = abs(x.T @ A @ x)
                 max_violation = max(max_violation, constraint_violation)
