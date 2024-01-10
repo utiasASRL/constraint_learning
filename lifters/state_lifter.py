@@ -5,9 +5,9 @@ import numpy as np
 import scipy.sparse as sp
 from cert_tools.linalg_tools import get_nullspace
 from lifters.base_class import BaseClass
+from utils.common import upper_triangular
 
 from poly_matrix import PolyMatrix, unroll
-from utils.common import upper_triangular
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -847,7 +847,7 @@ class StateLifter(BaseClass):
                 np.random.seed(i)
                 t = self.sample_theta()
                 p = self.get_parameters()
-                x = self.get_x(t, p)
+                x = self.get_x(theta=t, parameters=p)
 
                 constraint_violation = abs(x.T @ A @ x)
                 max_violation = max(max_violation, constraint_violation)
