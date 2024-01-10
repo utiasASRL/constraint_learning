@@ -162,10 +162,6 @@ class StateLifter(BaseClass):
             self.theta_ = self.generate_random_theta()
         return self.theta_
 
-    @theta.setter
-    def theta(self, value):
-        self.theta_ = value
-
     @property
     def base_var_dict(self):
         var_dict = {f"x": self.d**2 + self.d}
@@ -703,7 +699,7 @@ class StateLifter(BaseClass):
                 else:
                     ax.scatter(*theta[:, :2].T)
 
-            x = self.get_x(theta, parameters, var_subset=var_subset)
+            x = self.get_x(theta=theta, parameters=parameters, var_subset=var_subset)
             X = np.outer(x, x)
 
             # generates [1*x, a1*x, ..., aK*x]

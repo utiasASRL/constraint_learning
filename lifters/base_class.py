@@ -32,6 +32,7 @@ class BaseClass(ABC):
             self.variable_list = self.VARIABLE_LIST
 
         # variables that get overwritten upon initialization
+        self.parameters = [1.0]
         self.theta_ = None
         self.var_dict_ = None
 
@@ -85,9 +86,9 @@ class BaseClass(ABC):
     def get_p(self, parameters=None, var_subset=None) -> np.ndarray:
         return
 
-    # @abstractmethod
     def get_parameters(self, var_subset=None) -> list:
-        return
+        if self.param_level == "no":
+            return [1.0]
 
     def get_grad(self, t, y):
         Warning("get_grad not implement yet")
