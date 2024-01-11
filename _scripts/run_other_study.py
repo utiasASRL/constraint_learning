@@ -13,7 +13,8 @@ from utils.plotting_tools import savefig
 DEBUG = False
 
 RESULTS_DIR = "_results"
-#RESULTS_DIR = "_results_server"
+# RESULTS_DIR = "_results_server"
+
 
 def lifter_tightness(
     Lifter=MonoLifter, robust: bool = False, d: int = 2, n_landmarks=4, n_outliers=0

@@ -214,7 +214,6 @@ def solve_sdp_cvxpy(
     return X, info
 
 
-
 def solve_sdp_cvxpy_new(
     Q,
     A_b_list,

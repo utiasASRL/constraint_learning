@@ -4,10 +4,10 @@ import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
 from cert_tools.linalg_tools import get_nullspace
-
 from lifters.base_class import BaseClass
-from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
+
+from poly_matrix import PolyMatrix, unroll
 
 
 def ravel_multi_index_triu(index_tuple, shape):

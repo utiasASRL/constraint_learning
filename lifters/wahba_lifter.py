@@ -83,17 +83,17 @@ class WahbaLifter(RobustPoseLifter):
 
     def get_Q_from_y(self, y):
         """
-                every cost term can be written as
-                (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
+        every cost term can be written as
+        (1 + wi)/b^2  r^2(x, zi) + (1 - wi)
 
-                residual term:
-                (Rpi + t - ui).T Wi (Rpi + t - ui) =
-                [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
-                ------x'-----   -----Pi'-----
-                - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui
-                    -----x'------   ---------Pi_xl--------
-                + ui.T @ Wi @ ui
-                -----Pi_ll------
+        residual term:
+        (Rpi + t - ui).T Wi (Rpi + t - ui) =
+        [t', vec(R)'] @ [I (pi x I)]' @ Wi @ [I (pi x I)] @ [t ; vec(R)]
+        ------x'-----   -----Pi'-----
+        - 2 [t', vec(R)'] @ [I (pi x I)]' Wi @ ui
+            -----x'------   ---------Pi_xl--------
+        + ui.T @ Wi @ ui
+        -----Pi_ll------
         """
         from poly_matrix.poly_matrix import PolyMatrix
 
@@ -107,9 +107,9 @@ class WahbaLifter(RobustPoseLifter):
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]
 
-            Pi_ll = ui.T @ Wi @ ui 
-            Pi_xl = -(Pi.T @ Wi @ ui)[:, None] 
-            Qi = Pi.T @ Wi @ Pi 
+            Pi_ll = ui.T @ Wi @ ui
+            Pi_xl = -(Pi.T @ Wi @ ui)[:, None]
+            Qi = Pi.T @ Wi @ Pi
             if NORMALIZE:
                 Pi_ll /= norm
                 Pi_xl /= norm
