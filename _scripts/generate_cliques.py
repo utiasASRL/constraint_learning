@@ -4,12 +4,11 @@ import pickle
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-
 from cert_tools.base_clique import BaseClique
-from poly_matrix import PolyMatrix
 
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
+from poly_matrix import PolyMatrix
 from utils.constraint import remove_dependent_constraints
 
 DEBUG = True

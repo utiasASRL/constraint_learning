@@ -21,7 +21,7 @@ RESULTS_DIR = "_results"
 # RESULTS_DIR = "_results_server"
 
 
-def mw_loc_tightness(n_landmarks, n_poses):
+def mw_loc_tightness(n_landmarks=5, n_poses=2):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
     """
@@ -29,7 +29,9 @@ def mw_loc_tightness(n_landmarks, n_poses):
     np.random.seed(seed)
 
     # TODO(FD) continue here: fix variable list.
-    variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
+    variable_list = [
+        ["w_0"] + [l for i in range(n_poses) for l in [f"x{i}_C", f"x{i}_t"]]
+    ]
     plots = ["tightness", "matrix", "templates", "svd"]
     lifter = MatWeightLocLifter(
         n_landmarks=n_landmarks, n_poses=n_poses, variable_list=variable_list
@@ -86,12 +88,12 @@ def mw_loc_scalability_new(n_seeds, recompute):
 
 
 def run_all(n_seeds, recompute, tightness=True, scalability=True):
-    if scalability:
-        print("========== MatWeightLoc scalability ===========")
-        mw_loc_scalability_new(n_seeds=n_seeds, recompute=recompute)
     if tightness:
         print("========== MatWeightLoc tightness ===========")
         mw_loc_tightness()
+    if scalability:
+        print("========== MatWeightLoc scalability ===========")
+        mw_loc_scalability_new(n_seeds=n_seeds, recompute=recompute)
 
 
 if __name__ == "__main__":

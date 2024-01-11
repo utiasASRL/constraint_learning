@@ -1,21 +1,22 @@
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
+
+from auto_template.learner import Learner
+from auto_template.sim_experiments import (
+    plot_scalability,
+    run_oneshot_experiment,
+    run_scalability_new,
+    run_scalability_plot,
+)
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
+from utils.plotting_tools import savefig
 
 # matplotlib.use("TkAgg")
 # plt.ion()
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from auto_template.learner import Learner
-from auto_template.sim_experiments import (
-    plot_scalability,
-    run_scalability_new,
-    run_oneshot_experiment,
-    run_scalability_plot,
-)
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.plotting_tools import savefig
 
 DEBUG = False
 

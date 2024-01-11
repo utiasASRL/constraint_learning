@@ -1,4 +1,3 @@
-from copy import deepcopy
 import itertools
 import pickle
 
@@ -6,20 +5,18 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
+from cert_tools.base_clique import BaseClique
+from cert_tools.sparse_solvers import solve_oneshot
 
 from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from lifters.wahba_lifter import WahbaLifter
-from lifters.stereo_lifter import StereoLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
-from solvers.chordal import investigate_sparsity, get_aggregate_sparsity
+from lifters.stereo_lifter import StereoLifter
+from lifters.wahba_lifter import WahbaLifter
+from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
-
-from cert_tools.sparse_solvers import solve_oneshot
-from cert_tools.base_clique import BaseClique
-from poly_matrix import PolyMatrix
 
 COMPUTE_MINIMAL = False
 

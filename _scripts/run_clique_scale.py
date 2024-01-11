@@ -1,19 +1,16 @@
-from copy import deepcopy
 import time
+from copy import deepcopy
 
 import cvxpy as cp
 import numpy as np
 import pandas as pd
+from cert_tools import adjust_Q, adjust_tol, options_cvxpy
 
-from cert_tools import options_cvxpy, adjust_Q, adjust_tol
-
-from auto_template.learner import Learner
-from auto_template.learner import TOL, PRIMAL, ADJUST_Q
+from _scripts.run_clique_study import read_saved_learner
+from auto_template.learner import ADJUST_Q, PRIMAL, TOL, Learner
 from auto_template.sim_experiments import create_newinstance
 from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
-
-from _scripts.run_clique_study import read_saved_learner
 
 USE_PARAMETERS = True
 VERBOSE = False

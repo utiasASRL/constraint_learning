@@ -1,9 +1,8 @@
 from pathlib import Path
 
+import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
-
-import matplotlib
 
 try:
     matplotlib.use("TkAgg")  # non-interactive
@@ -11,11 +10,11 @@ except:
     pass
 
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
-from auto_template.real_experiments import Experiment
 from auto_template.real_experiments import (
-    run_experiments,
-    plot_results,
+    Experiment,
     plot_local_vs_global,
+    plot_results,
+    run_experiments,
 )
 
 DATASET_ROOT = str(Path(__file__).parent.parent)

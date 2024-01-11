@@ -4,33 +4,35 @@ from copy import deepcopy
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
-from poly_matrix.poly_matrix import PolyMatrix
 
 from lifters.state_lifter import StateLifter
-from utils.constraint import Constraint
-from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
-from utils.plotting_tools import savefig, plot_singular_values
-from solvers.common import find_local_minimum
-from solvers.common import solve_certificate
+from poly_matrix.poly_matrix import PolyMatrix
+from solvers.common import find_local_minimum, solve_certificate
 from solvers.sparse import bisection, brute_force
+from utils.constraint import Constraint
+from utils.plotting_tools import (
+    add_colorbar,
+    add_rectangles,
+    import_plt,
+    plot_singular_values,
+    savefig,
+)
 
 USE_FUSION = False
 
 if USE_FUSION:
-    from cert_tools.sdp_solvers import solve_sdp_fusion as solve_sdp
-
     # from cert_tools.sdp_solvers import solve_lambda_fusion as solve_lambda
     # TODO(FD) for some reason, cvxpy is much better at solving for lambda than
     # the fusion API. My guess is that it deals better with redundant constraints
     # (of which there are many).
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
+    from cert_tools.sdp_solvers import solve_sdp_fusion as solve_sdp
 else:
     # from solvers.common_bkp import solve_sdp_cvxpy as solve_sdp
     # from solvers.sparse_bkp import solve_lambda as solve_lambda
-    from cert_tools.sdp_solvers import solve_sdp_cvxpy as solve_sdp
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
+    from cert_tools.sdp_solvers import solve_sdp_cvxpy as solve_sdp
 
 
 plt = import_plt()
@@ -83,7 +85,7 @@ class Learner(object):
         self.use_known = use_known
         self.use_incremental = use_incremental
 
-        self.mat_vars = ["h"]
+        self.mat_vars = []
 
         # templates contains the learned "templates" of the form:
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)

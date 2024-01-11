@@ -9,7 +9,6 @@ from auto_template.sim_experiments import (
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
 
-
 DEBUG = True
 
 RESULTS_DIR = "_results"
