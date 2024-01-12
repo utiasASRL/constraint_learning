@@ -448,7 +448,7 @@ class StereoLifter(StateLifter, ABC):
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
-        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+        from pymanopt.manifolds import Euclidean, Product, SpecialOrthogonalGroup
 
         if method == "CG":
             from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest

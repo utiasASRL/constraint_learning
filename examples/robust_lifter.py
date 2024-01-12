@@ -13,13 +13,20 @@ def get_problem(robust=True):
     # Create lifter
     np.random.seed(0)
     n_landmarks = 4
-    d= 3
+    d = 3
     if robust:
         n_outliers = 1
     else:
         n_outliers = 0
 
-    lifter = Lifter(d=d, n_landmarks=n_landmarks+n_outliers, robust=robust, n_outliers=n_outliers, level=level, variable_list=None)
+    lifter = Lifter(
+        d=d,
+        n_landmarks=n_landmarks + n_outliers,
+        robust=robust,
+        n_outliers=n_outliers,
+        level=level,
+        variable_list=None,
+    )
     Q, y = lifter.get_Q()
 
     from auto_template.learner import Learner
@@ -71,4 +78,4 @@ if __name__ == "__main__":
         prob, lifter = get_problem(robust=robust)
         fname = f"certifiable-tools/_examples/test_prob_{number}G.pkl"
         save_test_problem(**prob, fname=fname)
-        #plot_problem(prob, lifter, fname=fname.replace(".pkl", ".png"))
+        # plot_problem(prob, lifter, fname=fname.replace(".pkl", ".png"))
