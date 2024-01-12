@@ -7,12 +7,11 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (
     get_C_r_from_theta,
     get_C_r_from_xtheta,
-    get_T,
-    get_xtheta_from_theta,
-    get_theta_from_xtheta,
     get_pose_errors_from_xtheta,
+    get_T,
+    get_theta_from_xtheta,
+    get_xtheta_from_theta,
 )
-
 
 NOISE = 1.0  #
 
@@ -340,7 +339,7 @@ class StereoLifter(StateLifter, ABC):
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
-        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+        from pymanopt.manifolds import Euclidean, Product, SpecialOrthogonalGroup
 
         if method == "CG":
             from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest
