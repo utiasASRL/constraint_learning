@@ -282,6 +282,7 @@ class Learner(object):
         tightness="rank",
         use_last=None,
         use_bisection=False,
+        tol=TOL,
     ):
         def function(A_b_list_here, df_data, verbose=False):
             """Function for bisection or brute_force"""
@@ -348,7 +349,7 @@ class Learner(object):
                 self.solver_vars["xhat"],
                 B_list=B_list,
                 force_first=force_first,
-                tol=TOL,
+                tol=tol,
                 adjust=True,
                 verbose=True,
             )

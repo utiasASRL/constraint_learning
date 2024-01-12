@@ -1,12 +1,10 @@
 import numpy as np
 
-from lifters.poly_lifters import PolyLifter
+from _test.tools import all_lifters
 from lifters.mono_lifter import MonoLifter
+from lifters.poly_lifters import PolyLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
 from utils.geometry import get_xtheta_from_theta
-
-from _test.tools import all_lifters
-
 
 NOISE = 1e-2
 

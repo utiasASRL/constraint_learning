@@ -1,18 +1,18 @@
+import pickle
 import time
 from copy import deepcopy
-import pickle
 
-import pandas as pd
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
+import pandas as pd
 
 from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from lifters.wahba_lifter import WahbaLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.wahba_lifter import WahbaLifter
 from utils.plotting_tools import savefig
 
 plot_dict = {
