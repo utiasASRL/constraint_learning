@@ -6,7 +6,7 @@ from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 
 class MatWeightLifter(StateLifter):
-    HOM = "w_0"
+    HOM = "h"
     NOISE = 0.01
 
     def __init__(self, prob: SLAMProblem = None, **kwargs):
@@ -67,10 +67,10 @@ class MatWeightLifter(StateLifter):
             if v.label == "world":
                 continue
             if self.prob.trans_frame == "world":
-                theta[v.label + "_t0"] = v.r_in0.flatten()
+                theta[f"xt0_{v.index}"] = v.r_in0.flatten()
             else:
-                theta[v.label + "_t"] = v.C_p0 @ v.r_in0.flatten()
-            theta[v.label + "_C"] = v.C_p0.flatten("F")
+                theta[f"xt_{v.index}"] = v.C_p0 @ v.r_in0.flatten()
+            theta[f"xC_{v.index}"] = v.C_p0.flatten("F")
         for v in self.prob.G.Vm.values():
             theta[v.label] = v.r_in0.flatten()
         return theta
@@ -83,14 +83,14 @@ class MatWeightLifter(StateLifter):
                 continue
             t = 10 * np.random.rand(3)
             if self.prob.trans_frame == "world":
-                theta[v.label + "_t0"] = t
+                theta[f"xt0_{v.index}"] = t
             else:
-                theta[v.label + "_t"] = t
+                theta[f"xt_{v.index}"] = t
 
             vec = np.random.rand(3, 1)
             vec /= np.linalg.norm(vec)
             rot = sm.angvec2r(np.random.rand(), vec)
-            theta[v.label + "_C"] = rot.flatten(order="F")
+            theta[f"xC_{v.index}"] = rot.flatten(order="F")
 
         # landmarks
         for v in self.prob.G.Vm.values():
@@ -112,17 +112,16 @@ class MatWeightLifter(StateLifter):
         # Construct x-vector using specified variables only.
         vec = []
         for var in var_subset:
-            if "w" in var:  # Homogenous
+            if var == "h":  # Homogenous
                 vec += [1]
-            elif "m" in var and "x" in var:  # subsitutions
-                map_lbl = var.split("_")[0]
-                pose_lbl = var.split("_")[1]
-                C_i0 = theta[pose_lbl + "_C"].reshape((3, 3), order="F")
-                t_k0_0 = theta[map_lbl]
+            elif "z" in var:  # subsitutions
+                _, map_i, pose_i = var.split("_")
+                C_i0 = theta[f"xC_{pose_i}"].reshape((3, 3), order="F")
+                t_k0_0 = theta[f"m_{map_i}"]
                 if self.prob.trans_frame == "world":
-                    t_i0_i = C_i0 @ theta[pose_lbl + "_t0"]
+                    t_i0_i = C_i0 @ theta[f"xt0_{pose_i}"]
                 elif self.prob.trans_frame == "local":
-                    t_i0_i = theta[pose_lbl + "_t"]
+                    t_i0_i = theta[f"xt_{pose_i}"]
                 t_ki_i = C_i0 @ t_k0_0 - t_i0_i
                 vec += [t_ki_i]
             else:  # Other variables
@@ -162,14 +161,21 @@ class MatWeightLifter(StateLifter):
     def get_error(self, theta_hat):
         error_dict = {"error_trans": 0, "error_rot": 0}
         for key, val in self.theta.items():
-            if "_t" in key:  # translation errors
+            if "xt" in key:  # translation errors
                 error_dict["error_trans"] = np.linalg.norm(val - theta_hat[key])
-            elif "_C" in key:  # translation errors
+            elif "xC" in key:  # translation errors
                 error_dict["error_rot"] = np.linalg.norm(val - theta_hat[key])
         return error_dict
 
 
 class MatWeightSLAMLifter(MatWeightLifter):
+    VARIABLE_LIST = [
+        ["h", "xt_0", "xC_0"],
+        ["h", "xt_0", "xC_0", "xt_1", "xC_1"],
+        ["h", "xt_0", "xC_0", "m_0"],
+        ["h", "xt_0", "xC_0", "m_0", "xt_1", "xC_1", "m_1"],
+    ]
+
     def __init__(self, n_landmarks=10, n_poses=5, trans_frame="local", **kwargs):
         prob = SLAMProblem.create_structured_problem(
             Nm=n_landmarks, Np=n_poses, trans_frame=trans_frame
@@ -188,7 +194,7 @@ class MatWeightSLAMLifter(MatWeightLifter):
 
         # fix the first pose to origin.
         if noise > 0:
-            self.prob.add_init_pose_prior(v2=self.prob.G.Vp["x0"])
+            self.prob.add_init_pose_prior()
 
     def __repr__(self):
         return "mw_slam_lifter"
@@ -196,13 +202,8 @@ class MatWeightSLAMLifter(MatWeightLifter):
 
 class MatWeightLocLifter(MatWeightLifter):
     VARIABLE_LIST = [
-        ["w_0", "x0_t"],
-        ["w_0", "x0_C"],
-        ["w_0", "x0_t", "x1_t"],
-        ["w_0", "x0_t", "x1_C"],
-        ["w_0", "x0_t", "x0_C", "x1_t"],
-        ["w_0", "x0_t", "x0_C", "x1_C"],
-        ["w_0", "x0_t", "x0_C", "x1_t", "x1_C"],
+        ["h", "xt_0", "xC_0"],
+        ["h", "xt_0", "xC_0", "xt_1", "xC_1"],
     ]
 
     def __init__(self, n_landmarks=10, n_poses=5, trans_frame="local", **kwargs):
