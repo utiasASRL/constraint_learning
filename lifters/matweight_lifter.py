@@ -1,8 +1,8 @@
 import numpy as np
 import spatialmath.base as sm
-from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 from constraint_learning.lifters.state_lifter import StateLifter
+from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 
 class MatWeightLifter(StateLifter):
