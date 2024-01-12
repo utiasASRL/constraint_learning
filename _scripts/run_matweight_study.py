@@ -1,5 +1,4 @@
 import numpy as np
-from mwcerts.lifters import MatWeightLocLifter
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
@@ -7,6 +6,7 @@ from auto_template.sim_experiments import (
     run_oneshot_experiment,
     run_scalability_new,
 )
+from lifters.matweight_lifter import MatWeightLocLifter
 from utils.plotting_tools import savefig
 
 # matplotlib.use("TkAgg")
