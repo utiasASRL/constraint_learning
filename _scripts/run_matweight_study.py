@@ -35,7 +35,7 @@ def mw_loc_tightness(n_landmarks=5, n_poses=2):
     variable_list = [
         ["w_0"] + [l for i in range(n_poses) for l in [f"x{i}_C", f"x{i}_{label}"]]
     ]
-    plots = ["tightness", "matrix", "templates", "svd"]
+    plots = ["tightness", "matrix", "svd"]
     lifter = MatWeightLocLifter(
         n_landmarks=n_landmarks,
         n_poses=n_poses,
@@ -59,8 +59,6 @@ def mw_loc_scalability_new(n_seeds, recompute):
     n_landmarks = 5
     n_poses = 4
 
-    # variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]] runs out of memory for d=3
-    variable_list = None  # use the default one for the first step.
     np.random.seed(0)
     lifter = MatWeightLocLifter(n_landmarks=n_landmarks, n_poses=n_poses)
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
@@ -94,12 +92,12 @@ def mw_loc_scalability_new(n_seeds, recompute):
 
 
 def run_all(n_seeds, recompute, tightness=True, scalability=True):
-    if tightness:
-        print("========== MatWeightLoc tightness ===========")
-        mw_loc_tightness()
     if scalability:
         print("========== MatWeightLoc scalability ===========")
         mw_loc_scalability_new(n_seeds=n_seeds, recompute=recompute)
+    if tightness:
+        print("========== MatWeightLoc tightness ===========")
+        mw_loc_tightness()
 
 
 if __name__ == "__main__":
