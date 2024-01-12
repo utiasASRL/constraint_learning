@@ -63,18 +63,22 @@ class BaseClass(ABC):
         return
 
     @abstractmethod
-    def sample_theta(self):
+    def sample_theta(self) -> dict | np.ndarray:
         return
 
     @abstractmethod
-    def get_Q(self, noise=1e-3):
+    def get_Q(self, noise=1e-3, output_poly=False):
         Warning("get_Q not implemented yet")
         return None, None
 
-    def get_A_known(self):
+    @abstractmethod
+    def get_error(self, theta_est) -> dict:
+        return
+
+    def get_A_known(self) -> list:
         return []
 
-    def sample_parameters(self, x=None):
+    def sample_parameters(self, x=None) -> list:
         if self.param_level == "no":
             return [1.0]
 
@@ -82,6 +86,6 @@ class BaseClass(ABC):
         if self.param_level == "no":
             return [1.0]
 
-    def get_grad(self, t, y):
+    def get_grad(self, t, y) -> np.ndarray:
         Warning("get_grad not implement yet")
         return None

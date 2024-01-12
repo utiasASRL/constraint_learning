@@ -28,13 +28,19 @@ def mw_loc_tightness(n_landmarks=5, n_poses=2):
     seed = 0
     np.random.seed(seed)
 
+    trans_frame = "local"
+    label = "t0" if trans_frame == "world" else "t"
+
     # TODO(FD) continue here: fix variable list.
     variable_list = [
-        ["w_0"] + [l for i in range(n_poses) for l in [f"x{i}_C", f"x{i}_t"]]
+        ["w_0"] + [l for i in range(n_poses) for l in [f"x{i}_C", f"x{i}_{label}"]]
     ]
     plots = ["tightness", "matrix", "templates", "svd"]
     lifter = MatWeightLocLifter(
-        n_landmarks=n_landmarks, n_poses=n_poses, variable_list=variable_list
+        n_landmarks=n_landmarks,
+        n_poses=n_poses,
+        variable_list=variable_list,
+        trans_frame=trans_frame,
     )
 
     learner = Learner(

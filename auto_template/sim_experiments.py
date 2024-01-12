@@ -593,7 +593,9 @@ def run_oneshot_experiment(
     if "svd" in plots:
         fig = plt.gcf()
         ax = plt.gca()
-        ax.get_legend().remove()
+        l = ax.get_legend()
+        if l is not None:
+            l.remove()
         fig.set_size_inches(3, 3)
         savefig(fig, fname_root + "_svd.pdf")
 
