@@ -86,9 +86,9 @@ class StateLifter(BaseClass):
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
-        return [
-            int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")
-        ]
+        return np.unique(
+            [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
+        )
 
     @staticmethod
     def create_symmetric(vec, eps_sparse, correct=False, sparse=False):
@@ -642,9 +642,7 @@ class StateLifter(BaseClass):
             remove_dependent_constraints(new_constraints)
         return new_constraints
 
-    def apply_template(
-        self, bi_poly, var_dict=None, verbose=False, all_pairs=None
-    ):
+    def apply_template(self, bi_poly, var_dict=None, verbose=False, all_pairs=None):
         if all_pairs is None:
             all_pairs = self.ALL_PAIRS
         if var_dict is None:
@@ -704,16 +702,26 @@ class StateLifter(BaseClass):
             for key in bi_poly.variable_dict_j:
                 # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
                 key_ij = key
+                # TODO(FD) this is very ugly and should be replaced by lifter-specific
+                # class methods.  
                 for from_, to_ in zip(unique_idx, idx):
                     key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
                     key_ij = key_ij.replace(f"w_{from_}", f"wi_{to_}")
                     key_ij = key_ij.replace(f"z_{from_}", f"zi_{to_}")
                     key_ij = key_ij.replace(f"p_{from_}", f"pi_{to_}")
+                    key_ij = key_ij.replace(f"xC_{from_}", f"xCi_{to_}")
+                    key_ij = key_ij.replace(f"xt_{from_}", f"xti_{to_}")
+                    key_ij = key_ij.replace(f"xt0_{from_}", f"xt0i_{to_}")
+                    key_ij = key_ij.replace(f"m_{from_}", f"mi_{to_}")
                 key_ij = (
                     key_ij.replace("zi", "z")
                     .replace("pi", "p")
                     .replace("xi", "x")
                     .replace("wi", "w")
+                    .replace("xCi", "xC")
+                    .replace("xti", "xt")
+                    .replace("xt0i", "xt0")
+                    .replace("mi", "m")
                 )
 
                 try:
