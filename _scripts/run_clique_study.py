@@ -15,6 +15,8 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
+from lifters.matweight_lifter import MatWeightLocLifter
+from lifters.state_lifter import StateLifter
 from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
@@ -99,17 +101,17 @@ def visualize_clique_list(clique_list, symmetric=True, fname=""):
         savefig(fig, fname + f"_mask.png")
 
 
-def solve_by_cliques(lifter, overlap_params, fname=""):
+def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
     # from _scripts.run_by_cliques_bkp import run_by_clique
     from _scripts.generate_cliques import create_clique_list
 
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()
-    theta_gt = lifter.theta
+    theta_gt = lifter.get_vec_around_gt(delta=0)
     theta_est, info, cost = lifter.local_solver(theta_gt, lifter.y_)
     # xtheta_gt = lifter.get_x()
     # theta_est, info, cost = lifter.local_solver(xtheta_gt, lifter.y_)
-    x = lifter.get_x(theta_est)
+    x = lifter.get_x(theta=theta_est)
     assert (x.T @ Q @ x - cost) / cost < 1e-7
     for overlap in overlap_params:
         print("creating cliques...", end="")
@@ -203,37 +205,28 @@ if __name__ == "__main__":
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
         # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
         # WahbaLifter(n_landmarks=10, d=2, robust=True, level="xwT", n_outliers=1),
-        WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
-        # with clique size 5:
-        # 5 to 1 worked.
-        # 10 to 4 failed. 10 to 3 worked. 10 to 2 worked.
-        # 15 to 6 failed. 15 to 5 failed. 15 to 4 almost. 15 to 3 worked.
-        # with clique size 6:
-        # 10 to 7 works. 10 to 6 worked. 10 to 5 worked. 10 to 4 worked.
-        # 15 to 11 fails. 15 to 10 worked. 15 to 7 worked. 15 to 6 worked. 15 to 5 worked
-        #                 20 to 15 almost.
-        # with clique size 7:
-        #                 20 to 15 worked.
+        # WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
         # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
+        MatWeightLocLifter(n_landmarks=10, n_poses=15)
     ]
     # overlaps = [0, 1, 2]
     overlaps = [0, 1, 2]
     overlap_params = [
         # {"overlap_mode": 0, "n_vars": 1},
-        # {"overlap_mode": 1, "n_vars": 2},
+        {"overlap_mode": 1, "n_vars": 2},
         # {"overlap_mode": 1, "n_vars": 3},
         # {"overlap_mode": 1, "n_vars": 4},
         # {"overlap_mode": 1, "n_vars": 5},
         # {"overlap_mode": 1, "n_vars": 6},
-        {"overlap_mode": 1, "n_vars": 7},
+        # {"overlap_mode": 1, "n_vars": 7},
         # {"overlap_mode": 2, "n_vars": 2},
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
-        solve_in_one(lifter, overlap_params)
-        # solve_by_cliques(
-        #    lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
-        # )
+        # solve_in_one(lifter, overlap_params)
+        solve_by_cliques(
+            lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
+        )
     print("done")

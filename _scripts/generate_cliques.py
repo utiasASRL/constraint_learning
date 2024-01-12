@@ -68,9 +68,11 @@ def create_clique_list(
     cost_total = 0
 
     Q_list = []
-    for i in range(lifter.n_landmarks):
+    for i in range(lifter.n_poses):
         vars = lifter.get_clique_vars(i, n_overlap=0)
-        Q, _ = lifter.get_Q(output_poly=True, use_cliques=[i])
+
+        use_cliques = [f"x_{i}"]
+        Q, _ = lifter.get_Q(output_poly=True, use_cliques=use_cliques)
         Q_list.append(Q.get_matrix(vars))
 
     if DEBUG:
@@ -79,12 +81,12 @@ def create_clique_list(
     o = lifter.base_size()
     z = lifter.landmark_size()
     if overlap_mode == 0:
-        if lifter.n_landmarks % n_vars != 0:
+        if lifter.n_poses % n_vars != 0:
             raise ValueError(
-                "Cannot have cliques of different sizes (fusion doesn't like it): n_landmarks has to be multiple of n_vars"
+                "Cannot have cliques of different sizes (fusion doesn't like it): n_poses has to be multiple of n_vars"
             )
-        for i in np.arange(lifter.n_landmarks, step=n_vars):
-            indices = list(range(i, min(i + n_vars, lifter.n_landmarks)))
+        for i in np.arange(lifter.n_poses, step=n_vars):
+            indices = list(range(i, min(i + n_vars, lifter.n_poses)))
             vars = lifter.get_clique_vars_ij(*indices)
             Q, _ = lifter.get_Q(output_poly=True, use_cliques=indices)
             Q_sub = Q.get_matrix(vars)
@@ -96,20 +98,17 @@ def create_clique_list(
         if overlap_mode == 1:
             # {z_0, z_1, z_2}, {z_1, z_2, z_3}, ... , {z_{N-3}, z_{N-2}, z_{N-1}}
             indices_list = [
-                list(range(i, i + n_vars))
-                for i in range(lifter.n_landmarks - n_vars + 1)
+                list(range(i, i + n_vars)) for i in range(lifter.n_poses - n_vars + 1)
             ]
         elif overlap_mode == 2:
             # all possible combinations of n_vars variables.
-            indices_list = list(
-                itertools.combinations(range(lifter.n_landmarks), n_vars)
-            )
+            indices_list = list(itertools.combinations(range(lifter.n_poses), n_vars))
         else:
             raise ValueError("unknown overlap mode, must be 0, 1, or 2")
 
         # counts how many times each variable group is represented.
         factors = [
-            1 / sum(i in idx for idx in indices_list) for i in range(lifter.n_landmarks)
+            1 / sum(i in idx for idx in indices_list) for i in range(lifter.n_poses)
         ]
 
         for indices in indices_list:
@@ -181,7 +180,7 @@ def create_clique_list(
         Q, y = lifter.get_Q()
         if overlap_mode > 0:
             Q_mat = Q_test.get_matrix(
-                ["hx"] + [f"q_{i}" for i in range(lifter.n_landmarks)]
+                ["hx"] + [f"q_{i}" for i in range(lifter.n_poses)]
             )
             np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
         x = lifter.get_x()

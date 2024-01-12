@@ -13,6 +13,8 @@ from lifters.robust_pose_lifter import RobustPoseLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.wahba_lifter import WahbaLifter
+from lifters.matweight_lifter import MatWeightLocLifter
+from lifters.matweight_lifter import MatWeightSLAMLifter
 from utils.plotting_tools import savefig
 
 plot_dict = {
@@ -77,6 +79,11 @@ def create_newinstance(lifter, n_params, n_outliers=None):
             d=lifter.d,
             variable_list=None,
             n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
+        )
+    elif type(lifter) == MatWeightLocLifter:
+        new_lifter = MatWeightLocLifter(
+            n_poses=n_params,
+            n_landmarks=lifter.n_landmarks,
         )
     else:
         raise ValueError(lifter)
@@ -424,7 +431,6 @@ def run_scalability_new(
 
     fname = fname_root + "_df_all.pkl"
     try:
-        assert False
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
         # assert set(param_list).issubset(df.N.unique())
@@ -528,6 +534,9 @@ def run_scalability_new(
                 and (learner.lifter.level == "quad")
                 and (n_params > 15)
             ):
+                print(f"skipping N={n_params} for {learner.lifter} because so slow.")
+                continue
+            if isinstance(learner.lifter, MatWeightLocLifter) and (n_params > 10):
                 print(f"skipping N={n_params} for {learner.lifter} because so slow.")
                 continue
 
