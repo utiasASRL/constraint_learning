@@ -1,13 +1,15 @@
 import itertools
 
-import matplotlib.pylab as plt
 import numpy as np
+import matplotlib.pylab as plt
 import scipy.sparse as sp
-from cert_tools.linalg_tools import get_nullspace
 
-from lifters.base_class import BaseClass
-from poly_matrix import PolyMatrix, unroll
+
 from utils.common import upper_triangular
+from lifters.base_class import BaseClass
+
+from cert_tools.linalg_tools import get_nullspace
+from poly_matrix import PolyMatrix, unroll
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -724,12 +726,10 @@ class StateLifter(BaseClass):
                             raise IndexError(
                                 "something went wrong in augment_basis_list"
                             )
-                except ValueError:
+                except ValueError as e:
                     pass
                 new_poly_row[self.HOM, key_ij] = bi_poly["h", key]
             new_poly_rows.append(new_poly_row)
-        if verbose:
-            print("done")
         return new_poly_rows
 
     def get_vec_around_gt(self, delta: float = 0):
