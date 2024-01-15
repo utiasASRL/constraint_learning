@@ -65,6 +65,8 @@ def compute_sparsities(learner: Learner, appendix=""):
 
 
 def visualize_clique_list(clique_list, symmetric=True, fname=""):
+    from poly_matrix import PolyMatrix
+
     mask = PolyMatrix(symmetric=symmetric)
     Q_vals = PolyMatrix(symmetric=symmetric)
     A_vals = PolyMatrix(symmetric=symmetric)
@@ -103,7 +105,7 @@ def visualize_clique_list(clique_list, symmetric=True, fname=""):
 
 def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
     # from _scripts.run_by_cliques_bkp import run_by_clique
-    from _scripts.generate_cliques import create_clique_list
+    from _scripts.generate_cliques import create_clique_list, create_clique_list_slam
 
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()
@@ -115,7 +117,8 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
     assert (x.T @ Q @ x - cost) / cost < 1e-7
     for overlap in overlap_params:
         print("creating cliques...", end="")
-        clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
+        # clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
+        clique_list = create_clique_list_slam(lifter, use_known=USE_KNOWN)
         # visualize_clique_list(
         #    clique_list,
         #    fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
@@ -209,7 +212,7 @@ if __name__ == "__main__":
         # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
         # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
         # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-        MatWeightLocLifter(n_landmarks=10, n_poses=15)
+        MatWeightLocLifter(n_landmarks=10, n_poses=10)
     ]
     # overlaps = [0, 1, 2]
     overlaps = [0, 1, 2]

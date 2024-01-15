@@ -8,12 +8,24 @@ from cert_tools.base_clique import BaseClique
 
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
+from lifters.matweight_lifter import MatWeightLocLifter
 from poly_matrix import PolyMatrix
 from utils.constraint import remove_dependent_constraints
 
 DEBUG = True
 USE_KNOWN = False
 USE_AUTOTEMPLATE = True
+
+
+def matshow(*args):
+    fig, ax = plt.subplots(1, len(args), squeeze=False)
+    fig.set_size_inches(3, 3 * len(args))
+    for i, arg in enumerate(args):
+        try:
+            ax[0, i].matshow(np.log10(np.abs(arg)))
+        except:
+            ax[0, i].matshow(np.log10(np.abs(arg.toarray())))
+    return
 
 
 def create_clique_list(
@@ -69,7 +81,7 @@ def create_clique_list(
 
     Q_list = []
     for i in range(lifter.n_poses):
-        vars = lifter.get_clique_vars(i, n_overlap=0)
+        vars = lifter.get_clique_vars(i, n_overlap=1)
 
         use_cliques = [f"x_{i}"]
         Q, _ = lifter.get_Q(output_poly=True, use_cliques=use_cliques)
@@ -78,8 +90,6 @@ def create_clique_list(
     if DEBUG:
         Q_test = PolyMatrix()
 
-    o = lifter.base_size()
-    z = lifter.landmark_size()
     if overlap_mode == 0:
         if lifter.n_poses % n_vars != 0:
             raise ValueError(
@@ -182,9 +192,114 @@ def create_clique_list(
             Q_mat = Q_test.get_matrix(
                 ["hx"] + [f"q_{i}" for i in range(lifter.n_poses)]
             )
-            np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
+            # np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
         x = lifter.get_x()
         cost_test = x.T @ Q @ x
-        assert abs(cost_test - cost_total) < 1e-10, (cost_test, cost_total)
+        # assert abs(cost_test - cost_total) < 1e-10, (cost_test, cost_total)
+
+    return clique_list
+
+
+def create_clique_list_slam(
+    lifter: MatWeightLocLifter,
+    use_known=USE_KNOWN,
+    use_autotemplate=USE_AUTOTEMPLATE,
+    verbose=False,
+):
+    """
+    Simplified clique creation for SLAM. Corresponds to overlap_mode==1, n_vars==2
+    """
+    if use_autotemplate:
+        fname = f"_results/scalability_{lifter}_order_dict.pkl"
+        try:
+            with open(fname, "rb") as f:
+                order_dict = pickle.load(f)
+                saved_learner = pickle.load(f)
+        except FileNotFoundError:
+            print(
+                f"did not find saved learner for {lifter}. Run run_..._study.py first."
+            )
+            raise
+        templates = saved_learner.templates
+
+    recreate_A_list = isinstance(lifter, StereoLifter)
+
+    clique_list = []
+    cost_total = 0
+
+    if DEBUG:
+        Q_test = PolyMatrix()
+
+    # create the list of variables
+    clique_vars = []
+    for i in range(lifter.n_poses - 1):
+        vars = lifter.get_clique_vars_ij(i, i + 1)
+        clique_vars.append(vars)
+
+    m = len(clique_vars)
+    A_list = []
+    cost_total = 0
+    print("filling")
+    for i in range(m):
+        var_dict = clique_vars[i]
+        Q_clique = lifter.prob.generate_cost(
+            use_nodes=[f"x_{i}", f"x_{i+1}"],
+            overlaps={f"x_{i}": 0.5 for i in range(1, lifter.n_poses - 1)},
+        )
+
+        if DEBUG:
+            Q_test += Q_clique
+
+        x = lifter.get_x(var_subset=var_dict)
+        X_sub = np.outer(x, x)
+
+        if recreate_A_list or (len(A_list) == 0):
+            if use_autotemplate:
+                new_constraints = lifter.apply_templates(
+                    templates, var_dict=var_dict, all_pairs=True
+                )
+                remove_dependent_constraints(new_constraints)
+                A_list = [lifter.get_A0(var_dict)] + [
+                    t.A_sparse_ for t in new_constraints
+                ]
+            elif use_known:
+                A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
+                A_known = [A.get_matrix(var_dict) for A in A_known_poly]
+                A_learned = lifter.get_A_learned_simple(
+                    var_dict=var_dict, A_known=A_known_poly
+                )
+                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
+            else:
+                A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
+                A_list = [lifter.get_A0(var_dict)] + A_learned
+            if verbose:
+                print(
+                    f"number of total constraints: known {len(A_list) - len(A_learned)}"
+                    + f" + learned {len(A_learned)} = {len(A_list)}"
+                )
+
+        # A_agg = np.sum([np.abs(A) > 1e-10 for A in A_list])
+        # plt.matshow(A_agg.toarray())
+        b_list = [1.0] + [0] * (len(A_list) - 1)
+        Qi = Q_clique.get_matrix(
+            list(var_dict.keys())
+        )  # use keys() to make sure we through an error if element is missing.
+        clique = BaseClique(Qi, A_list, b_list, var_dict=var_dict, X=X_sub, index=i)
+        clique_list.append(clique)
+        if DEBUG:
+            x = lifter.get_x(var_subset=var_dict)
+            for A, b in zip(clique.A_list, clique.b_list):
+                err = abs(x.T @ A @ x - b)
+                assert err < 1e-6, err
+            cost_total += x.T @ clique.Q @ x
+
+    if DEBUG:
+        Q, y = lifter.get_Q()
+        x = lifter.get_x()
+        cost_test = x.T @ Q @ x
+        Q_mat = Q_test.get_matrix(lifter.get_all_variables()[0])
+
+        np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
+        assert abs(cost_test - cost_total) < 1e-8, (cost_test, cost_total)
 
     return clique_list

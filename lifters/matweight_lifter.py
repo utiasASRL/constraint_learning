@@ -113,7 +113,9 @@ class MatWeightLifter(StateLifter):
             self.theta_ = self.get_gt_theta()
         return self.theta_
 
-    def get_x(self, parameters=None, theta=None, var_subset=None):
+    def get_x(self, theta=None, parameters=None, var_subset=None):
+        if parameters is not None:
+            raise ValueError("we don't support parameters yet.")
         if theta is None:
             theta = self.theta
         if var_subset is None:
@@ -159,7 +161,7 @@ class MatWeightLifter(StateLifter):
         if self.Q_poly is None:
             self.fill_graph(noise=noise)
 
-        self.prob.generate_cost(use_cliques=use_cliques)
+        self.prob.generate_cost(use_nodes=use_cliques)
         self.Q_poly = self.prob.Q
 
         # make sure that all elements in cost matrix are actually in var_dict!
@@ -277,7 +279,7 @@ class MatWeightLocLifter(MatWeightLifter):
         edges_p2m = self.prob.G.gen_map_edges_full()
         c = Camera.get_realistic_model()
         self.prob.stereo_meas_model(edges_p2m, c=c)
-        self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
+        # self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
 
         edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
         self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=noise, p2p_std_rot=noise)
