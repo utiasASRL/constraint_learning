@@ -20,7 +20,7 @@ from lifters.state_lifter import StateLifter
 from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
-COMPUTE_MINIMAL = False
+COMPUTE_MINIMAL = True
 
 NOISE_SEED = 5
 
@@ -119,10 +119,10 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
         print("creating cliques...", end="")
         # clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
         clique_list = create_clique_list_slam(lifter, use_known=USE_KNOWN)
-        # visualize_clique_list(
-        #    clique_list,
-        #    fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
-        # )
+        visualize_clique_list(
+            clique_list,
+            fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
+        )
         print("solving...", end="")
         X_list, info = solve_oneshot(
             clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
@@ -146,12 +146,10 @@ def solve_in_one(lifter, overlap_params):
     # all_pairs = True
     # appendix = "_all"
 
-    all_pairs = False
     appendix = ""
-
     try:
-        names = [""]  # recompute
-        # names = ["known", "learned", "suff"]
+        # names = [""]  # recompute
+        names = ["known", "learned", "suff"]
         for name in names:
             title = f"{lifter}_{name}"
             df = pd.read_pickle(f"_results/{title}_mask{appendix}.pkl")
@@ -180,7 +178,8 @@ def solve_in_one(lifter, overlap_params):
         learner.templates = saved_learner.templates
         learner.apply_templates()
         learner.is_tight(verbose=True)
-        # compute_sparsities(learner, appendix=appendix)
+
+        compute_sparsities(learner, appendix=appendix)
 
         # new_constraints = lifter.apply_templates(
         #    saved_learner.templates, var_dict=lifter.var_dict, all_pairs=False
@@ -228,7 +227,7 @@ if __name__ == "__main__":
     ]
     for lifter in lifters:
         print(f"=============={lifter}===============")
-        # solve_in_one(lifter, overlap_params)
+        solve_in_one(lifter, overlap_params)
         solve_by_cliques(
             lifter, overlap_params=overlap_params, fname=f"_plots/{lifter}_cliques"
         )

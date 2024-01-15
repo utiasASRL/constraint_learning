@@ -239,7 +239,6 @@ def create_clique_list_slam(
     m = len(clique_vars)
     A_list = []
     cost_total = 0
-    print("filling")
     for i in range(m):
         var_dict = clique_vars[i]
         Q_clique = lifter.prob.generate_cost(

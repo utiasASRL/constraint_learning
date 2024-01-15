@@ -42,15 +42,24 @@ class MatWeightLifter(StateLifter):
     def generate_random_setup(self):
         pass
 
-    def get_A_known(self):
+    def get_A_known(self, target_dict=None, output_poly=False):
         # self.prob.generate_constraints()
         # self.prob.generate_redun_constraints()
         # exclude A0 because it is treated differently by us.
-        return [
-            c.A.get_matrix(self.var_dict)
-            for c in self.prob.constraints + self.prob.constraints_r
-            if not c.label == "Homog"
-        ]
+        if target_dict is None:
+            target_dict = self.var_dict
+        if output_poly:
+            return [
+                c.A
+                for c in self.prob.constraints + self.prob.constraints_r
+                if not c.label == "Homog"
+            ]
+        else:
+            return [
+                c.A.get_matrix(target_dict)
+                for c in self.prob.constraints + self.prob.constraints_r
+                if not c.label == "Homog"
+            ]
 
     def test_constraints(self, *args, **kwargs):
         bad_j = []
