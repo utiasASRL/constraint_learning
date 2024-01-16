@@ -1,15 +1,13 @@
 import itertools
 
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
 import scipy.sparse as sp
-
-
-from utils.common import upper_triangular
-from lifters.base_class import BaseClass
-
 from cert_tools.linalg_tools import get_nullspace
+
+from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
+from utils.common import upper_triangular
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -703,7 +701,7 @@ class StateLifter(BaseClass):
                 # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
                 key_ij = key
                 # TODO(FD) this is very ugly and should be replaced by lifter-specific
-                # class methods.  
+                # class methods.
                 for from_, to_ in zip(unique_idx, idx):
                     key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
                     key_ij = key_ij.replace(f"w_{from_}", f"wi_{to_}")
@@ -771,7 +769,7 @@ class StateLifter(BaseClass):
             np.random.seed(seed)
 
             theta = self.sample_theta()
-            x = self.get_x(theta, parameters=[1.0], var_subset=var_subset)
+            x = self.get_x(theta=theta, parameters=None, var_subset=var_subset)
             X = np.outer(x, x)
             Y[seed, :] = self.get_vec(X)
         return Y
