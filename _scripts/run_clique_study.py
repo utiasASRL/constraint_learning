@@ -9,14 +9,14 @@ from cert_tools.base_clique import BaseClique
 from cert_tools.sparse_solvers import solve_oneshot
 
 from auto_template.learner import Learner
+from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.state_lifter import StateLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
-from lifters.matweight_lifter import MatWeightLocLifter
-from lifters.state_lifter import StateLifter
 from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 

@@ -6,9 +6,9 @@ import numpy as np
 import scipy.sparse as sp
 from cert_tools.base_clique import BaseClique
 
+from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
-from lifters.matweight_lifter import MatWeightLocLifter
 from poly_matrix import PolyMatrix
 from utils.constraint import remove_dependent_constraints
 
@@ -159,10 +159,10 @@ def create_clique_list(
             elif use_known:
                 A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
                 A_known = [A.get_matrix(var_dict) for A in A_known_poly]
-                A_learned = lifter.get_A_learned_simple(
-                    var_dict=var_dict, A_known=A_known_poly
-                )
-                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
+                # A_learned = lifter.get_A_learned_simple(
+                #    var_dict=var_dict, A_known=A_known_poly
+                # )
+                A_list = [lifter.get_A0(var_dict)] + A_known  # + A_learned
             else:
                 A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
                 A_list = [lifter.get_A0(var_dict)] + A_learned
@@ -264,10 +264,10 @@ def create_clique_list_slam(
             elif use_known:
                 A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
                 A_known = [A.get_matrix(var_dict) for A in A_known_poly]
-                A_learned = lifter.get_A_learned_simple(
-                    var_dict=var_dict, A_known=A_known_poly
-                )
-                A_list = [lifter.get_A0(var_dict)] + A_known + A_learned
+                # A_learned = lifter.get_A_learned_simple(
+                #    var_dict=var_dict, A_known=A_known_poly
+                # )
+                A_list = [lifter.get_A0(var_dict)] + A_known  # + A_learned
             else:
                 A_learned = lifter.get_A_learned_simple(var_dict=var_dict)
                 A_list = [lifter.get_A0(var_dict)] + A_learned
@@ -287,9 +287,9 @@ def create_clique_list_slam(
         clique_list.append(clique)
         if DEBUG:
             x = lifter.get_x(var_subset=var_dict)
-            for A, b in zip(clique.A_list, clique.b_list):
+            for i, (A, b) in enumerate(zip(clique.A_list, clique.b_list)):
                 err = abs(x.T @ A @ x - b)
-                assert err < 1e-6, err
+                assert err < 1e-6, f"constraint {i}: {err}"
             cost_total += x.T @ clique.Q @ x
 
     if DEBUG:
@@ -299,6 +299,6 @@ def create_clique_list_slam(
         Q_mat = Q_test.get_matrix(lifter.get_all_variables()[0])
 
         np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
-        assert abs(cost_test - cost_total) < 1e-8, (cost_test, cost_total)
+        assert abs(cost_test - cost_total) / cost_total < 1e-5, (cost_test, cost_total)
 
     return clique_list

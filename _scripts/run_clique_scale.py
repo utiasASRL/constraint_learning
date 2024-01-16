@@ -11,12 +11,13 @@ from auto_template.learner import ADJUST_Q, PRIMAL, TOL, Learner
 from auto_template.sim_experiments import create_newinstance
 from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
+from lifters.matweight_lifter import MatWeightLocLifter
 
 USE_PARAMETERS = True
 VERBOSE = False
 
 
-def generate_results(lifter):
+def generate_robust_results(lifter):
     saved_learner = read_saved_learner(lifter)
 
     scale = 1.0
@@ -34,9 +35,9 @@ def generate_results(lifter):
     learner.find_local_solution()
 
     results = []
-    for n_landmarks in np.arange(10, 31, step=5):
-        print(f"landmarks: {n_landmarks}")
-        new_lifter = create_newinstance(lifter, n_landmarks)
+    for n_params in np.arange(10, 31, step=5):
+        print(f"params: {n_params}")
+        new_lifter = create_newinstance(lifter, n_params)
         for clique_size in [5, 6, 7]:
             print(f" clique_size: {clique_size}")
             # regenerate A_list.
@@ -99,11 +100,11 @@ def generate_results(lifter):
 
             cprob = cp.Problem(objective, constraints)
 
-            for n_inliers in np.arange(3, min(8, n_landmarks)):
+            for n_inliers in np.arange(3, min(8, n_params)):
                 print(f"   n_inliers: {n_inliers}")
                 # regenerate Q, qcqp_cost:
                 n_outliers = new_lifter.n_landmarks - n_inliers
-                learner.lifter = create_newinstance(new_lifter, n_landmarks, n_outliers)
+                learner.lifter = create_newinstance(new_lifter, n_params, n_outliers)
                 learner.find_local_solution()
 
                 Q_val = deepcopy(learner.solver_vars["Q"])
@@ -138,7 +139,7 @@ def generate_results(lifter):
                         "primal_cost": primal_cost,
                         "n_inliers": n_inliers,
                         "n_outliers": n_outliers,
-                        "n_landmarks": n_landmarks,
+                        "n_landmarks": n_params,
                         "clique_size": clique_size,
                         "time_solve": time_solve,
                         "primal": PRIMAL,
@@ -155,5 +156,4 @@ def generate_results(lifter):
 
 if __name__ == "__main__":
     lifter = WahbaLifter(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)
-    df = generate_results(lifter)
-    print(df)
+    df = generate_robust_results(lifter)

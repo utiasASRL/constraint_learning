@@ -1,41 +1,11 @@
-import numpy as np
 import matplotlib.pylab as plt
-
-from lifters.state_lifter import StateLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
-
+import numpy as np
 from cert_tools.sdp_solvers import solve_feasibility_sdp
 
+from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.state_lifter import StateLifter
+
 TOL = 1e-10  # can be overwritten by a parameter.
-
-
-def adjust_Q(Q, offset=True, scale=True, plot=False):
-    from copy import deepcopy
-
-    ii, jj = (Q == Q.max()).nonzero()
-    if (ii[0], jj[0]) != (0, 0) or (len(ii) > 1):
-        pass
-        # print("Warning: largest element of Q is not unique or not in top-left. Check ordering?")
-
-    Q_mat = deepcopy(Q)
-    if offset:
-        Q_offset = Q_mat[0, 0]
-    else:
-        Q_offset = 0
-    Q_mat[0, 0] -= Q_offset
-
-    if scale:
-        # Q_scale = spl.norm(Q_mat, "fro")
-        Q_scale = Q_mat.max()
-    else:
-        Q_scale = 1.0
-    Q_mat /= Q_scale
-    if plot:
-        fig, axs = plt.subplots(1, 2)
-        axs[0].matshow(np.log10(np.abs(Q.toarray())))
-        axs[1].matshow(np.log10(np.abs(Q_mat.toarray())))
-        plt.show()
-    return Q_mat, Q_scale, Q_offset
 
 
 def find_local_minimum(

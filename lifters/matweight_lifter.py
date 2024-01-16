@@ -1,8 +1,8 @@
 import numpy as np
 import spatialmath.base as sm
+from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 from constraint_learning.lifters.state_lifter import StateLifter
-from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 
 class MatWeightLifter(StateLifter):
@@ -42,22 +42,21 @@ class MatWeightLifter(StateLifter):
     def generate_random_setup(self):
         pass
 
-    def get_A_known(self, target_dict=None, output_poly=False):
-        # self.prob.generate_constraints()
-        # self.prob.generate_redun_constraints()
-        # exclude A0 because it is treated differently by us.
-        if target_dict is None:
-            target_dict = self.var_dict
+    def get_A_known(self, var_dict=None, output_poly=False):
+        if var_dict is None:
+            var_dict = self.var_dict
+        use_i = np.unique([v.split("_")[1] for v in var_dict if "x" in v])
+        use_nodes = [f"x_{i}" for i in use_i]
+        constraints = self.prob.generate_constraints(use_nodes=use_nodes)
+        constraints_r = []  # self.prob.generate_redun_constraints()
+
         if output_poly:
-            return [
-                c.A
-                for c in self.prob.constraints + self.prob.constraints_r
-                if not c.label == "Homog"
-            ]
+            # exclude A0 because it is treated differently by us.
+            return [c.A for c in constraints + constraints_r if not c.label == "Homog"]
         else:
             return [
-                c.A.get_matrix(target_dict)
-                for c in self.prob.constraints + self.prob.constraints_r
+                c.A.get_matrix(var_dict)
+                for c in constraints + constraints_r
                 if not c.label == "Homog"
             ]
 
@@ -265,6 +264,8 @@ class MatWeightLocLifter(MatWeightLifter):
         ["h", "xt_0", "xC_0"],
         ["h", "xt_0", "xC_0", "xt_1", "xC_1"],
     ]
+    ALL_PAIRS = False
+    CLIQUE_SIZE = 2
 
     def __init__(self, n_landmarks=10, n_poses=5, trans_frame="local", **kwargs):
         prob = LocalizationProblem.create_structured_problem(
