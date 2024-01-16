@@ -9,6 +9,16 @@ class MatWeightLifter(StateLifter):
     HOM = "h"
     NOISE = 0.01
 
+    @staticmethod
+    def get_variable_indices(var_subset, variable=["xC", "xt", "xt0", "m"]):
+        return np.unique(
+            [
+                int(key.split("_")[-1])
+                for key in var_subset
+                if any(key.startswith(f"{v}_") for v in variable)
+            ]
+        )
+
     def __init__(self, prob: SLAMProblem = None, **kwargs):
         self.Q_poly = None
         self.prob = prob
@@ -32,15 +42,24 @@ class MatWeightLifter(StateLifter):
     def generate_random_setup(self):
         pass
 
-    def get_A_known(self):
+    def get_A_known(self, target_dict=None, output_poly=False):
         # self.prob.generate_constraints()
         # self.prob.generate_redun_constraints()
         # exclude A0 because it is treated differently by us.
-        return [
-            c.A.get_matrix(self.var_dict)
-            for c in self.prob.constraints + self.prob.constraints_r
-            if not c.label == "Homog"
-        ]
+        if target_dict is None:
+            target_dict = self.var_dict
+        if output_poly:
+            return [
+                c.A
+                for c in self.prob.constraints + self.prob.constraints_r
+                if not c.label == "Homog"
+            ]
+        else:
+            return [
+                c.A.get_matrix(target_dict)
+                for c in self.prob.constraints + self.prob.constraints_r
+                if not c.label == "Homog"
+            ]
 
     def test_constraints(self, *args, **kwargs):
         bad_j = []
@@ -103,7 +122,9 @@ class MatWeightLifter(StateLifter):
             self.theta_ = self.get_gt_theta()
         return self.theta_
 
-    def get_x(self, parameters=None, theta=None, var_subset=None):
+    def get_x(self, theta=None, parameters=None, var_subset=None):
+        if parameters is not None:
+            raise ValueError("we don't support parameters yet.")
         if theta is None:
             theta = self.theta
         if var_subset is None:
@@ -123,9 +144,9 @@ class MatWeightLifter(StateLifter):
                 elif self.prob.trans_frame == "local":
                     t_i0_i = theta[f"xt_{pose_i}"]
                 t_ki_i = C_i0 @ t_k0_0 - t_i0_i
-                vec += [t_ki_i]
+                vec += [t_ki_i.flatten()]
             else:  # Other variables
-                vec += [theta[var]]
+                vec += [theta[var].flatten()]
         return np.hstack(vec)
 
     def get_dim_x(self, var_subset=None):
@@ -140,14 +161,17 @@ class MatWeightLifter(StateLifter):
         xhat, info = self.prob.gauss_newton(x_init=t0, verbose=verbose)
         return xhat, info, info["cost"]
 
-    def get_Q(self, noise: float = None, output_poly=False):
+    def get_Q(self, noise: float = None, output_poly=False, use_cliques=None):
         if noise is None:
             noise = self.NOISE
+        if use_cliques is None:
+            use_cliques = [f"x_{i}" for i in np.arange(self.n_poses)]
 
         if self.Q_poly is None:
             self.fill_graph(noise=noise)
-            self.prob.generate_cost()
-            self.Q_poly = self.prob.Q
+
+        self.prob.generate_cost(use_nodes=use_cliques)
+        self.Q_poly = self.prob.Q
 
         # make sure that all elements in cost matrix are actually in var_dict!
         assert set(self.prob.Q.get_variables()).issubset(self.var_dict.keys())
@@ -166,6 +190,42 @@ class MatWeightLifter(StateLifter):
             elif "xC" in key:  # translation errors
                 error_dict["error_rot"] = np.linalg.norm(val - theta_hat[key])
         return error_dict
+
+    # clique stuff
+
+    def base_size(self):
+        return self.var_dict["h"]
+
+    # TODO(FD) rename thsi to clique_size or something that makes mroe sense..
+    def landmark_size(self):
+        return self.var_dict["xt_0"] + self.var_dict[f"xC_0"]
+
+    def get_clique_vars_ij(self, *args):
+        var_dict = {
+            "h": self.var_dict["h"],
+        }
+        for i in args:
+            var_dict.update(
+                {
+                    f"xC_{i}": self.var_dict[f"xC_{i}"],
+                    f"xt_{i}": self.var_dict[f"xt_{i}"],
+                }
+            )
+        return var_dict
+
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_poses)))
+        vars = {
+            "h": self.var_dict["h"],
+        }
+        for j in used_landmarks:
+            vars.update(
+                {
+                    f"xC_{j}": self.var_dict[f"xC_{j}"],
+                    f"xt_{j}": self.var_dict[f"xt_{j}"],
+                }
+            )
+        return vars
 
 
 class MatWeightSLAMLifter(MatWeightLifter):
@@ -215,16 +275,23 @@ class MatWeightLocLifter(MatWeightLifter):
         # )
         super().__init__(prob=prob, **kwargs)
 
+    def get_all_variables(self):
+        # label = "t" if self.trans_frame == "local" else "t0"
+        # variables = ["h"]
+        # for i in range(self.n_poses):
+        #    variables += [f"xC_{i}", f"x{label}_{i}"]
+        return [list(self.prob.var_list.keys())]
+
     def fill_graph(self, noise):
-        # from mwcerts.stereo_problems import Camera
+        from mwcerts.stereo_problems import Camera
 
         edges_p2m = self.prob.G.gen_map_edges_full()
-        # c = Camera.get_realistic_model()
-        # self.prob.stereo_meas_model(edges_p2m, c=c)
-        self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
+        c = Camera.get_realistic_model()
+        self.prob.stereo_meas_model(edges_p2m, c=c)
+        # self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
 
-        # edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
-        # self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=noise, p2p_std_rot=noise)
+        edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
+        self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=noise, p2p_std_rot=noise)
 
     def __repr__(self):
         return "mw_loc_lifter"
