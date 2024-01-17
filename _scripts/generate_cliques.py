@@ -4,7 +4,7 @@ import pickle
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from cert_tools.admm_clique import ADMMClique
+from cert_tools.admm_clique import ADMMClique, initialize_overlap
 from cert_tools.base_clique import BaseClique
 
 from lifters.matweight_lifter import MatWeightLocLifter
@@ -318,6 +318,7 @@ def create_clique_list_slam(
                 err = abs(x.T @ A @ x - b)
                 assert err < 1e-6, f"constraint {i}: {err}"
             cost_total += x.T @ clique.Q @ x
+    initialize_overlap(clique_list)
 
     if DEBUG:
         Q, y = lifter.get_Q()
@@ -327,5 +328,12 @@ def create_clique_list_slam(
 
         np.testing.assert_allclose(Q_mat.toarray(), Q.toarray())
         assert abs(cost_test - cost_total) / cost_total < 1e-5, (cost_test, cost_total)
+
+        for i, clique in enumerate(clique_list):
+            left = clique_list[i - 1].X if i > 0 else None
+            right = clique_list[i + 1].X if i < len(clique_list) - 1 else None
+            clique.generate_g(left=left, right=right)
+            error = clique.evaluate_F(clique.X)
+            np.testing.assert_allclose(error, 0)
 
     return clique_list

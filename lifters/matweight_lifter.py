@@ -145,7 +145,7 @@ class MatWeightLifter(StateLifter):
                 t_ki_i = C_i0 @ t_k0_0 - t_i0_i
                 vec += [t_ki_i.flatten()]
             else:  # Other variables
-                vec += [theta[var].flatten()]
+                vec += [theta[var].flatten("F")]
         return np.hstack(vec)
 
     def get_dim_x(self, var_subset=None):

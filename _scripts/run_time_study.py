@@ -77,18 +77,34 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10]):
         time_dict["t dSDP"] = time.time() - t1
         time_dict["cost dSDP"] = info["cost"]
 
+        x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
+        time_dict["evr dSDP"] = evr_mean
+
         print("running ADMM...", end="")
         t1 = time.time()
+        # X0 = []
+        # for c in clique_list:
+        #     x_clique = new_lifter.get_x(theta=theta_est, var_subset=c.var_dict)
+        #     X0.append(np.outer(x_clique, x_clique))
+        X0 = None
+        print("target", info["cost"])
         X_list, info = solve_alternating(
             clique_list,
-            use_fusion=True,
-            verbose=VERBOSE,
+            X0=X0,
+            use_fusion=False,
+            rho_start=1e4,
+            verbose=True,
+            early_stop=False,
+            max_iter=20,
+            mu_rho=2.0,
+            tau_rho=2.0,
         )
+        print(info["msg"], end="...")
         time_dict["t ADMM"] = time.time() - t1
         time_dict["cost ADMM"] = info["cost"]
 
-        x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
-        time_dict["evr dSDP"] = evr_mean
+        x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+        time_dict["evr ADMM"] = evr_mean
 
         print("creating constraints...", end="")
         t1 = time.time()
@@ -137,8 +153,8 @@ if __name__ == "__main__":
     n_params_list = np.logspace(1, 2, 10).astype(int)
     # n_params_list = np.arange(10, 101, step=10).astype(int)
     # n_params_list = np.arange(10, 19)  # runs out of memory at 19!
-    fname = f"_results/{lifter}_time_admm.pkl"
-    overwrite = False
+    fname = f"_results/{lifter}_time_test.pkl"
+    overwrite = True
 
     try:
         assert overwrite is False
@@ -150,19 +166,26 @@ if __name__ == "__main__":
     for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
         df_long = df.melt(
             id_vars=["n params"],
-            value_vars=[f"{label} local", f"{label} dSDP", f"{label} SDP"],
+            value_vars=[
+                f"{label} local",
+                f"{label} dSDP",
+                f"{label} SDP",
+                f"{label} ADMM",
+            ],
             value_name=label,
             var_name="solver type",
         )
         fig, ax = plt.subplots()
         plot(df_long, x="n params", y=label, hue="solver type", ax=ax)
         ax.set_yscale("log")
-        ax.set_xscale("log")
+        if label != "cost":
+            ax.set_xscale("log")
         ax.grid("on")
 
     fig, ax = plt.subplots()
     ax.loglog(df["n params"], df["evr SDP"], label="SDP")
     ax.loglog(df["n params"], df["evr dSDP"], label="dSDP")
+    ax.loglog(df["n params"], df["evr ADMM"], label="ADMM")
     ax.legend()
     ax.grid("on")
     ax.set_ylabel("EVR")
