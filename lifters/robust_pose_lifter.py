@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from copy import deepcopy
 
 import autograd.numpy as np
@@ -144,7 +144,7 @@ class RobustPoseLifter(StateLifter, ABC):
     def base_size(self):
         return self.var_dict["h"] + self.var_dict["t"] + self.var_dict["c"]
 
-    def landmark_size(self):
+    def node_size(self):
         return self.var_dict["z_0"] + self.var_dict["w_0"]
 
     def get_all_variables(self):
@@ -309,7 +309,7 @@ class RobustPoseLifter(StateLifter, ABC):
         self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS
     ):
         import pymanopt
-        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+        from pymanopt.manifolds import Euclidean, Product, SpecialOrthogonalGroup
 
         if method == "CG":
             from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest

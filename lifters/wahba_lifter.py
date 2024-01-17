@@ -1,7 +1,6 @@
+import autograd.numpy as np
 import matplotlib
 import matplotlib.pylab as plt
-
-import autograd.numpy as np
 
 from lifters.robust_pose_lifter import RobustPoseLifter
 from utils.geometry import get_C_r_from_theta

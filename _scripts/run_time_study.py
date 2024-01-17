@@ -4,6 +4,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from cert_tools.admm_solvers import solve_alternating
 from cert_tools.linalg_tools import rank_project
 from cert_tools.sdp_solvers import solve_sdp
 from cert_tools.sparse_solvers import solve_oneshot
@@ -25,7 +26,7 @@ VERBOSE = False
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
-    x_dim = lifter.landmark_size()
+    x_dim = lifter.node_size()
     x, info = rank_project(X_list[0], p=1)
     evr_mean = [info["EVR"]]
     x_all = [x[1 : 1 + x_dim]]
@@ -75,6 +76,16 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10]):
         )
         time_dict["t dSDP"] = time.time() - t1
         time_dict["cost dSDP"] = info["cost"]
+
+        print("running ADMM...", end="")
+        t1 = time.time()
+        X_list, info = solve_alternating(
+            clique_list,
+            use_fusion=True,
+            verbose=VERBOSE,
+        )
+        time_dict["t ADMM"] = time.time() - t1
+        time_dict["cost ADMM"] = info["cost"]
 
         x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
         time_dict["evr dSDP"] = evr_mean
@@ -126,7 +137,7 @@ if __name__ == "__main__":
     n_params_list = np.logspace(1, 2, 10).astype(int)
     # n_params_list = np.arange(10, 101, step=10).astype(int)
     # n_params_list = np.arange(10, 19)  # runs out of memory at 19!
-    fname = f"_results/{lifter}_time_new.pkl"
+    fname = f"_results/{lifter}_time_admm.pkl"
     overwrite = False
 
     try:

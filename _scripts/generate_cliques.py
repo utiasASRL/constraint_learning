@@ -4,6 +4,7 @@ import pickle
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
+from cert_tools.admm_clique import ADMMClique
 from cert_tools.base_clique import BaseClique
 
 from lifters.matweight_lifter import MatWeightLocLifter
@@ -47,13 +48,19 @@ def create_clique_list(
 
     def create_Q(Q_list, factors):
         # each element Qi of Q_list corresponds to one clique: {"h", "x", "z_i"}
-        Q_sub = np.zeros((o + len(factors) * z, o + len(factors) * z))
+        Q_sub = np.zeros((o + len(factors) * x_dim, o + len(factors) * x_dim))
         for k, (Q, fac) in enumerate(zip(Q_list, factors)):
             Q_sub[:o, :o] += fac * Q[:o, :o]  # Q_0
-            Q_sub[:o, o + k * z : o + (k + 1) * z] += fac * Q[:o, o : o + z]  # q_0
-            Q_sub[o + k * z : o + (k + 1) * z, :o] += fac * Q[:o, o : o + z].T  # q_0
-            Q_sub[o + k * z : o + (k + 1) * z, o + k * z : o + (k + 1) * z] += (
-                fac * Q[o : o + z, o : o + z]
+            Q_sub[:o, o + k * x_dim : o + (k + 1) * x_dim] += (
+                fac * Q[:o, o : o + x_dim]
+            )  # q_0
+            Q_sub[o + k * x_dim : o + (k + 1) * x_dim, :o] += (
+                fac * Q[:o, o : o + x_dim].T
+            )  # q_0
+            Q_sub[
+                o + k * x_dim : o + (k + 1) * x_dim, o + k * x_dim : o + (k + 1) * x_dim
+            ] += (
+                fac * Q[o : o + x_dim, o : o + x_dim]
             )  # p_0
         return Q_sub
 
@@ -72,7 +79,7 @@ def create_clique_list(
 
     recreate_A_list = isinstance(lifter, StereoLifter)
     o = lifter.base_size()
-    z = lifter.landmark_size()
+    x_dim = lifter.node_size()
 
     Q_subs = []
     clique_vars = []
@@ -137,8 +144,10 @@ def create_clique_list(
                         print(f"{faci:.2f} * Q{i}")
                     Qi = Q_list[i].toarray()
                     Q_test["hx", "hx"] += faci * Qi[:o, :o]
-                    Q_test["hx", f"q_{i}"] += faci * Qi[:o, o : o + z]
-                    Q_test[f"q_{i}", f"q_{i}"] += faci * Qi[o : o + z, o : o + z]
+                    Q_test["hx", f"q_{i}"] += faci * Qi[:o, o : o + x_dim]
+                    Q_test[f"q_{i}", f"q_{i}"] += (
+                        faci * Qi[o : o + x_dim, o : o + x_dim]
+                    )
 
     A_list = []
     cost_total = 0
@@ -175,8 +184,15 @@ def create_clique_list(
         # A_agg = np.sum([np.abs(A) > 1e-10 for A in A_list])
         # plt.matshow(A_agg.toarray())
         b_list = [1.0] + [0] * (len(A_list) - 1)
-        clique = BaseClique(
-            sp.csr_array(Q_subs[i]), A_list, b_list, var_dict=var_dict, X=X_sub, index=i
+        clique = ADMMClique(
+            sp.csr_array(Q_subs[i]),
+            A_list,
+            b_list,
+            var_dict=var_dict,
+            X=X_sub,
+            index=i,
+            x_dim=x_dim,
+            hom="h",
         )
         clique_list.append(clique)
         if DEBUG:
@@ -283,7 +299,18 @@ def create_clique_list_slam(
         Qi = Q_clique.get_matrix(
             list(var_dict.keys())
         )  # use keys() to make sure we through an error if element is missing.
-        clique = BaseClique(Qi, A_list, b_list, var_dict=var_dict, X=X_sub, index=i)
+        x_dim = lifter.node_size()
+        clique = ADMMClique(
+            Qi,
+            A_list,
+            b_list,
+            var_dict=var_dict,
+            X=X_sub,
+            index=i,
+            x_dim=x_dim,
+            hom="h",
+            N=lifter.n_poses,
+        )
         clique_list.append(clique)
         if DEBUG:
             x = lifter.get_x(var_subset=var_dict)

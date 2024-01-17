@@ -191,12 +191,10 @@ class MatWeightLifter(StateLifter):
         return error_dict
 
     # clique stuff
-
     def base_size(self):
         return self.var_dict["h"]
 
-    # TODO(FD) rename thsi to clique_size or something that makes mroe sense..
-    def landmark_size(self):
+    def node_size(self):
         return self.var_dict["xt_0"] + self.var_dict[f"xC_0"]
 
     def get_clique_vars_ij(self, *args):
