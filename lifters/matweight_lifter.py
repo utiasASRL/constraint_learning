@@ -2,7 +2,7 @@ import numpy as np
 import spatialmath.base as sm
 from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
-from constraint_learning.lifters.state_lifter import StateLifter
+from lifters.state_lifter import StateLifter
 
 
 class MatWeightLifter(StateLifter):
@@ -38,9 +38,6 @@ class MatWeightLifter(StateLifter):
         if self.var_dict_ is None:
             self.var_dict_ = self.prob.var_list
         return self.var_dict_
-
-    def generate_random_setup(self):
-        pass
 
     def get_A_known(self, var_dict=None, output_poly=False):
         if var_dict is None:
@@ -122,7 +119,7 @@ class MatWeightLifter(StateLifter):
         return self.theta_
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
-        if parameters is not None:
+        if (parameters is not None) and (not parameters == [1.0]):
             raise ValueError("we don't support parameters yet.")
         if theta is None:
             theta = self.theta
@@ -145,7 +142,15 @@ class MatWeightLifter(StateLifter):
                 t_ki_i = C_i0 @ t_k0_0 - t_i0_i
                 vec += [t_ki_i.flatten()]
             else:  # Other variables
-                vec += [theta[var].flatten("F")]
+                try:
+                    vec += [theta[var].flatten("F")]
+                except KeyError:
+                    T = theta[var.replace("xC", "x").replace("xt", "x")]
+                    if "xC" in var:
+                        vec += [T.C_ba().flatten("F")]
+                    elif "xt" in var:
+                        vec += [T.r_ab_inb().flatten("F")]
+
         return np.hstack(vec)
 
     def get_dim_x(self, var_subset=None):
@@ -160,34 +165,43 @@ class MatWeightLifter(StateLifter):
         xhat, info = self.prob.gauss_newton(x_init=t0, verbose=verbose)
         return xhat, info, info["cost"]
 
+    def get_cost(self, theta, y):
+        Q = self.prob.generate_cost(edges=y)
+        x = self.get_x(theta=theta)
+        return x.T @ Q.get_matrix(self.var_dict) @ x
+
     def get_Q(self, noise: float = None, output_poly=False, use_cliques=None):
         if noise is None:
             noise = self.NOISE
         if use_cliques is None:
             use_cliques = [f"x_{i}" for i in np.arange(self.n_poses)]
 
-        if self.Q_poly is None:
+        if self.y_ is None:
             self.fill_graph(noise=noise)
+            self.y_ = self.prob.G.E
 
-        self.prob.generate_cost(use_nodes=use_cliques)
-        self.Q_poly = self.prob.Q
+        Q = self.prob.generate_cost(edges=self.y_, use_nodes=use_cliques)
 
         # make sure that all elements in cost matrix are actually in var_dict!
-        assert set(self.prob.Q.get_variables()).issubset(self.var_dict.keys())
+        assert set(Q.get_variables()).issubset(self.var_dict.keys())
 
         if output_poly:
-            return self.Q_poly, None
+            return Q, self.prob.G, self.y_
         else:
             # using a lsit makes sure an error is thrown when a key is not available.
-            return self.Q_poly.get_matrix(self.var_dict), None
+            return Q.get_matrix(self.var_dict), self.y_
 
     def get_error(self, theta_hat):
-        error_dict = {"error_trans": 0, "error_rot": 0}
+        error_dict = {"error_trans": 0, "error_rot": 0, "error": 0}
         for key, val in self.theta.items():
             if "xt" in key:  # translation errors
-                error_dict["error_trans"] = np.linalg.norm(val - theta_hat[key])
+                err = np.linalg.norm(val - theta_hat[key])
+                error_dict["error_trans"] += err
+                error_dict["error"] += err
             elif "xC" in key:  # translation errors
-                error_dict["error_rot"] = np.linalg.norm(val - theta_hat[key])
+                err = np.linalg.norm(val - theta_hat[key])
+                error_dict["error_rot"] += err
+                error_dict["error"] += err
         return error_dict
 
     # clique stuff
@@ -285,7 +299,7 @@ class MatWeightLocLifter(MatWeightLifter):
         from mwcerts.stereo_problems import Camera
 
         edges_p2m = self.prob.G.gen_map_edges_full()
-        c = Camera.get_realistic_model()
+        c = Camera.get_realistic_model(sigma_u=noise, sigma_v=noise)
         self.prob.stereo_meas_model(edges_p2m, c=c)
         # self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
 

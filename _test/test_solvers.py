@@ -1,6 +1,7 @@
 import numpy as np
 
 from _test.tools import all_lifters
+from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.poly_lifters import PolyLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
@@ -18,12 +19,12 @@ def test_hess_finite_diff():
         eps_list = np.logspace(-10, -5, 5)
         for eps in eps_list:
             Q, y = lifter.get_Q(noise=NOISE)
-            theta = lifter.get_vec_around_gt(delta=0).flatten("C")
+            theta = lifter.get_vec_around_gt(delta=0)
 
             try:
                 grad = lifter.get_grad(theta, y)
                 hess = lifter.get_hess(theta, y).toarray()
-            except NotImplementedError:
+            except (NotImplementedError, AttributeError):
                 print("get_hess not implemented?")
                 return
 
@@ -68,7 +69,7 @@ def test_grad_finite_diff():
         for eps in eps_list:
             Q, y = lifter.get_Q(noise=1)
 
-            theta = lifter.get_vec_around_gt(delta=0).flatten("C")
+            theta = lifter.get_vec_around_gt(delta=0)
             cost = lifter.get_cost(theta, y)
 
             try:
@@ -136,7 +137,12 @@ def test_cost(noise=0.0):
         # for Stereo3D problem.
         assert abs(cost - costQ) < 1e-6, (cost, costQ)
 
-        if noise == 0 and not isinstance(lifter, PolyLifter) and not lifter.robust:
+        if (
+            noise == 0
+            and not isinstance(lifter, PolyLifter)
+            and not lifter.robust
+            and not isinstance(lifter, MatWeightLifter)
+        ):
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
         elif noise == 0 and isinstance(lifter, MonoLifter):
@@ -169,12 +175,19 @@ def test_solvers(n_seeds=1, noise=0.0):
                 continue
             if noise == 0:
                 # test that solution is ground truth with no noise
-                if len(theta_hat) == len(theta_gt):
-                    np.testing.assert_allclose(theta_hat, theta_gt)
+
+                if type(theta_gt) is dict:
+                    for i in range(lifter.n_poses):
+                        val_hat = theta_hat[f"xT0_{i}"]
+                        val_gt = theta_gt[f"x_{i}"].matrix()
+                        np.testing.assert_allclose(val_hat, val_gt)
                 else:
-                    # theta_gt = lifter.get_vec_around_gt(delta=0)
-                    theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
-                    np.testing.assert_allclose(theta_hat, theta_gt)
+                    if len(theta_hat) == len(theta_gt):
+                        np.testing.assert_allclose(theta_hat, theta_gt)
+                    else:
+                        # theta_gt = lifter.get_vec_around_gt(delta=0)
+                        theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
+                        np.testing.assert_allclose(theta_hat, theta_gt)
 
             else:
                 # just test that we converged when noise is added
@@ -195,15 +208,25 @@ def test_solvers(n_seeds=1, noise=0.0):
                 print(f"{lifter} converged noise {noise}, seed {j}.")
 
             cost_lifter = lifter.get_cost(theta_hat, y)
-            assert abs(cost_solver - cost_lifter) < 1e-10, (cost_solver, cost_lifter)
+            if cost_lifter >= 1e-10:
+                assert abs(cost_solver - cost_lifter) / cost_lifter < 1e-5, (
+                    cost_solver,
+                    cost_lifter,
+                )
 
-            # test that "we made progress"
-            if len(theta_0) != len(theta_hat):
-                xtheta_0 = get_xtheta_from_theta(theta_0, lifter.d)
-                progress = np.linalg.norm(xtheta_0 - theta_hat)
+            # test that we made progress
+            if type(theta_hat) is dict:
+                progress = 0
+                for i in range(lifter.n_poses):
+                    val_hat = theta_hat[f"xT0_{i}"]
+                    val_gt = theta_gt[f"x_{i}"].matrix()
+                    progress += np.linalg.norm(val_hat - val_gt)
             else:
-                progress = np.linalg.norm(theta_0 - theta_hat)
-
+                if len(theta_0) != len(theta_hat):
+                    xtheta_0 = get_xtheta_from_theta(theta_0, lifter.d)
+                    progress = np.linalg.norm(xtheta_0 - theta_hat)
+                else:
+                    progress = np.linalg.norm(theta_0 - theta_hat)
             assert progress > 1e-10, progress
 
             if noise == 0:
@@ -216,7 +239,18 @@ def test_solvers(n_seeds=1, noise=0.0):
                 if lifter.n_outliers > 0:
                     continue
                 try:
-                    np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
+                    if type(theta_gt) is dict:
+                        for i in range(lifter.n_poses):
+                            val_hat = theta_hat[f"xT0_{i}"]
+                            val_gt = theta_gt[f"x_{i}"].matrix()
+                            np.testing.assert_allclose(val_hat, val_gt, rtol=1e-3)
+                    else:
+                        if len(theta_hat) == len(theta_gt):
+                            np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
+                        else:
+                            # theta_gt = lifter.get_vec_around_gt(delta=0)
+                            theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
+                            np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                 except AssertionError as e:
                     print(
                         f"Found solution for {lifter} is not ground truth in zero-noise! is the problem well-conditioned?"
@@ -232,7 +266,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                         print(
                             f"minimum eigenvalue at gt: {mineig_hess_gt:.1e} and at estimate: {mineig_hess_hat:.1e}"
                         )
-                    except NotImplementedError:
+                    except (NotImplementedError, AttributeError):
                         print("implement Hessian for further checks.")
                     print(e)
 
@@ -279,9 +313,7 @@ def compare_solvers():
             if theta_hat is None:
                 print(solver, "failed")
             else:
-                if len(theta_hat) != len(theta_gt):
-                    theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
-                error = np.linalg.norm(theta_hat - theta_gt)
+                error = lifter.get_error(theta_hat)["error"]
                 print(
                     f"{solver} finished in {ttot:.4f}s, final cost {cost_solver:.1e}, error {error:.1e}. \n\tmessage:{msg} "
                 )

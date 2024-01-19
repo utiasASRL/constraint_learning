@@ -168,8 +168,8 @@ if __name__ == "__main__":
 
     n_params_list = np.logspace(1, 6, 6).astype(int)
     # n_params_list = np.logspace(1, 2, 10).astype(int)
-    fname = f"_results/{lifter}_time_dsdp.pkl"
-    overwrite = True
+    fname = f"_results_laptop/{lifter}_time_dsdp.pkl"
+    overwrite = False
 
     try:
         assert overwrite is False

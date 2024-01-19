@@ -299,12 +299,6 @@ class RobustPoseLifter(StateLifter, ABC):
                 cost += res
         return 0.5 * cost
 
-    def get_grad(self, t, y):
-        raise NotImplementedError("get_grad not implement yet")
-
-    def get_hess(self, t, y):
-        raise NotImplementedError("get_hess not implement yet")
-
     def local_solver(
         self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS
     ):

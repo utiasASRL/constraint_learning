@@ -119,9 +119,6 @@ class Stereo1DLifter(StateLifter):
             param_dict_[f"p_{n}"] = n + 1
         return param_dict_
 
-    def get_grad(self, t, y):
-        raise NotImplementedError("get_grad not implement yet")
-
     def get_Q(self, noise: float = 1e-3) -> tuple:
         from poly_matrix.least_squares_problem import LeastSquaresProblem
 

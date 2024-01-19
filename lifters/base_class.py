@@ -44,6 +44,8 @@ class BaseClass(ABC):
 
         self.d = d
 
+        self.generate_random_setup()
+
     @abstractproperty
     def var_dict(self):
         """Return key,size pairs of all variables."""
@@ -71,21 +73,30 @@ class BaseClass(ABC):
         Warning("get_Q not implemented yet")
         return None, None
 
-    @abstractmethod
-    def get_error(self, theta_est) -> dict:
+    def generate_random_setup(self):
         return
 
     def get_A_known(self) -> list:
         return []
 
-    def sample_parameters(self, x=None) -> list:
+    def sample_parameters(self, t=None) -> list:
         if self.param_level == "no":
             return [1.0]
 
     def get_parameters(self, var_subset=None) -> list:
+        if var_subset is not None:
+            raise ValueError("var_subset not supported for default get_parameters.")
         if self.param_level == "no":
             return [1.0]
 
     def get_grad(self, t, y) -> np.ndarray:
-        Warning("get_grad not implement yet")
-        return None
+        raise NotImplementedError("get_grad not implement yet")
+
+    def get_cost(self, theta, y) -> float:
+        x = self.get_x(theta=theta)
+        Q, y = self.get_Q()
+        return x.T @ Q @ x
+
+    def get_error(self, t) -> dict:
+        err = np.linalg.norm(t - self.theta) ** 2 / self.theta.size
+        return {"MSE": err, "error": err}

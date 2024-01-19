@@ -1,12 +1,12 @@
 import matplotlib.pylab as plt
 import numpy as np
-from scipy.optimize import minimize
 import scipy.sparse as sp
-
-plt.ion()
+from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+plt.ion()
 
 NOISE = 1e-2  # std deviation of distance noise
 
@@ -408,7 +408,8 @@ class RangeOnlyLocLifter(StateLifter):
             return xtheta.reshape(self.n_positions, self.d)
 
     def get_error(self, that):
-        return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}
+        err = np.sqrt(np.mean((self.theta - that) ** 2))
+        return {"total error": err, "error": err}
 
     def local_solver(
         self,

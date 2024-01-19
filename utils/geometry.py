@@ -1,5 +1,4 @@
 import numpy as np
-
 from scipy.spatial.transform import Rotation as R
 
 
@@ -99,6 +98,7 @@ def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
     r_error = np.linalg.norm(r_hat - r_gt)
     C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(d))
     return {
+        "error": r_error + C_error,
         "r error": r_error,
         "C error": C_error,
         "total error": r_error + C_error,

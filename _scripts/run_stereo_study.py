@@ -96,10 +96,10 @@ def stereo_scalability_new(n_seeds, recompute, d=2):
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
-    # if lifter.d == 2:
-    #    fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
-    #    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-    #    run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
+    if lifter.d == 2:
+        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
 
     df = run_scalability_new(
         learner,
