@@ -1,12 +1,13 @@
 import numpy as np
 
 from auto_template.learner import Learner
+from auto_template.sim_experiments import (
+    plot_scalability,
+    run_oneshot_experiment,
+    run_scalability_new,
+)
 from lifters.range_only_lifters import RangeOnlyLocLifter
-
 from utils.plotting_tools import savefig
-from auto_template.sim_experiments import plot_scalability
-from auto_template.sim_experiments import run_oneshot_experiment, run_scalability_new
-
 
 n_positions = 3
 n_landmarks = 10

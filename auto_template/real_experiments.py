@@ -467,7 +467,11 @@ def run_real_experiment(
         if from_scratch:
             new_learner.run()
         else:
-            new_learner.scale_templates(learner, new_order, data_dict)
+            new_learner.templates = learner.get_sufficient_templates(
+                new_order, new_lifter
+            )
+            new_learner.templates_known = new_learner.get_known_templates()
+            new_learner.apply_templates()
 
         new_learner.find_local_solution(plot=plot)
 

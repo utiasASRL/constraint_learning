@@ -1,5 +1,6 @@
 _results/
 _results_server/
+_results_laptop/
 _plots/
 starrynight/
 log/
@@ -16,3 +17,4 @@ solve_mosek.ptf
 solve_cvxpy*.ptf
 build/
 dist/
+mosek_output.tmp

@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from copy import deepcopy
 
 import autograd.numpy as np
@@ -103,25 +103,59 @@ class RobustPoseLifter(StateLifter, ABC):
     @property
     def var_dict(self):
         """Return key,size pairs of all variables."""
-        n = self.d**2 + self.d
         var_dict = {"h": 1, "t": self.d, "c": self.d**2}
         if not self.robust:
             return var_dict
-        var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
+
+        n = self.d**2 + self.d
         if self.level == "xwT":
-            var_dict.update({f"z_{i}": n for i in range(self.n_landmarks)})
+            for i in range(self.n_landmarks):
+                var_dict.update({f"w_{i}": 1, f"z_{i}": n})
         elif self.level == "xxT":
+            var_dict.update({f"w_{i}": 1 for i in range(self.n_landmarks)})
             var_dict.update({"z_0": n**2})
         return var_dict
+
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
+        vars = {
+            "h": self.var_dict["h"],
+            "t": self.var_dict["t"],
+            "c": self.var_dict["c"],
+        }
+        for j in used_landmarks:
+            vars.update(
+                {f"w_{j}": self.var_dict[f"w_{j}"], f"z_{j}": self.var_dict[f"z_{j}"]}
+            )
+        return vars
+
+    def get_clique_vars_ij(self, *args):
+        var_dict = {
+            "h": self.var_dict["h"],
+            "t": self.var_dict["t"],
+            "c": self.var_dict["c"],
+        }
+        for i in args:
+            var_dict.update(
+                {f"w_{i}": self.var_dict[f"w_{i}"], f"z_{i}": self.var_dict[f"z_{i}"]}
+            )
+        return var_dict
+
+    def base_size(self):
+        return self.var_dict["h"] + self.var_dict["t"] + self.var_dict["c"]
+
+    def node_size(self):
+        return self.var_dict["z_0"] + self.var_dict["w_0"]
 
     def get_all_variables(self):
         all_variables = ["h", "t", "c"]
         if self.robust:
-            all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
-        if self.level == "xxT":
-            all_variables.append("z_0")
-        elif self.level == "xwT":
-            all_variables += [f"z_{i}" for i in range(self.n_landmarks)]
+            if self.level == "xxT":
+                all_variables += [f"w_{i}" for i in range(self.n_landmarks)]
+                all_variables += ["z_0"]
+            elif self.level == "xwT":
+                for i in range(self.n_landmarks):
+                    all_variables += [f"w_{i}", f"z_{i}"]
         variable_list = [all_variables]
         return variable_list
 
@@ -155,15 +189,16 @@ class RobustPoseLifter(StateLifter, ABC):
             theta_here = theta
 
         if (self.d == 2) and len(theta_here) == 6:  # x, y, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
+            RT, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 2) and len(theta_here) == 3:  # x, y, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
+            RT, t = get_C_r_from_theta(theta_here, self.d)
         elif (self.d == 3) and len(theta_here) == 12:  # x, y, z, vec(C)
-            R, t = get_C_r_from_xtheta(theta_here, self.d)
+            RT, t = get_C_r_from_xtheta(theta_here, self.d)
         elif (self.d == 3) and len(theta_here) == 6:  # x, y, z, alpha
-            R, t = get_C_r_from_theta(theta_here, self.d)
+            RT, t = get_C_r_from_theta(theta_here, self.d)
         else:
             raise ValueError(theta_here)
+        R = RT.T
 
         x_data = []
         for key in var_subset:
@@ -172,25 +207,19 @@ class RobustPoseLifter(StateLifter, ABC):
             elif key == "t":
                 x_data += list(t)
             elif key == "c":
-                x_data += list(R.flatten("F"))
+                x_data += list(R.flatten("C"))
             elif "w" in key:
                 j = int(key.split("_")[-1])
                 w_j = theta[-self.n_landmarks + j]
                 x_data.append(w_j)
-
-        if self.level == "no":
-            pass
-        elif self.level == "xxT":
-            if "z_0" in var_subset:
+            elif (self.level == "xxT") and (key == "z_0"):
                 x_vec = list(get_xtheta_from_C_r(R, t))
                 x_data += list(np.kron(x_vec, x_vec).flatten())
-        elif self.level == "xwT":
-            for key in var_subset:
-                if "z" in key:
-                    j = int(key.split("_")[-1])
-                    w_j = theta[-self.n_landmarks + j]
-                    x_vec = get_xtheta_from_C_r(R, t)
-                    x_data += list(x_vec * w_j)
+            elif (self.level == "xwT") and ("z" in key):
+                j = int(key.split("_")[-1])
+                w_j = theta[-self.n_landmarks + j]
+                x_vec = get_xtheta_from_C_r(R, t)
+                x_data += list(x_vec * w_j)
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
@@ -258,7 +287,7 @@ class RobustPoseLifter(StateLifter, ABC):
 
         try:
             R, t = get_C_r_from_theta(x, self.d)
-        except:
+        except Exception:
             R, t = get_C_r_from_xtheta(x, self.d)
 
         cost = 0
@@ -270,17 +299,11 @@ class RobustPoseLifter(StateLifter, ABC):
                 cost += res
         return 0.5 * cost
 
-    def get_grad(self, t, y):
-        raise NotImplementedError("get_grad not implement yet")
-
-    def get_hess(self, t, y):
-        raise NotImplementedError("get_hess not implement yet")
-
     def local_solver(
         self, t0, y, verbose=False, method=METHOD, solver_kwargs=SOLVER_KWARGS
     ):
         import pymanopt
-        from pymanopt.manifolds import SpecialOrthogonalGroup, Euclidean, Product
+        from pymanopt.manifolds import Euclidean, Product, SpecialOrthogonalGroup
 
         if method == "CG":
             from pymanopt.optimizers import ConjugateGradient as Optimizer  # fastest
@@ -293,6 +316,8 @@ class RobustPoseLifter(StateLifter, ABC):
 
         if verbose:
             solver_kwargs["verbosity"] = 2
+        else:
+            solver_kwargs["verbosity"] = 0
 
         # We assume that we know w! If we wanted to solve for w too we would need
         # IRLS or similar. Since we just care about getting the global solution
@@ -340,24 +365,35 @@ class RobustPoseLifter(StateLifter, ABC):
         )
         optimizer = Optimizer(**solver_kwargs)
 
-        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
+        if self.robust:
+            try:
+                R_0, t_0 = get_C_r_from_theta(t0[: -self.n_landmarks], self.d)
+            except ValueError:
+                R_0, t_0 = get_C_r_from_xtheta(t0[: -self.n_landmarks], self.d)
+        else:
+            R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
 
-        print("local solver sanity check:")
-        print("final penalty:", self.penalty(t))
+        if verbose:
+            print("local solver sanity check:")
+            print("final penalty:", self.penalty(t))
         for i in range(self.n_landmarks):
             residual = self.residual_sq(R, t, self.landmarks[i], y[i])
             if i < self.n_outliers:
-                print(f"outlier residual: {residual:.4e}")
+                if verbose:
+                    print(f"outlier residual: {residual:.4e}")
                 assert (
                     residual > self.beta
                 ), f"outlier residual too small: {residual} <= {self.beta}"
             else:
-                print(f"inlier residual: {residual:.4e}")
+                if verbose:
+                    print(f"inlier residual: {residual:.4e}")
                 assert (
-                    residual <= self.beta
+                    residual < self.beta
                 ), f"inlier residual too large: {residual} > {self.beta}"
+        if verbose:
+            print("qcqp cost:", res.cost)
 
         if self.robust:
             theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
@@ -399,7 +435,7 @@ class RobustPoseLifter(StateLifter, ABC):
             var_dict = self.var_dict
 
         if "c" in var_dict:
-            # enforce diagonal
+            # enforce diagonal == 1
             for i in range(self.d):
                 Ei = np.zeros((self.d, self.d))
                 Ei[i, i] = 1.0
@@ -409,7 +445,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 Ai["h", "h"] = -1
                 self.test_and_add(A_list, Ai, output_poly=output_poly)
 
-            # enforce off-diagonal
+            # enforce off-diagonal == 0
             for i in range(self.d):
                 for j in range(i + 1, self.d):
                     Ei = np.zeros((self.d, self.d))

@@ -50,8 +50,6 @@ class StereoLifter(StateLifter, ABC):
         ["h", "z_0"],
         ["h", "x", "z_0"],
         ["h", "z_0", "z_1"],  # should achieve tightness here
-        # ["h", "x", "z_0", "z_1"],
-        # ["h", "z_0", "z_1", "z_2"],
     ]
 
     def __init__(
@@ -63,6 +61,30 @@ class StereoLifter(StateLifter, ABC):
         super().__init__(
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
+
+    def get_clique_vars_ij(self, *args):
+        var_dict = {
+            "h": self.var_dict["h"],
+            "x": self.var_dict["x"],
+        }
+        var_dict.update({f"z_{i}": self.var_dict[f"z_{i}"] for i in args})
+        return var_dict
+
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_landmarks)))
+        vars = {
+            "h": self.var_dict["h"],
+            "x": self.var_dict["x"],
+        }
+        for j in used_landmarks:
+            vars.update({f"z_{j}": self.var_dict[f"z_{j}"]})
+        return vars
+
+    def base_size(self):
+        return self.var_dict["h"] + self.var_dict["x"]
+
+    def landmark_size(self):
+        return self.var_dict["z_0"]
 
     def get_all_variables(self):
         return [["h", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
@@ -125,6 +147,16 @@ class StereoLifter(StateLifter, ABC):
     def get_parameters(self, var_subset=None):
         return self.extract_parameters(var_subset, self.landmarks)
 
+    @property
+    def var_dict(self):
+        level_dim = self.get_level_dims()[self.level]
+        if self.var_dict_ is None:
+            self.var_dict_ = {"h": 1}
+            self.var_dict_["x"] = self.d + self.d**2
+            for i in range(self.n_landmarks):
+                self.var_dict_[f"z_{i}"] = self.d + level_dim
+        return self.var_dict_
+
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
         :param var_subset: list of variables to include in x vector. Set to None for all.
@@ -151,7 +183,7 @@ class StereoLifter(StateLifter, ABC):
                 # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
                 C, r = get_C_r_from_xtheta(theta, self.d)
 
-        if self.param_level != "no":
+        if (self.param_level != "no") and (len(parameters) > 1):
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
         else:
             landmarks = self.landmarks
@@ -161,7 +193,7 @@ class StereoLifter(StateLifter, ABC):
             if key == "h":
                 x_data.append(1.0)
             elif key == "x":
-                x_data += list(r) + list(C.flatten("F"))  # column-wise flatten
+                x_data += list(r) + list(C.flatten("C"))  # row-wise flatten
             elif "z" in key:
                 j = int(key.split("_")[-1])
 
@@ -185,47 +217,112 @@ class StereoLifter(StateLifter, ABC):
                     # this works
                     x_data += list(np.outer(u, r).flatten())
                 elif self.level == "uxT":
-                    x = np.r_[r, C.flatten("F")]
+                    x = np.r_[r, C.flatten("C")]
                     x_data += list(np.outer(u, x).flatten())
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
         return np.array(x_data)
 
     def get_A_known(self, var_dict=None, output_poly=False):
-        # C = [ c1
-        #       c2
-        #       c3 ]
-        # [xj]   [c1 @ pj]
-        # [yj] = [c2 @ pj]
-        # [zj]   [c3 @ pj]
-        # enforce that u_xj = 1/zj * xj -> zj*u_xj = c3 @ pj * u_xj = c1 @ pj
-        # enforce that u_yj = 1/zj * yj -> zj*u_yj = c3 @ pj * u_yj = c2 @ pj
-        print("Warning: get_A_known not adapted to new variables yet.")
-        return []
+        """
+        T = |   cx'   tx |
+            |   cy'   ty |
+            |   cz'   tz |
+            | 0  0  0  1 |
+        Let pj be the j-th landmark coordinate.
+         [xj]   [cx @ pj + tx]
+         [yj] = [cy @ pj + ty]
+         [zj]   [cz @ pj + tz]
+
+        Let u be the substitution variable, which has d-1 elements.
+        Then we want to enforce that:
+        -u_xj = 1/zj * xj -> u_xj = u_zj * xj = u_zj * [cx @ pj + tx]
+        -u_yj = 1/zj * yj -> u_yj = u_zj * yj = u_zj * [cy @ pj + ty]
+        -u_zj = 1/zj -> u_zj * zj = 1
+        Writing things as homogeneous constraints:
+        a1) u_xj - u_zj * [cx @ pj + tx] = 0   u_zj * cx @ pj + u_zj * tx  -  h * u_xj = 0
+        a2) u_yj - u_zj * [cy @ pj + ty] = 0   ----- 1 -----    --- 2 ---     -- 3 --
+        a3) u_zj * [cz @ pj + tz] = 1          u_zj * cz @ pj + u_zj * tz - 1 = 0
+                                               ----- 1 -----    --- 2 ---
+        """
+        # x contains: [c1, c2, c3, t]
+        # z contains: [u_xj, u_yj, u_zj, H.O.T.]
+        if self.d == 2:
+            x = self.get_x()
+            _, tx, ty, cx1, cx2, cy1, cy2, u_x1, u_z1, *_ = x
+            p1 = self.landmarks[0]
+            assert abs(u_z1 * (cx1 * p1[0] + cx2 * p1[1]) + u_z1 * tx - u_x1) < 1e-10
+            assert abs(u_z1 * (cy1 * p1[0] + cy2 * p1[1]) + u_z1 * ty - 1) < 1e-10
+        elif self.d == 3:
+            x = self.get_x()
+            (
+                _,
+                tx,
+                ty,
+                tz,
+                cx1,
+                cx2,
+                cx3,
+                cy1,
+                cy2,
+                cy3,
+                cz1,
+                cz2,
+                cz3,
+                u_x1,
+                u_y1,
+                u_z1,
+                *_,
+            ) = x
+            p1 = self.landmarks[0]
+            assert (
+                abs(u_z1 * (cx1 * p1[0] + cx2 * p1[1] + cx3 * p1[2]) + u_z1 * tx - u_x1)
+                < 1e-10
+            )
+            assert (
+                abs(u_z1 * (cy1 * p1[0] + cy2 * p1[1] + cy3 * p1[2]) + u_z1 * ty - u_y1)
+                < 1e-10
+            )
+            assert (
+                abs(u_z1 * (cz1 * p1[0] + cz2 * p1[1] + cz3 * p1[2]) + u_z1 * tz - 1)
+                < 1e-10
+            )
+
+        if var_dict is None:
+            var_dict = self.var_dict
 
         A_known = []
-        for k in range(self.n_landmarks):
-            for j in range(self.d):
+        z_dim = self.get_level_dims()[self.level]
+
+        if "x" not in var_dict or "h" not in var_dict:
+            return A_known
+        landmarks = [j for j in range(self.n_landmarks) if f"z_{j}" in var_dict]
+        for j in landmarks:
+            # one complete constraint has x, z_j and h.
+            pj = self.landmarks[j]
+            for i in range(self.d):
                 A = PolyMatrix()
-                # x contains: [c1, c2, c3, t]
-                fill_mat = np.zeros((self.d, self.d))
-                fill_mat[:, j] = self.landmarks[k]
-                A[f"c_{self.d-1}", f"z_{k}"] = fill_mat
+                # --- 1 ---
+                fill_mat = np.zeros((self.d + self.d**2, self.d + z_dim))
+                # chooses ci of x, and u_zj of z
+                fill_mat[(i + 1) * self.d : (i + 2) * self.d, self.d - 1] = pj
 
-                fill_mat = np.zeros((self.d, self.d))
-                fill_mat[-1, j] = 1.0
-                A[f"t", f"z_{k}"] = fill_mat
+                # --- 2 ---
+                # chooses ti of x, and u_zj of z
+                fill_mat[i, self.d - 1] = 1.0
+                A[f"x", f"z_{j}"] = fill_mat
 
-                if j < self.d - 1:  # u, (v)
-                    A["h", f"c_{j}"] = -self.landmarks[k].reshape((1, -1))
-                    fill_mat = -np.eye(self.d)[j]
-                    A["h", "t"] = fill_mat.reshape((1, -1))
-                elif j == self.d - 1:  # z
+                # --- 3 ---
+                fill_mat = np.zeros((1, self.d + z_dim))
+                if i < self.d - 1:  # u, (v)
+                    fill_mat[0, i] = -1
+                    A["h", f"z_{j}"] = fill_mat
+                elif i == self.d - 1:  # z
                     A["h", "h"] = -2.0
                 if output_poly:
                     A_known.append(A)
                 else:
-                    A_known.append(A.get_matrix(self.var_dict))
+                    A_known.append(A.get_matrix(var_dict))
         return A_known
 
     def sample_theta(self):
@@ -256,25 +353,31 @@ class StereoLifter(StateLifter, ABC):
             y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
         return y_sim
 
-    def get_Q(self, noise: float = None) -> tuple:
-        if noise is None:
-            noise = NOISE
-
+    def get_Q(
+        self, noise: float = None, output_poly: bool = False, use_cliques: list = []
+    ) -> tuple:
         if self.y_ is None:
+            if noise is None:
+                noise = NOISE
             self.y_ = self.simulate_y(noise=noise)
 
-        Q = self.get_Q_from_y(self.y_)
+        Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
         return Q, self.y_
 
-    def get_Q_from_y(self, y):
+    def get_Q_from_y(self, y, output_poly=False, use_cliques=[]):
         """
         The least squares problem reads
-        min_T \sum_{n=0}^{N-1} || y - Mtilde@z ||
+        min_T sum_{n=0}^{N-1} || y - Mtilde@z ||
         where the first d elements of z correspond to u, and Mtilde contains the first d-1 and last element of M
         Mtilde is thus of shape d*2 by dim_z, where dim_z=d+dL (the additional Lasserre variables)
         y is of length d*2, corresponding to the measured pixel values in left and right image.
         """
         from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+        if len(use_cliques):
+            js = use_cliques
+        else:
+            js = range(y.shape[0])
 
         # in 2d: M_tilde is 2 by 6, with first 2 columns: M[:, [0, 2]]
         # in 3d: M_tilde is 4 by 12, with first 3 columns: M[:, [0, 1, 3]]
@@ -286,13 +389,15 @@ class StereoLifter(StateLifter, ABC):
         m = self.M_matrix[:, self.d - 1]
 
         ls_problem = LeastSquaresProblem()
-        for j in range(y.shape[0]):
+        for j in js:
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
-        Q = ls_problem.get_Q().get_matrix(self.var_dict)
+        if output_poly:
+            Q = ls_problem.get_Q()
+        else:
+            Q = ls_problem.get_Q().get_matrix(self.var_dict)
         if NORMALIZE:
             Q /= self.n_landmarks * self.d
-        # there is precision loss because Q is
 
         # sanity check
         x = self.get_x()
@@ -305,11 +410,14 @@ class StereoLifter(StateLifter, ABC):
         if NORMALIZE:
             cost_test /= self.n_landmarks * self.d
 
-        t = self.theta
-        cost_raw = self.get_cost(t, y)
-        cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-6, cost_raw - cost_Q
-        assert abs(cost_raw - cost_test) < 1e-6, (cost_raw, cost_test)
+        if output_poly:
+            cost_Q = x.T @ Q.get_matrix(self.var_dict) @ x
+        else:
+            cost_Q = x.T @ Q @ x
+        assert abs(cost_test - cost_Q) < 1e-6, (cost_test, cost_Q)
+        if not len(use_cliques):
+            cost_raw = self.get_cost(self.theta, y)
+            assert abs(cost_test - cost_raw) < 1e-6, (cost_test, cost_raw)
         return Q
 
     def get_theta(self, x):

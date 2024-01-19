@@ -42,7 +42,7 @@ def _T(phi):
         x, y, *c = phi_flat
         return np.vstack(
             [
-                np.hstack([np.array(c).reshape((2, 2)).T, np.array([x, y])[:, None]]),
+                np.hstack([np.array(c).reshape((2, 2)), np.array([x, y])[:, None]]),
                 np.array([0, 0, 1]),
             ]
         )

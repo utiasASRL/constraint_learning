@@ -1,5 +1,4 @@
 import numpy as np
-
 from scipy.spatial.transform import Rotation as R
 
 
@@ -43,13 +42,13 @@ def get_C_r_from_theta(theta, d):
 
 def get_C_r_from_xtheta(xtheta, d):
     r = xtheta[:d]
-    C = xtheta[d:].reshape((d, d)).T
+    C = xtheta[d:].reshape((d, d))
     return C, r
 
 
 def get_xtheta_from_C_r(C, r):
-    # column-wise flatten
-    return np.r_[r, C.flatten("F")]
+    # row-wise flatten
+    return np.r_[r, C.flatten("C")]
 
 
 def get_T(xtheta=None, d=None, theta=None):
@@ -69,7 +68,7 @@ def get_xtheta_from_theta(theta, d):
     pos = theta[:d]
     alpha = theta[d : d + n_rot]
     C = get_rot_matrix(alpha)
-    c = C.flatten("F")  # col-wise flatten
+    c = C.flatten("C")  # row-wise flatten
     xtheta = np.r_[pos, c]
     return xtheta
 
@@ -81,7 +80,7 @@ def get_theta_from_xtheta(xtheta, d):
     c = xtheta[d + 1 : d + 1 + d**2]
     C = c.reshape(d, d)
 
-    alpha = get_euler(C.T)
+    alpha = get_euler(C)
     theta = np.r_[pos, alpha]
     return theta
 
@@ -90,7 +89,7 @@ def get_xtheta_from_T(T):
     # T is either 4x4 or 3x3 matrix.
     C = T[:-1, :-1]
     r = T[:-1, -1]
-    return np.r_[r, C.flatten("F")]
+    return np.r_[r, C.flatten("C")]
 
 
 def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
@@ -99,6 +98,7 @@ def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
     r_error = np.linalg.norm(r_hat - r_gt)
     C_error = np.linalg.norm(C_gt.T @ C_hat - np.eye(d))
     return {
+        "error": r_error + C_error,
         "r error": r_error,
         "C error": C_error,
         "total error": r_error + C_error,

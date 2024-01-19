@@ -1,15 +1,14 @@
 import time
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
 from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from lifters.wahba_lifter import WahbaLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
-
+from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
@@ -24,7 +23,7 @@ def generate_results(lifters, seed=0):
 
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
-        dict_list, success = learner.run(verbose=True, plot=False)
+        dict_list, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(
                 f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."

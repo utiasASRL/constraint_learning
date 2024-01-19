@@ -9,8 +9,7 @@ from auto_template.sim_experiments import (
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
 
-
-DEBUG = False
+DEBUG = True
 
 RESULTS_DIR = "_results"
 # RESULTS_DIR = "_results_server"
@@ -105,12 +104,13 @@ def lifter_scalability_new(
     # save_table(df, tex_name)
 
 
-def run_all(n_seeds, recompute, tightness=True, scalability=True):
+def run_wahba(n_seeds, recompute, tightness=True, scalability=True):
+    from lifters.wahba_lifter import WahbaLifter
+
     d = 3
     n_outliers = 1
 
     print("================= Wahba study ==================")
-    from lifters.wahba_lifter import WahbaLifter
 
     if tightness:
         lifter_tightness(WahbaLifter, d=d, n_landmarks=4, robust=False)
@@ -134,8 +134,14 @@ def run_all(n_seeds, recompute, tightness=True, scalability=True):
             recompute=recompute,
         )
 
-    print("================= Mono study ==================")
+
+def run_mono(n_seeds, recompute, tightness=True, scalability=True):
     from lifters.mono_lifter import MonoLifter
+
+    d = 3
+    n_outliers = 1
+
+    print("================= Mono study ==================")
 
     if tightness:
         lifter_tightness(MonoLifter, d=d, n_landmarks=5, robust=False)
@@ -160,5 +166,12 @@ def run_all(n_seeds, recompute, tightness=True, scalability=True):
         )
 
 
+def run_all(n_seeds, recompute, tightness=True, scalability=True):
+    run_mono(n_seeds, recompute, tightness=tightness, scalability=scalability)
+    run_wahba(n_seeds, recompute, tightness=tightness, scalability=scalability)
+
+
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=False)
+    run_all(n_seeds=1, recompute=True)
+    # run_mono(n_seeds=1, recompute=True)
+    # run_wahba(n_seeds=1, recompute=True)

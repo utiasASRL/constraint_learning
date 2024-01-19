@@ -1,21 +1,21 @@
-from _scripts.run_all_study import run_all as run_all_study
-from _scripts.run_stereo_study import run_all as run_stereo_study
-from _scripts.run_range_only_study import run_all as run_range_only_study
-from _scripts.run_other_study import run_all as run_other_study
-from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
-from _scripts.run_datasets_ro import run_all as run_datasets_ro
-
 import matplotlib
 
+from _scripts.run_all_study import run_all as run_all_study
+from _scripts.run_datasets_ro import run_all as run_datasets_ro
+from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
+from _scripts.run_other_study import run_all as run_other_study
+from _scripts.run_range_only_study import run_all as run_range_only_study
+from _scripts.run_stereo_study import run_all as run_stereo_study
+
 try:
-    # matplotlib.use("TkAgg")
-    matplotlib.use("Agg")
-except:
+    matplotlib.use("TkAgg")
+    # matplotlib.use("Agg") # no plotting
+except Exception as e:
     pass
 
 if __name__ == "__main__":
     n_seeds = 1  # was 10
-    recompute = False
+    recompute = True
     tightness = True
     scalability = True
 

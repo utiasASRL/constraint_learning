@@ -1,18 +1,20 @@
+import pickle
 import time
 from copy import deepcopy
-import pickle
 
-import pandas as pd
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
+import pandas as pd
 
 from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from lifters.wahba_lifter import WahbaLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.wahba_lifter import WahbaLifter
+from lifters.matweight_lifter import MatWeightLocLifter
+from lifters.matweight_lifter import MatWeightSLAMLifter
 from utils.plotting_tools import savefig
 
 plot_dict = {
@@ -36,7 +38,7 @@ RESULTS_FOLDER = "_results"
 EARLY_STOP = False
 
 
-def create_newinstance(lifter, n_params):
+def create_newinstance(lifter, n_params, n_outliers=None):
     # TODO(FD): replace below with copy constructor
     if type(lifter) == Stereo2DLifter:
         new_lifter = Stereo2DLifter(
@@ -67,7 +69,7 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
     elif type(lifter) == WahbaLifter:
         new_lifter = WahbaLifter(
@@ -76,7 +78,12 @@ def create_newinstance(lifter, n_params):
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
+        )
+    elif type(lifter) == MatWeightLocLifter:
+        new_lifter = MatWeightLocLifter(
+            n_poses=n_params,
+            n_landmarks=lifter.n_landmarks,
         )
     else:
         raise ValueError(lifter)
@@ -315,7 +322,7 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
     except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         # find which of the constraints are actually necessary
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         df = pd.DataFrame(data)
         with open(fname, "wb") as f:
             pickle.dump(learner, f)
@@ -352,13 +359,13 @@ def run_scalability_new(
 ):
     fname_root = f"{results_folder}/scalability_{learner.lifter}"
     fname_all = fname_root + "_complete.pkl"
-    try:
-        assert recompute is False
-        df = pd.read_pickle(fname_all)
-        print("read", fname_all)
-        return df
-    except (AssertionError, FileNotFoundError) as e:
-        print(e)
+    # try:
+    #    assert recompute is False
+    #    df = pd.read_pickle(fname_all)
+    #    print("read", fname_all)
+    #    return df
+    # except (AssertionError, FileNotFoundError) as e:
+    #    print(e)
 
     fname = f"{results_folder}/{learner.lifter}.pkl"
     try:
@@ -372,7 +379,7 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
@@ -412,12 +419,12 @@ def run_scalability_new(
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
 
-    if learner is not None:
-        save_tightness_order(
-            learner,
-            fname_root + "_new",
-            use_bisection=learner.lifter.TIGHTNESS == "cost",
-        )
+    # if learner is not None:
+    #    save_tightness_order(
+    #        learner,
+    #        fname_root + "_new",
+    #        use_bisection=learner.lifter.TIGHTNESS == "cost",
+    #    )
 
     if EARLY_STOP:
         return None
@@ -457,7 +464,21 @@ def run_scalability_new(
                         continue
                     n_successful_seeds += 1
 
-                    new_learner.scale_templates(learner, new_order, data_dict)
+                    # extract the templates from constraints
+                    t1 = time.time()
+                    if new_order is not None:
+                        new_learner.templates = learner.get_sufficient_templates(
+                            new_order, new_lifter
+                        )
+                    else:
+                        new_learner.templates = learner.templates
+
+                    # apply the templates, to generate constraints
+                    new_learner.templates_known = new_learner.get_known_templates()
+                    new_learner.apply_templates()
+                    data_dict["t create constraints"] = time.time() - t1
+                    data_dict["n templates"] = len(new_learner.templates)
+                    data_dict["n constraints"] = len(new_learner.constraints)
 
                     # determine tightness
                     if (
@@ -513,6 +534,9 @@ def run_scalability_new(
                 and (learner.lifter.level == "quad")
                 and (n_params > 15)
             ):
+                print(f"skipping N={n_params} for {learner.lifter} because so slow.")
+                continue
+            if isinstance(learner.lifter, MatWeightLocLifter) and (n_params > 10):
                 print(f"skipping N={n_params} for {learner.lifter} because so slow.")
                 continue
 
@@ -578,7 +602,9 @@ def run_oneshot_experiment(
     if "svd" in plots:
         fig = plt.gcf()
         ax = plt.gca()
-        ax.get_legend().remove()
+        l = ax.get_legend()
+        if l is not None:
+            l.remove()
         fig.set_size_inches(3, 3)
         savefig(fig, fname_root + "_svd.pdf")
 

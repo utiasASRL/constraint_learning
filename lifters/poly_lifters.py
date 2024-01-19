@@ -39,7 +39,7 @@ class PolyLifter(StateLifter):
         return
 
     def get_error(self, t):
-        return {"MAE": float(abs(self.theta - t))}
+        return {"MAE": float(abs(self.theta - t)), "error": float(abs(self.theta - t))}
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         if theta is None:

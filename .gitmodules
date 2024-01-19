@@ -4,3 +4,6 @@
 [submodule "certifiable-tools"]
 	path = certifiable-tools
 	url = git@github.com:utiasASRL/certifiable-tools
+[submodule "mat_weight_certs"]
+	path = mat_weight_certs
+	url = git@github.com:holmesco/mat_weight_certs
