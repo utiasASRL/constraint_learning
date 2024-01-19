@@ -7,3 +7,7 @@
 [submodule "mat_weight_certs"]
 	path = mat_weight_certs
 	url = git@github.com:holmesco/mat_weight_certs
+[submodule "ro_certs"]
+	path = ro_certs
+	url = git@github.com:duembgen/dev_safe_and_smooth
+

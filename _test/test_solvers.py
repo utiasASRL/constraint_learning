@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 
 from _test.tools import all_lifters
 from lifters.matweight_lifter import MatWeightLifter
@@ -257,10 +258,10 @@ def test_solvers(n_seeds=1, noise=0.0):
                     )
 
                     try:
-                        mineig_hess_hat = np.linalg.eigvalsh(
+                        mineig_hess_hat, *_ = sp.linalg.eigsh(
                             lifter.get_hess(theta_hat, y)
                         )[0]
-                        mineig_hess_gt = np.linalg.eigvalsh(
+                        mineig_hess_gt, *_ = sp.linalg.eigsh(
                             lifter.get_hess(theta_gt, y)
                         )[0]
                         print(

@@ -5,6 +5,7 @@ from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+from ro_certs.problem import Problem, Reg
 
 plt.ion()
 
@@ -20,6 +21,8 @@ SOLVER_KWARGS = {
     "Powell": dict(ftol=1e-6, xtol=1e-10),
     "TNC": dict(gtol=1e-6, xtol=1e-10),
 }
+
+REG = Reg.CONSTANT_VELOCITY
 
 
 class RangeOnlyLocLifter(StateLifter):
@@ -37,11 +40,9 @@ class RangeOnlyLocLifter(StateLifter):
     }
 
     def get_vec_around_gt(self, delta: float = 0):
-        """Sample around ground truth.
-        :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
-        """
+        """Sample around ground truth."""
         if delta == 0:
-            return self.theta
+            return self.theta.flatten()
         else:
             bbox_max = np.max(self.landmarks, axis=0) * 2
             bbox_min = np.min(self.landmarks, axis=0) * 2
@@ -50,12 +51,16 @@ class RangeOnlyLocLifter(StateLifter):
                 * (bbox_max - bbox_min)[None, :]
                 + bbox_min[None, :]
             )
-            return pos.flatten()
+            theta = np.ones((self.n_positions, self.k))
+            theta[:, : self.d] = pos
+            return theta.flatten()
 
     def __init__(
         self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None
     ):
-        # there is no Gauge freedom in range-only localization!
+        self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=REG)
+        self.k = self.prob.get_dim()
+        self.d = d
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
         if W is not None:
@@ -85,11 +90,15 @@ class RangeOnlyLocLifter(StateLifter):
         return [vars]
 
     def generate_random_setup(self):
-        self.landmarks = np.random.rand(self.n_landmarks, self.d)
+        # self.prob.landmarks
+        self.prob.generate_random_anchors(trajectory=self.theta)
+        self.landmarks = self.prob.anchors
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
+        self.prob.setup_gp()
 
     def generate_random_theta(self):
-        return np.random.rand(self.n_positions, self.d).flatten()
+        theta = self.prob.generate_random_theta()
+        return theta[: self.k]
 
     def get_parameters(self, var_subset=None):
         if var_subset is None:
@@ -107,7 +116,7 @@ class RangeOnlyLocLifter(StateLifter):
         if self.param_level == "no":
             return [1.0]
         else:
-            parameters = np.random.rand(self.n_landmarks, self.d).flatten()
+            parameters = self.prob.generate_random_anchors()
             return np.r_[1.0, parameters]
 
     def sample_theta(self):
@@ -120,16 +129,13 @@ class RangeOnlyLocLifter(StateLifter):
             var_dict = self.var_dict
         positions = self.get_variable_indices(var_dict)
 
-        if self.level == "quad":
-            from utils.common import diag_indices
-
-            diag_idx = diag_indices(self.d)
-
         A_list = []
         for n in positions:
             if self.level == "no":
                 A = PolyMatrix(symmetric=True)
-                A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
+                mat = np.zeros((self.k, self.k))
+                mat[range(self.d), range(self.d)] = 1.0
+                A[f"x_{n}", f"x_{n}"] = mat
                 A["h", f"z_{n}"] = -0.5
                 if output_poly:
                     A_list.append(A)
@@ -141,7 +147,7 @@ class RangeOnlyLocLifter(StateLifter):
                 for i in range(self.d):
                     for j in range(i, self.d):
                         A = PolyMatrix(symmetric=True)
-                        mat_x = np.zeros((self.d, self.d))
+                        mat_x = np.zeros((self.k, self.k))
                         mat_z = np.zeros((1, self.size_z))
                         if i == j:
                             mat_x[i, i] = 1.0
@@ -168,7 +174,7 @@ class RangeOnlyLocLifter(StateLifter):
         if parameters is None:
             parameters = self.parameters
 
-        positions = theta.reshape(self.n_positions, -1)
+        positions = theta.reshape(self.n_positions, self.k)
 
         x_data = []
         for key in var_subset:
@@ -180,14 +186,14 @@ class RangeOnlyLocLifter(StateLifter):
             elif "z" in key:
                 n = int(key.split("_")[-1])
                 if self.level == "no":
-                    x_data.append(np.linalg.norm(positions[n]) ** 2)
+                    x_data.append(np.linalg.norm(positions[n, : self.d]) ** 2)
                 elif self.level == "quad":
-                    x_data += list(upper_triangular(positions[n]))
+                    x_data += list(upper_triangular(positions[n, : self.d]))
         assert len(x_data) == self.get_dim_x(var_subset)
         return np.array(x_data)
 
     def get_J_lifting(self, t):
-        pos = t.reshape((-1, self.d))
+        pos = t.reshape((-1, self.k))
         ii = []
         jj = []
         data = []
@@ -196,18 +202,18 @@ class RangeOnlyLocLifter(StateLifter):
         for n in range(self.n_positions):
             if self.level == "no":
                 ii += [n] * self.d
-                jj += list(range(n * self.d, (n + 1) * self.d))
-                data += list(2 * pos[n])
+                jj += list(range(n * self.k, n * self.k + self.d))
+                data += list(2 * pos[n, : self.d])
             elif self.level == "quad":
-                # it seemed easier to do this manually that programtically
+                # it was easier to do this manually that programtically
                 if self.d == 3:
-                    x, y, z = pos[n]
-                    jj += [n * self.d + j for j in [0, 0, 1, 0, 2, 1, 1, 2, 2]]
+                    x, y, z = pos[n, : self.d]
+                    jj += [n * self.k + j for j in [0, 0, 1, 0, 2, 1, 1, 2, 2]]
                     data += [2 * x, y, x, z, x, 2 * y, z, y, 2 * z]
                     ii += [idx + i for i in [0, 1, 1, 2, 2, 3, 4, 4, 5]]
                 elif self.d == 2:
-                    x, y = pos[n]
-                    jj += [n * self.d + j for j in [0, 0, 1, 1]]
+                    x, y = pos[n, : self.d]
+                    jj += [n * self.k + j for j in [0, 0, 1, 1]]
                     data += [2 * x, y, x, 2 * y]
                     ii += [idx + i for i in [0, 1, 1, 2]]
                 idx += self.size_z
@@ -221,7 +227,7 @@ class RangeOnlyLocLifter(StateLifter):
         """return list of the hessians of the M lifting functions."""
         hessians = []
         for n in range(self.n_positions):
-            idx = range(n * self.d, (n + 1) * self.d)
+            idx = range(n * self.k, n * self.k + self.d)
             if self.level == "no":
                 hessian = sp.csr_array(
                     ([2] * self.d, (idx, idx)),
@@ -257,18 +263,23 @@ class RangeOnlyLocLifter(StateLifter):
             ]
 
     def get_residuals(self, t, y):
-        positions = t.reshape((-1, self.d))
+        positions = t.reshape((-1, self.k))
         y_current = (
-            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
+            np.linalg.norm(
+                self.landmarks[None, :, :] - positions[:, None, : self.d], axis=2
+            )
             ** 2
         )
         return self.W * (y - y_current)
+
+    def get_residuals_prior(self):
+        return self.prob.A_inv @ self.theta + self.prob.v
 
     def get_cost(self, t, y, sub_idx=None):
         """
         get cost for given positions, landmarks and noise.
 
-        :param t: flattened positions of length Nd
+        :param t: flattened positions of length Nk
         :param y: N x K distance measurements
         """
         residuals = self.get_residuals(t, y)
@@ -278,6 +289,10 @@ class RangeOnlyLocLifter(StateLifter):
             cost = np.sum(residuals[sub_idx] ** 2)
         if NORMALIZE:
             return cost / np.sum(self.W > 0)
+
+        if REG != Reg.NONE:
+            prior_cost = np.sum(self.get_residuals_prior())
+            cost += prior_cost / self.n_positions
         return cost
 
     def get_grad(self, t, y, sub_idx=None):
@@ -292,6 +307,7 @@ class RangeOnlyLocLifter(StateLifter):
             return 2 * J.T[:, sub_idx_x] @ Q[sub_idx_x, :][:, sub_idx_x] @ x[sub_idx_x]
 
     def get_J(self, t, y):
+        """Jacobian of derivative of x w.r.t. theta."""
         J = sp.csr_array(
             (np.ones(self.N), (range(1, self.N + 1), range(self.N))),
             shape=(self.N + 1, self.N),
@@ -301,7 +317,7 @@ class RangeOnlyLocLifter(StateLifter):
         return J
 
     def get_hess(self, t, y):
-        """get Hessian"""
+        """Hessian of cost w.r.t. theta"""
         x = self.get_x(t)
         Q = self.get_Q_from_y(y)
         J = self.get_J(t, y)
@@ -317,8 +333,6 @@ class RangeOnlyLocLifter(StateLifter):
         return hess
 
     def get_Q_from_y(self, y):
-        import itertools
-
         self.ls_problem = LeastSquaresProblem()
 
         if self.level == "quad":
@@ -326,9 +340,10 @@ class RangeOnlyLocLifter(StateLifter):
 
             diag_idx = diag_indices(self.d)
 
-        for n, k in itertools.product(range(self.n_positions), range(self.n_landmarks)):
+        for n, k in zip(*np.where(self.W > 0)):
             if self.W[n, k] > 0:
-                ak = self.landmarks[k]
+                ak = np.zeros(self.k)
+                ak[: self.d] = self.landmarks[k]
                 if self.level == "no":
                     self.ls_problem.add_residual(
                         {
@@ -346,18 +361,24 @@ class RangeOnlyLocLifter(StateLifter):
                         f"z_{n}": mat,
                     }
                     self.ls_problem.add_residual(res_dict)
+
         Q = self.ls_problem.get_Q().get_matrix(self.var_dict)
         if NORMALIZE:
-            return Q / np.sum(self.W > 0)
+            Q /= np.sum(self.W > 0)
+            Q += self.prob.K_inv / self.n_positions
+        else:
+            Q += self.prob.K_inv
         return Q
 
     def simulate_y(self, noise: float = None):
         # N x K matrix
         if noise is None:
             noise = NOISE
-        positions = self.theta.reshape(self.n_positions, -1)
+        positions = self.theta.reshape(self.n_positions, self.k)
         y_gt = (
-            np.linalg.norm(self.landmarks[None, :, :] - positions[:, None, :], axis=2)
+            np.linalg.norm(
+                self.landmarks[None, :, :] - positions[:, None, : self.d], axis=2
+            )
             ** 2
         )
         return y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
@@ -374,7 +395,9 @@ class RangeOnlyLocLifter(StateLifter):
         assert abs(cost1 - cost3) < 1e-10
         return Q, self.y_
 
+    # TODO(FD) remove this if unused.
     def get_D(self, that):
+        raise ValueError("not adapted yet")
         D = np.eye(1 + self.n_positions * self.d + self.size_z)
         x = self.get_x(theta=that)
         J = self.get_J_lifting(t=that)
@@ -388,13 +411,13 @@ class RangeOnlyLocLifter(StateLifter):
     def get_sub_idx_x(self, sub_idx, add_z=True):
         sub_idx_x = [0]
         for idx in sub_idx:
-            sub_idx_x += [1 + idx * self.d + d for d in range(self.d)]
+            sub_idx_x += [1 + idx * self.k + d for d in range(self.d)]
         if not add_z:
             return sub_idx_x
         for idx in sub_idx:
             sub_idx_x += [
-                1 + self.n_positions * self.d + idx * self.size_z + d
-                for d in range(self.size_z)
+                1 + self.n_positions * self.k + idx * self.size_z + i
+                for i in range(self.size_z)
             ]
         return sub_idx_x
 
@@ -459,7 +482,7 @@ class RangeOnlyLocLifter(StateLifter):
     @property
     def var_dict(self):
         var_dict = {"h": 1}
-        var_dict.update({f"x_{n}": self.d for n in range(self.n_positions)})
+        var_dict.update({f"x_{n}": self.k for n in range(self.n_positions)})
         if self.level == "no":
             var_dict.update({f"z_{n}": 1 for n in range(self.n_positions)})
         elif self.level == "quad":
@@ -475,7 +498,7 @@ class RangeOnlyLocLifter(StateLifter):
 
     @property
     def N(self):
-        return self.n_positions * self.d
+        return self.n_positions * self.k
 
     @property
     def M(self):

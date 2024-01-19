@@ -2,7 +2,7 @@ import numpy as np
 
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.mono_lifter import MonoLifter
-from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, PolyLifter
+from lifters.poly_lifters import Poly4Lifter, Poly6Lifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
 from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
@@ -37,6 +37,16 @@ Lifters = [
     (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
 # Lifters = [(MatWeightLocLifter, dict(n_landmarks=5, n_poses=10))]
+Lifters = [
+    (
+        RangeOnlyLocLifter,
+        dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no"),
+    ),
+    (
+        RangeOnlyLocLifter,
+        dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad"),
+    ),
+]
 
 
 # Below, we always reset seeds to make sure tests are reproducible.
