@@ -9,11 +9,15 @@ from cert_tools.linalg_tools import rank_project
 from cert_tools.sdp_solvers import solve_sdp
 from cert_tools.sparse_solvers import solve_oneshot
 
-from _scripts.generate_cliques import create_clique_list_slam
+from _scripts.generate_cliques import create_clique_list_loc
 from _scripts.run_clique_study import read_saved_learner
 from auto_template.sim_experiments import create_newinstance
 from lifters.matweight_lifter import MatWeightLocLifter
-from utils.plotting_tools import savefig
+from lifters.range_only_lifters import RangeOnlyLocLifter
+from ro_certs.cert_matrix import get_cost_matrices
+from ro_certs.generate_cliques import generate_clique_list
+from ro_certs.problem import Reg
+from utils.plotting_tools import matshow_list, savefig
 
 NOISE_SEED = 0
 
@@ -22,11 +26,11 @@ USE_AUTOTEMPLATE = False
 
 ADJUST = True
 USE_PRIMAL = False
-USE_FUSION = False
+USE_FUSION = True
 VERBOSE = False
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["dSDP"]
+USE_METHODS = ["dSDP", "SDP"]
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
@@ -42,12 +46,13 @@ def extract_solution(lifter: MatWeightLocLifter, X_list):
 
 
 def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
-    saved_learner = read_saved_learner(lifter)
+    if USE_AUTOTEMPLATE:
+        saved_learner = read_saved_learner(lifter)
 
     df_data = []
     for n_params in n_params_list:
         print(f"N={n_params}: ", end="")
-        time_dict = {"n params": n_params}
+        data_dict = {"n params": n_params}
         new_lifter = create_newinstance(lifter, n_params=n_params)
 
         np.random.seed(NOISE_SEED)
@@ -55,22 +60,37 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
 
         theta_gt = new_lifter.get_vec_around_gt(delta=0)
 
-        print("solving local...", end="")
+        # print("solving local...", end="")
         t1 = time.time()
-        theta_est, info, cost = new_lifter.local_solver(theta_gt, lifter.y_)
-        time_dict["t local"] = time.time() - t1
-        time_dict["cost local"] = cost
+        theta_est, info, cost = new_lifter.local_solver(theta_gt, new_lifter.y_)
+        data_dict["t local"] = time.time() - t1
+        data_dict["cost local"] = cost
         x = new_lifter.get_x(theta=theta_est)
         assert (x.T @ Q @ x - cost) / cost < 1e-7
+        print(f"cost local: {cost:.2f}")
 
         print("creating cliques...", end="")
         t1 = time.time()
-        clique_list = create_clique_list_slam(
+
+        cost_matrices = get_cost_matrices(new_lifter.prob)
+        clique_list_new = generate_clique_list(new_lifter.prob, cost_matrices)
+
+        clique_list = create_clique_list_loc(
             new_lifter, use_known=USE_KNOWN, use_autotemplate=USE_AUTOTEMPLATE
         )
-        time_dict["t create cliques"] = time.time() - t1
-        time_dict["dim dSDP"] = clique_list[0].Q.shape[0]
-        time_dict["m dSDP"] = sum(len(c.A_list) for c in clique_list)
+        for c1, c2 in zip(clique_list_new, clique_list):
+            ii1, jj1 = c1.Q.nonzero()
+            ii2, jj2 = c2.Q.nonzero()
+            np.testing.assert_allclose(ii1, ii2)
+            np.testing.assert_allclose(jj1, jj2)
+            np.testing.assert_allclose(c1.Q.data, c2.Q.data)
+
+            for i, (A1, A2) in enumerate(zip(c1.A_list, c2.A_list)):
+                np.testing.assert_allclose(A1.toarray(), A2.toarray())
+
+        data_dict["t create cliques"] = time.time() - t1
+        data_dict["dim dSDP"] = clique_list[0].Q.shape[0]
+        data_dict["m dSDP"] = sum(len(c.A_list) for c in clique_list)
 
         if "dSDP" in USE_METHODS:
             print("solving dSDP...", end="")
@@ -81,11 +101,12 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                 use_fusion=True,
                 verbose=VERBOSE,
             )
-            time_dict["t dSDP"] = time.time() - t1
-            time_dict["cost dSDP"] = info["cost"]
+            data_dict["t dSDP"] = time.time() - t1
+            data_dict["cost dSDP"] = info["cost"]
 
             x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
-            time_dict["evr dSDP"] = evr_mean
+            data_dict["evr dSDP"] = evr_mean
+            print(f"cost dSDP: {info['cost']:.2f}")
 
         if "ADMM" in USE_METHODS:
             print("running ADMM...", end="")
@@ -108,11 +129,11 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                 tau_rho=2.0,
             )
             print(info["msg"], end="...")
-            time_dict["t ADMM"] = time.time() - t1
-            time_dict["cost ADMM"] = info["cost"]
+            data_dict["t ADMM"] = time.time() - t1
+            data_dict["cost ADMM"] = info["cost"]
 
             x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-            time_dict["evr ADMM"] = evr_mean
+            data_dict["evr ADMM"] = evr_mean
 
         if "SDP" in USE_METHODS:
             print("creating constraints...", end="")
@@ -131,11 +152,11 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                     Constraints = [(new_lifter.get_A0(), 1.0)] + [
                         (A, 0.0) for A in new_lifter.get_A_learned_simple()
                     ]
-            time_dict["t create constraints"] = time.time() - t1
+            data_dict["t create constraints"] = time.time() - t1
 
             if True:  # n_params <= 18:
-                time_dict["dim SDP"] = Q.shape[0]
-                time_dict["m SDP"] = len(Constraints)
+                data_dict["dim SDP"] = Q.shape[0]
+                data_dict["m SDP"] = len(Constraints)
 
                 print("solving SDP...", end="")
                 t1 = time.time()
@@ -146,13 +167,18 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                     primal=USE_PRIMAL,
                     use_fusion=USE_FUSION,
                 )
-                time_dict["t SDP"] = time.time() - t1
-                time_dict["cost SDP"] = info["cost"]
+                data_dict["t SDP"] = time.time() - t1
+                data_dict["cost SDP"] = info["cost"]
+                print(f"cost SDP: {info['cost']:.2f}")
 
                 x_SDP, info = rank_project(X, p=1)
-                time_dict["evr SDP"] = info["EVR"]
+                data_dict["evr SDP"] = info["EVR"]
+
+        # from ro_certs.generate_cliques import combine
+        # Q_test = combine(clique_list=clique_list)
+
         print("done.")
-        df_data.append(time_dict)
+        df_data.append(data_dict)
         if fname != "":
             df = pd.DataFrame(df_data)
             df.to_pickle(fname)
@@ -162,14 +188,18 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
 
 if __name__ == "__main__":
     np.random.seed(0)
-    lifter = MatWeightLocLifter(n_landmarks=10, n_poses=10)
+    lifter = RangeOnlyLocLifter(
+        n_landmarks=6, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
+    )
+    # lifter = MatWeightLocLifter(n_landmarks=10, n_poses=10)
     lifter.ALL_PAIRS = False
     lifter.CLIQUE_SIZE = 2
 
-    n_params_list = np.logspace(1, 6, 6).astype(int)
+    # n_params_list = np.logspace(1, 6, 6).astype(int)
     # n_params_list = np.logspace(1, 2, 10).astype(int)
-    fname = f"_results_laptop/{lifter}_time_dsdp.pkl"
-    overwrite = False
+    n_params_list = [10]
+    fname = f"_results_laptop/{lifter}_time.pkl"
+    overwrite = True
 
     try:
         assert overwrite is False

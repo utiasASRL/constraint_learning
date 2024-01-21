@@ -1,4 +1,5 @@
 import itertools
+from copy import deepcopy
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -167,7 +168,7 @@ class StateLifter(BaseClass):
     @property
     def theta(self):
         if self.theta_ is None:
-            self.theta_ = self.generate_random_theta()
+            self.theta_ = deepcopy(self.generate_random_theta())
         return self.theta_
 
     @property

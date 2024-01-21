@@ -362,11 +362,17 @@ def plot_aggregate_sparsity(mask):
     return fig, ax
 
 
-def matshow_list(*args):
+def matshow_list(*args, log=False, **kwargs):
     fig, axs = plt.subplots(1, len(args), squeeze=False)
     fig.set_size_inches(3 * len(args), 3)
     for i, arg in enumerate(args):
         try:
-            axs[0, i].matshow(arg)
+            if log:
+                axs[0, i].matshow(np.log10(np.abs(arg)), **kwargs)
+            else:
+                axs[0, i].matshow(arg, **kwargs)
         except Exception as e:
-            axs[0, i].matshow(arg.toarray())
+            if log:
+                axs[0, i].matshow(np.log10(np.abs(arg.toarray())), **kwargs)
+            else:
+                axs[0, i].matshow(arg.toarray(), **kwargs)

@@ -7,14 +7,13 @@ import numpy as np
 import pandas as pd
 
 from auto_template.learner import Learner
+from lifters.matweight_lifter import MatWeightLocLifter, MatWeightSLAMLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.wahba_lifter import WahbaLifter
-from lifters.matweight_lifter import MatWeightLocLifter
-from lifters.matweight_lifter import MatWeightSLAMLifter
 from utils.plotting_tools import savefig
 
 plot_dict = {
@@ -40,29 +39,30 @@ EARLY_STOP = False
 
 def create_newinstance(lifter, n_params, n_outliers=None):
     # TODO(FD): replace below with copy constructor
-    if type(lifter) == Stereo2DLifter:
+    if type(lifter) is Stereo2DLifter:
         new_lifter = Stereo2DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif type(lifter) == Stereo3DLifter:
+    elif type(lifter) is Stereo3DLifter:
         new_lifter = Stereo3DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif type(lifter) == RangeOnlyLocLifter:
+    elif type(lifter) is RangeOnlyLocLifter:
         new_lifter = RangeOnlyLocLifter(
             n_positions=n_params,
             n_landmarks=lifter.n_landmarks,
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
+            reg=lifter.reg,
         )
-    elif type(lifter) == MonoLifter:
+    elif type(lifter) is MonoLifter:
         new_lifter = MonoLifter(
             n_landmarks=n_params,
             robust=lifter.robust,
@@ -71,7 +71,7 @@ def create_newinstance(lifter, n_params, n_outliers=None):
             variable_list=None,
             n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
-    elif type(lifter) == WahbaLifter:
+    elif type(lifter) is WahbaLifter:
         new_lifter = WahbaLifter(
             n_landmarks=n_params,
             robust=lifter.robust,
@@ -80,7 +80,7 @@ def create_newinstance(lifter, n_params, n_outliers=None):
             variable_list=None,
             n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
-    elif type(lifter) == MatWeightLocLifter:
+    elif type(lifter) is MatWeightLocLifter:
         new_lifter = MatWeightLocLifter(
             n_poses=n_params,
             n_landmarks=lifter.n_landmarks,

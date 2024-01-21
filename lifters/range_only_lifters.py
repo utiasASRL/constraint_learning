@@ -1,3 +1,6 @@
+import itertools
+from copy import deepcopy
+
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
@@ -5,8 +8,9 @@ import scipy.sparse.linalg as spl
 from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
-from poly_matrix.least_squares_problem import LeastSquaresProblem
-from ro_certs.problem import Problem, Reg
+from poly_matrix import PolyMatrix
+from ro_certs.problem import Problem, Reg, generate_random_trajectory
+from utils.common import diag_indices
 
 plt.ion()
 
@@ -31,8 +35,15 @@ class RangeOnlyLocLifter(StateLifter):
     - level "quad" uses substitution z_i=[x_i^2, x_iy_i, y_i^2]
     """
 
+    VARIABLE_LIST = [
+        ["h", "x_0"],
+        ["h", "x_0", "z_0"],
+        ["h", "x_0", "z_0", "z_1"],
+        ["h", "x_0", "x_1", "z_0", "z_1"],
+    ]
+
     TIGHTNESS = "rank"
-    LEVELS = ["no", "quad"]
+    LEVELS = ["no", "dir", "quad"]
     LEVEL_NAMES = {
         "no": "$z_n$",
         "quad": "$\\boldsymbol{y}_n$",
@@ -66,33 +77,27 @@ class RangeOnlyLocLifter(StateLifter):
         variable_list=None,
         reg=Reg.NONE,
     ):
-        self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=reg)
         self.reg = reg
         self.Q_fixed = None
         self.times = None
-        self.k = self.prob.get_dim()
         self.d = d
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
-        if W is not None:
-            assert W.shape == (n_landmarks, n_positions)
-            self.W = W
-        else:
-            self.W = np.ones((n_positions, n_landmarks))
+        self.n_cliques = n_positions - 1
         self.y_ = None
 
         if variable_list == "all":
             variable_list = self.get_all_variables()
-        super().__init__(level=level, d=d, variable_list=variable_list)
 
-    @property
-    def VARIABLE_LIST(self):
-        return [
-            ["h", "x_0"],
-            ["h", "x_0", "z_0"],
-            ["h", "x_0", "z_0", "z_1"],
-            ["h", "x_0", "x_1", "z_0", "z_1"],
-        ]
+        super().__init__(level=level, d=d, variable_list=variable_list)
+        # dimension of primary variables
+        self.N = self.n_positions * self.k
+
+        # dimension of one substitution variable
+        self.size_z = 1 if self.level == "no" else int(self.d * (self.d + 1) / 2)
+
+        # dimension of substitution variables
+        self.M = int(self.n_positions * self.size_z)
 
     def get_all_variables(self):
         vars = ["h"]
@@ -102,19 +107,35 @@ class RangeOnlyLocLifter(StateLifter):
 
     def generate_random_setup(self):
         # self.prob.landmarks
-        self.prob.generate_random_anchors(trajectory=self.theta)
-        self.landmarks = self.prob.anchors
+        # self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=reg)
+        self.prob = Problem.generate_prob(
+            N=self.n_positions, K=self.n_landmarks, d=self.d, linear_anchors=True
+        )
+        self.k = self.prob.get_dim()
+        self.theta_ = deepcopy(self.prob.theta)
+        self.landmarks = deepcopy(self.prob.anchors)
+        self.trajectory = deepcopy(self.prob.trajectory)
+        # trajectory = self.theta.reshape(-1, self.k)
+        # self.prob.generate_random_anchors(trajectory=trajectory[:, : self.d])
+        # self.landmarks = self.prob.anchors
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
+        self.times = deepcopy(self.prob.times)
+        self.y_ = deepcopy(self.prob.D_noisy_sq)
 
     def generate_random_theta(self):
         times = sorted(
             np.random.uniform(low=0, high=self.n_positions - 1, size=self.n_positions)
         )
-        theta = self.prob.generate_random_theta(
-            sigma_acc_real=self.PRIOR_NOISE, fix_x0=False, fix_v0=False, times=times
+        trajectory, velocities = generate_random_trajectory(
+            self.n_positions,
+            self.d,
+            times=times,
+            v_sigma=self.PRIOR_NOISE,
+            return_velocities=True,
+            fix_x0=False,
+            fix_v0=False,
         )
-        if self.times is None:
-            self.times = times
+        theta = np.hstack([trajectory, velocities])
         return theta[:, : self.k].flatten()
 
     def get_parameters(self, var_subset=None):
@@ -140,8 +161,6 @@ class RangeOnlyLocLifter(StateLifter):
         return self.generate_random_theta()
 
     def get_A_known(self, var_dict=None, output_poly=False):
-        from poly_matrix.poly_matrix import PolyMatrix
-
         if var_dict is None:
             var_dict = self.var_dict
         positions = self.get_variable_indices(var_dict)
@@ -188,8 +207,6 @@ class RangeOnlyLocLifter(StateLifter):
             var_subset = self.var_dict
         if theta is None:
             theta = self.theta
-        if parameters is None:
-            parameters = self.parameters
 
         positions = theta.reshape(self.n_positions, self.k)
 
@@ -302,13 +319,15 @@ class RangeOnlyLocLifter(StateLifter):
         """
         x = self.get_x(theta=t)
         if self.Q_fixed is None:
-            self.Q_fixed = self.get_Q_from_y(y)
+            self.get_Q_from_y(y, save=True)
+
+        Q = self.Q_fixed
         if sub_idx is not None:
             sub_idx_x = self.get_sub_idx_x(sub_idx)
             x = x[sub_idx_x]
-            Q = self.Q_fixed[sub_idx_x, :][:, sub_idx]
+            Q = Q[sub_idx_x, :][:, sub_idx]
             return x.T @ Q @ x
-        return x.T @ self.Q_fixed @ x
+        return x.T @ Q @ x
 
         # old implementation -- removed to not duplicate code.
         residuals = self.get_residuals(t, y)
@@ -365,84 +384,96 @@ class RangeOnlyLocLifter(StateLifter):
             hess += 2 * factor * h
         return hess
 
-    def get_Q_from_y(self, y):
-        self.ls_problem = LeastSquaresProblem()
+    def get_Q_from_y(
+        self, y, use_cliques=None, output_poly=False, overlap_type=0, save=False
+    ):
+        if use_cliques is None:
+            use_cliques = range(self.n_positions)
 
         if self.level == "quad":
-            from utils.common import diag_indices
-
             diag_idx = diag_indices(self.d)
 
-        for n, k in zip(*np.where(self.W > 0)):
-            if self.W[n, k] > 0:
-                ak = np.zeros(self.k)
-                ak[: self.d] = self.landmarks[k]
-                if self.level == "no":
-                    self.ls_problem.add_residual(
-                        {
-                            "h": y[n, k] - np.linalg.norm(ak) ** 2,
-                            f"x_{n}": 2 * ak.reshape((1, -1)),
-                            f"z_{n}": -1,
-                        }
-                    )
-                elif self.level == "quad":
-                    mat = np.zeros((1, self.size_z))
-                    mat[0, diag_idx] = -1
-                    res_dict = {
-                        "h": y[n, k] - np.linalg.norm(ak) ** 2,
-                        f"x_{n}": 2 * ak.reshape((1, -1)),
-                        f"z_{n}": mat,
-                    }
-                    self.ls_problem.add_residual(res_dict)
+        Q_poly = PolyMatrix()
+        for n in use_cliques:
+            if (use_cliques is not None) and (n not in use_cliques):
+                continue
+            nnz = np.where(self.prob.W[:, n] > 0)[0]
 
-        Q_poly = self.ls_problem.get_Q()
+            # Create the cost terms corresponding to residual:
+            #              [h  ]
+            # [bn An fn] @ [x_n]
+            #              [z_n]
+            # which can be easily formed from (d_ij^2 - ||ai - xj||^2)
+            Q_sub = PolyMatrix()
+            An = np.zeros((len(nnz), self.k))
+            An[:, : self.d] = 2 * self.landmarks[nnz]
+            if self.level == "no":
+                fn = -np.ones((len(nnz), 1))
+            elif self.level == "quad":
+                fn = np.zeros((len(nnz), self.size_z))
+                fn[:, diag_idx] = -1
+            Sig_inv_n = self.prob.Sig_inv[nnz, :][:, nnz]
+            bn = y[nnz, n] - np.linalg.norm(self.landmarks[nnz], axis=1) ** 2
+            bn = bn.reshape(len(nnz), 1)
+            vars = ["h", f"x_{n}", f"z_{n}"]
+            residual = [bn, An, fn]
+            for i, j in itertools.combinations_with_replacement(range(3), 2):
+                Q_sub[vars[i], vars[j]] = residual[i].T @ Sig_inv_n @ residual[j]
+
+            if (overlap_type == 1) and (n > 0) and (n < self.n_positions - 1):
+                Q_poly += 0.5 * Q_sub
+            elif (
+                (overlap_type == 2)
+                and (n == use_cliques[1])
+                and (n != self.n_positions - 1)
+            ):
+                pass
+            elif (overlap_type == 3) and (n == use_cliques[0]) and (n > 0):
+                pass
+            else:
+                Q_poly += Q_sub
+
         if NORMALIZE:
-            Q_poly /= np.sum(self.W > 0)
+            Q_poly /= np.sum(self.prob.W > 0)
 
-            if self.reg != Reg.NONE:
-                for n in range(self.n_positions):
-                    Q_poly[f"x_{n}", f"x_{n}"] += self.prob.get_R_nn(n)
-                for n in range(1, self.n_positions):
-                    Q_poly[f"x_{n-1}", f"x_{n}"] += self.prob.get_R_nm(n)
+        if self.reg != Reg.NONE:
+            for n in use_cliques:
+                Q_sub = self.prob.get_R_nn(n)
+                if (overlap_type == 1) and (n > 0) and (n < self.n_positions - 1):
+                    Q_poly[f"x_{n}", f"x_{n}"] += Q_sub * 0.5
+                elif (
+                    (overlap_type == 2)
+                    and (n == use_cliques[1])
+                    and (n != self.n_positions - 1)
+                ):
+                    pass
+                elif (overlap_type == 3) and (n == use_cliques[0]) and (n > 0):
+                    pass
+                else:
+                    Q_poly[f"x_{n}", f"x_{n}"] += Q_sub
+
+            for n in range(1, self.n_positions):
+                if (n not in use_cliques) or (n - 1 not in use_cliques):
+                    continue
+                Q_poly[f"x_{n-1}", f"x_{n}"] += self.prob.get_R_nm(n)
+
+        if save:
+            self.Q_fixed = Q_poly.get_matrix(self.var_dict)
+
+        if output_poly:
+            return Q_poly
         return Q_poly.get_matrix(self.var_dict)
 
-    def simulate_y(self, noise: float = None):
-        # N x K matrix
-        if noise is None:
-            noise = NOISE
-        positions = self.theta.reshape(self.n_positions, self.k)
-        y_gt = (
-            np.linalg.norm(
-                self.landmarks[None, :, :] - positions[:, None, : self.d], axis=2
-            )
-            ** 2
-        )
-        return y_gt + np.random.normal(loc=0, scale=noise, size=y_gt.shape)
-
     def get_Q(self, noise: float = None) -> tuple:
-        if self.y_ is None:
-            self.y_ = self.simulate_y(noise=noise)
-        Q = self.get_Q_from_y(self.y_)
+        if self.Q_fixed is None:
+            self.get_Q_from_y(self.y_, save=True)
 
         # DEBUGGING
-        x = self.get_x()
-        cost1 = x.T @ Q @ x
-        cost3 = self.get_cost(self.theta, self.y_)
-        assert abs(cost1 - cost3) < 1e-10
-        return Q, self.y_
-
-    # TODO(FD) remove this if unused.
-    def get_D(self, that):
-        raise ValueError("not adapted yet, cause probably not used anymore")
-        D = np.eye(1 + self.n_positions * self.d + self.size_z)
-        x = self.get_x(theta=that)
-        J = self.get_J_lifting(t=that)
-
-        D = sp.lil_array((len(x), len(x)))
-        D[range(len(x)), range(len(x))] = 1.0
-        D[:, 0] = x
-        D[-J.shape[0] :, 1 : 1 + J.shape[1]] = J
-        return D.tocsc()
+        x = self.get_x(theta=self.theta)
+        cost1 = x.T @ self.Q_fixed @ x
+        cost3 = self.get_cost(t=self.theta, y=self.y_)
+        assert abs(cost1 - cost3) < 1e-10, (cost1, cost3)
+        return self.Q_fixed, self.y_
 
     def get_sub_idx_x(self, sub_idx, add_z=True):
         sub_idx_x = [0]
@@ -496,7 +527,6 @@ class RangeOnlyLocLifter(StateLifter):
         info["success"] = sol.success
         info["msg"] = sol.message + f" (# iterations: {sol.nit})"
         if sol.success:
-            print("RangeOnly local solver:", sol.nit)
             that = sol.x
             rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
             assert abs(rel_error) < 1e-10, rel_error
@@ -522,23 +552,54 @@ class RangeOnlyLocLifter(StateLifter):
             var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
         return var_dict
 
-    @property
-    def size_z(self):
-        if self.level == "no":
-            return self.d
-        else:
-            return int(self.d * (self.d + 1) / 2)
+    # clique stuff
+    def base_size(self):
+        return self.var_dict["h"]
 
-    @property
-    def N(self):
-        return self.n_positions * self.k
+    def node_size(self):
+        return self.var_dict["x_0"] + self.var_dict["z_0"]
 
-    @property
-    def M(self):
-        if self.level == "no":
-            return self.n_positions
-        elif self.level == "quad":
-            return int(self.n_positions * self.d * (self.d + 1) / 2)
+    def get_clique_vars_ij(self, *args):
+        var_dict = {"h": self.var_dict["h"]}
+        for i in args:
+            var_dict.update(
+                {
+                    f"x_{i}": self.var_dict[f"x_{i}"],
+                    f"z_{i}": self.var_dict[f"z_{i}"],
+                }
+            )
+        return var_dict
+
+    def get_clique_vars(self, i, n_overlap=0):
+        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_poses)))
+        vars = {"h": self.var_dict["h"]}
+        for j in used_landmarks:
+            vars.update(
+                {
+                    f"x_{j}": self.var_dict[f"x_{j}"],
+                    f"z_{j}": self.var_dict[f"z_{j}"],
+                }
+            )
+        return vars
+
+    def get_clique_cost(self, i):
+        """
+        All elements with an * need to be halved because they appear in
+        multiple cliques.
+
+           h  | x1 z1 | x2 z2 | x3 z3 | ...
+        h       q1    | q2*   | q3*
+        x1      Q_11  | Q_12  | ...
+        z1
+        x2              Q_22* | Q_23  |
+        z2
+        x3                      Q_33* | Q_34
+        """
+        # returns clique x1, x2
+        Q = self.get_Q_from_y(
+            self.y_, use_cliques=[i, i + 1], overlap_type=1, output_poly=True
+        )
+        return Q
 
     def __repr__(self):
         if self.reg is not Reg.NONE:

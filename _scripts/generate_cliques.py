@@ -5,9 +5,9 @@ import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
 from cert_tools.admm_clique import ADMMClique, initialize_overlap
-from cert_tools.base_clique import BaseClique
 
 from lifters.matweight_lifter import MatWeightLocLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
 from poly_matrix import PolyMatrix
@@ -15,18 +15,7 @@ from utils.constraint import remove_dependent_constraints
 
 DEBUG = True
 USE_KNOWN = False
-USE_AUTOTEMPLATE = True
-
-
-def matshow(*args):
-    fig, ax = plt.subplots(1, len(args), squeeze=False)
-    fig.set_size_inches(3, 3 * len(args))
-    for i, arg in enumerate(args):
-        try:
-            ax[0, i].matshow(np.log10(np.abs(arg)))
-        except:
-            ax[0, i].matshow(np.log10(np.abs(arg.toarray())))
-    return
+USE_AUTOTEMPLATE = False
 
 
 def create_clique_list(
@@ -216,8 +205,9 @@ def create_clique_list(
     return clique_list
 
 
-def create_clique_list_slam(
-    lifter: MatWeightLocLifter,
+def create_clique_list_loc(
+    # lifter: MatWeightLocLifter,
+    lifter: RangeOnlyLocLifter,
     use_known=USE_KNOWN,
     use_autotemplate=USE_AUTOTEMPLATE,
     verbose=False,
@@ -244,11 +234,11 @@ def create_clique_list_slam(
     cost_total = 0
 
     if DEBUG:
-        Q_test = PolyMatrix()
+        Q_test = PolyMatrix(symmetric=True)
 
     # create the list of variables
     clique_vars = []
-    for i in range(lifter.n_poses - 1):
+    for i in range(lifter.n_cliques):
         vars = lifter.get_clique_vars_ij(i, i + 1)
         clique_vars.append(vars)
 
@@ -257,16 +247,6 @@ def create_clique_list_slam(
     cost_total = 0
     for i in range(m):
         var_dict = clique_vars[i]
-        Q_clique = lifter.prob.generate_cost(
-            use_nodes=[f"x_{i}", f"x_{i+1}"],
-            overlaps={f"x_{i}": 0.5 for i in range(1, lifter.n_poses - 1)},
-        )
-
-        if DEBUG:
-            Q_test += Q_clique
-
-        x = lifter.get_x(var_subset=var_dict)
-        X_sub = np.outer(x, x)
 
         if recreate_A_list or (len(A_list) == 0):
             if use_autotemplate:
@@ -292,13 +272,16 @@ def create_clique_list_slam(
                     f"number of total constraints: known {len(A_list) - len(A_learned)}"
                     + f" + learned {len(A_learned)} = {len(A_list)}"
                 )
+        Qi = lifter.get_clique_cost(i)
+        if DEBUG:
+            Q_test += Qi
+        x = lifter.get_x(var_subset=var_dict)
+        X_sub = np.outer(x, x)
 
         # A_agg = np.sum([np.abs(A) > 1e-10 for A in A_list])
         # plt.matshow(A_agg.toarray())
         b_list = [1.0] + [0] * (len(A_list) - 1)
-        Qi = Q_clique.get_matrix(
-            list(var_dict.keys())
-        )  # use keys() to make sure we through an error if element is missing.
+        Qi = Qi.get_matrix(var_dict)
         x_dim = lifter.node_size()
         clique = ADMMClique(
             Qi,
@@ -309,7 +292,7 @@ def create_clique_list_slam(
             index=i,
             x_dim=x_dim,
             hom="h",
-            N=lifter.n_poses,
+            N=lifter.n_cliques + 1,
         )
         clique_list.append(clique)
         if DEBUG:
@@ -318,6 +301,7 @@ def create_clique_list_slam(
                 err = abs(x.T @ A @ x - b)
                 assert err < 1e-6, f"constraint {i}: {err}"
             cost_total += x.T @ clique.Q @ x
+
     initialize_overlap(clique_list)
 
     if DEBUG:

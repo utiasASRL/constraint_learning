@@ -27,6 +27,7 @@ class MatWeightLifter(StateLifter):
 
         self.n_landmarks = prob.Nm
         self.n_poses = prob.Np
+        self.n_cliques = self.n_poses - 1
         super().__init__(d=3, **kwargs)
 
     @property
@@ -237,6 +238,12 @@ class MatWeightLifter(StateLifter):
                 }
             )
         return vars
+
+    def get_clique_cost(self, i):
+        return self.prob.generate_cost(
+            use_nodes=[f"x_{i}", f"x_{i+1}"],
+            overlaps={f"x_{i}": 0.5 for i in range(1, self.n_cliques)},
+        )
 
 
 class MatWeightSLAMLifter(MatWeightLifter):

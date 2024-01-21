@@ -104,8 +104,9 @@ def visualize_clique_list(clique_list, symmetric=True, fname=""):
 
 
 def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
-    # from _scripts.run_by_cliques_bkp import run_by_clique
-    from _scripts.generate_cliques import create_clique_list, create_clique_list_slam
+    # this is used for robust SLAM problems and stereoproblems.
+    # this is used for localization problems.
+    from _scripts.generate_cliques import create_clique_list, create_clique_list_loc
 
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()
@@ -118,7 +119,7 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
     for overlap in overlap_params:
         print("creating cliques...", end="")
         # clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
-        clique_list = create_clique_list_slam(lifter, use_known=USE_KNOWN)
+        clique_list = create_clique_list_loc(lifter, use_known=USE_KNOWN)
         visualize_clique_list(
             clique_list,
             fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
