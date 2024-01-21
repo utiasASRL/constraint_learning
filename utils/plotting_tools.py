@@ -1,11 +1,14 @@
 import os
+
 import numpy as np
+
 from poly_matrix.poly_matrix import PolyMatrix
 
 
 def import_plt():
-    import matplotlib.pylab as plt
     import shutil
+
+    import matplotlib.pylab as plt
 
     usetex = True if shutil.which("latex") else False
     plt.rcParams.update(
@@ -64,8 +67,8 @@ def add_scalebar(
     :param size_vertical: height (thckness) of the bar
     :param loc: location (same syntax as for matplotlib legend)
     """
-    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
     import matplotlib.font_manager as fm
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
     fontprops = fm.FontProperties(size=fontsize)
     scalebar = AnchoredSizeBar(
@@ -357,3 +360,13 @@ def plot_aggregate_sparsity(mask):
     ax.matshow(mask.toarray())
     plt.show(block=False)
     return fig, ax
+
+
+def matshow_list(*args):
+    fig, axs = plt.subplots(1, len(args), squeeze=False)
+    fig.set_size_inches(3 * len(args), 3)
+    for i, arg in enumerate(args):
+        try:
+            axs[0, i].matshow(arg)
+        except Exception as e:
+            axs[0, i].matshow(arg.toarray())

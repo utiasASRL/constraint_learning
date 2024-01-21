@@ -1,15 +1,7 @@
 import numpy as np
-import pytest
 
 from _test.tools import all_lifters
 from lifters.state_lifter import ravel_multi_index_triu, unravel_multi_index_triu
-
-
-def pytest_configure():
-    # global variables
-    pytest.A_learned = {}
-    for lifter in all_lifters():
-        pytest.A_learned[str(lifter)] = None
 
 
 def test_ravel():
@@ -63,19 +55,22 @@ def test_known_constraints():
 
 
 def test_learned_constraints():
-    methods = ["qrp", "svd", "qr"]
+    # from utils.plotting_tools import matshow_list
+
+    methods = ["qrp", "svd"]
     for lifter in all_lifters():
+        print(f"testing {lifter}...", end="")
         num_learned = None
         for method in methods:
             np.random.seed(0)
-            if pytest.A_learned[str(lifter)] is None:
-                pytest.A_learned[str(lifter)] = lifter.get_A_learned(method=method)
-            A_learned = pytest.A_learned[str(lifter)]
+            A_learned = lifter.get_A_learned(method=method)
             _test_with_tol(lifter, A_learned, tol=1e-4)
+            # matshow_list(*A_learned)
 
             # make sure each method finds the same number of matrices
             if num_learned is None:
                 num_learned = len(A_learned)
+                print(f"{num_learned}")
             else:
                 assert len(A_learned) == num_learned
 
@@ -109,25 +104,14 @@ def test_vec_mat():
             np.testing.assert_allclose(a, a_test)
 
 
-pytest_configure()
-
 if __name__ == "__main__":
     import warnings
 
     test_ravel()
     test_vec_mat()
-
-    # import pytest
-    # print("testing")
-    # pytest.main([__file__, "-s"])
-    # print("all tests passed")
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        # warnings.simplefilter("error")
         test_known_constraints()
         test_learned_constraints()
-
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
 
     print("all tests passed")

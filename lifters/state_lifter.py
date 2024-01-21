@@ -779,6 +779,7 @@ class StateLifter(BaseClass):
         dim_Y = self.get_dim_Y(var_subset)
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
+
         for seed in range(n_seeds):
             np.random.seed(seed)
 
@@ -844,9 +845,6 @@ class StateLifter(BaseClass):
                 ]
             )
             Y = np.vstack([Y, A])
-
-        if method != "qrp":
-            print("using a method other than qrp is not recommended.")
 
         basis, info = get_nullspace(Y, method=method, tolerance=self.EPS_SVD)
 

@@ -5,6 +5,7 @@ from _test.tools import all_lifters
 from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.poly_lifters import PolyLifter
+from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
 from utils.geometry import get_xtheta_from_theta
 
@@ -43,6 +44,7 @@ def test_hess_finite_diff():
                 abs_error = np.abs(hess_est - hess[i, :])
                 errors_mat[i, :] = np.maximum(abs_error, errors_mat[i, :])
                 max_err = max(np.max(abs_error), max_err)
+                print(f"max error for element {i}: {np.max(abs_error)}")
             errors.append(max_err)
 
         try:
@@ -140,9 +142,10 @@ def test_cost(noise=0.0):
 
         if (
             noise == 0
-            and not isinstance(lifter, PolyLifter)
-            and not lifter.robust
-            and not isinstance(lifter, MatWeightLifter)
+            and not isinstance(lifter, PolyLifter)  # not zero minimum.
+            and not lifter.robust  # has outlier cost
+            and not isinstance(lifter, MatWeightLifter)  # has motion prior
+            and not isinstance(lifter, RangeOnlyLocLifter)  # has motion prior
         ):
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
@@ -174,9 +177,10 @@ def test_solvers(n_seeds=1, noise=0.0):
             except NotImplementedError:
                 print("local solver not implemented yet.")
                 continue
-            if noise == 0:
+            if noise == 0 and not (
+                isinstance(lifter, RangeOnlyLocLifter) and lifter.PRIOR_NOISE > 0
+            ):
                 # test that solution is ground truth with no noise
-
                 if type(theta_gt) is dict:
                     for i in range(lifter.n_poses):
                         val_hat = theta_hat[f"xT0_{i}"]
@@ -323,13 +327,8 @@ def compare_solvers():
 if __name__ == "__main__":
     import warnings
 
-    # import pytest
-    # print("testing")
-    # pytest.main([__file__, "-s"])
-    # print("all tests passed")
-
     with warnings.catch_warnings():
-        # warnings.simplefilter("error")
+        warnings.simplefilter("ignore")  # set to error to catch warnings
         test_cost()
         test_cost_noisy()
         test_solvers()
@@ -338,8 +337,6 @@ if __name__ == "__main__":
         test_grad_finite_diff()
         test_hess_finite_diff()
 
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
         compare_solvers()
 
     print("all tests passed")

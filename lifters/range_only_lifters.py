@@ -1,6 +1,7 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
+import scipy.sparse.linalg as spl
 from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
@@ -16,13 +17,11 @@ NORMALIZE = True
 
 # TODO(FD): parameters below are not all equivalent.
 SOLVER_KWARGS = {
-    "BFGS": dict(gtol=1e-6),  # xtol=1e-10),  # relative step size
-    "Nelder-Mead": dict(xatol=1e-10),  # absolute step size
-    "Powell": dict(ftol=1e-6, xtol=1e-10),
-    "TNC": dict(gtol=1e-6, xtol=1e-10),
+    "BFGS": dict(gtol=1e-6, maxiter=200),  # xtol=1e-10),  # relative step size
+    "Nelder-Mead": dict(xatol=1e-10, maxiter=200),  # absolute step size
+    "Powell": dict(ftol=1e-6, xtol=1e-10, maxiter=200),
+    "TNC": dict(gtol=1e-6, xtol=1e-10, maxiter=200),
 }
-
-REG = Reg.CONSTANT_VELOCITY
 
 
 class RangeOnlyLocLifter(StateLifter):
@@ -37,7 +36,9 @@ class RangeOnlyLocLifter(StateLifter):
     LEVEL_NAMES = {
         "no": "$z_n$",
         "quad": "$\\boldsymbol{y}_n$",
+        "dir": "$\\boldsymbol{n}_n$",
     }
+    PRIOR_NOISE = 0.2
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth."""
@@ -56,9 +57,19 @@ class RangeOnlyLocLifter(StateLifter):
             return theta.flatten()
 
     def __init__(
-        self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None
+        self,
+        n_positions,
+        n_landmarks,
+        d,
+        W=None,
+        level="no",
+        variable_list=None,
+        reg=Reg.NONE,
     ):
-        self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=REG)
+        self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=reg)
+        self.reg = reg
+        self.Q_fixed = None
+        self.times = None
         self.k = self.prob.get_dim()
         self.d = d
         self.n_positions = n_positions
@@ -94,11 +105,17 @@ class RangeOnlyLocLifter(StateLifter):
         self.prob.generate_random_anchors(trajectory=self.theta)
         self.landmarks = self.prob.anchors
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
-        self.prob.setup_gp()
 
     def generate_random_theta(self):
-        theta = self.prob.generate_random_theta()
-        return theta[: self.k]
+        times = sorted(
+            np.random.uniform(low=0, high=self.n_positions - 1, size=self.n_positions)
+        )
+        theta = self.prob.generate_random_theta(
+            sigma_acc_real=self.PRIOR_NOISE, fix_x0=False, fix_v0=False, times=times
+        )
+        if self.times is None:
+            self.times = times
+        return theta[:, : self.k].flatten()
 
     def get_parameters(self, var_subset=None):
         if var_subset is None:
@@ -262,18 +279,19 @@ class RangeOnlyLocLifter(StateLifter):
                 np.array([[0, 0, 0], [0, 0, 0], [0, 0, 2]]),
             ]
 
+    def get_B_matrix(self, y):
+        Q = self.get_Q_from_y(y)
+        S, U = spl.eigsh(Q)
+        return np.diag(np.sqrt(S)) @ U.T
+
     def get_residuals(self, t, y):
-        positions = t.reshape((-1, self.k))
-        y_current = (
-            np.linalg.norm(
-                self.landmarks[None, :, :] - positions[:, None, : self.d], axis=2
-            )
-            ** 2
-        )
-        return self.W * (y - y_current)
+        x = self.get_x(theta=t)
+        B = self.get_B_matrix(y)
+        return B @ x
 
     def get_residuals_prior(self):
-        return self.prob.A_inv @ self.theta + self.prob.v
+        assert self.prob.v.nnz == 0, "non-zero v not supported currently."
+        return self.prob.A_inv @ self.theta.flatten()
 
     def get_cost(self, t, y, sub_idx=None):
         """
@@ -282,17 +300,28 @@ class RangeOnlyLocLifter(StateLifter):
         :param t: flattened positions of length Nk
         :param y: N x K distance measurements
         """
+        x = self.get_x(theta=t)
+        if self.Q_fixed is None:
+            self.Q_fixed = self.get_Q_from_y(y)
+        if sub_idx is not None:
+            sub_idx_x = self.get_sub_idx_x(sub_idx)
+            x = x[sub_idx_x]
+            Q = self.Q_fixed[sub_idx_x, :][:, sub_idx]
+            return x.T @ Q @ x
+        return x.T @ self.Q_fixed @ x
+
+        # old implementation -- removed to not duplicate code.
         residuals = self.get_residuals(t, y)
         if sub_idx is None:
             cost = np.sum(residuals**2)
         else:
             cost = np.sum(residuals[sub_idx] ** 2)
         if NORMALIZE:
-            return cost / np.sum(self.W > 0)
+            cost /= np.sum(self.W > 0)
 
-        if REG != Reg.NONE:
+        if self.REG != Reg.NONE:
             prior_cost = np.sum(self.get_residuals_prior())
-            cost += prior_cost / self.n_positions
+            cost += prior_cost
         return cost
 
     def get_grad(self, t, y, sub_idx=None):
@@ -318,13 +347,17 @@ class RangeOnlyLocLifter(StateLifter):
 
     def get_hess(self, t, y):
         """Hessian of cost w.r.t. theta"""
+
         x = self.get_x(t)
         Q = self.get_Q_from_y(y)
         J = self.get_J(t, y)
         hess = 2 * J.T @ Q @ J
 
+        # TODO(FD) currently this is not consistent with the new added regularization.
+        # but we are not using the Hessian anyways so it doesn't matter for now.
+        raise NotImplementedError("hessian not adjusted yet")
         hessians = self.get_hess_lifting(t)
-        B = self.ls_problem.get_B_matrix(self.var_dict)
+        B = self.get_B_matrix(y)
         residuals = B @ x
         for m, h in enumerate(hessians):
             bm_tilde = B[:, -self.M + m]
@@ -362,13 +395,16 @@ class RangeOnlyLocLifter(StateLifter):
                     }
                     self.ls_problem.add_residual(res_dict)
 
-        Q = self.ls_problem.get_Q().get_matrix(self.var_dict)
+        Q_poly = self.ls_problem.get_Q()
         if NORMALIZE:
-            Q /= np.sum(self.W > 0)
-            Q += self.prob.K_inv / self.n_positions
-        else:
-            Q += self.prob.K_inv
-        return Q
+            Q_poly /= np.sum(self.W > 0)
+
+            if self.reg != Reg.NONE:
+                for n in range(self.n_positions):
+                    Q_poly[f"x_{n}", f"x_{n}"] += self.prob.get_R_nn(n)
+                for n in range(1, self.n_positions):
+                    Q_poly[f"x_{n-1}", f"x_{n}"] += self.prob.get_R_nm(n)
+        return Q_poly.get_matrix(self.var_dict)
 
     def simulate_y(self, noise: float = None):
         # N x K matrix
@@ -397,7 +433,7 @@ class RangeOnlyLocLifter(StateLifter):
 
     # TODO(FD) remove this if unused.
     def get_D(self, that):
-        raise ValueError("not adapted yet")
+        raise ValueError("not adapted yet, cause probably not used anymore")
         D = np.eye(1 + self.n_positions * self.d + self.size_z)
         x = self.get_x(theta=that)
         J = self.get_J_lifting(t=that)
@@ -420,9 +456,6 @@ class RangeOnlyLocLifter(StateLifter):
                 for i in range(self.size_z)
             ]
         return sub_idx_x
-
-    def get_theta(self, x):
-        return x[1 : self.d + 1]
 
     def get_position(self, theta=None, xtheta=None):
         if theta is not None:
@@ -461,7 +494,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         info = {}
         info["success"] = sol.success
-        info["msg"] = sol.message + f"(# iterations: {sol.nit})"
+        info["msg"] = sol.message + f" (# iterations: {sol.nit})"
         if sol.success:
             print("RangeOnly local solver:", sol.nit)
             that = sol.x
@@ -470,9 +503,9 @@ class RangeOnlyLocLifter(StateLifter):
             residuals = self.get_residuals(that, y)
             cost = sol.fun
             info["max res"] = np.max(np.abs(residuals))
-            hess = self.get_hess(that, y)
-            eigs = np.linalg.eigvalsh(hess.toarray())
-            info["cond Hess"] = eigs[-1] / eigs[0]
+            # hess = self.get_hess(that, y)
+            # eigs = np.linalg.eigvalsh(hess.toarray())
+            # info["cond Hess"] = eigs[-1] / eigs[0]
         else:
             that = cost = None
             info["max res"] = None
@@ -508,6 +541,11 @@ class RangeOnlyLocLifter(StateLifter):
             return int(self.n_positions * self.d * (self.d + 1) / 2)
 
     def __repr__(self):
+        if self.reg is not Reg.NONE:
+            if self.reg == Reg.CONSTANT_VELOCITY:
+                return f"rangeonlyloc{self.d}d_{self.level}_const-vel"
+            else:
+                return f"rangeonlyloc{self.d}d_{self.level}_zero-vel"
         return f"rangeonlyloc{self.d}d_{self.level}"
 
 

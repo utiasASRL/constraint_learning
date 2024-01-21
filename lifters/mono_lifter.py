@@ -1,8 +1,5 @@
 from copy import deepcopy
 
-import matplotlib
-import matplotlib.pylab as plt
-
 import autograd.numpy as np
 
 from lifters.robust_pose_lifter import RobustPoseLifter
