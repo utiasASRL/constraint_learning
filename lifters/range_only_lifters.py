@@ -54,6 +54,9 @@ class RangeOnlyLocLifter(StateLifter):
     }
     PRIOR_NOISE = 0.2
 
+    ADMM_OPTIONS = dict(use_fusion=True, maxiter=20, early_stop=False, rho_start=1e2)
+    ADMM_INIT_XHAT = False
+
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth."""
         if delta == 0:

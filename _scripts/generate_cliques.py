@@ -314,10 +314,11 @@ def create_clique_list_loc(
         assert abs(cost_test - cost_total) / cost_total < 1e-5, (cost_test, cost_total)
 
         for i, clique in enumerate(clique_list):
+            assert isinstance(clique, ADMMClique)
             left = clique_list[i - 1].X if i > 0 else None
             right = clique_list[i + 1].X if i < len(clique_list) - 1 else None
-            clique.generate_g(left=left, right=right)
-            error = clique.evaluate_F(clique.X)
+            g = clique.generate_g(left=left, right=right)
+            error = clique.F @ clique.X.flatten() - g
             np.testing.assert_allclose(error, 0)
 
     return clique_list

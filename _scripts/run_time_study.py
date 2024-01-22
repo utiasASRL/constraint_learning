@@ -30,9 +30,12 @@ USE_FUSION = True
 VERBOSE = False
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["dSDP", "SDP"]
+USE_METHODS = ["dSDP", "ADMM"]
+# USE_METHODS = ["dSDP", "SDP"]
 
 DEBUG = False
+TOL_SDP = 1e-10
+TOL_DSDP = 1e-5
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
@@ -101,47 +104,42 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                 use_primal=True,
                 use_fusion=True,
                 verbose=VERBOSE,
+                tol=TOL_DSDP,
             )
             data_dict["t dSDP"] = time.time() - t1
             data_dict["cost dSDP"] = info["cost"]
             print(f"cost dSDP: {info['cost']:.2f}")
 
-            if info["success"]:
+            try:
                 x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
                 data_dict["evr dSDP"] = evr_mean
-            else:
-                print("Warning: dSDP didn't solve")
+            except:
+                print("Could not extract solution")
 
         if "ADMM" in USE_METHODS:
             print("running ADMM...", end="")
-            t1 = time.time()
-            # X0 = []
-            # for c in clique_list:
-            #     x_clique = new_lifter.get_x(theta=theta_est, var_subset=c.var_dict)
-            #     X0.append(np.outer(x_clique, x_clique))
-            X0 = None
+            if lifter.ADMM_INIT_XHAT:
+                X0 = []
+                for c in clique_list:
+                    x_clique = new_lifter.get_x(theta=theta_est, var_subset=c.var_dict)
+                    X0.append(np.outer(x_clique, x_clique))
+            else:
+                X0 = None
             print("target", info["cost"])
+            t1 = time.time()
             X_list, info = solve_alternating(
-                clique_list,
-                X0=X0,
-                use_fusion=False,
-                rho_start=1e4,
-                verbose=True,
-                early_stop=False,
-                max_iter=10,
-                mu_rho=2.0,
-                tau_rho=2.0,
+                clique_list, X0=X0, verbose=True, **lifter.ADMM_OPTIONS
             )
-            print(info["msg"], end="...")
             data_dict["t ADMM"] = time.time() - t1
+            print(info["msg"], end="...")
             data_dict["cost ADMM"] = info["cost"]
             print(f"cost ADMM: {info['cost']:.2f}")
 
-            if info["success"]:
+            try:
                 x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
                 data_dict["evr ADMM"] = evr_mean
-            else:
-                print("Warning: ADMM didn't solve")
+            except:
+                print("Warning: could not extract solution")
 
         if "SDP" in USE_METHODS:
             print("creating constraints...", end="")
@@ -174,16 +172,17 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                     adjust=ADJUST,
                     primal=USE_PRIMAL,
                     use_fusion=USE_FUSION,
+                    tol=TOL_SDP,
                 )
                 data_dict["t SDP"] = time.time() - t1
                 data_dict["cost SDP"] = info["cost"]
                 print(f"cost SDP: {info['cost']:.2f}")
 
-                if info["success"]:
+                try:
                     x_SDP, info = rank_project(X, p=1)
                     data_dict["evr SDP"] = info["EVR"]
-                else:
-                    print("Warning: SDP didn't solve")
+                except:
+                    print("Could not extract solution")
 
         # from ro_certs.generate_cliques import combine
         # Q_test = combine(clique_list=clique_list)
@@ -200,20 +199,25 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
 if __name__ == "__main__":
     np.random.seed(0)
 
-    n_params_list = np.logspace(1, 2, 10).astype(int)
+    # n_params_list = np.logspace(1, 2, 10).astype(int)
+    # appendix = "time"
+
+    n_params_list = np.logspace(1, 3, 3).astype(int)
+    appendix = "large"
+
+    # n_params_list = [10, 20]
+    # appendix = "test"
+    overwrite = False
 
     lifter_ro = RangeOnlyLocLifter(
-        n_landmarks=6, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
+        n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
-    lifter_mat = MatWeightLocLifter(n_landmarks=10, n_poses=10)
-    for lifter in [lifter_mat]:  # [lifter_ro, lifter_mat]:
+    lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
+    for lifter in [lifter_ro, lifter_mat]:
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
-        # n_params_list = np.logspace(1, 6, 6).astype(int)
-        # n_params_list = [10]
-        fname = f"_results_laptop/{lifter}_time.pkl"
-        overwrite = True
+        fname = f"_results_laptop/{lifter}_{appendix}.pkl"
 
         try:
             assert overwrite is False

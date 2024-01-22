@@ -19,6 +19,14 @@ class MatWeightLifter(StateLifter):
             ]
         )
 
+    ADMM_OPTIONS = dict(
+        early_stop=False,
+        maxiter=2,
+        use_fusion=True,  # was False
+        rho_start=1e2,
+    )
+    ADMM_INIT_XHAT = False
+
     def __init__(self, prob: SLAMProblem = None, **kwargs):
         self.Q_poly = None
         self.prob = prob
