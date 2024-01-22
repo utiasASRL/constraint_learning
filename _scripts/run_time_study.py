@@ -32,6 +32,8 @@ VERBOSE = False
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 USE_METHODS = ["dSDP", "SDP"]
 
+DEBUG = False
+
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
     x_dim = lifter.node_size()
@@ -60,7 +62,7 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
 
         theta_gt = new_lifter.get_vec_around_gt(delta=0)
 
-        # print("solving local...", end="")
+        print("solving local...", end="")
         t1 = time.time()
         theta_est, info, cost = new_lifter.local_solver(theta_gt, new_lifter.y_)
         data_dict["t local"] = time.time() - t1
@@ -72,21 +74,20 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
         print("creating cliques...", end="")
         t1 = time.time()
 
-        cost_matrices = get_cost_matrices(new_lifter.prob)
-        clique_list_new = generate_clique_list(new_lifter.prob, cost_matrices)
-
         clique_list = create_clique_list_loc(
             new_lifter, use_known=USE_KNOWN, use_autotemplate=USE_AUTOTEMPLATE
         )
-        for c1, c2 in zip(clique_list_new, clique_list):
-            ii1, jj1 = c1.Q.nonzero()
-            ii2, jj2 = c2.Q.nonzero()
-            np.testing.assert_allclose(ii1, ii2)
-            np.testing.assert_allclose(jj1, jj2)
-            np.testing.assert_allclose(c1.Q.data, c2.Q.data)
-
-            for i, (A1, A2) in enumerate(zip(c1.A_list, c2.A_list)):
-                np.testing.assert_allclose(A1.toarray(), A2.toarray())
+        if isinstance(new_lifter, RangeOnlyLocLifter) and DEBUG:
+            cost_matrices = get_cost_matrices(new_lifter.prob)
+            clique_list_new = generate_clique_list(new_lifter.prob, cost_matrices)
+            for c1, c2 in zip(clique_list_new, clique_list):
+                ii1, jj1 = c1.Q.nonzero()
+                ii2, jj2 = c2.Q.nonzero()
+                np.testing.assert_allclose(ii1, ii2)
+                np.testing.assert_allclose(jj1, jj2)
+                np.testing.assert_allclose(c1.Q.data, c2.Q.data)
+                for i, (A1, A2) in enumerate(zip(c1.A_list, c2.A_list)):
+                    np.testing.assert_allclose(A1.toarray(), A2.toarray())
 
         data_dict["t create cliques"] = time.time() - t1
         data_dict["dim dSDP"] = clique_list[0].Q.shape[0]
@@ -103,10 +104,13 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
             )
             data_dict["t dSDP"] = time.time() - t1
             data_dict["cost dSDP"] = info["cost"]
-
-            x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
-            data_dict["evr dSDP"] = evr_mean
             print(f"cost dSDP: {info['cost']:.2f}")
+
+            if info["success"]:
+                x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
+                data_dict["evr dSDP"] = evr_mean
+            else:
+                print("Warning: dSDP didn't solve")
 
         if "ADMM" in USE_METHODS:
             print("running ADMM...", end="")
@@ -131,9 +135,13 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
             print(info["msg"], end="...")
             data_dict["t ADMM"] = time.time() - t1
             data_dict["cost ADMM"] = info["cost"]
+            print(f"cost ADMM: {info['cost']:.2f}")
 
-            x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-            data_dict["evr ADMM"] = evr_mean
+            if info["success"]:
+                x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+                data_dict["evr ADMM"] = evr_mean
+            else:
+                print("Warning: ADMM didn't solve")
 
         if "SDP" in USE_METHODS:
             print("creating constraints...", end="")
@@ -171,8 +179,11 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
                 data_dict["cost SDP"] = info["cost"]
                 print(f"cost SDP: {info['cost']:.2f}")
 
-                x_SDP, info = rank_project(X, p=1)
-                data_dict["evr SDP"] = info["EVR"]
+                if info["success"]:
+                    x_SDP, info = rank_project(X, p=1)
+                    data_dict["evr SDP"] = info["EVR"]
+                else:
+                    print("Warning: SDP didn't solve")
 
         # from ro_certs.generate_cliques import combine
         # Q_test = combine(clique_list=clique_list)
@@ -188,57 +199,60 @@ def generate_results(lifter: MatWeightLocLifter, n_params_list=[10], fname=""):
 
 if __name__ == "__main__":
     np.random.seed(0)
-    lifter = RangeOnlyLocLifter(
+
+    n_params_list = np.logspace(1, 2, 10).astype(int)
+
+    lifter_ro = RangeOnlyLocLifter(
         n_landmarks=6, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
-    # lifter = MatWeightLocLifter(n_landmarks=10, n_poses=10)
-    lifter.ALL_PAIRS = False
-    lifter.CLIQUE_SIZE = 2
+    lifter_mat = MatWeightLocLifter(n_landmarks=10, n_poses=10)
+    for lifter in [lifter_mat]:  # [lifter_ro, lifter_mat]:
+        lifter.ALL_PAIRS = False
+        lifter.CLIQUE_SIZE = 2
 
-    # n_params_list = np.logspace(1, 6, 6).astype(int)
-    # n_params_list = np.logspace(1, 2, 10).astype(int)
-    n_params_list = [10]
-    fname = f"_results_laptop/{lifter}_time.pkl"
-    overwrite = True
+        # n_params_list = np.logspace(1, 6, 6).astype(int)
+        # n_params_list = [10]
+        fname = f"_results_laptop/{lifter}_time.pkl"
+        overwrite = True
 
-    try:
-        assert overwrite is False
-        df = pd.read_pickle(fname)
-    except (FileNotFoundError, AssertionError):
-        df = generate_results(lifter, n_params_list=n_params_list, fname=fname)
-        df.to_pickle(fname)
-        print("saved final as", fname)
+        try:
+            assert overwrite is False
+            df = pd.read_pickle(fname)
+        except (FileNotFoundError, AssertionError):
+            df = generate_results(lifter, n_params_list=n_params_list, fname=fname)
+            df.to_pickle(fname)
+            print("saved final as", fname)
 
-    for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
-        value_vars = [
-            f"{label} local",
-            f"{label} dSDP",
-            f"{label} SDP",
-            f"{label} ADMM",
-        ]
-        value_vars = set(value_vars).intersection(df.columns.unique())
-        df_long = df.melt(
-            id_vars=["n params"],
-            value_vars=value_vars,
-            value_name=label,
-            var_name="solver type",
-        )
+        for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
+            value_vars = [
+                f"{label} local",
+                f"{label} dSDP",
+                f"{label} SDP",
+                f"{label} ADMM",
+            ]
+            value_vars = set(value_vars).intersection(df.columns.unique())
+            df_long = df.melt(
+                id_vars=["n params"],
+                value_vars=value_vars,
+                value_name=label,
+                var_name="solver type",
+            )
+            fig, ax = plt.subplots()
+            plot(df_long, x="n params", y=label, hue="solver type", ax=ax)
+            ax.set_yscale("log")
+            if label != "cost":
+                ax.set_xscale("log")
+            ax.grid("on")
+            savefig(fig, fname.replace(".pkl", f"_{label}.png"))
+
         fig, ax = plt.subplots()
-        plot(df_long, x="n params", y=label, hue="solver type", ax=ax)
-        ax.set_yscale("log")
-        if label != "cost":
-            ax.set_xscale("log")
+        value_vars = ["evr SDP", "evr dSDP", "evr ADMM"]
+        value_vars = set(value_vars).intersection(df.columns.unique())
+        for v in value_vars:
+            ax.loglog(df["n params"], df[v], label=v.strip("evr "))
+        ax.legend()
         ax.grid("on")
-        savefig(fig, fname.replace(".pkl", f"_{label}.png"))
-
-    fig, ax = plt.subplots()
-    value_vars = ["evr SDP", "evr dSDP", "evr ADMM"]
-    value_vars = set(value_vars).intersection(df.columns.unique())
-    for v in value_vars:
-        ax.loglog(df["n params"], df[v], label=v.strip("evr "))
-    ax.legend()
-    ax.grid("on")
-    ax.set_ylabel("EVR")
-    ax.set_xlabel("n params")
-    savefig(fig, fname.replace(".pkl", f"_evr.png"))
-    print("done")
+        ax.set_ylabel("EVR")
+        ax.set_xlabel("n params")
+        savefig(fig, fname.replace(".pkl", f"_evr.png"))
+        print("done")

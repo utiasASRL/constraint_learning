@@ -1,11 +1,7 @@
 import autograd.numpy as np
 
-from lifters.stereo_lifter import StereoLifter, NORMALIZE
-from utils.geometry import (
-    get_T,
-    get_xtheta_from_T,
-    get_xtheta_from_theta,
-)
+from lifters.stereo_lifter import NORMALIZE, StereoLifter
+from utils.geometry import get_T, get_xtheta_from_T, get_xtheta_from_theta
 
 
 def change_dimensions(a, y):
@@ -113,7 +109,7 @@ class Stereo3DLifter(StereoLifter):
         if info["success"]:
             return x_hat, info, cost
         else:
-            return None, info, cost
+            return x_hat, info, cost
 
 
 if __name__ == "__main__":

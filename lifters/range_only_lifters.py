@@ -9,6 +9,7 @@ from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
 from poly_matrix import PolyMatrix
+from ro_certs.gauss_newton import gauss_newton
 from ro_certs.problem import Problem, Reg, generate_random_trajectory
 from utils.common import diag_indices
 
@@ -16,7 +17,8 @@ plt.ion()
 
 NOISE = 1e-2  # std deviation of distance noise
 
-METHOD = "BFGS"
+# METHOD = "BFGS"
+METHOD = "GN"
 NORMALIZE = True
 
 # TODO(FD): parameters below are not all equivalent.
@@ -25,6 +27,7 @@ SOLVER_KWARGS = {
     "Nelder-Mead": dict(xatol=1e-10, maxiter=200),  # absolute step size
     "Powell": dict(ftol=1e-6, xtol=1e-10, maxiter=200),
     "TNC": dict(gtol=1e-6, xtol=1e-10, maxiter=200),
+    "GN": dict(tol=1e-6, gtol=1e-6, maxiter=1000),
 }
 
 
@@ -503,43 +506,48 @@ class RangeOnlyLocLifter(StateLifter):
         t_init,
         y,
         verbose=False,
-        method="BFGS",
+        method=METHOD,
         solver_kwargs=SOLVER_KWARGS,
     ):
         """
         :param t_init: (positions, landmarks) tuple
         """
+        if method == "GN":
+            t_init_mat = t_init.reshape(-1, self.prob.get_dim())
+            that, info = gauss_newton(t_init_mat, self.prob, **solver_kwargs[method])
+            cost = info["cost"]
+            success = info["success"]
+            msg = info["status"]
 
-        # TODO(FD): split problem into individual points.
-        options = solver_kwargs[method]
-        options["disp"] = verbose
-        sol = minimize(
-            self.get_cost,
-            x0=t_init,
-            args=y,
-            jac=self.get_grad,
-            # hess=self.get_hess, not used by any solvers.
-            method=method,
-            options=options,
-        )
-
-        info = {}
-        info["success"] = sol.success
-        info["msg"] = sol.message + f" (# iterations: {sol.nit})"
-        if sol.success:
-            that = sol.x
-            rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
-            assert abs(rel_error) < 1e-10, rel_error
-            residuals = self.get_residuals(that, y)
-            cost = sol.fun
-            info["max res"] = np.max(np.abs(residuals))
-            # hess = self.get_hess(that, y)
-            # eigs = np.linalg.eigvalsh(hess.toarray())
-            # info["cond Hess"] = eigs[-1] / eigs[0]
         else:
-            that = cost = None
-            info["max res"] = None
-            info["cond Hess"] = None
+            # TODO(FD): split problem into individual points.
+            options = solver_kwargs[method]
+            options["disp"] = verbose
+            sol = minimize(
+                self.get_cost,
+                x0=t_init,
+                args=y,
+                jac=self.get_grad,
+                # hess=self.get_hess, not used by any solvers.
+                method=method,
+                options=options,
+            )
+            that = sol.x
+            cost = sol.fun
+            success = sol.success
+            msg = sol.message + f" (# iterations: {sol.nit})"
+        residuals = self.get_residuals(that, y)
+        info = {
+            "msg": msg,
+            "cost": cost,
+            "success": success,
+            "max res": np.max(np.abs(residuals)),
+        }
+        # hess = self.get_hess(that, y)
+        # eigs = np.linalg.eigvalsh(hess.toarray())
+        # info["cond Hess"] = eigs[-1] / eigs[0]
+        if not success:
+            print("Warning: local solver finished with", msg)
         return that, info, cost
 
     @property
