@@ -22,7 +22,7 @@ class MatWeightLifter(StateLifter):
     ADMM_OPTIONS = dict(
         early_stop=False,
         maxiter=2,
-        use_fusion=True,  # was False
+        use_fusion=True,
         rho_start=1e2,
     )
     ADMM_INIT_XHAT = False
@@ -48,23 +48,20 @@ class MatWeightLifter(StateLifter):
             self.var_dict_ = self.prob.var_list
         return self.var_dict_
 
-    def get_A_known(self, var_dict=None, output_poly=False):
+    def get_A_known(self, var_dict=None, output_poly=False, add_redundant=False):
         if var_dict is None:
             var_dict = self.var_dict
         use_i = np.unique([v.split("_")[1] for v in var_dict if "x" in v])
         use_nodes = [f"x_{i}" for i in use_i]
         constraints = self.prob.generate_constraints(use_nodes=use_nodes)
-        constraints_r = []  # self.prob.generate_redun_constraints()
+        if add_redundant:
+            constraints += self.prob.generate_redun_constraints(use_nodes=use_nodes)
 
         if output_poly:
             # exclude A0 because it is treated differently by us.
-            return [c.A for c in constraints + constraints_r if not c.label == "Homog"]
+            return [c.A for c in constraints if c.label != "Homog"]
         else:
-            return [
-                c.A.get_matrix(var_dict)
-                for c in constraints + constraints_r
-                if not c.label == "Homog"
-            ]
+            return [c.A.get_matrix(var_dict) for c in constraints if c.label != "Homog"]
 
     def test_constraints(self, *args, **kwargs):
         bad_j = []
@@ -170,7 +167,10 @@ class MatWeightLifter(StateLifter):
     def get_vec_around_gt(self, delta=0):
         return self.prob.init_gauss_newton(sigma=delta)
 
-    def local_solver(self, t0=None, verbose=False, **kwargs):
+    def local_solver(self, t0=None, y=None, verbose=False, **kwargs):
+        if y is not None:
+            # TODO(FD) not currently supported to use other than self.y_
+            assert y == self.y_
         xhat, info = self.prob.gauss_newton(x_init=t0, verbose=verbose)
         return xhat, info, info["cost"]
 
@@ -179,14 +179,16 @@ class MatWeightLifter(StateLifter):
         x = self.get_x(theta=theta)
         return x.T @ Q.get_matrix(self.var_dict) @ x
 
-    def get_Q(self, noise: float = None, output_poly=False, use_cliques=None):
+    def get_Q(
+        self, noise: float = None, output_poly=False, use_cliques=None, sparsity=1.0
+    ):
         if noise is None:
             noise = self.NOISE
         if use_cliques is None:
             use_cliques = [f"x_{i}" for i in np.arange(self.n_poses)]
 
         if self.y_ is None:
-            self.fill_graph(noise=noise)
+            self.fill_graph(noise=noise, sparsity=sparsity)
             self.y_ = self.prob.G.E
 
         Q = self.prob.generate_cost(edges=self.y_, use_nodes=use_cliques)
@@ -268,8 +270,8 @@ class MatWeightSLAMLifter(MatWeightLifter):
         )
         super().__init__(prob=prob, **kwargs)
 
-    def fill_graph(self, noise):
-        edges_p2m = self.prob.G.gen_map_edges_full()
+    def fill_graph(self, noise, sparsity=1.0):
+        edges_p2m = self.prob.G.gen_map_edges(alpha=sparsity)
         # from mwcerts.stereo_problems import Camera
         # c = Camera.get_realistic_model()
         # self.prob.stereo_meas_model(edges_p2m, c=c)
@@ -310,10 +312,10 @@ class MatWeightLocLifter(MatWeightLifter):
         #    variables += [f"xC_{i}", f"x{label}_{i}"]
         return [list(self.prob.var_list.keys())]
 
-    def fill_graph(self, noise):
+    def fill_graph(self, noise, sparsity=1.0):
         from mwcerts.stereo_problems import Camera
 
-        edges_p2m = self.prob.G.gen_map_edges_full()
+        edges_p2m = self.prob.G.gen_map_edges(alpha=sparsity)
         c = Camera.get_realistic_model(sigma_u=noise, sigma_v=noise)
         self.prob.stereo_meas_model(edges_p2m, c=c)
         # self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)

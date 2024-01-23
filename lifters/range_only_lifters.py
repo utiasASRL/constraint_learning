@@ -166,7 +166,7 @@ class RangeOnlyLocLifter(StateLifter):
     def sample_theta(self):
         return self.generate_random_theta()
 
-    def get_A_known(self, var_dict=None, output_poly=False):
+    def get_A_known(self, var_dict=None, output_poly=False, add_redundant=False):
         if var_dict is None:
             var_dict = self.var_dict
         positions = self.get_variable_indices(var_dict)
@@ -204,6 +204,9 @@ class RangeOnlyLocLifter(StateLifter):
                             A_list.append(A)
                         else:
                             A_list.append(A.get_matrix(self.var_dict))
+
+                        if add_redundant:
+                            raise ValueError("redundant not implemented yet for quad")
         return A_list
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
@@ -321,7 +324,7 @@ class RangeOnlyLocLifter(StateLifter):
         get cost for given positions, landmarks and noise.
 
         :param t: flattened positions of length Nk
-        :param y: N x K distance measurements
+        :param y: K x N distance measurements
         """
         x = self.get_x(theta=t)
         if self.Q_fixed is None:
@@ -403,7 +406,7 @@ class RangeOnlyLocLifter(StateLifter):
         for n in use_cliques:
             if (use_cliques is not None) and (n not in use_cliques):
                 continue
-            nnz = np.where(self.prob.W[:, n] > 0)[0]
+            nnz = np.where(self.W[:, n] > 0)[0]
 
             # Create the cost terms corresponding to residual:
             #              [h  ]
@@ -440,7 +443,7 @@ class RangeOnlyLocLifter(StateLifter):
                 Q_poly += Q_sub
 
         if NORMALIZE:
-            Q_poly /= np.sum(self.prob.W > 0)
+            Q_poly /= np.sum(self.W > 0)
 
         if self.reg != Reg.NONE:
             for n in use_cliques:
@@ -470,9 +473,44 @@ class RangeOnlyLocLifter(StateLifter):
             return Q_poly
         return Q_poly.get_matrix(self.var_dict)
 
-    def get_Q(self, noise: float = None) -> tuple:
+    def simulate_y(self, noise: float = None, sparsity: float = 1.0):
+        assert isinstance(self.prob, Problem)
+        self.prob.generate_distances(sigma_dist_real=noise)
+        self.y_ = deepcopy(self.prob.D_noisy_sq)
+        if sparsity == 1.0:
+            self.W = np.ones((self.n_landmarks, self.n_positions))
+        else:
+            num_total = self.n_landmarks * self.n_positions
+            num_keep = int(sparsity * num_total)
+            num_min = self.n_positions * (self.d + 1)
+            assert num_keep >= num_min
+
+            self.W = np.zeros((self.n_landmarks, self.n_positions))
+
+            # first, make sure we see enough landmarks per position.
+            for i in range(self.n_positions):
+                chosen_landmarks = np.random.choice(
+                    range(self.n_landmarks), self.d + 1, replace=False
+                )
+                self.W[chosen_landmarks, i] = 1.0
+
+            # then, fill remaining ones.
+            left_i, left_j = np.where(self.W == 0)
+            chosen_idx = np.random.choice(
+                range(len(left_i)), num_keep - num_min, replace=False
+            )
+            self.W[left_i[chosen_idx], left_j[chosen_idx]] = 1.0
+            assert np.sum(self.W) == num_keep
+
+    def get_Q(self, noise: float = None, sparsity: float = 1.0) -> tuple:
+        if noise is not None:
+            self.simulate_y(
+                noise=noise, sparsity=sparsity
+            )  # defines self.y_ and self.W
+            self.Q_fixed = None
+
         if self.Q_fixed is None:
-            self.get_Q_from_y(self.y_, save=True)
+            self.get_Q_from_y(self.y_, save=True)  # saves Q_fixed
 
         # DEBUGGING
         x = self.get_x(theta=self.theta)

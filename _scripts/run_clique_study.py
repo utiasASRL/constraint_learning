@@ -106,7 +106,10 @@ def visualize_clique_list(clique_list, symmetric=True, fname=""):
 def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
     # this is used for robust SLAM problems and stereoproblems.
     # this is used for localization problems.
-    from _scripts.generate_cliques import create_clique_list, create_clique_list_loc
+    from decomposition.generate_cliques import (
+        create_clique_list,
+        create_clique_list_loc,
+    )
 
     np.random.seed(NOISE_SEED)
     Q, y = lifter.get_Q()

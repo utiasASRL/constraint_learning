@@ -16,6 +16,7 @@ from utils.constraint import remove_dependent_constraints
 DEBUG = True
 USE_KNOWN = False
 USE_AUTOTEMPLATE = False
+ADD_REDUNDANT = False
 
 
 def create_clique_list(
@@ -206,10 +207,11 @@ def create_clique_list(
 
 
 def create_clique_list_loc(
-    # lifter: MatWeightLocLifter,
-    lifter: RangeOnlyLocLifter,
+    lifter: MatWeightLocLifter,
+    # lifter: RangeOnlyLocLifter,
     use_known=USE_KNOWN,
     use_autotemplate=USE_AUTOTEMPLATE,
+    add_redundant=ADD_REDUNDANT,
     verbose=False,
 ):
     """
@@ -258,7 +260,9 @@ def create_clique_list_loc(
                     t.A_sparse_ for t in new_constraints
                 ]
             elif use_known:
-                A_known_poly = lifter.get_A_known(var_dict=var_dict, output_poly=True)
+                A_known_poly = lifter.get_A_known(
+                    var_dict=var_dict, output_poly=True, add_redundant=add_redundant
+                )
                 A_known = [A.get_matrix(var_dict) for A in A_known_poly]
                 # A_learned = lifter.get_A_learned_simple(
                 #    var_dict=var_dict, A_known=A_known_poly
