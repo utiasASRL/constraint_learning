@@ -9,27 +9,20 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
 from utils.plotting_tools import matshow_list, savefig
 
-# USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["dSDP", "ADMM"]
-# USE_METHODS = ["dSDP", "SDP"]
+USE_METHODS = ["SDP", "SDP-redun", "dSDP", "dSDP-redun"]
 
 if __name__ == "__main__":
-    # n_params_list = np.logspace(1, 2, 10).astype(int)
-    # appendix = "time"
-
-    # n_params_list = np.logspace(1, 3, 9).astype(int)
-    # appendix = "large"
-
-    n_params_list = np.logspace(3, 6, 9).astype(int)
-    appendix = "beyond"
-
-    # n_params_list = [10, 20]
-    # appendix = "test"
+    n_params_list = [10]
+    noise_list = np.logspace(-3, -1, 3)
+    sparsity_list = [0.5, 1.0]
+    n_seeds = 5
     overwrite = False
+
+    appendix = "noise"
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
-        n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
+        n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     for lifter in [lifter_ro, lifter_mat]:
@@ -42,7 +35,15 @@ if __name__ == "__main__":
             assert overwrite is False
             df = pd.read_pickle(fname)
         except (FileNotFoundError, AssertionError):
-            df = generate_results(lifter, n_params_list=n_params_list, fname=fname)
+            df = generate_results(
+                lifter,
+                n_params_list=n_params_list,
+                fname=fname,
+                noise_list=noise_list,
+                sparsity_list=sparsity_list,
+                n_seeds=n_seeds,
+                use_methods=USE_METHODS,
+            )
             df.to_pickle(fname)
             print("saved final as", fname)
 
