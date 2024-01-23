@@ -30,7 +30,7 @@ USE_FUSION = True
 VERBOSE = False
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["dSDP", "ADMM"]
+USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["dSDP", "SDP"]
 
 DEBUG = False
@@ -202,12 +202,12 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
     # appendix = "time"
 
-    n_params_list = np.logspace(1, 3, 3).astype(int)
+    n_params_list = np.logspace(1, 3, 9).astype(int)
     appendix = "large"
 
     # n_params_list = [10, 20]
     # appendix = "test"
-    overwrite = False
+    overwrite = True
 
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
@@ -217,7 +217,7 @@ if __name__ == "__main__":
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
-        fname = f"_results_laptop/{lifter}_{appendix}.pkl"
+        fname = f"_results/{lifter}_{appendix}.pkl"
 
         try:
             assert overwrite is False
