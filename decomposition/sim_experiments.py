@@ -50,7 +50,7 @@ def extract_solution(lifter: MatWeightLocLifter, X_list):
 def generate_results(
     lifter: MatWeightLocLifter,
     n_params_list=[10],
-    noise_list=[1e-3],
+    noise_list=[1e-2],
     sparsity_list=[1.0],
     n_seeds=1,
     fname="",
@@ -64,7 +64,7 @@ def generate_results(
         n_params_list, noise_list, sparsity_list
     ):
         for seed in range(n_seeds):
-            np.random.seed(seed)
+            np.random.seed(NOISE_SEED)
             print(f"N={n_params}: ", end="")
             data_dict = {
                 "n params": n_params,

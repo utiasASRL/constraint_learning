@@ -11,7 +11,6 @@ from utils.plotting_tools import matshow_list, savefig
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 USE_METHODS = ["dSDP", "ADMM"]
-# USE_METHODS = ["dSDP", "SDP"]
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
@@ -25,14 +24,15 @@ if __name__ == "__main__":
 
     # n_params_list = [10, 20]
     # appendix = "test"
-    overwrite = False
+    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_ro, lifter_mat]:
+    # for lifter in [lifter_ro, lifter_mat]:
+    for lifter in [lifter_mat]:
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
