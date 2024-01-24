@@ -2,6 +2,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from matplotlib import ticker
 
 from decomposition.sim_experiments import generate_results
 from lifters.matweight_lifter import MatWeightLocLifter
@@ -13,9 +14,6 @@ USE_METHODS = ["SDP", "SDP-redun", "dSDP", "dSDP-redun", "ADMM", "ADMM-redun"]
 
 
 def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity"):
-    chosen_other = df_long[other].values[-1]
-    print(f"plotting at {other}={chosen_other}")
-    df_long = df_long[df_long[other] == chosen_other]
     # show individual points
     sns.stripplot(
         df_long,
@@ -43,25 +41,26 @@ def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity")
         errorbar=None,
         hue_order={m: f"C{i}" for i, m in enumerate(USE_METHODS)},
     )
-    xticklabels = [f"{n:2.0e}" for n in df_long[this].unique()]
-    ax.set_xticks(range(len(xticklabels)), xticklabels)
+    labels = [f"{eval(l._text):.2e}" for l in ax.get_xticklabels()]
+    ax.xaxis.set_major_formatter(ticker.FixedFormatter(labels))
+    # ax.xaxis.set_major_formatter(ticker.StrMethodFormatter("{x:.2e}"))
 
 
 if __name__ == "__main__":
     n_params_list = [10]
     noise_list = np.logspace(-2, 1, 7)
-    sparsity_list = [0.8]  # np.linspace(0.5, 1.0, 6)[::-1]
+    sparsity_list = np.linspace(0.5, 1.0, 6)[::-1]
     n_seeds = 3
 
     appendix = "all"
-    overwrite = True
+    overwrite = False
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_ro]:
+    for lifter in [lifter_mat, lifter_ro]:
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
@@ -99,16 +98,29 @@ if __name__ == "__main__":
             df_long.loc[:, "solver type"] = [
                 f.strip(f"{label} ") for f in df_long["solver type"]
             ]
+
+            chosen_sparsity = 1.0
+            df_long_here = df_long[df_long["sparsity"] == chosen_sparsity]
+            print(f"plotting at sparsity={chosen_sparsity}")
+
             fig, ax = plt.subplots()
             fig.set_size_inches(7, 4)
-            plot_this_vs_other(df_long, ax, label=label, this="noise", other="sparsity")
+            plot_this_vs_other(
+                df_long_here, ax, label=label, this="noise", other="sparsity"
+            )
             ax.set_yscale("log")
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
 
+            chosen_noise = df_long.noise.min()
+            df_long_here = df_long[df_long["noise"] == chosen_noise]
+            print(f"plotting at noise={chosen_noise}")
+
             fig, ax = plt.subplots()
             fig.set_size_inches(7, 4)
-            plot_this_vs_other(df_long, ax, label=label, this="sparsity", other="noise")
+            plot_this_vs_other(
+                df_long_here, ax, label=label, this="sparsity", other="noise"
+            )
             ax.set_yscale("log")
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}_sparsity.png"))

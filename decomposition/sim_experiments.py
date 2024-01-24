@@ -68,7 +68,6 @@ def generate_results(
         n_params_list, noise_list, sparsity_list
     ):
         for seed in range(n_seeds):
-            np.random.seed(seed)
             print(
                 f"\t\t\t\t\t\t\t\t\t--- N={n_params} noise={noise:.2e} sparsity={sparsity:.1f} --- {seed+1}/{n_seeds}",
             )
@@ -80,6 +79,8 @@ def generate_results(
             }
             new_lifter = create_newinstance(lifter, n_params=n_params)
 
+            np.random.seed(seed)
+            new_lifter.generate_random_setup()
             Q, _ = new_lifter.get_Q(noise=noise, sparsity=sparsity)
 
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
