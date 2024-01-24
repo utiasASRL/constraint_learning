@@ -78,8 +78,10 @@ def generate_results(
                 "sparsity": sparsity,
                 "seed": seed,
             }
+            print("create instance...")
             new_lifter = create_newinstance(lifter, n_params=n_params)
 
+            print("create Q...")
             Q, _ = new_lifter.get_Q(noise=noise, sparsity=sparsity)
 
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
@@ -87,7 +89,7 @@ def generate_results(
             print("solving local...", end="")
             t1 = time.time()
             theta_est, info, cost = new_lifter.local_solver(
-                theta_gt, new_lifter.y_, verbose=False
+                theta_gt, new_lifter.y_, verbose=True
             )
             data_dict["t local"] = time.time() - t1
             data_dict["cost local"] = cost

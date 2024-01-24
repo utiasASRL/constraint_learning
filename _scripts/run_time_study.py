@@ -31,8 +31,7 @@ if __name__ == "__main__":
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    # for lifter in [lifter_ro, lifter_mat]:
-    for lifter in [lifter_mat]:
+    for lifter in [lifter_mat]:  # , lifter_ro]:
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
@@ -42,7 +41,12 @@ if __name__ == "__main__":
             assert overwrite is False
             df = pd.read_pickle(fname)
         except (FileNotFoundError, AssertionError):
-            df = generate_results(lifter, n_params_list=n_params_list, fname=fname)
+            df = generate_results(
+                lifter,
+                n_params_list=n_params_list,
+                fname=fname,
+                use_methods=USE_METHODS,
+            )
             df.to_pickle(fname)
             print("saved final as", fname)
 
@@ -67,15 +71,3 @@ if __name__ == "__main__":
                 ax.set_xscale("log")
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}.png"))
-
-        fig, ax = plt.subplots()
-        value_vars = ["evr SDP", "evr dSDP", "evr ADMM"]
-        value_vars = set(value_vars).intersection(df.columns.unique())
-        for v in value_vars:
-            ax.loglog(df["n params"], df[v], label=v.strip("evr "))
-        ax.legend()
-        ax.grid("on")
-        ax.set_ylabel("EVR")
-        ax.set_xlabel("n params")
-        savefig(fig, fname.replace(".pkl", f"_evr.png"))
-        print("done")
