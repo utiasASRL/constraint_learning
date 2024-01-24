@@ -78,7 +78,6 @@ class RangeOnlyLocLifter(StateLifter):
         n_positions,
         n_landmarks,
         d,
-        W=None,
         level="no",
         variable_list=None,
         reg=Reg.NONE,
@@ -345,7 +344,7 @@ class RangeOnlyLocLifter(StateLifter):
         else:
             cost = np.sum(residuals[sub_idx] ** 2)
         if NORMALIZE:
-            cost /= np.sum(self.W > 0)
+            cost /= np.sum(self.prob.W > 0)
 
         if self.REG != Reg.NONE:
             prior_cost = np.sum(self.get_residuals_prior())
@@ -406,7 +405,7 @@ class RangeOnlyLocLifter(StateLifter):
         for n in use_cliques:
             if (use_cliques is not None) and (n not in use_cliques):
                 continue
-            nnz = np.where(self.W[:, n] > 0)[0]
+            nnz = np.where(self.prob.W[:, n] > 0)[0]
 
             # Create the cost terms corresponding to residual:
             #              [h  ]
@@ -442,8 +441,7 @@ class RangeOnlyLocLifter(StateLifter):
             else:
                 Q_poly += Q_sub
 
-        if NORMALIZE:
-            Q_poly /= np.sum(self.W > 0)
+        Q_poly /= np.sum(self.prob.W > 0)
 
         if self.reg != Reg.NONE:
             for n in use_cliques:
@@ -478,35 +476,36 @@ class RangeOnlyLocLifter(StateLifter):
         self.prob.generate_distances(sigma_dist_real=noise)
         self.y_ = deepcopy(self.prob.D_noisy_sq)
         if sparsity == 1.0:
-            self.W = np.ones((self.n_landmarks, self.n_positions))
+            self.prob.W = np.ones((self.n_landmarks, self.n_positions))
+            self.prob.W = self.prob.W
         else:
             num_total = self.n_landmarks * self.n_positions
             num_keep = int(sparsity * num_total)
             num_min = self.n_positions * (self.d + 1)
             assert num_keep >= num_min
 
-            self.W = np.zeros((self.n_landmarks, self.n_positions))
+            self.prob.W = np.zeros((self.n_landmarks, self.n_positions))
 
             # first, make sure we see enough landmarks per position.
             for i in range(self.n_positions):
                 chosen_landmarks = np.random.choice(
                     range(self.n_landmarks), self.d + 1, replace=False
                 )
-                self.W[chosen_landmarks, i] = 1.0
+                self.prob.W[chosen_landmarks, i] = 1.0
 
             # then, fill remaining ones.
-            left_i, left_j = np.where(self.W == 0)
+            left_i, left_j = np.where(self.prob.W == 0)
             chosen_idx = np.random.choice(
                 range(len(left_i)), num_keep - num_min, replace=False
             )
-            self.W[left_i[chosen_idx], left_j[chosen_idx]] = 1.0
-            assert np.sum(self.W) == num_keep
+            self.prob.W[left_i[chosen_idx], left_j[chosen_idx]] = 1.0
+            assert np.sum(self.prob.W) == num_keep
 
     def get_Q(self, noise: float = None, sparsity: float = 1.0) -> tuple:
         if noise is not None:
             self.simulate_y(
                 noise=noise, sparsity=sparsity
-            )  # defines self.y_ and self.W
+            )  # defines self.y_ and self.prob.W
             self.Q_fixed = None
 
         if self.Q_fixed is None:
@@ -517,6 +516,19 @@ class RangeOnlyLocLifter(StateLifter):
         cost1 = x.T @ self.Q_fixed @ x
         cost3 = self.get_cost(t=self.theta, y=self.y_)
         assert abs(cost1 - cost3) < 1e-10, (cost1, cost3)
+
+        from ro_certs.gauss_newton import get_grad_hess_cost_f
+
+        cost2 = get_grad_hess_cost_f(
+            self.theta,
+            self.prob,
+            return_cost=True,
+            return_grad=False,
+            return_hess=False,
+        )[0]
+        if abs(cost1 - cost2) > 1e-10:
+            # print(f"Warning: costs not the same {cost1:.4f}, {cost2:.4f}")
+            pass
         return self.Q_fixed, self.y_
 
     def get_sub_idx_x(self, sub_idx, add_z=True):
