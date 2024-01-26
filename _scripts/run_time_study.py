@@ -10,7 +10,9 @@ from ro_certs.problem import Reg
 from utils.plotting_tools import matshow_list, savefig
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["dSDP", "ADMM"]
+# USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
+# USE_METHODS = ["ADMM", "pADMM"]
+USE_METHODS = ["local", "ADMM", "pADMM"]
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
@@ -19,11 +21,11 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"
 
-    n_params_list = np.logspace(3, 6, 9).astype(int)
-    appendix = "beyond"
+    # n_params_list = np.logspace(3, 6, 9).astype(int)
+    # appendix = "beyond"
 
-    # n_params_list = [10, 20]
-    # appendix = "test"
+    n_params_list = [100, 200]
+    appendix = "test"
     overwrite = True
 
     np.random.seed(0)
@@ -31,7 +33,7 @@ if __name__ == "__main__":
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_mat]:  # , lifter_ro]:
+    for lifter in [lifter_mat, lifter_ro]:
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
@@ -51,12 +53,7 @@ if __name__ == "__main__":
             print("saved final as", fname)
 
         for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
-            value_vars = [
-                f"{label} local",
-                f"{label} dSDP",
-                f"{label} SDP",
-                f"{label} ADMM",
-            ]
+            value_vars = [f"{label} {m}" for m in USE_METHODS]
             value_vars = set(value_vars).intersection(df.columns.unique())
             df_long = df.melt(
                 id_vars=["n params"],

@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import numpy as np
 import pandas as pd
-from cert_tools.admm_solvers import solve_alternating
+from cert_tools.admm_solvers import solve_alternating, solve_parallel
 from cert_tools.linalg_tools import rank_project
 from cert_tools.sdp_solvers import solve_sdp
 from cert_tools.sparse_solvers import solve_oneshot
@@ -32,6 +32,9 @@ USE_METHODS = ["SDP", "dSDP", "ADMM"]
 DEBUG = False
 TOL_SDP = 1e-12
 TOL_DSDP = 1e-5
+
+# RED_PARAMETERS = {"": False, "-redun": True}
+RED_PARAMETERS = {"": False}
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
@@ -80,26 +83,29 @@ def generate_results(
             print("create instance...")
             new_lifter = create_newinstance(lifter, n_params=n_params)
 
-            print("create Q...")
+            print("fill graph...")
             np.random.seed(seed)
             new_lifter.generate_random_setup()
-            Q, _ = new_lifter.get_Q(noise=noise, sparsity=sparsity)
+            new_lifter.simulate_y(noise=noise, sparsity=sparsity)
 
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
 
-            print("solving local...", end="")
-            t1 = time.time()
-            theta_est, info, cost = new_lifter.local_solver(
-                theta_gt, new_lifter.y_, verbose=True
-            )
-            data_dict["t local"] = time.time() - t1
-            data_dict["cost local"] = cost
-            print(f"cost local: {cost:.2f}")
+            if "local" in use_methods:
+                print("solving local...", end="")
+                t1 = time.time()
+                theta_est, info, cost = new_lifter.local_solver(
+                    theta_gt, new_lifter.y_, verbose=True
+                )
+                data_dict["t local"] = time.time() - t1
+                data_dict["cost local"] = cost
+                print(f"cost local: {cost:.2f}")
+            else:
+                info = {"cost": 0}
+                data_dict["cost local"] = 0
 
-            print("creating cliques...", end="")
-            t1 = time.time()
-
-            for add_redundant, appendix in zip([False, True], ["", "-redun"]):
+            for appendix, add_redundant in RED_PARAMETERS.items():
+                print("creating cliques...", end="")
+                t1 = time.time()
                 clique_list = create_clique_list_loc(
                     new_lifter,
                     use_known=USE_KNOWN,
@@ -148,8 +154,12 @@ def generate_results(
                         X0 = None
                     print("target", info["cost"])
                     t1 = time.time()
+                    # do deepcopy to make sure we can can use clique_list again.
                     X_list, info = solve_alternating(
-                        clique_list, X0=X0, verbose=True, **lifter.ADMM_OPTIONS
+                        deepcopy(clique_list),
+                        X0=X0,
+                        verbose=True,
+                        **lifter.ADMM_OPTIONS,
                     )
                     data_dict[f"t {method}"] = time.time() - t1
                     print(info["msg"], end="...")
@@ -165,8 +175,43 @@ def generate_results(
                     except Exception as e:
                         print("Warning: could not extract solution:", e)
 
+                method = f"pADMM{appendix}"
+                if method in use_methods:
+                    print(f"running {method}...", end="")
+                    if lifter.ADMM_INIT_XHAT:
+                        X0 = []
+                        for c in clique_list:
+                            x_clique = new_lifter.get_x(
+                                theta=theta_est, var_subset=c.var_dict
+                            )
+                            X0.append(np.outer(x_clique, x_clique))
+                    else:
+                        X0 = None
+                    print("target", info["cost"])
+                    t1 = time.time()
+                    X_list, info = solve_parallel(
+                        clique_list, X0=X0, verbose=False, **lifter.ADMM_OPTIONS
+                    )
+                    data_dict[f"t {method} total"] = time.time() - t1
+                    data_dict[f"t {method}"] = info["time running"]
+                    print(info["msg"], end="...")
+                    data_dict[f"cost {method}"] = info["cost"]
+                    data_dict[f"RDG {method}"] = get_relative_gap(
+                        info["cost"], data_dict["cost local"]
+                    )
+                    print(f"cost {method}: {info['cost']:.2f}")
+
+                    try:
+                        x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+                        data_dict[f"EVR {method}"] = evr_mean
+                    except Exception as e:
+                        print("Warning: could not extract solution:", e)
+
                 method = f"SDP{appendix}"
                 if method in use_methods:
+                    print("creating cost...", end="")
+                    Q, _ = new_lifter.get_Q()
+
                     print("creating constraints...", end="")
                     t1 = time.time()
                     if USE_AUTOTEMPLATE:
@@ -190,32 +235,31 @@ def generate_results(
                             ]
                     data_dict["t create constraints"] = time.time() - t1
 
-                    if True:  # n_params <= 18:
-                        data_dict[f"dim {method}"] = Q.shape[0]
-                        data_dict[f"m {method}"] = len(Constraints)
+                    data_dict[f"dim {method}"] = Q.shape[0]
+                    data_dict[f"m {method}"] = len(Constraints)
 
-                        print(f"solving {method}...", end="")
-                        t1 = time.time()
-                        X, info = solve_sdp(
-                            Q,
-                            Constraints,
-                            adjust=ADJUST,
-                            primal=USE_PRIMAL,
-                            use_fusion=USE_FUSION,
-                            tol=TOL_SDP,
-                        )
-                        data_dict[f"t {method}"] = time.time() - t1
-                        data_dict[f"cost {method}"] = info["cost"]
-                        data_dict[f"RDG {method}"] = get_relative_gap(
-                            info["cost"], data_dict["cost local"]
-                        )
-                        print(f"cost {method}: {info['cost']:.2f}")
+                    print(f"solving {method}...", end="")
+                    t1 = time.time()
+                    X, info = solve_sdp(
+                        Q,
+                        Constraints,
+                        adjust=ADJUST,
+                        primal=USE_PRIMAL,
+                        use_fusion=USE_FUSION,
+                        tol=TOL_SDP,
+                    )
+                    data_dict[f"t {method}"] = time.time() - t1
+                    data_dict[f"cost {method}"] = info["cost"]
+                    data_dict[f"RDG {method}"] = get_relative_gap(
+                        info["cost"], data_dict["cost local"]
+                    )
+                    print(f"cost {method}: {info['cost']:.2f}")
 
-                        try:
-                            x_SDP, info = rank_project(X, p=1)
-                            data_dict[f"EVR {method}"] = info["EVR"]
-                        except Exception as e:
-                            print("Could not extract solution:", e)
+                    try:
+                        x_SDP, info = rank_project(X, p=1)
+                        data_dict[f"EVR {method}"] = info["EVR"]
+                    except Exception as e:
+                        print("Could not extract solution:", e)
 
             df_data.append(deepcopy(data_dict))
             if fname != "":

@@ -188,8 +188,7 @@ class MatWeightLifter(StateLifter):
             use_cliques = [f"x_{i}" for i in np.arange(self.n_poses)]
 
         if self.y_ is None:
-            self.fill_graph(noise=noise, sparsity=sparsity)
-            self.y_ = self.prob.G.E
+            self.simulate_y(noise=noise, sparsity=sparsity)
 
         Q = self.prob.generate_cost(edges=self.y_, use_nodes=use_cliques)
 
@@ -270,7 +269,7 @@ class MatWeightSLAMLifter(MatWeightLifter):
         )
         super().__init__(prob=prob, **kwargs)
 
-    def fill_graph(self, noise, sparsity=1.0):
+    def simulate_y(self, noise, sparsity=1.0):
         edges_p2m = self.prob.G.gen_map_edges(alpha=sparsity)
         # from mwcerts.stereo_problems import Camera
         # c = Camera.get_realistic_model()
@@ -283,6 +282,7 @@ class MatWeightSLAMLifter(MatWeightLifter):
         # fix the first pose to origin.
         if noise > 0:
             self.prob.add_init_pose_prior()
+        self.y_ = self.prob.G.E
 
     def __repr__(self):
         return "mw_slam_lifter"
@@ -312,7 +312,7 @@ class MatWeightLocLifter(MatWeightLifter):
         #    variables += [f"xC_{i}", f"x{label}_{i}"]
         return [list(self.prob.var_list.keys())]
 
-    def fill_graph(self, noise, sparsity=1.0):
+    def simulate_y(self, noise, sparsity=1.0):
         from mwcerts.stereo_problems import Camera
 
         edges_p2m = self.prob.G.gen_map_edges(alpha=sparsity)
@@ -322,6 +322,7 @@ class MatWeightLocLifter(MatWeightLifter):
 
         edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
         self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=noise, p2p_std_rot=noise)
+        self.y_ = self.prob.G.E
 
     def __repr__(self):
         return "mw_loc_lifter"

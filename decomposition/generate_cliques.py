@@ -5,6 +5,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
 from cert_tools.admm_clique import ADMMClique, initialize_overlap
+from progressbar import ProgressBar
 
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
@@ -247,7 +248,9 @@ def create_clique_list_loc(
     m = len(clique_vars)
     A_list = []
     cost_total = 0
+    p = ProgressBar(max_value=m - 1)
     for i in range(m):
+        p.update(i)
         var_dict = clique_vars[i]
 
         if recreate_A_list or (len(A_list) == 0):
@@ -279,8 +282,10 @@ def create_clique_list_loc(
         Qi = lifter.get_clique_cost(i)
         if DEBUG:
             Q_test += Qi
-        x = lifter.get_x(var_subset=var_dict)
-        X_sub = np.outer(x, x)
+            x = lifter.get_x(var_subset=var_dict)
+            X_sub = np.outer(x, x)
+        else:
+            X_sub = None
 
         # A_agg = np.sum([np.abs(A) > 1e-10 for A in A_list])
         # plt.matshow(A_agg.toarray())
