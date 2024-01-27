@@ -16,10 +16,10 @@ RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 6, 6).astype(int)
-    n_params_list = [10, 100]
-    n_threads_list = (3 * 2 ** np.arange(0, 7)).astype(int)
+    n_params_list = [100, 1000]
+    n_threads_list = np.arange(0, 100, step=12).astype(int)
     appendix = "admm"
-    overwrite = False
+    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     costs_dict = {}
-    for lifter in [lifter_mat, lifter_ro]:
+    for lifter in [lifter_ro, lifter_mat]:
         try:
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"

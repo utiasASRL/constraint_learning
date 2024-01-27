@@ -191,10 +191,10 @@ def generate_results(
                                 X0.append(np.outer(x_clique, x_clique))
                         else:
                             X0 = None
-                        print("target", info["cost"])
+                        print("target", data_dict["cost local"])
                         t1 = time.time()
                         X_list, info = solve_parallel(
-                            clique_list,
+                            deepcopy(clique_list),
                             X0=X0,
                             verbose=False,
                             n_threads=n_threads,
