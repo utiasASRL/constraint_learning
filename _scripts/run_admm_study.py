@@ -18,9 +18,9 @@ RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     overwrite = False
-    #n_params_list = [10, 34, 100]
-    #n_threads_list = np.arange(1, 30, step=2).astype(int)
-    #appendix = "admm"
+    # n_params_list = [10, 34, 100]
+    # n_threads_list = np.arange(1, 30, step=2).astype(int)
+    # appendix = "admm"
 
     n_params_list = [100, 200]
     n_threads_list = [50, 100, 150, 200]

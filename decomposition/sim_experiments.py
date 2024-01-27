@@ -59,7 +59,7 @@ def generate_results(
     n_params_list=[10],
     noise_list=[1e-2],
     sparsity_list=[1.0],
-    n_threads_list=[4],
+    n_threads_list=[12],
     n_seeds=1,
     fname="",
     use_methods=USE_METHODS,
