@@ -15,8 +15,8 @@ from utils.plotting_tools import matshow_list, savefig
 USE_METHODS = ["local", "ADMM", "pADMM"]
 
 if __name__ == "__main__":
-    # n_params_list = np.logspace(1, 2, 10).astype(int)
-    # appendix = "time"
+    n_params_list = np.logspace(1, 2, 10).astype(int)
+    appendix = "time"
 
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"
@@ -24,8 +24,9 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
 
-    n_params_list = [100, 200]
-    appendix = "test"
+    # n_params_list = [100, 200]
+    # appendix = "test"
+
     overwrite = True
 
     np.random.seed(0)
