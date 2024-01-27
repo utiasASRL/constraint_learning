@@ -16,17 +16,17 @@ RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 6, 6).astype(int)
-    n_params_list = [100, 1000]
-    n_threads_list = np.arange(0, 100, step=12).astype(int)
+    n_params_list = [100, 200]
+    n_threads_list = np.arange(30, step=5).astype(int)
     appendix = "admm"
     overwrite = True
 
     np.random.seed(0)
+    costs_all = []
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    costs_dict = {}
     for lifter in [lifter_ro, lifter_mat]:
         try:
             assert overwrite is False
@@ -44,26 +44,49 @@ if __name__ == "__main__":
             df.to_pickle(fname)
             print("saved final as", fname)
 
+        n_threads_list = sorted(
+            [
+                int(l.strip("t pADMM-"))
+                for l in df.columns
+                if l.startswith("t pADMM-") and ("total" not in l)
+            ]
+        )
+
+        labels = (
+            [f"t pADMM-{n}" for n in n_threads_list]
+            if len(n_threads_list) > 1
+            else ["t pADMM"]
+        )
         df_long = df.melt(
             id_vars=["n params", "n threads"],
-            value_vars=[f"t pADMM-{n}" for n in n_threads_list],
-            var_name="time",
+            value_vars=labels,
+            value_name="time",
+            var_name="label",
+        )
+        df_long.loc[:, "n threads"] = df_long.apply(
+            lambda row: int(row["label"].strip("t pADMM-")), axis=1
         )
         fig, ax = plt.subplots()
         fig.set_size_inches(7, 4)
-        sns.scatterplot(data=df_long, x="n threads", y="time", hue="n params", ax=ax)
+        sns.scatterplot(data=df_long, x="n threads", y="time", style="n params", ax=ax)
+        ax.set_xlabel("n threads")
+        ax.set_ylabel("time")
+        ax.legend()
         savefig(fig, fname.replace(".pkl", f"_time.png"))
 
-        n_threads = n_threads_list[0]
-        cost_history = df.loc[
-            df["n threads"] == n_threads, [f"cost history pADMM-{n_threads}"]
-        ].values
-        costs_dict[lifter] = cost_history
+        n_threads = 24
+        cost_history = df[["n params", f"cost history pADMM-{n_threads}"]]
+        cost_history.loc[:, "lifter"] = str(lifter)
+        costs_all.append(cost_history)
 
+    df_all = pd.concat(costs_all)
     fig, ax = plt.subplots()
-    for label, costs in costs_dict.items():
-        ax.plot(costs, label=label)
+    for (l, n_params), df_plot in df_all.groupby(["lifter", "n params"], sort=False):
+        assert len(df_plot) == 1
+        row = df_plot.iloc[0]
+        ax.plot(row[f"cost history pADMM-{n_threads}"], label=f"{l}-{n_params}")
     ax.set_ylabel("cost")
     ax.set_xlabel("it")
+    ax.set_yscale("log")
     ax.legend(loc="upper right")
-    savefig(fig, fname.replace(".pkl", f"_cost.png"))
+    savefig(fig, f"{RESULTS_READ}/admm_convergence.png")

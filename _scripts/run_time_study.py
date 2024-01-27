@@ -12,14 +12,17 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = ["local", "ADMM", "pADMM"]
+USE_METHODS = ["local", "SDP", "dSDP", "ADMM", "pADMM"]
 
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
-    n_params_list = np.logspace(1, 2, 10).astype(int)
-    appendix = "time"
+    # n_params_list = np.logspace(1, 2, 10).astype(int)
+    # appendix = "time"
+
+    n_params_list = np.logspace(1, 6, 6).astype(int)
+    appendix = "all"
 
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"

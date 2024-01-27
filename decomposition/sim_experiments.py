@@ -200,7 +200,7 @@ def generate_results(
                             n_threads=n_threads,
                             **lifter.ADMM_OPTIONS,
                         )
-                        data_dict[f"t {method} total"] = time.time() - t1
+                        data_dict[f"t total {method}"] = time.time() - t1
                         data_dict[f"t {method}"] = info["time running"]
                         data_dict[f"n threads"] = n_threads
                         print(info["msg"], end="...")
