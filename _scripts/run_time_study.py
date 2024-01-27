@@ -14,6 +14,9 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["ADMM", "pADMM"]
 USE_METHODS = ["local", "ADMM", "pADMM"]
 
+RESULTS_READ = "_results_server"
+RESULTS_WRITE = "_results"
+
 if __name__ == "__main__":
     n_params_list = np.logspace(1, 2, 10).astype(int)
     appendix = "time"
@@ -27,7 +30,7 @@ if __name__ == "__main__":
     # n_params_list = [100, 200]
     # appendix = "test"
 
-    overwrite = True
+    overwrite = False
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
@@ -38,12 +41,12 @@ if __name__ == "__main__":
         lifter.ALL_PAIRS = False
         lifter.CLIQUE_SIZE = 2
 
-        fname = f"_results/{lifter}_{appendix}.pkl"
-
         try:
             assert overwrite is False
+            fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
             df = pd.read_pickle(fname)
         except (FileNotFoundError, AssertionError):
+            fname = f"{RESULTS_WRITE}/{lifter}_{appendix}.pkl"
             df = generate_results(
                 lifter,
                 n_params_list=n_params_list,
@@ -63,6 +66,7 @@ if __name__ == "__main__":
                 var_name="solver type",
             )
             fig, ax = plt.subplots()
+            fig.set_size_inches(7, 4)
             plot(df_long, x="n params", y=label, hue="solver type", ax=ax)
             ax.set_yscale("log")
             if label != "cost":
