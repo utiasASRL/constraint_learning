@@ -59,6 +59,7 @@ def generate_results(
     n_params_list=[10],
     noise_list=[1e-2],
     sparsity_list=[1.0],
+    n_threads_list=[4],
     n_seeds=1,
     fname="",
     use_methods=USE_METHODS,
@@ -177,35 +178,44 @@ def generate_results(
 
                 method = f"pADMM{appendix}"
                 if method in use_methods:
-                    print(f"running {method}...", end="")
-                    if lifter.ADMM_INIT_XHAT:
-                        X0 = []
-                        for c in clique_list:
-                            x_clique = new_lifter.get_x(
-                                theta=theta_est, var_subset=c.var_dict
-                            )
-                            X0.append(np.outer(x_clique, x_clique))
-                    else:
-                        X0 = None
-                    print("target", info["cost"])
-                    t1 = time.time()
-                    X_list, info = solve_parallel(
-                        clique_list, X0=X0, verbose=False, **lifter.ADMM_OPTIONS
-                    )
-                    data_dict[f"t {method} total"] = time.time() - t1
-                    data_dict[f"t {method}"] = info["time running"]
-                    print(info["msg"], end="...")
-                    data_dict[f"cost {method}"] = info["cost"]
-                    data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
-                    )
-                    print(f"cost {method}: {info['cost']:.2f}")
+                    for n_threads in n_threads_list:
+                        if len(n_threads_list) > 1:
+                            method = f"pADMM{appendix}-{n_threads}"
+                        print(f"running {method}...", end="")
+                        if lifter.ADMM_INIT_XHAT:
+                            X0 = []
+                            for c in clique_list:
+                                x_clique = new_lifter.get_x(
+                                    theta=theta_est, var_subset=c.var_dict
+                                )
+                                X0.append(np.outer(x_clique, x_clique))
+                        else:
+                            X0 = None
+                        print("target", info["cost"])
+                        t1 = time.time()
+                        X_list, info = solve_parallel(
+                            clique_list,
+                            X0=X0,
+                            verbose=False,
+                            n_threads=n_threads,
+                            **lifter.ADMM_OPTIONS,
+                        )
+                        data_dict[f"t {method} total"] = time.time() - t1
+                        data_dict[f"t {method}"] = info["time running"]
+                        data_dict[f"n threads"] = n_threads
+                        print(info["msg"], end="...")
+                        data_dict[f"cost {method}"] = info["cost"]
+                        data_dict[f"cost history {method}"] = info["cost history"]
+                        data_dict[f"RDG {method}"] = get_relative_gap(
+                            info["cost"], data_dict["cost local"]
+                        )
+                        print(f"cost {method}: {info['cost']:.2f}")
 
-                    try:
-                        x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-                        data_dict[f"EVR {method}"] = evr_mean
-                    except Exception as e:
-                        print("Warning: could not extract solution:", e)
+                        try:
+                            x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+                            data_dict[f"EVR {method}"] = evr_mean
+                        except Exception as e:
+                            print("Warning: could not extract solution:", e)
 
                 method = f"SDP{appendix}"
                 if method in use_methods:
