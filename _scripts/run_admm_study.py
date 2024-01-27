@@ -16,8 +16,8 @@ RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 6, 6).astype(int)
-    n_params_list = [100, 200]
-    n_threads_list = np.arange(30, step=5).astype(int)
+    n_params_list = [10, 100]
+    n_threads_list = np.arange(5, 30, step=5).astype(int)
     appendix = "admm"
     overwrite = True
 
