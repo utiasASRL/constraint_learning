@@ -16,4 +16,5 @@ asrl-pylgmath>=1.0.3
 -e poly_matrix/
 -e certifiable-tools/
 -e mat_weight_certs/
+-e ro_certs/
 -e . 
