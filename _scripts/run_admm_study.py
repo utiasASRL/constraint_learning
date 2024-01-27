@@ -17,9 +17,9 @@ RESULTS_WRITE = "_results"
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 6, 6).astype(int)
     n_params_list = [10, 100]
-    n_threads_list = np.arange(5, 30, step=5).astype(int)
-    appendix = "admm"
-    overwrite = True
+    n_threads_list = np.arange(1, 10).astype(int)
+    appendix = "admm_test"
+    overwrite = False
 
     np.random.seed(0)
     costs_all = []
@@ -44,6 +44,9 @@ if __name__ == "__main__":
             df.to_pickle(fname)
             print("saved final as", fname)
 
+    for lifter in [lifter_ro, lifter_mat]:
+        fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
+        df = pd.read_pickle(fname)
         n_threads_list = sorted(
             [
                 int(l.strip("t pADMM-"))
@@ -74,7 +77,7 @@ if __name__ == "__main__":
         ax.legend()
         savefig(fig, fname.replace(".pkl", f"_time.png"))
 
-        n_threads = 24
+        n_threads = n_threads_list[0]
         cost_history = df[["n params", f"cost history pADMM-{n_threads}"]]
         cost_history.loc[:, "lifter"] = str(lifter)
         costs_all.append(cost_history)
