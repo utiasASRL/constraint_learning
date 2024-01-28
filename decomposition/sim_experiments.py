@@ -33,8 +33,7 @@ DEBUG = False
 TOL_SDP = 1e-12
 TOL_DSDP = 1e-5
 
-# RED_PARAMETERS = {"": False, "-redun": True}
-RED_PARAMETERS = {"": False}
+ADD_REDUNDANT = False
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):
@@ -63,7 +62,13 @@ def generate_results(
     n_seeds=1,
     fname="",
     use_methods=USE_METHODS,
+    add_redundant_constr=ADD_REDUNDANT,
 ):
+    if add_redundant_constr:
+        red_parameters = {"": False, "-redun": True}
+    else:
+        red_parameters = {"": False}
+
     if USE_AUTOTEMPLATE:
         saved_learner = read_saved_learner(lifter)
 
@@ -104,7 +109,7 @@ def generate_results(
                 info = {"cost": 0}
                 data_dict["cost local"] = 0
 
-            for appendix, add_redundant in RED_PARAMETERS.items():
+            for appendix, add_redundant in red_parameters.items():
                 print("creating cliques...", end="")
                 t1 = time.time()
                 clique_list = create_clique_list_loc(

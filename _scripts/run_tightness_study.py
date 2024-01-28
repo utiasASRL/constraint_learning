@@ -10,7 +10,15 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
 from utils.plotting_tools import matshow_list, savefig
 
-USE_METHODS = ["SDP", "SDP-redun", "dSDP", "dSDP-redun", "ADMM", "ADMM-redun"]
+USE_METHODS = [
+    "local",
+    "SDP",
+    "SDP-redun",
+    "dSDP",
+    "dSDP-redun",
+    "pADMM",
+    "pADMM-redun",
+]
 
 
 def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity"):
@@ -48,12 +56,12 @@ def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity")
 
 if __name__ == "__main__":
     n_params_list = [10]
-    noise_list = np.logspace(-2, 1, 7)
-    sparsity_list = np.linspace(0.5, 1.0, 6)[::-1]
-    n_seeds = 3
+    noise_list = np.logspace(-3, 1, 5)
+    sparsity_list = [1.0]  # np.linspace(0.5, 1.0, 6)[::-1]
+    n_seeds = 10
 
     appendix = "all"
-    overwrite = False
+    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
@@ -61,11 +69,7 @@ if __name__ == "__main__":
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     for lifter in [lifter_mat, lifter_ro]:
-        lifter.ALL_PAIRS = False
-        lifter.CLIQUE_SIZE = 2
-
         fname = f"_results/{lifter}_{appendix}.pkl"
-
         try:
             assert overwrite is False
             df = pd.read_pickle(fname)
@@ -78,6 +82,7 @@ if __name__ == "__main__":
                 sparsity_list=sparsity_list,
                 n_seeds=n_seeds,
                 use_methods=USE_METHODS,
+                add_redundant_constr=True,
             )
             df.to_pickle(fname)
             print("saved final as", fname)

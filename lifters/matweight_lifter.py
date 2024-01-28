@@ -172,6 +172,8 @@ class MatWeightLifter(StateLifter):
             # TODO(FD) not currently supported to use other than self.y_
             assert y == self.y_
         xhat, info = self.prob.gauss_newton(x_init=t0, verbose=verbose)
+        if info["term_crit"] == "ITER":
+            print("Warning: GN reached maximum number of iterations!")
         return xhat, info, info["cost"]
 
     def get_cost(self, theta, y):

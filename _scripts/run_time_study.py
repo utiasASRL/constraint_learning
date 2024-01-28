@@ -14,15 +14,16 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["ADMM", "pADMM"]
 USE_METHODS = ["local", "SDP", "dSDP", "ADMM", "pADMM"]
 
-RESULTS_READ = "_results_server"
+# RESULTS_READ = "_results_server"
+RESULTS_READ = "_results"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
     # appendix = "time"
 
-    n_params_list = np.logspace(1, 6, 6).astype(int)
-    appendix = "all"
+    # n_params_list = np.logspace(1, 6, 6).astype(int)
+    # appendix = "all"
 
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"
@@ -30,10 +31,9 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
 
-    # n_params_list = [100, 200]
-    # appendix = "test"
-
-    overwrite = False
+    n_params_list = [1000]
+    appendix = "test"
+    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
@@ -41,9 +41,6 @@ if __name__ == "__main__":
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     for lifter in [lifter_mat, lifter_ro]:
-        lifter.ALL_PAIRS = False
-        lifter.CLIQUE_SIZE = 2
-
         try:
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
@@ -59,6 +56,9 @@ if __name__ == "__main__":
             df.to_pickle(fname)
             print("saved final as", fname)
 
+    for lifter in [lifter_mat, lifter_ro]:
+        fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
+        df = pd.read_pickle(fname)
         for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
             value_vars = [f"{label} {m}" for m in USE_METHODS]
             value_vars = set(value_vars).intersection(df.columns.unique())
