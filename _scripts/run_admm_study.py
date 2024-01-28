@@ -11,20 +11,18 @@ from utils.plotting_tools import matshow_list, savefig
 
 USE_METHODS = ["local", "pADMM"]
 
-# RESULTS_READ = "_results_server"
-
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
-    overwrite = False
-    # n_params_list = [10, 34, 100]
-    # n_threads_list = np.arange(1, 30, step=2).astype(int)
-    # appendix = "admm"
+    overwrite = True
+    n_params_list = np.logspace(1, 3, 3).astype(int)
+    n_threads_list = np.logspace(0, 7, 8, base=2).astype(int)
+    appendix = "admm"
 
-    n_params_list = [100, 200]
-    n_threads_list = [50, 100, 150, 200]
-    appendix = "admm_many"
+    # n_params_list = [100, 200]
+    # n_threads_list = [50, 100, 150, 200]
+    # appendix = "admm_many"
 
     np.random.seed(0)
     costs_all = []

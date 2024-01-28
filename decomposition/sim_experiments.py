@@ -25,6 +25,10 @@ USE_PRIMAL = False
 USE_FUSION = True
 VERBOSE = False
 
+# Maximum size for which we run SDP (to prevent memory error)
+# Determined empirically. Set to inf for no effect.
+SDP_MAX_N = 500
+
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["dSDP", "SDP"]
@@ -97,7 +101,7 @@ def generate_results(
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
 
             if "local" in use_methods:
-                print("solving local...", end="")
+                print("solving local...")
                 t1 = time.time()
                 theta_est, info, cost = new_lifter.local_solver(
                     theta_gt, new_lifter.y_, verbose=True
@@ -110,7 +114,7 @@ def generate_results(
                 data_dict["cost local"] = 0
 
             for appendix, add_redundant in red_parameters.items():
-                print("creating cliques...", end="")
+                print("creating cliques...")
                 t1 = time.time()
                 clique_list = create_clique_list_loc(
                     new_lifter,
@@ -124,7 +128,7 @@ def generate_results(
 
                 method = f"dSDP{appendix}"
                 if method in use_methods:
-                    print(f"solving {method}...", end="")
+                    print(f"solving {method}...")
                     t1 = time.time()
                     X_list, info = solve_oneshot(
                         clique_list,
@@ -148,7 +152,7 @@ def generate_results(
 
                 method = f"ADMM{appendix}"
                 if method in use_methods:
-                    print(f"running {method}...", end="")
+                    print(f"running {method}...")
                     if lifter.ADMM_INIT_XHAT:
                         X0 = []
                         for c in clique_list:
@@ -168,7 +172,7 @@ def generate_results(
                         **lifter.ADMM_OPTIONS,
                     )
                     data_dict[f"t {method}"] = time.time() - t1
-                    print(info["msg"], end="...")
+                    print(info["msg"])
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
                         info["cost"], data_dict["cost local"]
@@ -186,7 +190,7 @@ def generate_results(
                     for n_threads in n_threads_list:
                         if len(n_threads_list) > 1:
                             method = f"pADMM{appendix}-{n_threads}"
-                        print(f"running {method}...", end="")
+                        print(f"running {method}...")
                         if lifter.ADMM_INIT_XHAT:
                             X0 = []
                             for c in clique_list:
@@ -208,7 +212,7 @@ def generate_results(
                         data_dict[f"t total {method}"] = time.time() - t1
                         data_dict[f"t {method}"] = info["time running"]
                         data_dict[f"n threads"] = n_threads
-                        print(info["msg"], end="...")
+                        print(info["msg"])
                         data_dict[f"cost {method}"] = info["cost"]
                         data_dict[f"cost history {method}"] = info["cost history"]
                         data_dict[f"RDG {method}"] = get_relative_gap(
@@ -223,8 +227,10 @@ def generate_results(
                             print("Warning: could not extract solution:", e)
 
                 method = f"SDP{appendix}"
-                if method in use_methods:
-                    print("creating cost...", end="")
+                if method in use_methods and (n_params > SDP_MAX_N):
+                    print(f"Skipping SDP for n_params={n_params}")
+                elif method in use_methods and (n_params <= SDP_MAX_N):
+                    print("creating cost...")
                     Q, _ = new_lifter.get_Q()
 
                     print("creating constraints...", end="")
@@ -253,7 +259,7 @@ def generate_results(
                     data_dict[f"dim {method}"] = Q.shape[0]
                     data_dict[f"m {method}"] = len(Constraints)
 
-                    print(f"solving {method}...", end="")
+                    print(f"solving {method}...")
                     t1 = time.time()
                     X, info = solve_sdp(
                         Q,

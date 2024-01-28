@@ -12,10 +12,9 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = ["local", "SDP", "dSDP", "ADMM", "pADMM"]
+USE_METHODS = ["local", "SDP", "dSDP", "pADMM"]
 
-# RESULTS_READ = "_results_server"
-RESULTS_READ = "_results"
+RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
