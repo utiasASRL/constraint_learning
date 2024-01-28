@@ -12,20 +12,20 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = ["local", "SDP", "dSDP", "ADMM", "pADMM"]
+USE_METHODS = ["local", "SDP", "dSDP", "pADMM"]
 
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
-    # n_params_list = np.logspace(1, 2, 10).astype(int)
-    # appendix = "time"
+    #n_params_list = np.logspace(1, 2, 10).astype(int)
+    #appendix = "time"
 
-    n_params_list = np.logspace(1, 6, 6).astype(int)
-    appendix = "all"
+    #n_params_list = np.logspace(1, 6, 6).astype(int)
+    #appendix = "all"
 
-    # n_params_list = np.logspace(1, 3, 9).astype(int)
-    # appendix = "large"
+    n_params_list = np.logspace(1, 3, 9).astype(int)
+    appendix = "large"
 
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
@@ -33,7 +33,7 @@ if __name__ == "__main__":
     # n_params_list = [100, 200]
     # appendix = "test"
 
-    overwrite = False
+    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
