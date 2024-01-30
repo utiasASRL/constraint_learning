@@ -1,5 +1,3 @@
 __pycache__
 _results/*.pdf
-_results/*.png
-*.png
 *.pdf

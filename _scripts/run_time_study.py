@@ -13,6 +13,7 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
 USE_METHODS = ["local", "SDP", "dSDP", "pADMM"]
+ADD_REDUNDANT = True
 
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
@@ -21,8 +22,8 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
     # appendix = "time"
 
-    # n_params_list = np.logspace(1, 6, 6).astype(int)
-    # appendix = "all"
+    n_params_list = np.logspace(1, 6, 11).astype(int)
+    appendix = "all"
 
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"
@@ -30,8 +31,8 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
 
-    n_params_list = [1000]
-    appendix = "test"
+    # n_params_list = [1000]
+    # appendix = "test"
     overwrite = True
 
     np.random.seed(0)
@@ -51,6 +52,7 @@ if __name__ == "__main__":
                 n_params_list=n_params_list,
                 fname=fname,
                 use_methods=USE_METHODS,
+                add_redundant_constr=ADD_REDUNDANT,
             )
             df.to_pickle(fname)
             print("saved final as", fname)
