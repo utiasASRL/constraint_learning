@@ -121,7 +121,6 @@ def test_cost_noisy():
 
 def test_cost(noise=0.0):
     for lifter in all_lifters():
-        assert isinstance(lifter, RangeOnlyLocLifter)
         # np.random.seed(1)
         Q, y = lifter.get_Q(noise=noise)
         # np.random.seed(1)

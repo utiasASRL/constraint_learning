@@ -54,7 +54,10 @@ def extract_solution(lifter: MatWeightLocLifter, X_list):
 
 def get_relative_gap(cost_sdp, cost_global):
     """See Yang & Carlone 2023"""
-    return abs(cost_global - cost_sdp) / (1 + abs(cost_global) + abs(cost_sdp))
+    if cost_sdp is None:
+        return np.inf
+    else:
+        return abs(cost_global - cost_sdp) / (1 + abs(cost_global) + abs(cost_sdp))
 
 
 def generate_results(
@@ -168,7 +171,7 @@ def generate_results(
                     X_list, info = solve_alternating(
                         deepcopy(clique_list),
                         X0=X0,
-                        verbose=True,
+                        verbose=VERBOSE,
                         **lifter.ADMM_OPTIONS,
                     )
                     data_dict[f"t {method}"] = time.time() - t1
@@ -268,6 +271,7 @@ def generate_results(
                         primal=USE_PRIMAL,
                         use_fusion=USE_FUSION,
                         tol=TOL_SDP,
+                        verbose=VERBOSE,
                     )
                     data_dict[f"t {method}"] = time.time() - t1
                     data_dict[f"cost {method}"] = info["cost"]

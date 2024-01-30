@@ -15,7 +15,7 @@ RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
-    overwrite = True
+    overwrite = False
     n_params_list = np.logspace(1, 3, 3).astype(int)
     n_threads_list = np.logspace(0, 7, 8, base=2).astype(int)
     appendix = "admm"
@@ -73,11 +73,15 @@ if __name__ == "__main__":
             lambda row: int(row["label"].strip("t pADMM-")), axis=1
         )
         fig, ax = plt.subplots()
-        fig.set_size_inches(7, 4)
+        fig.set_size_inches(3.5, 4)
         sns.scatterplot(data=df_long, x="n threads", y="time", style="n params", ax=ax)
-        ax.set_xlabel("n threads")
-        ax.set_ylabel("time")
-        ax.legend()
+        ax.set_xlabel("number of threads")
+        ax.set_ylabel("time [s]")
+        ax.set_xscale("log")
+        ax.set_yscale("log")
+        ax.set_ylim(0.5, 1e3)
+        ax.legend(loc="upper right", ncol=3, columnspacing=0.1)
+        ax.grid()
         savefig(fig, fname.replace(".pkl", f"_time.png"))
 
         n_threads = n_threads_list[0]

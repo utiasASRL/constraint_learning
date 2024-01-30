@@ -38,6 +38,10 @@ ROLifters = [
     (RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad", reg=Reg.ZERO_VELOCITY)),
     (RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad", reg=Reg.CONSTANT_VELOCITY)),
 ]
+# Lifters = [
+#    (MatWeightLocLifter, dict(n_landmarks=5, n_poses=n_poses)),
+]
+# ROLifters = []
 # Lifters = [(RangeOnlyLocLifter, dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="no", reg=Reg.CONSTANT_VELOCITY))]
 # Lifters = []
 # ROLifters = []

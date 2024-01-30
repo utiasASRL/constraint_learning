@@ -12,13 +12,24 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = ["local", "SDP", "SDP-redun", "dSDP", "dSDP-redun", "pADMM", "pADMM-redun"]
+USE_METHODS = [
+    "local",
+    "SDP",
+    "SDP-redun",
+    "dSDP",
+    "dSDP-redun",
+    "pADMM",
+    "pADMM-redun"
+]
 ADD_REDUNDANT = True
 
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
+    overwrite = True
+    n_threads_list = [10]
+
     # n_params_list = np.logspace(1, 2, 10).astype(int)
     # appendix = "time"
 
@@ -31,9 +42,9 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
 
-    # n_params_list = [1000]
+    # n_params_list = [10]
+    # n_threads_list = [2]
     # appendix = "test"
-    overwrite = True
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
@@ -53,6 +64,7 @@ if __name__ == "__main__":
                 fname=fname,
                 use_methods=USE_METHODS,
                 add_redundant_constr=ADD_REDUNDANT,
+                n_threads_list=n_threads_list,
             )
             df.to_pickle(fname)
             print("saved final as", fname)

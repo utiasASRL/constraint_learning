@@ -4,6 +4,10 @@ from mwcerts.stereo_problems import LocalizationProblem, SLAMProblem
 
 from lifters.state_lifter import StateLifter
 
+# pose to pose noise parameters
+P2P_STD_TRANS = 0.1
+P2P_STD_ROT = 10 * np.pi / 180
+
 
 class MatWeightLifter(StateLifter):
     HOM = "h"
@@ -21,9 +25,9 @@ class MatWeightLifter(StateLifter):
 
     ADMM_OPTIONS = dict(
         early_stop=False,
-        maxiter=2,
+        maxiter=20,
         use_fusion=True,
-        rho_start=1e2,
+        rho_start=1e3,
     )
     ADMM_INIT_XHAT = False
 
@@ -279,7 +283,13 @@ class MatWeightSLAMLifter(MatWeightLifter):
         self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
 
         edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
-        self.prob.add_p2p_meas(edges_p2p, p2p_std_rot=noise, p2p_std_trans=noise)
+        if noise > 0:
+            self.prob.add_p2p_meas(
+                edges_p2p, p2p_std_rot=P2P_STD_ROT, p2p_std_trans=P2P_STD_TRANS
+            )
+        else:
+            # for testing only
+            self.prob.add_p2p_meas(edges_p2p, p2p_std_rot=0, p2p_std_trans=0)
 
         # fix the first pose to origin.
         if noise > 0:
@@ -323,7 +333,13 @@ class MatWeightLocLifter(MatWeightLifter):
         # self.prob.gauss_isotrp_meas_model(edges_p2m, sigma=noise)
 
         edges_p2p = self.prob.G.gen_pg_edges(pg_type="chain")
-        self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=noise, p2p_std_rot=noise)
+        if noise > 0:
+            self.prob.add_p2p_meas(
+                edges_p2p, p2p_std_trans=P2P_STD_TRANS, p2p_std_rot=P2P_STD_ROT
+            )
+        else:
+            # for testing only
+            self.prob.add_p2p_meas(edges_p2p, p2p_std_trans=0.0, p2p_std_rot=0.0)
         self.y_ = self.prob.G.E
 
     def __repr__(self):
