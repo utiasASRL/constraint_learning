@@ -51,7 +51,7 @@ if __name__ == "__main__":
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_mat, lifter_ro]:
+    for lifter in [lifter_ro, lifter_mat]:
         try:
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
@@ -64,6 +64,7 @@ if __name__ == "__main__":
                 fname=fname,
                 use_methods=USE_METHODS,
                 add_redundant_constr=ADD_REDUNDANT,
+                noise_list=[lifter.NOISE],
                 n_threads_list=n_threads_list,
             )
             df.to_pickle(fname)

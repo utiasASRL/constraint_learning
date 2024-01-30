@@ -11,7 +11,7 @@ P2P_STD_ROT = 10 * np.pi / 180
 
 class MatWeightLifter(StateLifter):
     HOM = "h"
-    NOISE = 0.01
+    NOISE = 0.1
 
     @staticmethod
     def get_variable_indices(var_subset, variable=["xC", "xt", "xt0", "m"]):
@@ -25,9 +25,9 @@ class MatWeightLifter(StateLifter):
 
     ADMM_OPTIONS = dict(
         early_stop=False,
-        maxiter=20,
+        maxiter=10,
         use_fusion=True,
-        rho_start=1e3,
+        rho_start=1e2,
     )
     ADMM_INIT_XHAT = False
 

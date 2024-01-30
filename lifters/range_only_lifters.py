@@ -15,8 +15,6 @@ from utils.common import diag_indices
 
 plt.ion()
 
-NOISE = 1e-2  # std deviation of distance noise
-
 # METHOD = "BFGS"
 METHOD = "GN"
 NORMALIZE = True
@@ -53,8 +51,9 @@ class RangeOnlyLocLifter(StateLifter):
         "dir": "$\\boldsymbol{n}_n$",
     }
     PRIOR_NOISE = 0.2
+    NOISE = 1e-2
 
-    ADMM_OPTIONS = dict(use_fusion=True, maxiter=20, early_stop=False, rho_start=1e2)
+    ADMM_OPTIONS = dict(use_fusion=True, maxiter=10, early_stop=False, rho_start=1e2)
     ADMM_INIT_XHAT = False
 
     def get_vec_around_gt(self, delta: float = 0):
@@ -473,6 +472,8 @@ class RangeOnlyLocLifter(StateLifter):
 
     def simulate_y(self, noise: float = None, sparsity: float = 1.0):
         assert isinstance(self.prob, Problem)
+        if noise is None:
+            noise = self.NOISE
         self.prob.generate_distances(sigma_dist_real=noise)
         self.y_ = deepcopy(self.prob.D_noisy_sq)
         if sparsity == 1.0:
