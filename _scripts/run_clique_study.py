@@ -26,6 +26,7 @@ from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
 RESULTS_WRITE = "_results"
+RESULTS_READ = "_results_server"
 
 COMPUTE_MINIMAL = True
 
@@ -145,10 +146,15 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
             clique_list = create_clique_list_loc(lifter, use_known=USE_KNOWN)
         else:
             clique_list = create_clique_list(lifter, **overlap, use_known=USE_KNOWN)
-        visualize_clique_list(
-            clique_list,
-            fname=fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}",
-        )
+
+        if fname != "":
+            fname_here = (
+                fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}"
+            )
+            visualize_clique_list(
+                clique_list,
+                fname=fname_here,
+            )
         print("solving...", end="")
         X_list, info = solve_oneshot(
             clique_list, use_primal=USE_PRIMAL, use_fusion=USE_FUSION, verbose=VERBOSE
@@ -222,18 +228,20 @@ if __name__ == "__main__":
     # TODO(FD): Some running points
     # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
-    lifters = [
-        # Stereo2DLifter(n_landmarks=10, param_level="ppT", level="urT"),
-        # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
-        # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
-        # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
-        WahbaLifter(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1),
-        # WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
-        # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
-        # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
-        # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-        # MatWeightLocLifter(n_landmarks=10, n_poses=10)
-    ]
+
+    # Possible lifters
+    # ================
+    # Stereo2DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+    # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
+    # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
+    # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
+    # WahbaLifter(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1),
+    # WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
+    # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
+    # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
+    # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
+    # MatWeightLocLifter(n_landmarks=10, n_poses=10)
+
     overlap_params = [
         {"overlap_mode": 0, "n_vars": 1},
         {"overlap_mode": 1, "n_vars": 2},
@@ -244,16 +252,18 @@ if __name__ == "__main__":
         # {"overlap_mode": 1, "n_vars": 7},
         # {"overlap_mode": 2, "n_vars": 2},
     ]
-    overwrite = True
-    fname = f"{RESULTS_WRITE}/study_overlap.pkl"
+    overwrite = False
 
     try:
+        fname = f"{RESULTS_READ}/study_overlap_large.pkl"
         overwrite is False
         df = pd.read_pickle(fname)
     except (FileNotFoundError, AssertionError):
+        fname = f"{RESULTS_WRITE}/study_overlap_large.pkl"
         df_data = []
-        plot_fname = f"{RESULTS_WRITE}/study_overlap"
-        for n_landmarks in [4, 5, 6]:
+        # plot_fname = f"{RESULTS_WRITE}/study_overlap"
+        plot_fname = ""
+        for n_landmarks in [4, 5, 6, 7, 8]:
             # solve_in_one(lifter, overlap_params)
             for seed in range(3):
                 np.random.seed(seed)
@@ -271,7 +281,7 @@ if __name__ == "__main__":
                 df_sub.loc[:, "n_landmarks"] = n_landmarks
                 df_sub.loc[:, "seed"] = n_landmarks
 
-                df_data.append(df)
+                df_data.append(df_sub)
                 df = pd.concat(df_data)
                 df.to_pickle(fname)
                 print(f"saved intermediate as {fname}")
@@ -279,12 +289,21 @@ if __name__ == "__main__":
     for label in ["RDG", "EVR"]:
         fig, ax = plt.subplots()
         fig.set_size_inches(3.5, 4.0)
-        sns.scatterplot(data=df, x="n_vars", y=label, ax=ax, hue="n_landmarks")
+        sns.pointplot(
+            data=df,
+            x="n_vars",
+            y=label,
+            ax=ax,
+            hue="n_landmarks",
+            palette="tab10",
+            errorbar=("sd", 0.5),
+        )
         ax.set_xlabel("clique width")
         ax.set_ylabel(label)
-        fname = f"{RESULTS_WRITE}/study_overlap_{label}.pdf"
+        fname = f"{RESULTS_READ}/study_overlap_{label}.pdf"
         ax.set_xticks(df.n_vars.unique())
         ax.set_yscale("log")
         ax.grid()
+        ax.legend(title="n landmarks")
         savefig(fig, fname)
     print("done")
