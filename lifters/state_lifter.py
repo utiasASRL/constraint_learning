@@ -307,7 +307,7 @@ class StateLifter(BaseClass):
         return Ai_poly.get_matrix(all_var_dict)
 
     def get_A_learned(
-        self, A_known=[], var_dict=None, method=METHOD, verbose=False
+        self, A_known=[], var_dict=None, method=METHOD, verbose=False, output_poly=False
     ) -> list:
         import time
 
@@ -328,9 +328,12 @@ class StateLifter(BaseClass):
         return A_learned
 
     def get_A_learned_simple(
-        self, A_known=[], var_dict=None, method=METHOD, verbose=False
+        self, A_known=[], var_dict=None, method=METHOD, verbose=False, output_poly=False
     ) -> list:
         import time
+
+        if var_dict is None:
+            var_dict = self.var_dict
 
         t1 = time.time()
         Y = self.generate_Y_simple(var_subset=var_dict, factor=1.5)
@@ -352,6 +355,11 @@ class StateLifter(BaseClass):
         A_learned = self.generate_matrices_simple(basis, var_dict=var_dict)
         if verbose:
             print(f"get matrices ({len(A_learned)}): {time.time() - t1:4.4f}")
+
+        if output_poly:
+            A_learned = [
+                PolyMatrix.init_from_sparse(A, var_dict=var_dict)[0] for A in A_learned
+            ]
         return A_learned
 
     def get_A_known(self, var_dict=None) -> list:
@@ -1015,13 +1023,15 @@ class StateLifter(BaseClass):
                         raise ValueError(errors)
         return max_violation, j_bad
 
-    def get_A0(self, var_subset=None):
+    def get_A0(self, var_subset=None, output_poly=False):
         if var_subset is not None:
             var_dict = {k: self.var_dict[k] for k in var_subset}
         else:
             var_dict = self.var_dict
         A0 = PolyMatrix()
         A0[self.HOM, self.HOM] = 1.0
+        if output_poly:
+            return A0
         return A0.get_matrix(var_dict)
 
     def get_A_b_list(self, A_list, var_subset=None):

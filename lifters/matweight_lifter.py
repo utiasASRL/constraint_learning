@@ -185,6 +185,12 @@ class MatWeightLifter(StateLifter):
         x = self.get_x(theta=theta)
         return x.T @ Q.get_matrix(self.var_dict) @ x
 
+    def get_Q_from_y(self, y, use_cliques=None, output_poly=False, save=False):
+        Q = self.prob.generate_cost(edges=y, use_nodes=use_cliques)
+        if output_poly:
+            return Q
+        return Q.get_matrix(self.var_dict)
+
     def get_Q(
         self, noise: float = None, output_poly=False, use_cliques=None, sparsity=1.0
     ):

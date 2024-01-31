@@ -141,7 +141,7 @@ class RangeOnlyLocLifter(StateLifter):
             self.n_positions,
             self.d,
             times=times,
-            v_sigma=self.PRIOR_NOISE,
+            v_sigma=self.NOISE_PRIOR,
             return_velocities=True,
             fix_x0=False,
             fix_v0=False,
@@ -326,8 +326,8 @@ class RangeOnlyLocLifter(StateLifter):
             np.linalg.norm(self.landmarks[:, None, :] - positions[None, :, :], axis=2)
             ** 2
         )
-        # res = np.sqrt(self.prob.Sig_inv) @ np.sum(self.prob.W * (y - y_current), axis=1)
-        res = self.get_residuals_old(t, y)
+        res = np.sqrt(self.prob.Sig_inv) @ np.sum(self.prob.W * (y - y_current), axis=1)
+        # res = self.get_residuals_old(t, y)
         # np.testing.assert_allclose(res, res_old)
         return res
 

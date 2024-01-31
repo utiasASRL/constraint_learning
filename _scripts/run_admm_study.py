@@ -59,6 +59,7 @@ if __name__ == "__main__":
             if len(n_threads_list) > 1
             else ["t pADMM"]
         )
+        df = df[df["n params"] > 10]
         df_long = df.melt(
             id_vars=["n params", "n threads"],
             value_vars=labels,
@@ -68,6 +69,7 @@ if __name__ == "__main__":
         df_long.loc[:, "n threads"] = df_long.apply(
             lambda row: int(row["label"].strip("t pADMM-")), axis=1
         )
+
         fig, ax = plt.subplots()
         fig.set_size_inches(3.5, 4)
         sns.scatterplot(data=df_long, x="n threads", y="time", style="n params", ax=ax)
@@ -75,7 +77,7 @@ if __name__ == "__main__":
         ax.set_ylabel("time [s]")
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_ylim(0.5, 1e3)
+        ax.set_ylim(5, 1e3)
         ax.legend(loc="upper right", ncol=3, columnspacing=0.1)
         ax.grid()
         savefig(fig, fname.replace(".pkl", f"_time.png"))
@@ -83,15 +85,20 @@ if __name__ == "__main__":
         n_threads = n_threads_list[0]
         fig, ax = plt.subplots()
         fig.set_size_inches(3.5, 4)
-        cost_history = df[["n params", f"cost history pADMM-{n_threads}"]]
+        cost_history = df[["n params", f"cost history pADMM-{n_threads}", "cost local"]]
         for n_params, df_plot in cost_history.groupby("n params"):
             assert len(df_plot) == 1
             row = df_plot.iloc[0]
-            ax.plot(row[f"cost history pADMM-{n_threads}"], label=f"N={n_params}")
-        ax.set_ylabel("cost")
+            cost_history = (
+                np.abs(row[f"cost history pADMM-{n_threads}"] - row["cost local"])
+                / row["cost local"]
+            )
+            ax.plot(cost_history, label=f"N={n_params}")
+        ax.set_ylabel("relative error")
         ax.set_xlabel("iteration index")
         ax.set_yscale("log")
         ax.legend(loc="upper right")
+        ax.grid()
         savefig(fig, fname.replace(".pkl", f"_conv.png"))
 
         n_threads = n_threads_list[0]
