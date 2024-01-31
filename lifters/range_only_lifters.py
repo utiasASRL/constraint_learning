@@ -50,16 +50,17 @@ class RangeOnlyLocLifter(StateLifter):
         "quad": "$\\boldsymbol{y}_n$",
         "dir": "$\\boldsymbol{n}_n$",
     }
-    PRIOR_NOISE = 0.2
-    NOISE = 1e-2
+    PRIOR_NOISE = 0.2  # testing was 0.5 -- puts big weight on GP prior
+    MODEL_NOISE = 0.2  # testing was 0.2 -- creates a smooth trajectory
+    NOISE = 1e-2  # testing was 0.1 -- distance noise 1cm is reasonable
 
-    ADMM_OPTIONS = dict(use_fusion=True, maxiter=10, early_stop=False, rho_start=1e2)
+    ADMM_OPTIONS = dict(use_fusion=True, maxiter=20, early_stop=False, rho_start=1e2)
     ADMM_INIT_XHAT = False
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth."""
         if delta == 0:
-            return self.theta.flatten()
+            return self.theta
         else:
             bbox_max = np.max(self.landmarks, axis=0) * 2
             bbox_min = np.min(self.landmarks, axis=0) * 2
@@ -70,7 +71,7 @@ class RangeOnlyLocLifter(StateLifter):
             )
             theta = np.ones((self.n_positions, self.k))
             theta[:, : self.d] = pos
-            return theta.flatten()
+            return theta
 
     def __init__(
         self,
@@ -110,18 +111,20 @@ class RangeOnlyLocLifter(StateLifter):
         return [vars]
 
     def generate_random_setup(self):
-        # self.prob.landmarks
-        # self.prob = Problem(K=n_landmarks, N=n_positions, d=d, regularization=reg)
         self.prob = Problem.generate_prob(
-            N=self.n_positions, K=self.n_landmarks, d=self.d, linear_anchors=True
+            N=self.n_positions,
+            K=self.n_landmarks,
+            d=self.d,
+            linear_anchors=True, # testing was False
+            sigma_acc_est=self.PRIOR_NOISE,
+            sigma_acc_real=self.MODEL_NOISE,
+            sigma_dist_est=self.NOISE, # testing was 1.0
+            sigma_dist_real=self.NOISE,
         )
         self.k = self.prob.get_dim()
         self.theta_ = deepcopy(self.prob.theta)
         self.landmarks = deepcopy(self.prob.anchors)
         self.trajectory = deepcopy(self.prob.trajectory)
-        # trajectory = self.theta.reshape(-1, self.k)
-        # self.prob.generate_random_anchors(trajectory=trajectory[:, : self.d])
-        # self.landmarks = self.prob.anchors
         self.parameters = np.r_[1.0, self.landmarks.flatten()]
         self.times = deepcopy(self.prob.times)
         self.y_ = deepcopy(self.prob.D_noisy_sq)
@@ -308,10 +311,21 @@ class RangeOnlyLocLifter(StateLifter):
         S, U = spl.eigsh(Q)
         return np.diag(np.sqrt(S)) @ U.T
 
-    def get_residuals(self, t, y):
+    def get_residuals_old(self, t, y):
         x = self.get_x(theta=t)
         B = self.get_B_matrix(y)
         return B @ x
+
+    def get_residuals(self, t, y):
+        positions = t.reshape((-1, self.k))[:, : self.d]
+        y_current = (
+            np.linalg.norm(self.landmarks[:, None, :] - positions[None, :, :], axis=2)
+            ** 2
+        )
+        # res = np.sqrt(self.prob.Sig_inv) @ np.sum(self.prob.W * (y - y_current), axis=1)
+        res = self.get_residuals_old(t, y)
+        # np.testing.assert_allclose(res, res_old)
+        return res
 
     def get_residuals_prior(self):
         assert self.prob.v.nnz == 0, "non-zero v not supported currently."
@@ -405,6 +419,9 @@ class RangeOnlyLocLifter(StateLifter):
             if (use_cliques is not None) and (n not in use_cliques):
                 continue
             nnz = np.where(self.prob.W[:, n] > 0)[0]
+
+            if not len(nnz):
+                continue
 
             # Create the cost terms corresponding to residual:
             #              [h  ]
@@ -528,7 +545,7 @@ class RangeOnlyLocLifter(StateLifter):
             return_hess=False,
         )[0]
         if abs(cost1 - cost2) > 1e-10:
-            # print(f"Warning: costs not the same {cost1:.4f}, {cost2:.4f}")
+            print(f"Warning: costs not the same {cost1:.4f}, {cost2:.4f}")
             pass
         return self.Q_fixed, self.y_
 
@@ -569,6 +586,7 @@ class RangeOnlyLocLifter(StateLifter):
         if method == "GN":
             t_init_mat = t_init.reshape(-1, self.prob.get_dim())
             that, info = gauss_newton(t_init_mat, self.prob, **solver_kwargs[method])
+            that = that.reshape(-1, self.prob.get_dim())
             cost = info["cost"]
             success = info["success"]
             msg = info["status"]
@@ -586,20 +604,15 @@ class RangeOnlyLocLifter(StateLifter):
                 method=method,
                 options=options,
             )
-            that = sol.x
+            that = sol.x.reshape(-1, self.prob.get_dim())
             cost = sol.fun
             success = sol.success
             msg = sol.message + f" (# iterations: {sol.nit})"
-        residuals = self.get_residuals(that, y)
         info = {
             "msg": msg,
             "cost": cost,
             "success": success,
-            "max res": np.max(np.abs(residuals)),
         }
-        # hess = self.get_hess(that, y)
-        # eigs = np.linalg.eigvalsh(hess.toarray())
-        # info["cond Hess"] = eigs[-1] / eigs[0]
         if not success:
             print("Warning: local solver finished with", msg)
         return that, info, cost

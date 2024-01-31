@@ -376,3 +376,4 @@ def matshow_list(*args, log=False, **kwargs):
                 axs[0, i].matshow(np.log10(np.abs(arg.toarray())), **kwargs)
             else:
                 axs[0, i].matshow(arg.toarray(), **kwargs)
+    return fig, axs

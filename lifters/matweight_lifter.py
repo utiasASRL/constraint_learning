@@ -11,7 +11,7 @@ P2P_STD_ROT = 10 * np.pi / 180
 
 class MatWeightLifter(StateLifter):
     HOM = "h"
-    NOISE = 0.1
+    NOISE = 1.0
 
     @staticmethod
     def get_variable_indices(var_subset, variable=["xC", "xt", "xt0", "m"]):

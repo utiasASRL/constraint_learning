@@ -19,7 +19,7 @@ USE_METHODS = [
     "dSDP",
     "dSDP-redun",
     "pADMM",
-    "pADMM-redun"
+    "pADMM-redun",
 ]
 ADD_REDUNDANT = True
 
@@ -28,13 +28,13 @@ RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
     overwrite = True
-    n_threads_list = [10]
+    n_threads_list = [2]
 
-    # n_params_list = np.logspace(1, 2, 10).astype(int)
-    # appendix = "time"
+    n_params_list = np.logspace(1, 2, 10).astype(int)
+    appendix = "time"
 
-    n_params_list = np.logspace(1, 6, 11).astype(int)
-    appendix = "all"
+    # n_params_list = np.logspace(1, 6, 11).astype(int)
+    # appendix = "all"
 
     # n_params_list = np.logspace(1, 3, 9).astype(int)
     # appendix = "large"
@@ -58,13 +58,16 @@ if __name__ == "__main__":
             df = pd.read_pickle(fname)
         except (FileNotFoundError, AssertionError):
             fname = f"{RESULTS_WRITE}/{lifter}_{appendix}.pkl"
+            add_redundant_constr = (
+                True if isinstance(lifter, MatWeightLocLifter) else False
+            )
             df = generate_results(
                 lifter,
                 n_params_list=n_params_list,
                 fname=fname,
                 use_methods=USE_METHODS,
-                add_redundant_constr=ADD_REDUNDANT,
                 noise_list=[lifter.NOISE],
+                add_redundant_constr=add_redundant_constr,
                 n_threads_list=n_threads_list,
             )
             df.to_pickle(fname)
