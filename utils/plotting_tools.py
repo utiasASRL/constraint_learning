@@ -4,6 +4,16 @@ import numpy as np
 
 from poly_matrix.poly_matrix import PolyMatrix
 
+USE_METHODS = {
+    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
+    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP"},
+    "SDP-redun": {"color": "C1", "marker": "d", "alpha": 0.5, "label": None},
+    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
+    "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 0.5, "label": None},
+    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "altSDP"},
+    "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 0.5, "label": None},
+}
+
 
 def import_plt():
     import shutil

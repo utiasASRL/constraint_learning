@@ -8,40 +8,30 @@ from decomposition.sim_experiments import generate_results
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
-from utils.plotting_tools import matshow_list, savefig
+from utils.plotting_tools import USE_METHODS, savefig
 
-USE_METHODS = [
-    "local",
-    "SDP",
-    "SDP-redun",
-    "dSDP",
-    "dSDP-redun",
-    "pADMM",
-    "pADMM-redun",
-]
 RESULTS_READ = "_results_server"
-RESULTS_WRITE = "_results_server"
+RESULTS_WRITE = "_results"
 
 
-def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity"):
+def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
     # show individual points
     sns.stripplot(
         df_long,
         x=this,
-        y=label,
+        y=other,
         hue="solver type",
         dodge=0.05,
         ax=ax,
-        alpha=0.25,
         zorder=1,
         legend=False,
-        hue_order={m: f"C{i}" for i, m in enumerate(USE_METHODS)},
+        hue_order={m: kwargs["color"] for m, kwargs in USE_METHODS.items()},
     )
     # show means
     sns.pointplot(
         df_long,
         x=this,
-        y=label,
+        y=other,
         hue="solver type",
         dodge=0.8 - 0.8 / 6,
         ax=ax,
@@ -104,6 +94,7 @@ if __name__ == "__main__":
     for lifter in [lifter_mw, lifter_ro]:
         fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
         df = pd.read_pickle(fname)
+        print(f"read {fname}")
         for label in ["EVR", "RDG"]:
             value_vars = [f"{label} local"] + [
                 f"{label} {method}" for method in USE_METHODS
@@ -126,13 +117,45 @@ if __name__ == "__main__":
             print(f"plotting at sparsity={chosen_sparsity}")
 
             fig, ax = plt.subplots()
-            fig.set_size_inches(7, 4)
-            plot_this_vs_other(
-                df_long_here, ax, label=label, this="noise", other="sparsity"
-            )
-            ax.set_yscale("log")
+            fig.set_size_inches(7, 3)
+            methods = df_long_here["solver type"].unique()
+            for m, kwargs in USE_METHODS.items():
+                if m in methods:
+                    rows = df_long_here[df_long_here["solver type"] == m]
+                    # plot error bars
+                    sns.pointplot(
+                        x="noise",
+                        y=label,
+                        data=rows,
+                        ax=ax,
+                        color=kwargs["color"],
+                        marker=kwargs["marker"],
+                        alpha=0.5 if "redun" in m else 1.0,
+                        errorbar=("sd", 0.8),
+                        log_scale=True,
+                        label=kwargs["label"],
+                    )
+                    # plot all points
+                    sns.stripplot(
+                        x="noise",
+                        y=label,
+                        data=rows,
+                        ax=ax,
+                        color=kwargs["color"],
+                        marker=kwargs["marker"],
+                        alpha=0.5 if "redun" in m else 1.0,
+                        dodge=0.05,
+                        label=None,
+                    )
+                    pass
             ax.grid("on")
+            ax.legend()
+            ax.set_xticklabels(
+                [f"{eval(l.get_text()):.2f}" for l in ax.get_xticklabels()]
+            )
+            ax.set_xlabel("noise")
             savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
+
             continue
 
             chosen_noise = df_long.noise.min()
@@ -141,9 +164,7 @@ if __name__ == "__main__":
 
             fig, ax = plt.subplots()
             fig.set_size_inches(7, 4)
-            plot_this_vs_other(
-                df_long_here, ax, label=label, this="sparsity", other="noise"
-            )
+            plot_this_vs_other(df_long_here, ax, other=label, this="sparsity")
             ax.set_yscale("log")
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}_sparsity.png"))

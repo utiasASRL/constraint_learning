@@ -7,20 +7,11 @@ from decomposition.sim_experiments import generate_results
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
-from utils.plotting_tools import matshow_list, savefig
+from utils.plotting_tools import USE_METHODS, savefig
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = {
-    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
-    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP"},
-    "SDP-redun": {"color": "C1", "marker": "x", "alpha": 0.5, "label": None},
-    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
-    "dSDP-redun": {"color": "C2", "marker": "x", "alpha": 0.5, "label": None},
-    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "altSDP"},
-    "pADMM-redun": {"color": "C3", "marker": "x", "alpha": 0.5, "label": None},
-}
 ADD_REDUNDANT = True
 
 RESULTS_READ = "_results_server"
@@ -74,7 +65,7 @@ if __name__ == "__main__":
         for method in USE_METHODS.keys():
             if method in data_methods:
                 df_sub = data[data["solver type"] == method]
-                ax.scatter(df_sub[x], df_sub[y], **USE_METHODS[method])
+                ax.plot(df_sub[x], df_sub[y], **USE_METHODS[method])
             else:
                 print(f"skipping {method}, not in {data_methods}")
 
@@ -113,11 +104,15 @@ if __name__ == "__main__":
             if label not in ["cost", "RDG"]:
                 ax.set_xscale("log")
                 ax.legend(loc="upper left")
+                ax.set_ylabel("cost")
             else:
                 handles, labels = ax.get_legend_handles_labels()
                 new_labels = [USE_METHODS[l]["label"] for l in labels]
                 new_handles = [h for l, h in zip(new_labels, handles) if l is not None]
                 new_labels = [l for l in new_labels if l is not None]
                 ax.legend(new_handles, new_labels)
+                ax.set_ylabel("time [s]")
             ax.grid("on")
+            ax.set_xlabel("number of poses")
             savefig(fig, fname.replace(".pkl", f"_{label}.png"))
+    print("done")

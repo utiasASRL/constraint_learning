@@ -2,6 +2,8 @@
 
 # arxiv mode, verbose, compress.
 rsync -avz -e 'ssh' fdu@192.168.42.7:/home/fdu/constraint_learning/_results/* _results_server/ --exclude-from='_scripts/exclude-server.txt' --exclude="*.pdf"
+rsync -avz -e 'ssh' fdu@192.168.42.7:/home/fdu/constraint_learning/_results_server/mw_loc_lifter_noise.pkl _results_server/ --exclude-from='_scripts/exclude-server.txt' --exclude="*.pdf"
+rsync -avz -e 'ssh' fdu@192.168.42.7:/home/fdu/constraint_learning/_results_server/rangeonlyloc2d_no_const-vel_noise.pkl _results_server/ --exclude-from='_scripts/exclude-server.txt' --exclude="*.pdf"
 
 #rsync -avz -e 'ssh' asrl@100.64.83.242:/home/asrl/research/constraint_learning/_results/* _results_laptop/ --exclude-from='_scripts/exclude-server.txt' --exclude="*.pdf"
 
