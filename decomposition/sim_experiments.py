@@ -34,8 +34,8 @@ USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["dSDP", "SDP"]
 
 DEBUG = False
-TOL_SDP = 1e-12
-TOL_DSDP = 1e-5
+TOL_SDP = 1e-10
+TOL_DSDP = 1e-10
 
 ADD_REDUNDANT = False
 

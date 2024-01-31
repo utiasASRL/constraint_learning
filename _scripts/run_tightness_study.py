@@ -55,38 +55,50 @@ def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity")
 
 
 if __name__ == "__main__":
-    n_params_list = [10]
-    noise_list = np.logspace(-3, 1, 5)
+    n_params_list = [100]
     sparsity_list = [1.0]  # np.linspace(0.5, 1.0, 6)[::-1]
     n_seeds = 10
+    appendix = "noise"
+    seed = 0
 
-    appendix = "all"
-    overwrite = True
-
-    np.random.seed(0)
+    np.random.seed(seed)
+    noise_list = np.logspace(-1, 1, 3)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
-    lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_mat, lifter_ro]:
-        fname = f"_results/{lifter}_{appendix}.pkl"
-        try:
-            assert overwrite is False
-            df = pd.read_pickle(fname)
-        except (FileNotFoundError, AssertionError):
-            df = generate_results(
-                lifter,
-                n_params_list=n_params_list,
-                fname=fname,
-                noise_list=noise_list,
-                sparsity_list=sparsity_list,
-                n_seeds=n_seeds,
-                use_methods=USE_METHODS,
-                add_redundant_constr=True,
-            )
-            df.to_pickle(fname)
-            print("saved final as", fname)
+    fname = f"_results/{lifter_ro}_{appendix}.pkl"
+    df = generate_results(
+        lifter_ro,
+        n_params_list=n_params_list,
+        fname=fname,
+        noise_list=noise_list,
+        sparsity_list=sparsity_list,
+        n_seeds=n_seeds,
+        use_methods=USE_METHODS,
+        add_redundant_constr=False,
+    )
+    df.to_pickle(fname)
+    print("saved final as", fname)
 
+    np.random.seed(seed)
+    noise_list = np.logspace(-1, 1, 3)
+    lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
+    fname = f"_results/{lifter_mw}_{appendix}.pkl"
+    df = generate_results(
+        lifter_mw,
+        n_params_list=n_params_list,
+        fname=fname,
+        noise_list=noise_list,
+        sparsity_list=sparsity_list,
+        n_seeds=n_seeds,
+        use_methods=USE_METHODS,
+        add_redundant_constr=False,
+    )
+    df.to_pickle(fname)
+    print("saved final as", fname)
+
+    for lifter in [lifter_mw, lifter_ro]:
+        fname = f"_results/{lifter}_{appendix}.pkl"
         for label in ["EVR", "RDG"]:
             value_vars = [f"{label} local"] + [
                 f"{label} {method}" for method in USE_METHODS

@@ -9,7 +9,7 @@ from scipy.optimize import minimize
 
 from lifters.state_lifter import StateLifter
 from poly_matrix import PolyMatrix
-from ro_certs.gauss_newton import gauss_newton
+from ro_certs.gauss_newton import gauss_newton, get_grad_hess_cost_f
 from ro_certs.problem import Problem, Reg, generate_random_trajectory
 from utils.common import diag_indices
 
@@ -25,7 +25,7 @@ SOLVER_KWARGS = {
     "Nelder-Mead": dict(xatol=1e-10, maxiter=200),  # absolute step size
     "Powell": dict(ftol=1e-6, xtol=1e-10, maxiter=200),
     "TNC": dict(gtol=1e-6, xtol=1e-10, maxiter=200),
-    "GN": dict(tol=1e-6, gtol=1e-6, maxiter=1000),
+    "GN": dict(tol=1e-6, gtol=1e-6, maxiter=1000, use_norm=np.inf),
 }
 
 
@@ -538,8 +538,6 @@ class RangeOnlyLocLifter(StateLifter):
         cost1 = x.T @ self.Q_fixed @ x
         cost3 = self.get_cost(t=self.theta, y=self.y_)
         assert abs(cost1 - cost3) < 1e-10, (cost1, cost3)
-
-        from ro_certs.gauss_newton import get_grad_hess_cost_f
 
         cost2 = get_grad_hess_cost_f(
             self.theta,

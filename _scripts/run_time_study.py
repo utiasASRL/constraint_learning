@@ -42,7 +42,7 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(3, 6, 9).astype(int)
     # appendix = "beyond"
 
-    n_params_list = [100]
+    n_params_list = [10, 20, 30]
     n_threads_list = [2]
     appendix = "test"
 
@@ -51,7 +51,7 @@ if __name__ == "__main__":
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_ro, lifter_mat]:
+    for lifter in [lifter_mat, lifter_ro]:
         try:
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
