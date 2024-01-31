@@ -57,7 +57,7 @@ def plot_this_vs_other(df_long, ax, label="EVR", this="noise", other="sparsity")
 if __name__ == "__main__":
     n_params_list = [100]
     sparsity_list = [1.0]  # np.linspace(0.5, 1.0, 6)[::-1]
-    n_seeds = 1
+    n_seeds = 5
     appendix = "noise"
     seed = 0
 
@@ -128,6 +128,7 @@ if __name__ == "__main__":
             ax.set_yscale("log")
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
+            continue
 
             chosen_noise = df_long.noise.min()
             df_long_here = df_long[df_long["noise"] == chosen_noise]

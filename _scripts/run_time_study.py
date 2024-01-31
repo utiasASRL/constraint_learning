@@ -33,25 +33,20 @@ if __name__ == "__main__":
     # n_params_list = np.logspace(1, 2, 10).astype(int)
     # appendix = "time"
 
-    # n_params_list = np.logspace(1, 6, 11).astype(int)
-    # appendix = "all"
+    # goes up to 3000 (after that we have memory error).
+    n_params_list = np.logspace(1, 6, 21).astype(int)[:11]
+    appendix = "alltime"
 
-    # n_params_list = np.logspace(1, 3, 9).astype(int)
-    # appendix = "large
-
-    # n_params_list = np.logspace(3, 6, 9).astype(int)
-    # appendix = "beyond"
-
-    n_params_list = [10, 20, 30]
-    n_threads_list = [2]
-    appendix = "test"
+    # n_params_list = [10, 20, 30]
+    # n_threads_list = [2]
+    # appendix = "test"
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_mat, lifter_ro]:
+    for lifter in [lifter_ro, lifter_mat]:
         try:
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
