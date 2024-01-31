@@ -50,11 +50,15 @@ class RangeOnlyLocLifter(StateLifter):
         "quad": "$\\boldsymbol{y}_n$",
         "dir": "$\\boldsymbol{n}_n$",
     }
-    PRIOR_NOISE = 0.2  # testing was 0.5 -- puts big weight on GP prior
-    MODEL_NOISE = 0.2  # testing was 0.2 -- creates a smooth trajectory
-    NOISE = 1e-2  # testing was 0.1 -- distance noise 1cm is reasonable
+    # TODO(FD): for some reason, changing the ratio of below drastically changes the ADMM behavior,
+    # but as expected, doesn't really change the solution.
+    # Need to figure out why that is and find a good method to make ADMM behave better.
+    MODEL_PRIOR = 0.2  # puts weight on GP prior     || change these two together so that their ratio
+    NOISE_PRIOR = 1e-3  # puts weight on noise term  || is always the same
+    MODEL_NOISE = 0.2  # creates a smooth trajectory
+    NOISE = 1e-1  # distance noise -- something around 1cm is reasonable
 
-    ADMM_OPTIONS = dict(use_fusion=True, maxiter=20, early_stop=False, rho_start=1e2)
+    ADMM_OPTIONS = dict(use_fusion=True, maxiter=10, early_stop=False, rho_start=1e2)
     ADMM_INIT_XHAT = False
 
     def get_vec_around_gt(self, delta: float = 0):
@@ -115,10 +119,10 @@ class RangeOnlyLocLifter(StateLifter):
             N=self.n_positions,
             K=self.n_landmarks,
             d=self.d,
-            linear_anchors=True, # testing was False
-            sigma_acc_est=self.PRIOR_NOISE,
+            linear_anchors=False,  # testing was False
+            sigma_acc_est=self.MODEL_PRIOR,
             sigma_acc_real=self.MODEL_NOISE,
-            sigma_dist_est=self.NOISE, # testing was 1.0
+            sigma_dist_est=self.NOISE_PRIOR,  # testing was 1.0
             sigma_dist_real=self.NOISE,
         )
         self.k = self.prob.get_dim()
