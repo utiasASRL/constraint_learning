@@ -70,6 +70,7 @@ class RobustPoseLifter(StateLifter, ABC):
         """
         self.beta = beta
         self.n_landmarks = n_landmarks
+        self.n_cliques = n_landmarks - 1
 
         self.robust = robust
         self.level = level

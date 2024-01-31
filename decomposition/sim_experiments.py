@@ -9,7 +9,6 @@ from cert_tools.linalg_tools import rank_project
 from cert_tools.sdp_solvers import solve_sdp
 from cert_tools.sparse_solvers import solve_oneshot
 
-from _scripts.run_clique_study import read_saved_learner
 from auto_template.sim_experiments import create_newinstance
 from decomposition.generate_cliques import create_clique_list_loc
 from lifters.matweight_lifter import MatWeightLocLifter
@@ -38,6 +37,20 @@ TOL_SDP = 1e-10
 TOL_DSDP = 1e-10
 
 ADD_REDUNDANT = False
+
+
+def read_saved_learner(lifter):
+    import pickle
+
+    fname = f"_results/scalability_{lifter}_order_dict.pkl"
+    try:
+        with open(fname, "rb") as f:
+            order_dict = pickle.load(f)
+            saved_learner = pickle.load(f)
+    except FileNotFoundError:
+        print(f"did not find saved learner for {lifter}. Run run_..._study.py first.")
+        raise
+    return saved_learner
 
 
 def extract_solution(lifter: MatWeightLocLifter, X_list):

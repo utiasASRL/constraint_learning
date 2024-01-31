@@ -15,6 +15,40 @@ USE_METHODS = ["local"]
 
 RESULTS_WRITE = "_results"
 
+
+def plot_matrices(new_lifter, n_params, fname=""):
+    # ====== plot matrices =====
+    new_lifter.generate_random_setup()
+    new_lifter.simulate_y(noise=new_lifter.NOISE, sparsity=1.0)
+    Q = new_lifter.get_Q_from_y(new_lifter.y_, save=False, output_poly=True)
+
+    var_dict_plot = new_lifter.get_clique_vars_ij(*range(n_params))
+
+    fig, axs = matshow_list(Q.get_matrix(var_dict_plot).toarray() != 0, log=True)
+    if fname != "":
+        savefig(fig, fname + "_Q.png")
+
+    A_known = [new_lifter.get_A0(output_poly=True)]
+    A_known += new_lifter.get_A_known(add_redundant=False, output_poly=True)
+    mask = sum(A.get_matrix(var_dict_plot).toarray() != 0 for A in A_known)
+    fig, axs = matshow_list(mask > 0, log=True)
+    if fname != "":
+        savefig(fig, fname + "_A.png")
+
+    if use_learning:
+        A_red = new_lifter.get_A_learned_simple(A_known=A_known, output_poly=True)
+    else:
+        A_red = new_lifter.get_A_known(add_redundant=True, output_poly=True)[
+            len(A_known) :
+        ]
+
+    if len(A_red):
+        mask = sum(A.get_matrix(var_dict_plot).toarray() != 0 for A in A_red)
+        fig, axs = matshow_list(mask > 0, log=True)
+        if fname != "":
+            savefig(fig, fname + "_Ar.png")
+
+
 if __name__ == "__main__":
     appendix = "exampleRO"
     # appendix = "exampleMW"
@@ -29,55 +63,27 @@ if __name__ == "__main__":
         )
     elif appendix == "exampleMW":
         new_lifter = MatWeightLocLifter(n_landmarks=8, n_poses=n_params)
-    fname = f"{RESULTS_WRITE}/{new_lifter}_{appendix}.pkl"
-    add_redundant_constr = True if isinstance(new_lifter, MatWeightLocLifter) else False
 
-    # ====== plot matrices =====
+    np.random.seed(seed)
+    fname = f"{RESULTS_WRITE}/{appendix}"
+    plot_matrices(new_lifter, n_params, fname=fname)
+
+    # ====== plot estimates =====
     np.random.seed(seed)
     new_lifter.generate_random_setup()
     new_lifter.simulate_y(noise=new_lifter.NOISE, sparsity=1.0)
-    Q = new_lifter.get_Q_from_y(new_lifter.y_, save=False, output_poly=True)
-
-    var_dict_plot = new_lifter.get_clique_vars_ij(*range(n_params))
-
-    fig, axs = matshow_list(Q.get_matrix(var_dict_plot).toarray() != 0, log=True)
-    savefig(fig, f"{RESULTS_WRITE}/Q_{appendix}.png")
-
-    A_known = [new_lifter.get_A0(output_poly=True)]
-    A_known += new_lifter.get_A_known(add_redundant=False, output_poly=True)
-    mask = sum(A.get_matrix(var_dict_plot).toarray() != 0 for A in A_known)
-    fig, axs = matshow_list(mask > 0, log=True)
-    savefig(fig, f"{RESULTS_WRITE}/A_{appendix}.png")
-
-    if use_learning:
-        A_red = new_lifter.get_A_learned_simple(A_known=A_known, output_poly=True)
-    else:
-        A_red = new_lifter.get_A_known(add_redundant=True, output_poly=True)[
-            len(A_known) :
-        ]
-
-    if len(A_red):
-        mask = sum(A.get_matrix(var_dict_plot).toarray() != 0 for A in A_red)
-        fig, axs = matshow_list(mask > 0, log=True)
-        savefig(fig, f"{RESULTS_WRITE}/Ar_{appendix}.png")
-
-    # ====== plot estimates =====
     Q = new_lifter.get_Q_from_y(new_lifter.y_, save=True)
     Constraints = [(new_lifter.get_A0(), 1.0)]
     Constraints += [(A, 0.0) for A in new_lifter.get_A_known()]
 
-    np.random.seed(seed)
-    new_lifter.generate_random_setup()
-    new_lifter.simulate_y(noise=new_lifter.NOISE, sparsity=1.0)
-    Q = new_lifter.get_Q_from_y(new_lifter.y_, save=False)
-    theta_gt = new_lifter.get_vec_around_gt(delta=0)
-
     # check that local gives a good estimate...
+    theta_gt = new_lifter.get_vec_around_gt(delta=0)
     print("solving local...")
     theta_est, info, cost = new_lifter.local_solver(
         theta_gt, new_lifter.y_, verbose=True
     )
 
+    # solve the SDP
     X, info = solve_sdp(
         Q,
         Constraints,
