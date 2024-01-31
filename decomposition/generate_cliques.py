@@ -14,7 +14,7 @@ from lifters.wahba_lifter import WahbaLifter
 from poly_matrix import PolyMatrix
 from utils.constraint import remove_dependent_constraints
 
-DEBUG = True
+DEBUG = False
 USE_KNOWN = False
 USE_AUTOTEMPLATE = False
 ADD_REDUNDANT = False
