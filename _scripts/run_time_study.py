@@ -12,22 +12,22 @@ from utils.plotting_tools import matshow_list, savefig
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
 # USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
 # USE_METHODS = ["ADMM", "pADMM"]
-USE_METHODS = [
-    "local",
-    "SDP",
-    "SDP-redun",
-    "dSDP",
-    "dSDP-redun",
-    "pADMM",
-    "pADMM-redun",
-]
+USE_METHODS = {
+    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
+    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP"},
+    "SDP-redun": {"color": "C1", "marker": "x", "alpha": 0.5, "label": None},
+    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
+    "dSDP-redun": {"color": "C2", "marker": "x", "alpha": 0.5, "label": None},
+    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "altSDP"},
+    "pADMM-redun": {"color": "C3", "marker": "x", "alpha": 0.5, "label": None},
+}
 ADD_REDUNDANT = True
 
 RESULTS_READ = "_results_server"
 RESULTS_WRITE = "_results"
 
 if __name__ == "__main__":
-    overwrite = True
+    overwrite = False
     n_threads_list = [10]
 
     # n_params_list = np.logspace(1, 2, 10).astype(int)
@@ -51,6 +51,7 @@ if __name__ == "__main__":
             assert overwrite is False
             fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
             df = pd.read_pickle(fname)
+            print(f"read {fname}")
         except (FileNotFoundError, AssertionError):
             fname = f"{RESULTS_WRITE}/{lifter}_{appendix}.pkl"
             add_redundant_constr = (
@@ -60,7 +61,7 @@ if __name__ == "__main__":
                 lifter,
                 n_params_list=n_params_list,
                 fname=fname,
-                use_methods=USE_METHODS,
+                use_methods=list(USE_METHODS.keys()),
                 noise_list=[lifter.NOISE],
                 add_redundant_constr=add_redundant_constr,
                 n_threads_list=n_threads_list,
@@ -68,10 +69,21 @@ if __name__ == "__main__":
             df.to_pickle(fname)
             print("saved final as", fname)
 
+    def custom_plot(ax, x, y, data, **unused):
+        data_methods = data["solver type"].unique()
+        for method in USE_METHODS.keys():
+            if method in data_methods:
+                df_sub = data[data["solver type"] == method]
+                ax.scatter(df_sub[x], df_sub[y], **USE_METHODS[method])
+            else:
+                print(f"skipping {method}, not in {data_methods}")
+
     for lifter in [lifter_mat, lifter_ro]:
         fname = f"{RESULTS_READ}/{lifter}_{appendix}.pkl"
         df = pd.read_pickle(fname)
-        for label, plot in zip(["t", "cost"], [sns.scatterplot, sns.barplot]):
+        for label, plot in zip(
+            ["t", "cost", "RDG"], [custom_plot, sns.barplot, sns.barplot]
+        ):
             value_vars = [f"{label} {m}" for m in USE_METHODS]
             value_vars = set(value_vars).intersection(df.columns.unique())
             df_long = df.melt(
@@ -80,11 +92,32 @@ if __name__ == "__main__":
                 value_name=label,
                 var_name="solver type",
             )
+            df_long.loc[:, "solver type"] = [
+                l.strip(f"{label} ") for l in df_long["solver type"]
+            ]
             fig, ax = plt.subplots()
-            fig.set_size_inches(7, 4)
-            plot(df_long, x="n params", y=label, hue="solver type", ax=ax)
+            fig.set_size_inches(7, 3)
+            plot(
+                data=df_long,
+                x="n params",
+                y=label,
+                ax=ax,
+                hue="solver type",
+                hue_order=USE_METHODS.keys(),
+                palette={m: kwargs["color"] for m, kwargs in USE_METHODS.items()},
+            )
+            for group, kwargs in zip(ax.containers, USE_METHODS.values()):
+                for bar in group:
+                    bar.set_alpha(kwargs["alpha"])
             ax.set_yscale("log")
-            if label != "cost":
+            if label not in ["cost", "RDG"]:
                 ax.set_xscale("log")
+                ax.legend(loc="upper left")
+            else:
+                handles, labels = ax.get_legend_handles_labels()
+                new_labels = [USE_METHODS[l]["label"] for l in labels]
+                new_handles = [h for l, h in zip(new_labels, handles) if l is not None]
+                new_labels = [l for l in new_labels if l is not None]
+                ax.legend(new_handles, new_labels)
             ax.grid("on")
             savefig(fig, fname.replace(".pkl", f"_{label}.png"))
