@@ -289,22 +289,41 @@ if __name__ == "__main__":
     for label in ["RDG", "EVR"]:
         fig, ax = plt.subplots()
         fig.set_size_inches(7, 3.0)
-        sns.pointplot(
-            data=df,
+        df = df[df.n_landmarks.isin([4, 6, 8, 10])]
+        from copy import deepcopy
+
+        df_here = deepcopy(df)
+        # df_here["n_vars"] = df_here["n_vars"] - 1 # only if using pointplot next
+        sns.lineplot(
+            data=df_here,
             x="n_vars",
             y=label,
             ax=ax,
             hue="n_landmarks",
+            style="n_landmarks",
             palette="tab10",
-            errorbar=("sd", 0.5),
+            # errorbar=("sd", 0.5),
         )
-        ax.set_xlabel("clique width")
+        ax.set_yscale("log")
+        # sns.pointplot(
+        #    data=df,
+        #    x="n_vars",
+        #    y=label,
+        #    ax=ax,
+        #    log_scale=True,
+        #    hue="n_landmarks",
+        #    palette="tab10",
+        #    markers="",
+        #    errorbar=("sd", 1.0),
+        #    legend=False,
+        # )
+        ax.set_xlabel("clique width $\\ell$")
         ax.set_ylabel(label)
         fname = f"{RESULTS_READ}/{study_name}_{label}.pdf"
         ax.set_xticks(df.n_vars.unique())
         ax.set_xticklabels(df.n_vars.unique())
         ax.set_yscale("log")
         ax.grid()
-        ax.legend(title="n landmarks")
+        ax.legend(title="landmarks", loc="lower left")
         savefig(fig, fname)
     print("done")

@@ -77,7 +77,7 @@ if __name__ == "__main__":
         ax.set_ylabel("time [s]")
         ax.set_xscale("log")
         ax.set_yscale("log")
-        ax.set_ylim(5, 1e3)
+        # ax.set_ylim(1, 1e)
         ax.legend(loc="upper right", ncol=3, columnspacing=0.1)
         ax.grid()
         savefig(fig, fname.replace(".pkl", f"_time.png"))
