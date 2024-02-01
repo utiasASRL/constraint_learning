@@ -139,6 +139,8 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
 
     data = []
     for overlap in overlap_params:
+        if overlap["n_vars"] > lifter.n_landmarks:
+            continue
         print("creating cliques...", end="")
         if isinstance(lifter, RangeOnlyLocLifter) or isinstance(
             lifter, MatWeightLocLifter
@@ -151,6 +153,14 @@ def solve_by_cliques(lifter: StateLifter, overlap_params, fname=""):
             fname_here = (
                 fname + f"_o{overlap['overlap_mode']:.0f}_c{overlap['n_vars']:.0f}"
             )
+            if overlap["n_vars"] == 1:
+                clique_list_known = create_clique_list(
+                    lifter, **overlap, use_known=True, use_autotemplate=False
+                )
+                visualize_clique_list(
+                    clique_list_known,
+                    fname=fname_here + "_known",
+                )
             visualize_clique_list(
                 clique_list,
                 fname=fname_here,
@@ -205,26 +215,10 @@ def solve_in_one(lifter, overlap_params):
         learner.templates = saved_learner.templates
         learner.apply_templates()
         learner.is_tight(verbose=True)
-
         compute_sparsities(learner, appendix=appendix)
-
-        # new_constraints = lifter.apply_templates(
-        #    saved_learner.templates, var_dict=lifter.var_dict, all_pairs=False
-        # )
-        # remove_dependent_constraints(new_constraints)
-        # A_list = [lifter.get_A0(var_dict)] + [t.A_sparse_ for t in new_constraints]
-
-        # doesn't use incremental learning
-        # _, success = learner.run(verbose=False, plot=False)
-        # if not success:
-        #     raise RuntimeError(
-        #         f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
-        #     )
-        # compute_sparsities(learner)
 
 
 if __name__ == "__main__":
-    np.random.seed(0)
     # TODO(FD): Some running points
     # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
     # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
@@ -247,23 +241,29 @@ if __name__ == "__main__":
         {"overlap_mode": 1, "n_vars": 2},
         {"overlap_mode": 1, "n_vars": 3},
         {"overlap_mode": 1, "n_vars": 4},
-        # {"overlap_mode": 1, "n_vars": 5},
+        {"overlap_mode": 1, "n_vars": 5},
         # {"overlap_mode": 1, "n_vars": 6},
         # {"overlap_mode": 1, "n_vars": 7},
         # {"overlap_mode": 2, "n_vars": 2},
     ]
     overwrite = False
 
+    # n_landmarks = [4, 5, 6, 7, 8]
+    # study_name = "study_overlap_large"
+
+    n_landmarks = [4, 5, 6, 7, 8, 9, 10]
+    study_name = "study_overlap_huge"
+
     try:
-        fname = f"{RESULTS_READ}/study_overlap_large.pkl"
+        fname = f"{RESULTS_READ}/{study_name}.pkl"
         overwrite is False
         df = pd.read_pickle(fname)
     except (FileNotFoundError, AssertionError):
-        fname = f"{RESULTS_WRITE}/study_overlap_large.pkl"
+        fname = f"{RESULTS_WRITE}/{study_name}.pkl"
         df_data = []
-        # plot_fname = f"{RESULTS_WRITE}/study_overlap"
+        # plot_fname = f"{RESULTS_WRITE}/{study_name}"
         plot_fname = ""
-        for n_landmarks in [4, 5, 6, 7, 8]:
+        for n_landmarks in n_landmarks:
             # solve_in_one(lifter, overlap_params)
             for seed in range(3):
                 np.random.seed(seed)
@@ -288,7 +288,7 @@ if __name__ == "__main__":
 
     for label in ["RDG", "EVR"]:
         fig, ax = plt.subplots()
-        fig.set_size_inches(3.5, 4.0)
+        fig.set_size_inches(7, 3.0)
         sns.pointplot(
             data=df,
             x="n_vars",
@@ -300,8 +300,9 @@ if __name__ == "__main__":
         )
         ax.set_xlabel("clique width")
         ax.set_ylabel(label)
-        fname = f"{RESULTS_READ}/study_overlap_{label}.pdf"
+        fname = f"{RESULTS_READ}/{study_name}_{label}.pdf"
         ax.set_xticks(df.n_vars.unique())
+        ax.set_xticklabels(df.n_vars.unique())
         ax.set_yscale("log")
         ax.grid()
         ax.legend(title="n landmarks")
