@@ -70,9 +70,19 @@ if __name__ == "__main__":
             lambda row: int(row["label"].strip("t pADMM-")), axis=1
         )
 
+        MARKERS = {100: "x", 1000: "+"}
+        COLORS = {100: "C0", 1000: "C1"}
         fig, ax = plt.subplots()
-        fig.set_size_inches(3.5, 4)
-        sns.scatterplot(data=df_long, x="n threads", y="time", style="n params", ax=ax)
+        fig.set_size_inches(3.5, 3)
+        for n_params, df_plot in df_long.groupby("n params"):
+            ax.scatter(
+                df_plot["n threads"],
+                df_plot["time"],
+                marker=MARKERS[n_params],
+                color=COLORS[n_params],
+                label=f"N={n_params}",
+            )
+
         ax.set_xlabel("number of threads")
         ax.set_ylabel("time [s]")
         ax.set_xscale("log")
@@ -84,7 +94,7 @@ if __name__ == "__main__":
 
         n_threads = n_threads_list[0]
         fig, ax = plt.subplots()
-        fig.set_size_inches(3.5, 4)
+        fig.set_size_inches(3.5, 3)
         cost_history = df[["n params", f"cost history pADMM-{n_threads}", "cost local"]]
         for n_params, df_plot in cost_history.groupby("n params"):
             assert len(df_plot) == 1
@@ -93,7 +103,13 @@ if __name__ == "__main__":
                 np.abs(row[f"cost history pADMM-{n_threads}"] - row["cost local"])
                 / row["cost local"]
             )
-            ax.plot(cost_history, label=f"N={n_params}")
+            ax.scatter(
+                np.arange(1, len(cost_history) + 1),
+                cost_history,
+                label=f"N={n_params}",
+                color=COLORS[n_params],
+                marker=MARKERS[n_params],
+            )
         ax.set_ylabel("relative error")
         ax.set_xlabel("iteration index")
         ax.set_yscale("log")

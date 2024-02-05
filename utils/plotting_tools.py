@@ -10,7 +10,7 @@ USE_METHODS = {
     "SDP-redun": {"color": "C1", "marker": "d", "alpha": 0.5, "label": None},
     "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
     "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 0.5, "label": None},
-    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "altSDP"},
+    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "dSDP-admm"},
     "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 0.5, "label": None},
 }
 

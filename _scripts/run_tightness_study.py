@@ -117,7 +117,7 @@ if __name__ == "__main__":
             print(f"plotting at sparsity={chosen_sparsity}")
 
             fig, ax = plt.subplots()
-            fig.set_size_inches(7, 3)
+            fig.set_size_inches(5, 5)
             methods = df_long_here["solver type"].unique()
             for m, kwargs in USE_METHODS.items():
                 if m in methods:
@@ -129,7 +129,7 @@ if __name__ == "__main__":
                         data=rows,
                         ax=ax,
                         color=kwargs["color"],
-                        marker=kwargs["marker"],
+                        marker=None,
                         alpha=0.5 if "redun" in m else 1.0,
                         errorbar=("sd", 0.8),
                         log_scale=True,
@@ -155,18 +155,4 @@ if __name__ == "__main__":
             )
             ax.set_xlabel("noise")
             savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
-
-            continue
-
-            chosen_noise = df_long.noise.min()
-            df_long_here = df_long[df_long["noise"] == chosen_noise]
-            print(f"plotting at noise={chosen_noise}")
-
-            fig, ax = plt.subplots()
-            fig.set_size_inches(7, 4)
-            plot_this_vs_other(df_long_here, ax, other=label, this="sparsity")
-            ax.set_yscale("log")
-            ax.grid("on")
-            savefig(fig, fname.replace(".pkl", f"_{label}_sparsity.png"))
-
         print("done")

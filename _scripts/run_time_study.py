@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
@@ -65,7 +67,13 @@ if __name__ == "__main__":
         for method in USE_METHODS.keys():
             if method in data_methods:
                 df_sub = data[data["solver type"] == method]
-                ax.plot(df_sub[x], df_sub[y], **USE_METHODS[method])
+                no_label = deepcopy(USE_METHODS[method])
+                no_label["marker"] = None
+                ax.plot([], [], **no_label)
+
+                no_label = deepcopy(USE_METHODS[method])
+                no_label["label"] = None
+                ax.plot(df_sub[x], df_sub[y], **no_label)
             else:
                 print(f"skipping {method}, not in {data_methods}")
 
@@ -87,7 +95,7 @@ if __name__ == "__main__":
                 l.strip(f"{label} ") for l in df_long["solver type"]
             ]
             fig, ax = plt.subplots()
-            fig.set_size_inches(7, 3)
+            fig.set_size_inches(5, 5)
             plot(
                 data=df_long,
                 x="n params",
@@ -103,16 +111,36 @@ if __name__ == "__main__":
             ax.set_yscale("log")
             if label not in ["cost", "RDG"]:
                 ax.set_xscale("log")
+                ax.plot(
+                    df_long["n params"].unique(),
+                    df_long[label].min() * 1e-1 * df_long["n params"].unique(),
+                    color="k",
+                    alpha=0.5,
+                    ls=":",
+                )
+                # ax.annotate(xy=(1000, 4), text="$N$", alpha=0.5)
+                ax.plot(
+                    df_long["n params"].unique(),
+                    df_long[label].min() * 1e-3 * df_long["n params"].unique() ** 3,
+                    color="k",
+                    alpha=0.5,
+                    ls=":",
+                )
+                # ax.annotate(xy=(40, 200), text="$N^3$", alpha=0.5)
+                ax.set_ylim(df_long[label].min(), df_long[label].max())
                 ax.legend(loc="upper left")
-                ax.set_ylabel("cost")
+                ax.set_ylabel("time [s]")
             else:
                 handles, labels = ax.get_legend_handles_labels()
                 new_labels = [USE_METHODS[l]["label"] for l in labels]
                 new_handles = [h for l, h in zip(new_labels, handles) if l is not None]
                 new_labels = [l for l in new_labels if l is not None]
                 ax.legend(new_handles, new_labels)
-                ax.set_ylabel("time [s]")
+                ax.set_ylabel("cost")
             ax.grid("on")
-            ax.set_xlabel("number of poses")
+            if isinstance(lifter, RangeOnlyLocLifter):
+                ax.set_xlabel("number of positions")
+            else:
+                ax.set_xlabel("number of poses")
             savefig(fig, fname.replace(".pkl", f"_{label}.png"))
     print("done")
