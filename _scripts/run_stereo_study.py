@@ -1,31 +1,30 @@
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
+
+from lifters.learner import Learner
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
+from utils.experiments import (
+    plot_scalability,
+    run_oneshot_experiment,
+    run_scalability_new,
+    run_scalability_plot,
+    save_table,
+)
+from utils.plotting_tools import savefig
 
 # matplotlib.use("TkAgg")
 # plt.ion()
 # matplotlib.use('Agg') # non-interactive
 # plt.ioff()
 
-from utils.experiments import (
-    run_scalability_new,
-    run_oneshot_experiment,
-    run_scalability_plot,
-)
-from utils.experiments import plot_scalability, save_table
-from utils.plotting_tools import savefig
-
-from lifters.learner import Learner
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.plotting_tools import savefig
 
 DEBUG = False
 
 RECOMPUTE = False
 N_SEEDS = 10
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results_stereo"
 
 
 def stereo_tightness(d=2, n_landmarks=None):
@@ -133,7 +132,7 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
 
 def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
     if scalability:
-        print("========== Stereo2D scalability ===========")
+        # print("========== Stereo2D scalability ===========")
         # stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
         if not DEBUG:
             stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)

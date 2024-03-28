@@ -11,4 +11,9 @@ venv/
 *.vscode
 *.swp
 
+_results_new/
+_results_server_new/
+certifiable-tools/
+mat_weight_certs/
+ro_certs/
 

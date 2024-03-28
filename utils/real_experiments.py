@@ -1,8 +1,7 @@
-from copy import deepcopy
 import os
 import pickle
 import time
-
+from copy import deepcopy
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -10,17 +9,16 @@ import pandas as pd
 import seaborn as sns
 from pylgmath.so3.operations import hat
 
-from starloc.reader import read_landmarks, read_data, read_calib
-
 from lifters.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.plotting_tools import savefig
-from utils.plotting_tools import plot_frame
-
+from starloc.reader import read_calib, read_data, read_landmarks
+from utils.plotting_tools import plot_frame, savefig
 
 RANGE_TYPE = "range_calib"
 PLOT_NUMBER = 10
+
+RESULTS_DIR = "_results/"
 
 
 def plot_local_vs_global(df, fname_root="", cost_thresh=None):
@@ -433,9 +431,10 @@ def run_real_experiment(
     add_basic=True,
     from_scratch=False,
     fname_root="",
+    results_dir=RESULTS_DIR,
 ):
     # set distance measurements
-    fname_root_learn = f"_results/scalability_{new_lifter}"
+    fname_root_learn = f"{results_dir}/scalability_{new_lifter}"
     fname = fname_root_learn + "_order_dict.pkl"
     try:
         with open(fname, "rb") as f:
@@ -534,6 +533,7 @@ def run_experiments(
     out_name="",
     stride=1,
     plot_poses=False,
+    results_dir=RESULTS_DIR,
 ):
     df_list = []
     counter = 0
@@ -593,6 +593,7 @@ def run_experiments(
             add_original=False,
             add_basic=False,
             fname_root=fname_root,
+            results_dir=results_dir,
         )
         df_here["time index"] = time_idx
         df_here["n landmarks"] = new_lifter.n_landmarks

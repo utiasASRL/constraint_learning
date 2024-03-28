@@ -1,18 +1,18 @@
+import pickle
 import time
 from copy import deepcopy
-import pickle
 
-import pandas as pd
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
+import pandas as pd
 
 from lifters.learner import Learner
 from lifters.mono_lifter import MonoLifter
-from lifters.wahba_lifter import WahbaLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.wahba_lifter import WahbaLifter
 from utils.plotting_tools import savefig
 
 plot_dict = {
@@ -185,8 +185,8 @@ def plot_scalability_zoom(
     df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]
 ):
     import seaborn as sns
-    from matplotlib.ticker import MaxNLocator
     from matplotlib import gridspec
+    from matplotlib.ticker import MaxNLocator
 
     dict_ = plot_dict[start]
     var_name = dict_["var_name"]

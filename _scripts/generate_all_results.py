@@ -1,12 +1,12 @@
-from _scripts.run_all_study import run_all as run_all_study
-from _scripts.run_stereo_study import run_all as run_stereo_study
-from _scripts.run_range_only_study import run_all as run_range_only_study
-from _scripts.run_other_study import run_all as run_other_study
-from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
-from _scripts.run_datasets_ro import run_all as run_datasets_ro
-
-
 import matplotlib
+
+from _scripts.run_all_study import run_all as run_all_study
+from _scripts.run_datasets_ro import run_all as run_datasets_ro
+from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
+from _scripts.run_other_study import run_all as run_other_study
+from _scripts.run_range_only_study import run_all as run_range_only_study
+from _scripts.run_stereo_study import run_all as run_stereo_study
+
 try:
     matplotlib.use("TkAgg")
 except:

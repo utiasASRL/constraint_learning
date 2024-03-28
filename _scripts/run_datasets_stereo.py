@@ -1,21 +1,26 @@
 from pathlib import Path
 
+import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
 
-import matplotlib
+from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
 
 try:
     matplotlib.use("TkAgg")  # non-interactive
 except:
     pass
 
-from utils.real_experiments import Experiment
-from utils.real_experiments import run_experiments, plot_results, plot_local_vs_global
+from utils.real_experiments import (
+    Experiment,
+    plot_local_vs_global,
+    plot_results,
+    run_experiments,
+)
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
-MAX_N_LANDMARKS = 8  # 10
-MIN_N_LANDMARKS = 4  # 8
+MAX_N_LANDMARKS = 8
+MIN_N_LANDMARKS = 4
 
 USE_GT = False
 SIM_NOISE = 0.1
@@ -43,6 +48,7 @@ def run_all(recompute=RECOMPUTE, n_successful=10):
 
     # don't change order! (because of plotting)
     datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
+    datasets = ["starrynight"]
     for dataset in datasets:
         if USE_GT:
             fname = f"{RESULTS_DIR}/stereo_{dataset}_{n_successful}_gt.pkl"
@@ -64,41 +70,39 @@ def run_all(recompute=RECOMPUTE, n_successful=10):
                 n_successful=n_successful,
                 level="urT",
                 stride=1,
+                results_dir=RESULTS_DIR,
             )
 
         if df_all is not None:
             df_all["dataset"] = dataset
             df_list.append(df_all)
 
-    if n_successful > 10:
-        df = pd.concat(df_list)
-        constraint_type = "sorted"
-        df = df[df.type == constraint_type]
-        df["RDG"] = df["RDG"].abs()
-        fname_root = f"{RESULTS_DIR}/stereo"
+    df = pd.concat(df_list)
+    constraint_type = "sorted"
+    df = df[df.type == constraint_type]
+    df["RDG"] = df["RDG"].abs()
+    fname_root = f"{RESULTS_DIR}/stereo"
 
-        # cost below is found empirically
-        plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
+    # cost below is found empirically
+    plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
 
-        from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
-
-        plot_results(
-            df,
-            ylabel="RDG",
-            fname_root=fname_root,
-            thresh=TOL_REL_GAP,
-            datasets=datasets,
-        )
-        plot_results(
-            df,
-            ylabel="SVR",
-            fname_root=fname_root,
-            thresh=TOL_RANK_ONE,
-            datasets=datasets,
-        )
-        plt.show()
-        print("done")
+    plot_results(
+        df,
+        ylabel="RDG",
+        fname_root=fname_root,
+        thresh=TOL_REL_GAP,
+        datasets=datasets,
+    )
+    plot_results(
+        df,
+        ylabel="SVR",
+        fname_root=fname_root,
+        thresh=TOL_RANK_ONE,
+        datasets=datasets,
+    )
+    plt.show()
+    print("done")
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(n_successful=20)
