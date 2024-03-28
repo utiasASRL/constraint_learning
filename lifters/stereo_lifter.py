@@ -1,4 +1,4 @@
-from abc import ABC, abstractproperty
+from abc import ABC
 
 import autograd.numpy as np
 
@@ -6,11 +6,10 @@ from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (
     get_C_r_from_theta,
-    get_C_r_from_xtheta,
-    get_pose_errors_from_xtheta,
+    get_noisy_pose,
+    get_pose_errors_from_theta,
     get_T,
-    get_theta_from_xtheta,
-    get_xtheta_from_theta,
+    get_theta_from_C_r,
 )
 
 NOISE = 1.0  #
@@ -23,12 +22,7 @@ SOLVER_KWARGS = dict(
 
 
 class StereoLifter(StateLifter, ABC):
-    """General lifter for stereo localization problem.
-
-    Naming convention:
-    - theta is the actual number of unknowns, so 6 in 3d or 3 in 2d.
-    - xtheta is the vector [position, vec(C)], with C the rotation matrix
-    """
+    """General lifter for stereo localization problem."""
 
     LEVELS = [
         "no",
@@ -49,9 +43,7 @@ class StereoLifter(StateLifter, ABC):
         ["h", "x"],
         ["h", "z_0"],
         ["h", "x", "z_0"],
-        ["h", "z_0", "z_1"],
-        ["h", "x", "z_0", "z_1"],  # should achieve tightness here
-        # ["h", "z_0", "z_1", "z_2"],
+        ["h", "z_0", "z_1"],  # should achieve tightness here
     ]
 
     def __init__(
@@ -59,7 +51,7 @@ class StereoLifter(StateLifter, ABC):
     ):
         self.y_ = None
         self.n_landmarks = n_landmarks
-        assert not self.M_matrix is None, "Inheriting class must initialize M_matrix."
+        assert self.M_matrix is not None, "Inheriting class must initialize M_matrix."
         super().__init__(
             d=d, level=level, param_level=param_level, variable_list=variable_list
         )
@@ -82,11 +74,7 @@ class StereoLifter(StateLifter, ABC):
         }
 
     def get_inits(self, n_inits):
-        n_angles = self.d * (self.d - 1) / 2
-        return np.c_[
-            np.random.rand(n_inits, self.d),
-            2 * np.pi * np.random.rand(n_inits, n_angles),
-        ]
+        raise ValueError("this should not be used")
 
     def generate_random_landmarks(self, theta=None):
         if theta is not None:
@@ -138,22 +126,8 @@ class StereoLifter(StateLifter, ABC):
 
         # TODO(FD) below is a bit hacky, these two variables should not both be called theta.
         # theta is either (x, y, alpha) or (x, y, z, a1, a2, a3)
-        if self.d == 2:
-            if len(theta) == 3:
-                C, r = get_C_r_from_theta(theta, self.d)
-            elif len(theta) == 6:
-                C, r = get_C_r_from_xtheta(theta, self.d)
-        elif self.d == 3:
-            if len(theta) == 6:
-                # theta is (x, y, C.flatten()), technically this should be called xtheta!
-                C, r = get_C_r_from_theta(theta, self.d)
-            elif len(theta) == 12:
-                # theta is (x, y, z, C.flatten()), technically this should be called xtheta!
-                C, r = get_C_r_from_xtheta(theta, self.d)
-            else:
-                raise ValueError(theta)
-
-        if self.param_level != "no":
+        C, r = get_C_r_from_theta(theta, self.d)
+        if (self.param_level != "no") and (len(parameters) > 1):
             landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
         else:
             landmarks = self.landmarks
@@ -244,8 +218,7 @@ class StereoLifter(StateLifter, ABC):
         if noise is None:
             noise = NOISE
 
-        xtheta = get_xtheta_from_theta(self.theta, self.d)
-        T = get_T(xtheta, self.d)
+        T = get_T(theta=self.theta, d=self.d)
 
         y_sim = np.zeros((self.n_landmarks, self.M_matrix.shape[0]))
         for j in range(self.n_landmarks):
@@ -258,25 +231,33 @@ class StereoLifter(StateLifter, ABC):
             y_sim[j, :] = y_gt + np.random.normal(loc=0, scale=noise, size=len(y_gt))
         return y_sim
 
-    def get_Q(self, noise: float = None) -> tuple:
-        if noise is None:
-            noise = NOISE
-
+    def get_Q(
+        self, noise: float = None, output_poly: bool = False, use_cliques: list = []
+    ) -> tuple:
+        assert output_poly is False
+        assert len(use_cliques) == 0
         if self.y_ is None:
+            if noise is None:
+                noise = NOISE
             self.y_ = self.simulate_y(noise=noise)
 
-        Q = self.get_Q_from_y(self.y_)
+        Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
         return Q, self.y_
 
-    def get_Q_from_y(self, y):
+    def get_Q_from_y(self, y, output_poly=False, use_cliques=[]):
         """
         The least squares problem reads
-        min_T \sum_{n=0}^{N-1} || y - Mtilde@z ||
+        min_T sum_{n=0}^{N-1} || y - Mtilde@z ||
         where the first d elements of z correspond to u, and Mtilde contains the first d-1 and last element of M
         Mtilde is thus of shape d*2 by dim_z, where dim_z=d+dL (the additional Lasserre variables)
         y is of length d*2, corresponding to the measured pixel values in left and right image.
         """
         from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+        if len(use_cliques):
+            js = use_cliques
+        else:
+            js = range(y.shape[0])
 
         # in 2d: M_tilde is 2 by 6, with first 2 columns: M[:, [0, 2]]
         # in 3d: M_tilde is 4 by 12, with first 3 columns: M[:, [0, 1, 3]]
@@ -288,13 +269,15 @@ class StereoLifter(StateLifter, ABC):
         m = self.M_matrix[:, self.d - 1]
 
         ls_problem = LeastSquaresProblem()
-        for j in range(y.shape[0]):
+        for j in js:
             ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
 
-        Q = ls_problem.get_Q().get_matrix(self.var_dict)
+        if output_poly:
+            Q = ls_problem.get_Q()
+        else:
+            Q = ls_problem.get_Q().get_matrix(self.var_dict)
         if NORMALIZE:
             Q /= self.n_landmarks * self.d
-        # there is precision loss because Q is
 
         # sanity check
         x = self.get_x()
@@ -307,37 +290,36 @@ class StereoLifter(StateLifter, ABC):
         if NORMALIZE:
             cost_test /= self.n_landmarks * self.d
 
-        t = self.theta
-        cost_raw = self.get_cost(t, y)
-        cost_Q = x.T @ Q.toarray() @ x
-        assert abs(cost_raw - cost_Q) < 1e-6, cost_raw - cost_Q
-        assert abs(cost_raw - cost_test) < 1e-6, (cost_raw, cost_test)
+        if output_poly:
+            cost_Q = x.T @ Q.get_matrix(self.var_dict) @ x
+        else:
+            cost_Q = x.T @ Q @ x
+        assert abs(cost_test - cost_Q) < 1e-6, (cost_test, cost_Q)
+        if not len(use_cliques):
+            cost_raw = self.get_cost(self.theta, y)
+            assert abs(cost_test - cost_raw) < 1e-6, (cost_test, cost_raw)
         return Q
 
-    def get_theta(self, x):
-        return get_theta_from_xtheta(x, self.d)
+    def get_vec_around_gt(self, delta: float = 0):
+        if delta == 0:
+            return self.theta
 
-    def get_C_cw(self, theta=None, xtheta=None):
-        if xtheta is not None:
-            C_cw, __ = get_C_r_from_xtheta(xtheta, self.d)
-        elif theta is not None:
-            C_cw, __ = get_C_r_from_theta(theta, self.d)
+        C, r = get_C_r_from_theta(self.theta, self.d)
+        if self.d == 2:
+            return super().get_vec_around_gt(delta=delta)
         else:
-            raise ValueError("Give either theta or xtheta")
+            return get_noisy_pose(C, r, delta)
+
+    def get_C_cw(self, theta=None):
+        C_cw, __ = get_C_r_from_theta(theta, self.d)
         return C_cw
 
-    def get_position(self, xtheta=None, theta=None):
-        if xtheta is not None:
-            C_cw, r_wc_c = get_C_r_from_xtheta(xtheta, self.d)
-        elif theta is not None:
-            C_cw, r_wc_c = get_C_r_from_theta(theta, self.d)
-        else:
-            raise ValueError("Give either theta or xtheta")
+    def get_position(self, theta=None):
+        C_cw, r_wc_c = get_C_r_from_theta(theta, self.d)
         return (-C_cw.T @ r_wc_c)[None, :]
 
-    def get_error(self, xtheta_hat):
-        xtheta_gt = get_xtheta_from_theta(self.theta, self.d)
-        return get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, self.d)
+    def get_error(self, theta_hat):
+        return get_pose_errors_from_theta(theta_hat, self.theta, self.d)
 
     def local_solver_manopt(self, t0, y, W=None, verbose=False, method="CG", **kwargs):
         import pymanopt
@@ -383,13 +365,11 @@ class StereoLifter(StateLifter, ABC):
         )
         optimizer = Optimizer(**solver_kwargs)
 
-        R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
+        R_0, t_0 = get_C_r_from_theta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
 
-        from utils.geometry import get_xtheta_from_C_r
-
-        theta_hat = get_xtheta_from_C_r(R, t)
+        theta_hat = get_theta_from_C_r(R, t)
         return theta_hat, res.stopping_criterion, res.cost
 
     def __repr__(self):

@@ -9,7 +9,7 @@ import pandas as pd
 import seaborn as sns
 from pylgmath.so3.operations import hat
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from starloc.reader import read_calib, read_data, read_landmarks

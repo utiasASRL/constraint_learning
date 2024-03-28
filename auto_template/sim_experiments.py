@@ -6,7 +6,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 
-from lifters.learner import Learner
+from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter

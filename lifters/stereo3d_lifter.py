@@ -2,8 +2,9 @@ import pickle
 
 import autograd.numpy as np
 
+from lifters.stereo3d_problem import _cost, local_solver
 from lifters.stereo_lifter import NORMALIZE, StereoLifter
-from utils.geometry import get_T, get_xtheta_from_T, get_xtheta_from_theta
+from utils.geometry import get_T, get_theta_from_T
 
 
 def change_dimensions(a, y):
@@ -39,13 +40,10 @@ class Stereo3DLifter(StereoLifter):
 
     @staticmethod
     def from_file(fname):
-        from utils.geometry import get_theta_from_xtheta
-
         with open(fname, "rb") as f:
             y_ = pickle.load(f)
             landmarks = pickle.load(f)
-            xtheta = pickle.load(f)
-            theta = get_theta_from_xtheta(xtheta, d=3)
+            theta = pickle.load(f)
 
             level = pickle.load(f)
             param_level = pickle.load(f)
@@ -58,25 +56,19 @@ class Stereo3DLifter(StereoLifter):
         )
         lifter.y_ = y_
         lifter.landmarks = landmarks
+        lifter.parameters = np.r_[1, landmarks.flatten()]
         lifter.theta = theta
         return lifter
 
     def to_file(self, fname):
-        from utils.geometry import get_xtheta_from_theta
-
         with open(fname, "wb") as f:
             pickle.dump(self.y_, f)
             pickle.dump(self.landmarks, f)
 
-            xtheta = get_xtheta_from_theta(self.theta, d=3)
-            pickle.dump(xtheta, f)
+            pickle.dump(self.theta, f)
             pickle.dump(self.level, f)
             pickle.dump(self.param_level, f)
             pickle.dump(self.variable_list, f)
-
-    def get_vec_around_gt(self, delta):
-        t0 = super().get_vec_around_gt(delta)
-        return get_xtheta_from_theta(t0, 3)
 
     def get_cost(self, t, y, W=None):
         """
@@ -84,7 +76,6 @@ class Stereo3DLifter(StereoLifter):
         - x, y, z, yaw, pitch roll: vector of unknowns, or
         - [c1, c2, c3, x, y, z], the theta vector (flattened C and x, y, z)
         """
-        from lifters.stereo3d_problem import _cost
 
         if W is None:
             W = self.W
@@ -92,11 +83,7 @@ class Stereo3DLifter(StereoLifter):
 
         p_w, y = change_dimensions(a, y)
 
-        if len(t) == 6:
-            xtheta = get_xtheta_from_theta(t, 3)
-        else:
-            xtheta = t
-        T = get_T(xtheta, 3)
+        T = get_T(theta=t, d=3)
 
         cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
         if NORMALIZE:
@@ -108,18 +95,13 @@ class Stereo3DLifter(StereoLifter):
         """
         :param t_init: same options  asfor t in cost.
         """
-        from lifters.stereo3d_problem import local_solver
 
         if W is None:
             W = self.W
 
         a = self.landmarks
         p_w, y = change_dimensions(a, y)
-        if len(t_init) == 6:
-            xtheta_init = get_xtheta_from_theta(t_init, 3)
-        else:
-            xtheta_init = t_init
-        T_init = get_T(xtheta_init, 3)
+        T_init = get_T(theta=t_init, d=3)
 
         info, T_hat, cost = local_solver(
             T_init=T_init,
@@ -137,7 +119,7 @@ class Stereo3DLifter(StereoLifter):
         if NORMALIZE:
             cost /= self.n_landmarks * self.d
 
-        x_hat = get_xtheta_from_T(T_hat)
+        x_hat = get_theta_from_T(T_hat)
         x = self.get_x(theta=x_hat)
         Q = self.get_Q_from_y(y[:, :, 0])
         cost_Q = x.T @ Q @ x

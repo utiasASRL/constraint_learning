@@ -19,7 +19,8 @@ M = np.array(
 
 def _u(y: np.array, x: np.array, M: np.array):
     """
-    Internal function used for local solver. See stereo_camera_sim.ipynb for definition.
+    Pixel error.
+
     Args:
         y (np.array): (N, 4, 1)
         x (np.array): (N, 4, 1)
@@ -32,10 +33,10 @@ def _u(y: np.array, x: np.array, M: np.array):
 
 def _du(x: np.array, M: np.array):
     """
-    Internal function used for local solver. See stereo_camera_sim.ipynb for definition.
+    Derivative of pixel error w.r.t. x
     Args:
         x (np.array): (N, 4 ,1)
-        M (np.array): (N, 4 ,1)
+        M (np.array): (4, 4 ,1)
     """
     a = np.zeros_like(x)
     a[:, 2] = 1
@@ -60,18 +61,17 @@ def _odot_exp(e: np.array):
     return res
 
 
-def _delta(x: np.array, M: np.array):
+def Jacobian(x: np.array, M: np.array):
     """
     Internal function used for local solver. See stereo_camera_sim.ipynb for definition.
 
     Args:
-        x (np.array): shape = (6, 1)
+        x (np.array): shape = (N, 4, 1)
         M (np.array): shape = (4, 4)
 
     Returns:
         np.array: shape = (6, 4)
     """
-
     return (_du(x, M) @ _odot_exp(x)).transpose((0, 2, 1))
 
 
@@ -107,11 +107,10 @@ def generative_camera_model(
             y[:, 2:] are points in right image (row, col), indexed from the top left
     """
     p_c = T_cw @ homo_p_w
-    # assert np.all(p_c[:, 2] > 0)
     return M @ p_c / p_c[:, None, 2]
 
 
-def _residuals(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
+def residuals(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
     y_pred = generative_camera_model(M, T, p_w)
     e = y - y_pred
     return e.flatten()
@@ -122,7 +121,7 @@ def _cost(T: np.array, p_w: np.array, y: np.array, W: np.array, M: np.array):
 
     Args:
         y (np.array): (N, 4, 1), measurments
-        T (np.array): (N, 4, 4), rigid transform estimate
+        T (np.array): (4, 4), rigid transform estimate
         M (np.array): (4, 4), camera parameters
         p_w (np.array): (N, 4, 1), homogeneous point coordinates in the world frame
         W (np.array): (N, 4, 4) or (4, 4) or scalar, weight matrix/scalar
@@ -174,7 +173,7 @@ def local_solver(
     c = 0.1
 
     while i < max_iters:
-        Jk = _delta(T_op @ p_w, M)
+        Jk = Jacobian(T_op @ p_w, M)
         rk = _u(y, T_op @ p_w, M)
         A = np.sum(Jk @ Jk.transpose((0, 2, 1)), axis=0)
         b = np.sum(-Jk @ rk, axis=0)
@@ -214,8 +213,8 @@ def local_solver(
             info["success"] = False
             info["msg"] = f"reached maximum iterations ({max_iters})"
 
-    residuals = _residuals(T_op, p_w, y, W, M)
-    info["max res"] = np.max(np.abs(residuals))
+    res = residuals(T_op, p_w, y, W, M)
+    info["max res"] = np.max(np.abs(res))
     eigs = np.linalg.eigvalsh(A)
     info["cond Hess"] = eigs[-1] / eigs[0]  # max eig / min eig
 

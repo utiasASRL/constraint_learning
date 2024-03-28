@@ -1,7 +1,7 @@
 import matplotlib.pylab as plt
 import numpy as np
-from scipy.optimize import minimize
 import scipy.sparse as sp
+from scipy.optimize import minimize
 
 plt.ion()
 
@@ -373,11 +373,9 @@ class RangeOnlyLocLifter(StateLifter):
     def get_theta(self, x):
         return x[1 : self.d + 1]
 
-    def get_position(self, theta=None, xtheta=None):
+    def get_position(self, theta=None):
         if theta is not None:
             return theta.reshape(self.n_positions, self.d)
-        elif xtheta is not None:
-            return xtheta.reshape(self.n_positions, self.d)
 
     def get_error(self, that):
         return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}

@@ -1,4 +1,4 @@
-from abc import ABC, abstractproperty, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 
 import numpy as np
 

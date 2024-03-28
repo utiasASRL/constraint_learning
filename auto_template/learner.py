@@ -6,17 +6,15 @@ import pandas as pd
 import scipy.sparse as sp
 import sparseqr as sqr
 
-from utils.common import rank_project
-from utils.plotting_tools import add_colorbar, add_rectangles, import_plt
-
-plt = import_plt()
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from solvers.common import find_local_minimum, solve_certificate, solve_sdp_cvxpy
 from solvers.sparse import bisection, brute_force, solve_lambda
+from utils.common import rank_project
 from utils.constraint import Constraint
-from utils.plotting_tools import savefig
+from utils.plotting_tools import add_colorbar, add_rectangles, import_plt, savefig
+
+plt = import_plt()
 
 # parameter of SDP solver
 TOL = 1e-10
@@ -113,6 +111,10 @@ class Learner(object):
     def duality_gap_is_zero(self, dual_cost, verbose=False, data_dict={}):
         primal_cost = self.solver_vars["qcqp_cost"]
         RDG = (primal_cost - dual_cost) / abs(dual_cost)
+        if RDG < -1e-4:
+            print(
+                f"Warning: dual is significantly larger than primal: d={dual_cost:.5f} > p={primal_cost:.5f}, diff={dual_cost-primal_cost:.5f}"
+            )
         res = RDG < TOL_REL_GAP
         data_dict["RDG"] = RDG
         if not verbose:
@@ -122,9 +124,7 @@ class Learner(object):
             print(f"achieved cost tightness:")
         else:
             print(f"no cost tightness yet:")
-        print(
-            f"qcqp cost={self.solver_vars['qcqp_cost']:.4e}, dual cost={dual_cost:.4e}"
-        )
+        print(f"qcqp cost={primal_cost:.4e}, dual cost={dual_cost:.4e}")
         return res
 
     def is_rank_one(self, eigs, verbose=False, data_dict={}):
@@ -210,8 +210,8 @@ class Learner(object):
         self.ranks.append(eigs)
 
         if self.lifter.robust:
-            idx_xtheta = 1 + self.lifter.d + self.lifter.d**2
-            wi = X[0, idx_xtheta : idx_xtheta + self.lifter.n_landmarks]
+            idx_theta = 1 + self.lifter.d + self.lifter.d**2
+            wi = X[0, idx_theta : idx_theta + self.lifter.n_landmarks]
             print("should be plus or minus ones:", wi.round(4))
 
         cost_tight = self.duality_gap_is_zero(

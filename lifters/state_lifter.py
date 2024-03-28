@@ -1,14 +1,13 @@
 import itertools
 
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
 import scipy.linalg as la
 import scipy.sparse as sp
 
-from utils.common import upper_triangular
 from lifters.base_class import BaseClass
-
 from poly_matrix import PolyMatrix, unroll
+from utils.common import upper_triangular
 
 
 def ravel_multi_index_triu(index_tuple, shape):

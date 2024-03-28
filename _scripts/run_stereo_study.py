@@ -1,16 +1,16 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-from lifters.learner import Learner
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.experiments import (
+from auto_template.learner import Learner
+from auto_template.sim_experiments import (
     plot_scalability,
     run_oneshot_experiment,
     run_scalability_new,
     run_scalability_plot,
     save_table,
 )
+from lifters.stereo2d_lifter import Stereo2DLifter
+from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import savefig
 
 # matplotlib.use("TkAgg")

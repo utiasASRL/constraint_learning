@@ -1,7 +1,24 @@
+import numpy as np
+import scipy.sparse as sp
+
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
-import numpy as np
+
+def remove_dependent_constraints(constraints, verbose=False):
+    from cert_tools.linalg_tools import find_dependent_columns
+
+    # find which constraints are lin. dep.
+    A_vec = sp.vstack(
+        [constraint.a_full_ for constraint in constraints], format="coo"
+    ).T
+
+    bad_idx = find_dependent_columns(A_vec, verbose=verbose)
+    if len(bad_idx):
+        np.testing.assert_allclose(bad_idx, sorted(bad_idx))
+        # important: by changing the order we
+        for idx in sorted(bad_idx)[::-1]:
+            del constraints[idx]
 
 
 class Constraint(object):
@@ -88,6 +105,7 @@ class Constraint(object):
             template_idx=template_idx,
         )
 
+
     @staticmethod
     def init_from_A_poly(
         lifter: StateLifter,
@@ -123,9 +141,14 @@ class Constraint(object):
         lifter: StateLifter,
         known: bool = False,
         template_idx: int = None,
+        mat_var_dict: dict = None,
     ):
+        if mat_var_dict is None:
+            mat_var_dict = lifter.var_dict
         A_poly = lifter.convert_polyrow_to_Apoly(polyrow_b)
-        A_sparse = A_poly.get_matrix(lifter.var_dict_unroll)
+        # dict_unroll = lifter.get_var_dict_unroll(mat_var_dict)
+        dict_unroll = lifter.var_dict_unroll
+        A_sparse = A_poly.get_matrix(dict_unroll)
         a_full = lifter.get_vec(A_sparse, sparse=True)
         return Constraint(
             index=index,
@@ -135,6 +158,7 @@ class Constraint(object):
             a_full=a_full,
             known=known,
             template_idx=template_idx,
+            mat_var_dict=mat_var_dict,
         )
 
     def scale_to_new_lifter(self, lifter: StateLifter):

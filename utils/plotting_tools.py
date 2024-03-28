@@ -1,7 +1,6 @@
-from lifters.plotting_tools import import_plt
 import numpy as np
 
-from lifters.plotting_tools import savefig, add_colorbar
+from lifters.plotting_tools import add_colorbar, import_plt, savefig
 from poly_matrix.poly_matrix import PolyMatrix
 
 plt = import_plt()
@@ -11,7 +10,6 @@ def plot_frame(
     lifter,
     ax,
     theta=None,
-    xtheta=None,
     color="k",
     marker="+",
     label=None,
@@ -20,9 +18,9 @@ def plot_frame(
     alpha=0.5,
     **kwargs,
 ):
-    p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
+    p_gt = lifter.get_position(theta=theta)
     try:
-        C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
+        C_cw = lifter.get_C_cw(theta=theta)
         for i, col in enumerate(["r", "g", "b"]):
             z_gt = C_cw[i, :]
             length = scale / np.linalg.norm(z_gt)
@@ -132,9 +130,10 @@ def plot_tightness(df_tight, qcqp_cost, fname_root):
 
 
 def plot_matrices(df_tight, fname_root):
-    from lifters.plotting_tools import plot_matrix
     import itertools
     from math import ceil
+
+    from lifters.plotting_tools import plot_matrix
 
     # for (order, order_type), df_sub in df_tight.groupby(["order", "type"]):
     matrix_types = ["A", "H"]
@@ -230,8 +229,8 @@ def add_scalebar(
     :param size_vertical: height (thckness) of the bar
     :param loc: location (same syntax as for matplotlib legend)
     """
-    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
     import matplotlib.font_manager as fm
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
 
     fontprops = fm.FontProperties(size=fontsize)
     scalebar = AnchoredSizeBar(

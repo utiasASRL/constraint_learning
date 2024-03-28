@@ -1,14 +1,14 @@
 import numpy as np
 
-from utils.experiments import plot_scalability, save_table
-from lifters.learner import Learner
-from lifters.mono_lifter import MonoLifter
-from utils.plotting_tools import savefig
-
-from utils.experiments import (
+from auto_template.learner import Learner
+from auto_template.sim_experiments import (
+    plot_scalability,
     run_oneshot_experiment,
     run_scalability_new,
+    save_table,
 )
+from lifters.mono_lifter import MonoLifter
+from utils.plotting_tools import savefig
 
 DEBUG = False
 

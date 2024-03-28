@@ -1,9 +1,9 @@
 import cvxpy as cp
-import numpy as np
 import matplotlib.pylab as plt
+import numpy as np
 
-from lifters.state_lifter import StateLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.state_lifter import StateLifter
 from lifters.stereo_lifter import StereoLifter
 
 TOL = 1e-10  # can be overwritten by a parameter.
@@ -317,18 +317,18 @@ def find_local_minimum(
             plot_frame(
                 lifter,
                 ax,
-                xtheta=global_solution,
+                theta=global_solution,
                 color="g",
                 marker="*",
                 label=f"candidate, q={global_cost:.2e}",
             )
             for local_cost in local_costs:
                 local_ind = np.where(costs == local_cost)[0][0]
-                xtheta = local_solutions[local_ind]
+                theta = local_solutions[local_ind]
                 plot_frame(
                     lifter,
                     ax,
-                    xtheta=xtheta,
+                    theta=theta,
                     color="r",
                     marker="*",
                     label=f"candidate, q={local_cost:.2e}",
@@ -337,9 +337,9 @@ def find_local_minimum(
             # plot all solutions that converged to those (for RO only, for stereo it's too crowded)
             if isinstance(lifter, RangeOnlyLocLifter):
                 for i in global_inds[1:]:  # first one corresponds to ground truth
-                    plot_frame(lifter, ax, xtheta=inits[i], color="g", marker=".")
+                    plot_frame(lifter, ax, theta=inits[i], color="g", marker=".")
                 for i in local_inds:
-                    plot_frame(lifter, ax, xtheta=inits[i], color="r", marker=".")
+                    plot_frame(lifter, ax, theta=inits[i], color="r", marker=".")
 
             ax.axis("equal")
             fig.set_size_inches(5, 5)

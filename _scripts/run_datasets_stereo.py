@@ -4,14 +4,14 @@ import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
 
-from lifters.learner import TOL_RANK_ONE, TOL_REL_GAP
+from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 
 try:
     matplotlib.use("TkAgg")  # non-interactive
 except:
     pass
 
-from utils.real_experiments import (
+from auto_template.real_experiments import (
     Experiment,
     plot_local_vs_global,
     plot_results,
