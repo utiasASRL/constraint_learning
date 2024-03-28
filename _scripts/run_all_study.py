@@ -1,3 +1,4 @@
+import pickle
 import time
 
 import numpy as np
@@ -12,43 +13,58 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results_new"
 
 
-def generate_results(lifters, seed=0):
+def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
     all_list = []
     for Lifter, dict in lifters:
         np.random.seed(seed)
         lifter = Lifter(**dict)
+        fname = f"{results_dir}/autotemplate_{lifter}.pkl"
 
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
-        dict_list, success = learner.run(verbose=True, plot=False)
+        t1 = time.time()
+        dict_list, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(
                 f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
             )
 
         t1 = time.time()
-        indices = learner.generate_minimal_subset(
+        idx_subset_reorder = learner.generate_minimal_subset(
             reorder=True,
             use_bisection=learner.lifter.TIGHTNESS == "cost",
             tightness=learner.lifter.TIGHTNESS,
         )
-        if indices is None:
-            print(f"{lifter}: did not find valid lamdas tightness.")
         t_suff = time.time() - t1
+        if idx_subset_reorder is None:
+            print(f"{lifter}: did not find valid lamdas tightness.")
+
+        idx_subset_original = learner.generate_minimal_subset(
+            reorder=False,
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+            tightness=learner.lifter.TIGHTNESS,
+        )
         for d in dict_list:
             d["lifter"] = str(lifter)
             d["t find sufficient"] = t_suff
-            d["n required"] = len(indices) if indices is not None else None
+            d["n required"] = (
+                len(idx_subset_reorder) if idx_subset_reorder is not None else None
+            )
         all_list += dict_list
+
+        order_dict = {"sorted": idx_subset_reorder, "original": idx_subset_original}
+        with open(fname, "wb") as f:
+            pickle.dump(learner, f)
+            pickle.dump(order_dict, f)
     df = pd.DataFrame(all_list)
     df = df.apply(pd.to_numeric, errors="ignore")
     return df
 
 
-def run_all(recompute=RECOMPUTE):
+def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     lifters = [
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
         (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
@@ -60,7 +76,7 @@ def run_all(recompute=RECOMPUTE):
         (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
     ]
 
-    fname = f"{RESULTS_DIR}/all_df_new.pkl"
+    fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
         df = pd.read_pickle(fname)
@@ -91,13 +107,13 @@ def run_all(recompute=RECOMPUTE):
         "stereo2d_urT_ppT": "stereo (2d)",
         "stereo3d_urT_ppT": "stereo (3d)",
     }
-    fname = f"{RESULTS_DIR}/all_df.tex"
+    fname = f"{results_dir}/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
             out(
                 f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
             )
-            out(f"\\midrule \n")
+            out("\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
                 out(lifter_names[lifter] + " & ")
                 out(str(df_sub["n dims"].values) + " & ")

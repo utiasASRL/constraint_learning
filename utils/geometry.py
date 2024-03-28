@@ -10,6 +10,21 @@ from scipy.linalg import expm
 from scipy.spatial.transform import Rotation as R
 
 
+def convert_theta_to_phi(theta):
+    # convert [r, vec(C)] to [r, alpha] (in 2D only)
+    assert len(theta) == 6
+    alpha = np.arctan2(theta[3], theta[2])  # theta has [x,y,cos(a),sin(a),...]
+    return np.r_[theta[:2], alpha]
+
+
+def convert_phi_to_theta(phi):
+    # convert [r, vec(C)] to [r, alpha] (in 2D only)
+    x, y, alpha = phi
+    C = R.from_euler("z", alpha).as_matrix()[:2, :2]
+    r = np.array([x, y])
+    return get_theta_from_C_r(C, r)
+
+
 def generate_random_pose(d=2, size=1, use_euler=True):
     r = np.random.rand(d) * size - size / 2
     if d == 2:

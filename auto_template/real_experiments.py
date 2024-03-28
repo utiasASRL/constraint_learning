@@ -13,12 +13,25 @@ from auto_template.learner import Learner
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from starloc.reader import read_calib, read_data, read_landmarks
+from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
 
-RANGE_TYPE = "range_calib"
-PLOT_NUMBER = 10
+# how many single pose estimates to plot
+PLOT_NUMBER = 0  # 10
 
-RESULTS_DIR = "_results/"
+RESULTS_DIR = "_results_new"
+
+# below are parameters for RO only
+RANGE_TYPE = "range_calib"
+DEGENERATE_DICT = {
+    0: [4, 9, 11, 12],  # top (11, 12 high)
+    1: [4, 9, 6, 7],  # inclined (6, 7 low)
+    2: [4, 5, 6, 12],  # diagonal (6, 12 vertical)
+    3: [9, 5, 7, 11],  # diagonal (7, 11 vertical)
+    4: [4, 6, 7, 12],  # diagonal
+}
+# how to loop through subsets of anchors (random or round-robin or all), RO only
+ANCHOR_CHOICE = "all"
 
 
 def plot_local_vs_global(df, fname_root="", cost_thresh=None):
@@ -144,9 +157,9 @@ class Experiment(object):
 
             # fmt: off
             self.M_matrix = np.r_[
-                np.c_[ self.data["fu"], 0, self.data["cu"], self.data["fu"] * self.data["b"] / 2, ],
+                np.c_[self.data["fu"], 0, self.data["cu"], self.data["fu"] * self.data["b"] / 2, ],
                 np.c_[0, self.data["fv"], self.data["cv"], 0],
-                np.c_[ self.data["fu"], 0, self.data["cu"], -self.data["fu"] * self.data["b"] / 2, ],
+                np.c_[self.data["fu"], 0, self.data["cu"], -self.data["fu"] * self.data["b"] / 2, ],
                 np.c_[0, self.data["fv"], self.data["cv"], 0],
             ]
             # fmt: on
@@ -165,23 +178,31 @@ class Experiment(object):
             if "apriltag" in data_type:
                 calib_dict = read_calib(dataset_root=dataset_root, dataset=dataset)
                 # fmt: off
-                self.M_matrix = np.r_[ 
-                    np.c_[ calib_dict["fu"], 0, calib_dict["cu"], 0],
-                    np.c_[ 0, calib_dict["fv"], calib_dict["cv"], 0],
-                    np.c_[ calib_dict["fu"], 0, calib_dict["cu"], -calib_dict["fu"] * calib_dict["b"]],
-                    np.c_[ 0, calib_dict["fv"], calib_dict["cv"], 0],
+                self.M_matrix = np.r_[
+                    np.c_[calib_dict["fu"], 0, calib_dict["cu"], 0],
+                    np.c_[0, calib_dict["fv"], calib_dict["cv"], 0],
+                    np.c_[calib_dict["fu"], 0, calib_dict["cu"], -calib_dict["fu"] * calib_dict["b"]],
+                    np.c_[0, calib_dict["fv"], calib_dict["cv"], 0],
                 ]
                 # fmt: on
+
+    def set_params(self, min_n_landmarks, max_n_landmarks, sim_noise, use_gt, level):
+        self.params = dict(
+            min_n_landmarks=min_n_landmarks,
+            max_n_landmarks=max_n_landmarks,
+            sim_noise=sim_noise,
+            use_gt=use_gt,
+            level=level,
+        )
 
     def get_range_measurements(
         self,
         time_idx=0,
         n_positions=None,
         combine_measurements=True,
-        min_n_landmarks=4,
-        max_n_landmarks=None,
+        chosen_idx=-1,
     ):
-        if not "position_idx" in self.data.columns:
+        if "position_idx" not in self.data.columns:
             if combine_measurements:
                 ref_id = self.landmark_ids[0]
                 times = self.data.loc[self.data.to_id == ref_id]
@@ -192,7 +213,7 @@ class Experiment(object):
 
             # find the positions at which we measure at least min_n_landmarks.
             valid_position_idx = self.data.position_idx.value_counts().gt(
-                min_n_landmarks
+                self.params["min_n_landmarks"]
             )
             valid_position_idx = valid_position_idx[valid_position_idx].index
             self.data = self.data[self.data.position_idx.isin(valid_position_idx)]
@@ -217,20 +238,18 @@ class Experiment(object):
 
         assert len(data_here.position_idx.unique()) == n_positions
 
-        unique_ids = data_here.to_id.unique()
-        if max_n_landmarks is not None:
-            seed = int(data_here.time_s.values[0] * 1000)
-
-            np.random.seed(seed)
-            # unique_ids = np.random.choice(unique_ids, max_n_landmarks, replace=False)
-            degenerate_list = [
-                [4, 9, 11, 12],  # top (11, 12 high)
-                [4, 9, 6, 7],  # inclined (6, 7 low)
-                [4, 5, 6, 12],  # diagonal (6, 12 vertical)
-                [9, 5, 7, 11],  # diagonal (7, 11 vertical)
-                [4, 6, 7, 12],  # diagonal
-            ]
-            unique_ids = degenerate_list[np.random.choice(len(degenerate_list))]
+        if chosen_idx >= 0:
+            unique_ids = DEGENERATE_DICT[chosen_idx]
+        else:
+            unique_ids = data_here.to_id.unique()
+            if len(unique_ids) > self.params["max_n_landmarks"]:
+                unique_ids = unique_ids[
+                    np.random.choice(
+                        range(len(unique_ids)),
+                        self.params["max_n_landmarks"],
+                        replace=False,
+                    )
+                ]
 
         landmarks = self.all_landmarks.loc[self.all_landmarks.id.isin(unique_ids)]
 
@@ -250,12 +269,13 @@ class Experiment(object):
             position_idx = position_ids.index(position_id)
             self.positions[position_idx, :] = position
             for __, row in df_sub.iterrows():
-                if not row.to_id in self.landmark_ids:
+                if row.to_id not in self.landmark_ids:
                     continue
                 landmark_idx = self.landmark_ids.index(row.to_id)
 
                 self.W_[position_idx, landmark_idx] = 1.0
                 self.y_[position_idx, landmark_idx] = row[RANGE_TYPE] ** 2
+        return chosen_idx
 
     def get_stereo_measurements(self, time_idx=0):
         """
@@ -296,14 +316,13 @@ class Experiment(object):
 
             C_c0 = C_cv @ C_v0
             r_0c_c = -C_c0 @ r_v0_0 - C_cv @ r_cv_v
-            a_c0 = Rotation.from_matrix(C_c0).as_euler("xyz")
 
             y = self.data["y_k_j"][:, time_idx, :].T  # 20 x 4
 
             valid_idx = np.all(y >= 0, axis=1)
             self.landmarks = self.all_landmarks[valid_idx, :]
             self.y_ = y[valid_idx, :]
-            self.theta = np.r_[r_0c_c, a_c0]
+            self.theta = get_theta_from_C_r(C_c0, r_0c_c)
 
         else:
             # for reproducibility
@@ -326,9 +345,8 @@ class Experiment(object):
             C_c0 = Rotation.from_quat(q_c0).as_matrix()
 
             r_0c_c = -C_c0 @ r_c0_0  #
-            a_c0 = Rotation.from_matrix(C_c0).as_euler("xyz")
 
-            self.theta = np.r_[r_0c_c, a_c0]
+            self.theta = get_theta_from_C_r(C_c0, r_0c_c)
             self.landmark_ids = list(df_sub.apriltag_id.unique())
             n_landmarks = len(self.landmark_ids)
 
@@ -357,24 +375,22 @@ class Experiment(object):
     def get_lifter(
         self,
         time_idx,
-        level,
-        min_n_landmarks,
-        max_n_landmarks,
-        use_gt=False,
-        sim_noise=None,
+        chosen_idx=-1,
     ):
         if self.data_type in ["apriltag_cal_individual", "stereo"]:
             self.get_stereo_measurements(time_idx=time_idx)
 
             n_landmarks = self.landmarks.shape[0]
-            if n_landmarks <= min_n_landmarks:
+            if n_landmarks <= self.params["min_n_landmarks"]:
                 return None
-            elif n_landmarks > max_n_landmarks:
-                self.landmarks = self.landmarks[:max_n_landmarks]
-                self.y_ = self.y_[:max_n_landmarks, :]
+            elif n_landmarks > self.params["max_n_landmarks"]:
+                self.landmarks = self.landmarks[: self.params["max_n_landmarks"]]
+                self.y_ = self.y_[: self.params["max_n_landmarks"], :]
 
             new_lifter = Stereo3DLifter(
-                n_landmarks=self.landmarks.shape[0], level=level, param_level="ppT"
+                n_landmarks=self.landmarks.shape[0],
+                level=self.params["level"],
+                param_level="ppT",
             )
             if isinstance(self.all_landmarks, pd.DataFrame):
                 new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
@@ -384,28 +400,30 @@ class Experiment(object):
             new_lifter.landmarks = self.landmarks
             new_lifter.parameters = np.r_[1, self.landmarks.flatten()]
             new_lifter.M_matrix = self.M_matrix
-            if use_gt:
-                new_lifter.y_ = new_lifter.simulate_y(noise=sim_noise)
+            if self.params["use_gt"]:
+                new_lifter.y_ = new_lifter.simulate_y(noise=self.params["sim_noise"])
             else:
                 new_lifter.y_ = self.y_
 
         elif self.data_type == "uwb":
             combine_measurements = True
             n_positions = 1
+
             self.get_range_measurements(
                 time_idx=time_idx,
                 n_positions=n_positions,
                 combine_measurements=combine_measurements,
-                min_n_landmarks=min_n_landmarks,
-                max_n_landmarks=max_n_landmarks,
+                chosen_idx=chosen_idx,
             )
 
             new_lifter = RangeOnlyLocLifter(
                 d=3,
                 n_landmarks=self.landmarks.shape[0],
                 n_positions=self.positions.shape[0],
-                level=level,
+                level=self.params["level"],
             )
+            new_lifter.chosen_idx = chosen_idx
+
             new_lifter.theta = self.positions.flatten()
             if isinstance(self.all_landmarks, pd.DataFrame):
                 new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
@@ -414,8 +432,8 @@ class Experiment(object):
             new_lifter.landmarks = self.landmarks
             new_lifter.parameters = np.r_[1.0, new_lifter.landmarks.flatten()]
             new_lifter.W = self.W_
-            if use_gt:
-                new_lifter.y_ = new_lifter.simulate_y()
+            if self.params["use_gt"]:
+                new_lifter.y_ = new_lifter.simulate_y(noise=self.params["sim_noise"])
             else:
                 new_lifter.y_ = self.y_
         else:
@@ -425,56 +443,66 @@ class Experiment(object):
 
 def run_real_experiment(
     new_lifter,
-    add_oneshot=True,
-    add_original=False,
-    add_sorted=False,
-    add_basic=True,
+    use_orders=["sorted"],
+    add_oneshot=False,
     from_scratch=False,
     fname_root="",
     results_dir=RESULTS_DIR,
 ):
-    # set distance measurements
-    fname_root_learn = f"{results_dir}/scalability_{new_lifter}"
-    fname = fname_root_learn + "_order_dict.pkl"
-    try:
-        with open(fname, "rb") as f:
-            order_dict = pickle.load(f)
-            learner = pickle.load(f)
-    except FileNotFoundError:
-        print(f"cannot read {fname}, need to run run_stereo_study first.")
-        return
+    fname_autotemplate = f"{results_dir}/autotemplate_{new_lifter}.pkl"
+    if not from_scratch:
+        try:
+            with open(fname_autotemplate, "rb") as f:
+                learner = pickle.load(f)
+                order_dict = pickle.load(f)
+        except FileNotFoundError:
+            print(f"cannot read {fname_autotemplate}, need to run run_all_study first.")
+            return
+        order_dict = {k: v for k, v in order_dict.items() if k in use_orders}
+    else:
+        learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
+        learner.run()
+        order_dict = {}
+        if "basic" in use_orders:
+            order_dict["basic"] = np.arange(len(learner.templates))
+        if "sorted" in use_orders:
+            order_dict["sorted"] = learner.generate_minimal_subset(
+                reorder=True, tightness=new_lifter.TIGHTNESS
+            )
+        if "original" in use_orders:
+            order_dict["original"] = learner.generate_minimal_subset(
+                reorder=False, tightness=new_lifter.TIGHTNESS
+            )
 
     plot = fname_root != ""
 
     df_data = []
     for name, new_order in order_dict.items():
-        if name == "original" and not add_original:
-            print("skipping original")
-            continue
-        if name == "sorted" and not add_sorted:
-            print("skipping sorted")
-            continue
-        if name == "basic" and not add_basic:
-            print("skipping basic")
-            continue
         print(f"=========== running {name} ===============")
         data_dict = {}
         data_dict["type"] = name
 
         # apply the templates to all new landmarks
         new_learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
-
         if from_scratch:
             new_learner.run()
-        else:
-            new_learner.scale_templates(learner, new_order, data_dict)
+
+        # new_learner.templates = learner.get_sufficient_templates(new_order, new_lifter)
+        # new_learner.templates_known = new_learner.get_known_templates()
+        # new_learner.apply_templates()
+        new_learner.scale_templates(learner, new_order, data_dict)
 
         new_learner.find_local_solution(plot=plot)
 
         t1 = time.time()
         new_learner.is_tight(verbose=False, data_dict=data_dict)
-        data_dict[f"t solve SDP"] = time.time() - t1
+        if abs(data_dict["RDG"]) > 1e-1 and abs(data_dict["max res"]) < 1e-5:
+            print("Skipping invalid datapoint; are landmarks colinear?")
+            print(new_learner.lifter.landmarks)
+            continue
 
+        data_dict[f"t solve SDP"] = time.time() - t1
+        data_dict["gt theta"] = new_learner.lifter.theta
         success = new_learner.find_global_solution(data_dict=data_dict)
 
         if plot:
@@ -522,13 +550,90 @@ def run_real_experiment(
     return df
 
 
+def create_rmse_table(fname_root, n_successful=10):
+    fname = fname_root + f"_dataset_errors_n{n_successful}.pkl"
+    try:
+        df = pd.read_pickle(fname)
+        print(f"result df as {fname}")
+    except FileNotFoundError:
+        print("Need to generate results first! Use run_all().")
+        return
+
+    # use only once local solution per row (the best one)
+    df.reset_index(inplace=True)
+    for i, row in df.iterrows():
+        if "local cost 2" in df.columns:
+            local_min_idx = np.argmin(
+                row[["local cost 0", "local cost 1", "local cost 2"]]
+            )
+        elif "local cost 1" in df.columns:
+            local_min_idx = np.argmin(row[["local cost 0", "local cost 1"]])
+        elif "local cost 0" in df.columns:
+            local_min_idx = 0
+        else:
+            continue
+        try:  # for stereo
+            df.loc[i, "local C error"] = row[f"local {local_min_idx} C error"]
+            df.loc[i, "local r error"] = row[f"local {local_min_idx} r error"]
+        except KeyError:  # for ro
+            df.loc[i, "local error"] = row[f"local {local_min_idx} error"]
+        df.loc[i, "local cost"] = row[f"local cost {local_min_idx}"]
+        df.loc[i, "local solution cert"] = row[f"local solution {local_min_idx} cert"]
+
+    # drop the rows where no local solution was found.
+    print("total number of datapoints:", len(df), end=", ")
+    df = df[df["local cost"].notna()]
+    print("after pruning:", len(df))
+    df = df.apply(pd.to_numeric, errors="ignore")
+
+    # df.loc[:, "local C error"] = df[
+    #    ["local 0 C error", "local 1 C error", "local 2 C error"]
+    # ].min(axis=1)
+    if "local r error" in df.columns:
+        values = [
+            "r error",
+            "C error",
+            "local r error",
+            "local C error",
+            # "local solution cert",
+            # "global solution cert",
+        ]
+    else:
+        values = [
+            "error",
+            "local error",
+            # "local solution cert",
+            # "global solution cert",
+        ]
+    pt = pd.pivot_table(
+        data=df,
+        values=values,
+        index=["dataset", "time index"],
+        sort=False,
+    )
+    pt.rename(
+        columns={
+            "local r error": "local $e_t$",
+            "local C error": "local $e_C$",
+            "r error": "global $e_t$",
+            "C error": "global $e_C$",
+            "local error": "local $e_t$",
+            "error": "global $e_t$",
+        },
+        inplace=True,
+    )
+    error_table = pt.agg(["min", "max", "median", "mean", "std"])
+    print(error_table)
+    fname = fname.replace(".pkl", ".tex")
+    # s = error_table.style.highlight_min(props="itshape:; bfseries:;", axis=1)
+    s = error_table.style
+    with open(fname, "w"):
+        s.to_latex(fname)
+    print(f"saved as {fname}")
+
+
 def run_experiments(
     exp: Experiment,
-    level,
-    min_n_landmarks,
-    max_n_landmarks,
-    use_gt=False,
-    sim_noise=None,
     n_successful=100,
     out_name="",
     stride=1,
@@ -540,15 +645,23 @@ def run_experiments(
     if plot_poses:
         fig, ax = plt.subplots()
 
+    chosen_idx = 0
     for time_idx in np.arange(0, 1900, step=stride):
         try:
+            # choose which anchors are going to be used (for RO only)
+            np.random.seed(time_idx)
+            if ANCHOR_CHOICE == "random":
+                chosen_idx = np.random.choice(len(DEGENERATE_DICT))
+            elif ANCHOR_CHOICE == "round-robin":
+                chosen_idx = (chosen_idx + 1) % len(DEGENERATE_DICT)
+            elif ANCHOR_CHOICE == "all":
+                chosen_idx = -1
+            else:
+                raise ValueError(ANCHOR_CHOICE)
+
             new_lifter = exp.get_lifter(
                 time_idx=time_idx,
-                level=level,
-                min_n_landmarks=min_n_landmarks,
-                max_n_landmarks=max_n_landmarks,
-                use_gt=use_gt,
-                sim_noise=sim_noise,
+                chosen_idx=chosen_idx,
             )
         except IndexError:
             print(f"Warning: finished early: {counter}<{n_successful}")
@@ -588,14 +701,14 @@ def run_experiments(
             fname_root = ""
         df_here = run_real_experiment(
             new_lifter,
+            use_orders=["sorted"],
             add_oneshot=False,
-            add_sorted=True,
-            add_original=False,
-            add_basic=False,
             fname_root=fname_root,
             results_dir=results_dir,
+            from_scratch=False,
         )
         df_here["time index"] = time_idx
+        df_here["chosen idx"] = chosen_idx
         df_here["n landmarks"] = new_lifter.n_landmarks
         df_list.append(df_here)
 
@@ -612,7 +725,7 @@ def run_experiments(
         fig.set_size_inches(5, 5)
         ax.set_xlabel("x [m]")
         ax.set_ylabel("y [m]")
-        if not "starrynight" in out_name:
+        if "starrynight" not in out_name:
             ax.set_xlim([-6.2, 4.1])
             ax.set_ylim([-6.2, 4.1])
             size = np.diff(ax.get_ylim())[0]

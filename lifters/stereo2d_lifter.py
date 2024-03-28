@@ -1,6 +1,7 @@
 import autograd.numpy as np
 
 from lifters.stereo_lifter import NORMALIZE, StereoLifter
+from utils.geometry import convert_phi_to_theta, convert_theta_to_phi
 
 
 def change_dimensions(a, y, x):
@@ -33,7 +34,8 @@ class Stereo2DLifter(StereoLifter):
             W = self.W
         a = self.landmarks
 
-        p_w, y, phi = change_dimensions(a, y, t)
+        phi = convert_theta_to_phi(t)
+        p_w, y, phi = change_dimensions(a, y, phi)
         cost = _cost(phi, p_w, y, W, self.M_matrix)
         if NORMALIZE:
             return cost / (self.n_landmarks * self.d)
@@ -47,16 +49,18 @@ class Stereo2DLifter(StereoLifter):
             W = self.W
         a = self.landmarks
 
-        p_w, y, init_phi = change_dimensions(a, y, t_init)
+        init_phi = convert_theta_to_phi(t_init)
+        p_w, y, __ = change_dimensions(a, y, init_phi)
         success, phi_hat, cost = local_solver(
-            p_w=p_w, y=y, W=W, init_phi=t_init, log=verbose
+            p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose
         )
         if NORMALIZE:
             cost /= self.n_landmarks * self.d
         # cost /= self.n_landmarks * self.d
+        theta_hat = convert_phi_to_theta(phi_hat)
         info = {"success": success, "msg": "converged"}
         if success:
-            return phi_hat, info, cost
+            return theta_hat, info, cost
         else:
             return None, info, cost
 
