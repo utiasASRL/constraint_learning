@@ -1,11 +1,9 @@
+import pickle
+
 import autograd.numpy as np
 
-from lifters.stereo_lifter import StereoLifter, NORMALIZE
-from utils.geometry import (
-    get_T,
-    get_xtheta_from_T,
-    get_xtheta_from_theta,
-)
+from lifters.stereo_lifter import NORMALIZE, StereoLifter
+from utils.geometry import get_T, get_xtheta_from_T, get_xtheta_from_theta
 
 
 def change_dimensions(a, y):
@@ -38,6 +36,43 @@ class Stereo3DLifter(StereoLifter):
             d=3,
             variable_list=variable_list,
         )
+
+    @staticmethod
+    def from_file(fname):
+        from utils.geometry import get_theta_from_xtheta
+
+        with open(fname, "rb") as f:
+            y_ = pickle.load(f)
+            landmarks = pickle.load(f)
+            xtheta = pickle.load(f)
+            theta = get_theta_from_xtheta(xtheta, d=3)
+
+            level = pickle.load(f)
+            param_level = pickle.load(f)
+            variable_list = pickle.load(f)
+        lifter = Stereo3DLifter(
+            n_landmarks=landmarks.shape[0],
+            level=level,
+            param_level=param_level,
+            variable_list=variable_list,
+        )
+        lifter.y_ = y_
+        lifter.landmarks = landmarks
+        lifter.theta = theta
+        return lifter
+
+    def to_file(self, fname):
+        from utils.geometry import get_xtheta_from_theta
+
+        with open(fname, "wb") as f:
+            pickle.dump(self.y_, f)
+            pickle.dump(self.landmarks, f)
+
+            xtheta = get_xtheta_from_theta(self.theta, d=3)
+            pickle.dump(xtheta, f)
+            pickle.dump(self.level, f)
+            pickle.dump(self.param_level, f)
+            pickle.dump(self.variable_list, f)
 
     def get_vec_around_gt(self, delta):
         t0 = super().get_vec_around_gt(delta)

@@ -1,5 +1,4 @@
 import numpy as np
-
 from scipy.spatial.transform import Rotation as R
 
 
@@ -77,8 +76,8 @@ def get_xtheta_from_theta(theta, d):
 def get_theta_from_xtheta(xtheta, d):
     from utils.geometry import get_euler
 
-    pos = xtheta[1 : d + 1]
-    c = xtheta[d + 1 : d + 1 + d**2]
+    pos = xtheta[:d]
+    c = xtheta[d : d + d**2]
     C = c.reshape(d, d)
 
     alpha = get_euler(C.T)
@@ -91,6 +90,7 @@ def get_xtheta_from_T(T):
     C = T[:-1, :-1]
     r = T[:-1, -1]
     return np.r_[r, C.flatten("F")]
+
 
 def get_pose_errors_from_xtheta(xtheta_hat, xtheta_gt, d):
     C_hat, r_hat = get_C_r_from_xtheta(xtheta_hat, d)

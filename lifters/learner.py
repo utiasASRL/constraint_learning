@@ -6,21 +6,17 @@ import pandas as pd
 import scipy.sparse as sp
 import sparseqr as sqr
 
-from utils.plotting_tools import import_plt, add_rectangles, add_colorbar
 from utils.common import rank_project
+from utils.plotting_tools import add_colorbar, add_rectangles, import_plt
 
 plt = import_plt()
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from solvers.common import find_local_minimum
-from solvers.common import solve_certificate
-from solvers.common import solve_sdp_cvxpy
-from solvers.sparse import solve_lambda
-from solvers.sparse import bisection, brute_force
-from utils.plotting_tools import savefig
+from solvers.common import find_local_minimum, solve_certificate, solve_sdp_cvxpy
+from solvers.sparse import bisection, brute_force, solve_lambda
 from utils.constraint import Constraint
-
+from utils.plotting_tools import savefig
 
 # parameter of SDP solver
 TOL = 1e-10

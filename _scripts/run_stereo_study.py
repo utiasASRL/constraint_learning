@@ -90,12 +90,18 @@ def stereo_scalability_new(d=2, n_seeds=N_SEEDS, recompute=RECOMPUTE):
             variable_list=variable_list,
         )
     elif d == 3:
-        lifter = Stereo3DLifter(
-            n_landmarks=n_landmarks,
-            level=level,
-            param_level=param_level,
-            variable_list=variable_list,
-        )
+        fname = "_results/stereo3d_lifter.pkl"
+        try:
+            lifter = Stereo3DLifter.from_file(fname)
+        except FileNotFoundError:
+            lifter = Stereo3DLifter(
+                n_landmarks=n_landmarks,
+                level=level,
+                param_level=param_level,
+                variable_list=variable_list,
+            )
+            lifter.to_file(fname)
+            lifter = Stereo3DLifter.from_file(fname)
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
@@ -148,4 +154,4 @@ if __name__ == "__main__":
     # import warnings
     # with warnings.catch_warnings():
     #    warnings.simplefilter("error")
-    run_all(tightness=False, scalability=True)
+    run_all(tightness=False, scalability=True, recompute=True)
