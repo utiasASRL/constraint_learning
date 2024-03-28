@@ -1,9 +1,8 @@
 from copy import deepcopy
 
+import autograd.numpy as np
 import matplotlib
 import matplotlib.pylab as plt
-
-import autograd.numpy as np
 
 from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -93,58 +92,61 @@ class MonoLifter(RobustPoseLifter):
         else:
             return term.T @ W @ term
 
-    def get_Q(self, noise: float = None):
+    def get_Q(
+        self, noise: float = None, output_poly: bool = False, use_cliques: list = []
+    ):
         if noise is None:
             noise = NOISE
-        y = np.zeros((self.n_landmarks, self.d))
-        n_angles = self.d * (self.d - 1) // 2
-        theta = self.theta[: self.d + n_angles]
-        R, t = get_C_r_from_theta(theta, self.d)
-        for i in range(self.n_landmarks):
-            pi = self.landmarks[i]
-            # ui = deepcopy(pi) #R @ pi + t
-            ui = R @ pi + t
-            ui /= ui[self.d - 1]
 
-            if i < self.n_outliers:
-                # generate random unit vector inside the FOV cone
-                # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+        if self.y_ is None:
+            self.y_ = np.zeros((self.n_landmarks, self.d))
+            theta = self.theta[: self.d + self.d**2]
+            R, t = get_C_r_from_theta(theta, self.d)
+            for i in range(self.n_landmarks):
+                pi = self.landmarks[i]
+                # ui = deepcopy(pi) #R @ pi + t
+                ui = R @ pi + t
+                ui /= ui[self.d - 1]
 
-                # randomly sample a vector
-                if np.tan(FOV / 2) * ui[self.d - 1] < np.sqrt(
-                    np.sum(ui[: self.d - 1] ** 2)
-                ):
-                    print("warning: inlier not in FOV!!")
+                if i < self.n_outliers:
+                    # generate random unit vector inside the FOV cone
+                    # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
 
-                success = False
-                for _ in range(N_TRYS):
-                    ui_test = deepcopy(ui)
-                    ui_test[: self.d - 1] += np.random.normal(
-                        scale=NOISE_OUT, loc=0, size=self.d - 1
-                    )
-                    # ui_test[: self.d - 1] += np.random.uniform(
-                    #    low=-NOISE_OUT, high=NOISE_OUT, size=self.d - 1
-                    # )
-                    if np.tan(FOV / 2) * ui_test[self.d - 1] >= np.sqrt(
-                        np.sum(ui_test[: self.d - 1] ** 2)
+                    # randomly sample a vector
+                    if np.tan(FOV / 2) * ui[self.d - 1] < np.sqrt(
+                        np.sum(ui[: self.d - 1] ** 2)
                     ):
-                        success = True
-                        ui = ui_test
-                        break
-                if not success:
-                    raise ValueError("did not find valid outlier ui")
-            else:
-                ui[: self.d - 1] += np.random.normal(
-                    scale=noise, loc=0, size=self.d - 1
-                )
-            assert ui[self.d - 1] == 1.0
-            ui /= np.linalg.norm(ui)
-            y[i] = ui
+                        print("warning: inlier not in FOV!!")
 
-        Q = self.get_Q_from_y(y)
-        return Q, y
+                    success = False
+                    for _ in range(N_TRYS):
+                        ui_test = deepcopy(ui)
+                        ui_test[: self.d - 1] += np.random.normal(
+                            scale=NOISE_OUT, loc=0, size=self.d - 1
+                        )
+                        # ui_test[: self.d - 1] += np.random.uniform(
+                        #    low=-NOISE_OUT, high=NOISE_OUT, size=self.d - 1
+                        # )
+                        if np.tan(FOV / 2) * ui_test[self.d - 1] >= np.sqrt(
+                            np.sum(ui_test[: self.d - 1] ** 2)
+                        ):
+                            success = True
+                            ui = ui_test
+                            break
+                    if not success:
+                        raise ValueError("did not find valid outlier ui")
+                else:
+                    ui[: self.d - 1] += np.random.normal(
+                        scale=noise, loc=0, size=self.d - 1
+                    )
+                assert ui[self.d - 1] == 1.0
+                ui /= np.linalg.norm(ui)
+                self.y_[i] = ui
 
-    def get_Q_from_y(self, y):
+        Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
+        return Q, self.y_
+
+    def get_Q_from_y(self, y, output_poly: bool = False, use_cliques: list = []):
         """
         every cost term can be written as
         (1 + wi)/b**2  [l x'] Qi [l; x] / norm + 1 - wi
@@ -157,7 +159,12 @@ class MonoLifter(RobustPoseLifter):
         if NORMALIZE:
             norm = (self.n_landmarks * self.d) ** 2
 
-        for i in range(self.n_landmarks):
+        if len(use_cliques):
+            js = use_cliques
+        else:
+            js = list(range(self.n_landmarks))
+
+        for i in js:
             pi = self.landmarks[i]
             ui = y[i]
             Pi = np.c_[np.eye(self.d), np.kron(pi, np.eye(self.d))]  # I, pi x I
@@ -190,6 +197,8 @@ class MonoLifter(RobustPoseLifter):
                 Q["t", "t"] += Qi[: self.d, : self.d]
                 Q["t", "c"] += Qi[: self.d, self.d :]
                 Q["c", "c"] += Qi[self.d :, self.d :]
+        if output_poly:
+            return 0.5 * Q
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)
         return Q_sparse
 

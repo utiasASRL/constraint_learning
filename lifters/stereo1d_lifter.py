@@ -5,6 +5,7 @@ from lifters.state_lifter import StateLifter
 
 class Stereo1DLifter(StateLifter):
     PARAM_LEVELS = ["no", "p"]
+    NOISE = 0.1
 
     def __init__(self, n_landmarks, param_level="no"):
         self.n_landmarks = n_landmarks
@@ -68,13 +69,13 @@ class Stereo1DLifter(StateLifter):
             if key == "h":
                 x_data.append(1.0)
             elif key == "x":
-                x_data.append(float(theta))
+                x_data.append(float(theta[0]))
             elif "z" in key:
                 idx = int(key.split("_")[-1])
                 if self.param_level == "p":
-                    x_data.append(float(1 / (theta - parameters[idx + 1])))
+                    x_data.append(float(1 / (theta[0] - parameters[idx + 1])))
                 elif self.param_level == "no":
-                    x_data.append(float(1 / (theta - self.landmarks[idx])))
+                    x_data.append(float(1 / (theta[0] - self.landmarks[idx])))
             else:
                 raise ValueError("unknown key in get_x", key)
         return np.array(x_data)
@@ -119,11 +120,11 @@ class Stereo1DLifter(StateLifter):
             param_dict_[f"p_{n}"] = n + 1
         return param_dict_
 
-    def get_grad(self, t, y):
-        raise NotImplementedError("get_grad not implement yet")
-
-    def get_Q(self, noise: float = 1e-3) -> tuple:
+    def get_Q(self, noise: float = None) -> tuple:
         from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+        if noise is None:
+            noise = self.NOISE
 
         y = 1 / (self.theta - self.landmarks) + np.random.normal(
             scale=noise, loc=0, size=self.n_landmarks
@@ -171,6 +172,7 @@ class Stereo1DLifter(StateLifter):
     def local_solver(
         self, t_init, y, num_iters=100, eps=1e-5, W=None, verbose=False, **kwargs
     ):
+        info = {}
         a = self.landmarks
         x_op = t_init
         for i in range(num_iters):
@@ -183,11 +185,13 @@ class Stereo1DLifter(StateLifter):
                 x_op = x_op + dx
                 if np.abs(dx) < eps:
                     msg = f"converged dx after {i} it"
-                    return x_op, msg, self.get_cost(x_op, y)
+                    info = {"msg": msg, "cost": self.get_cost(x_op, y)}
+                    return x_op, info, info["cost"]
             else:
                 msg = f"converged in du after {i} it"
-                return x_op, msg, self.get_cost(x_op, y)
-        return None, "didn't converge", None
+                info = {"msg": msg, "cost": self.get_cost(x_op, y)}
+                return x_op, info, info["cost"]
+        return None, {"msg": "didn't converge", "cost": None}, None
 
     def __repr__(self):
         return f"stereo1d_{self.param_level}"

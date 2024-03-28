@@ -3,10 +3,10 @@ import numpy as np
 import scipy.sparse as sp
 from scipy.optimize import minimize
 
-plt.ion()
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+plt.ion()
 
 NOISE = 1e-2  # std deviation of distance noise
 
@@ -26,7 +26,7 @@ class RangeOnlyLocLifter(StateLifter):
     """Range-only localization
 
     - level "no" uses substitution z_i=||p_i||^2=x_i^2 + y_i^2
-    - level "quad" uses substitution z_i=[x_i^2, y_i^2, x_iy_i]
+    - level "quad" uses substitution z_i=[x_i^2, x_iy_i, y_i^2]
     """
 
     TIGHTNESS = "rank"
@@ -127,18 +127,35 @@ class RangeOnlyLocLifter(StateLifter):
 
         A_list = []
         for n in positions:
-            A = PolyMatrix(symmetric=True)
-            A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
             if self.level == "no":
+                A = PolyMatrix(symmetric=True)
+                A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
                 A["h", f"z_{n}"] = -0.5
+                if output_poly:
+                    A_list.append(A)
+                else:
+                    A_list.append(A.get_matrix(self.var_dict))
+
             elif self.level == "quad":
-                mat = np.zeros((1, self.size_z))
-                mat[0, diag_idx] = -0.5
-                A["h", f"z_{n}"] = mat
-            if output_poly:
-                A_list.append(A)
-            else:
-                A_list.append(A.get_matrix(self.var_dict))
+                count = 0
+                for i in range(self.d):
+                    for j in range(i, self.d):
+                        A = PolyMatrix(symmetric=True)
+                        mat_x = np.zeros((self.d, self.d))
+                        mat_z = np.zeros((1, self.size_z))
+                        if i == j:
+                            mat_x[i, i] = 1.0
+                        else:
+                            mat_x[i, j] = 0.5
+                            mat_x[j, i] = 0.5
+                        mat_z[0, count] = -0.5
+                        A[f"x_{n}", f"x_{n}"] = mat_x
+                        A["h", f"z_{n}"] = mat_z
+                        count += 1
+                        if output_poly:
+                            A_list.append(A)
+                        else:
+                            A_list.append(A.get_matrix(self.var_dict))
         return A_list
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
@@ -357,6 +374,17 @@ class RangeOnlyLocLifter(StateLifter):
         assert abs(cost1 - cost3) < 1e-10
         return Q, self.y_
 
+    def get_D(self, that):
+        D = np.eye(1 + self.n_positions * self.d + self.size_z)
+        x = self.get_x(theta=that)
+        J = self.get_J_lifting(t=that)
+
+        D = sp.lil_array((len(x), len(x)))
+        D[range(len(x)), range(len(x))] = 1.0
+        D[:, 0] = x
+        D[-J.shape[0] :, 1 : 1 + J.shape[1]] = J
+        return D.tocsc()
+
     def get_sub_idx_x(self, sub_idx, add_z=True):
         sub_idx_x = [0]
         for idx in sub_idx:
@@ -378,7 +406,8 @@ class RangeOnlyLocLifter(StateLifter):
             return theta.reshape(self.n_positions, self.d)
 
     def get_error(self, that):
-        return {"total error": np.sqrt(np.mean((self.theta - that) ** 2))}
+        err = np.sqrt(np.mean((self.theta - that) ** 2))
+        return {"total error": err, "error": err}
 
     def local_solver(
         self,
