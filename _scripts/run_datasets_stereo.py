@@ -51,7 +51,6 @@ def load_experiment(dataset):
 
 def plot_poses(results_dir=RESULTS_DIR, n_successful=100):
     datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-    datasets = ["starrynight"]
     for dataset in datasets:
         fname = f"{results_dir}/stereo_{dataset}_{n_successful}.pkl"
         df = pd.read_pickle(fname)
@@ -145,8 +144,7 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     df_list = []
 
     # don't change order! (because of plotting)
-    # datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-    datasets = ["starrynight"]
+    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
     for dataset in datasets:
         if USE_GT:
             fname = f"{results_dir}/stereo_{dataset}_{n_successful}_gt.pkl"
@@ -211,11 +209,11 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=20, stride=1, recompute=True, results_dir=RESULTS_DIR)
+    run_all(n_successful=100, stride=1, recompute=True, results_dir=RESULTS_DIR)
 
-    # create nicer looking plots.
-    # plot_poses(results_dir=RESULTS_DIR)
+    # create plots of all estimates
+    plot_poses(results_dir=RESULTS_DIR, n_successful=100)
 
     # create error table
-    # fname_root = f"{RESULTS_DIR}/stereo"
-    # create_rmse_table(fname_root=fname_root, n_successful=100)
+    fname_root = f"{RESULTS_DIR}/stereo"
+    create_rmse_table(fname_root=fname_root, n_successful=100)
