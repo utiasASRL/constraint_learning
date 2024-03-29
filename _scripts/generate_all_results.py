@@ -6,44 +6,92 @@ from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
 from _scripts.run_other_study import run_all as run_other_study
 from _scripts.run_range_only_study import run_all as run_range_only_study
 from _scripts.run_stereo_study import run_all as run_stereo_study
+from auto_template.real_experiments import create_rmse_table
 
 try:
     matplotlib.use("TkAgg")
-except:
+    # matplotlib.use("Agg") # no plotting
+except Exception as e:
     pass
 
-if __name__ == "__main__":
-    import sys
+# RESULTS_DIR = "_results_server_new/"
+RESULTS_DIR = "_results_new/"
 
+if __name__ == "__main__":
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(
+        "Run experiments. Use --recompute to regenerate all results. Otherwise plots exisitng data and recomputes missing."
+    )
+    parser.add_argument(
+        "-w",
+        "--overwrite",
+        action="store_true",
+        default=False,
+        help="regenerate results",
+    )
+    parser.add_argument(
+        "-d",
+        "--directory",
+        default=RESULTS_DIR,
+        help="results directory",
+    )
+    args = parser.parse_args()
+    recompute = args.overwrite
+    results_dir = args.directory
     n_seeds = 10
-    recompute = True
-    tightness = False
+    tightness = True
     scalability = True
 
-    run_all_study(recompute=recompute)
-    sys.exit()
-    run_range_only_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-    )
-    run_other_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-    )
+    print("------- Generate stereo results -------")
     run_stereo_study(
         n_seeds=n_seeds,
         recompute=recompute,
         tightness=tightness,
         scalability=scalability,
+        results_dir=results_dir,
     )
-    sys.exit()
+    print("------- Generate other results -------")
+    run_other_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        tightness=tightness,
+        scalability=scalability,
+        results_dir=results_dir,
+    )
+    print("------- Generate RO results -------")
+    run_range_only_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        tightness=tightness,
+        scalability=scalability,
+        results_dir=results_dir,
+    )
 
-    run_datasets_stereo(recompute=False, n_successful=100)
-    run_datasets_ro(recompute=False, n_successful=100)
+    print("------- Generate results table -------")
+    run_all_study(recompute=recompute, results_dir=results_dir)
 
-    run_datasets_ro(recompute=True, n_successful=10)
-    run_datasets_stereo(recompute=True, n_successful=10)
+    print("------- Generate dataset results (100) -------")
+    n_successful = 100
+    run_datasets_ro(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    run_datasets_stereo(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+
+    print("------- Generate dataset results (10)-------")
+    n_successful = 10
+    run_datasets_ro(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    run_datasets_stereo(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+
+    print("------- Generate dataset results (RMSE)-------")
+    fname_root = f"{results_dir}/ro_quad"
+    create_rmse_table(fname_root=fname_root, n_successful=100)
+
+    fname_root = f"{results_dir}/stereo"
+    create_rmse_table(fname_root=fname_root, n_successful=100)

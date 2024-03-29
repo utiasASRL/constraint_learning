@@ -1,7 +1,8 @@
-_results/
-_results_server/
+_results*
 _plots/
 starrynight/
+starloc/
+ro_certs/
 log/
 
 __pycache__
@@ -11,10 +12,12 @@ venv/
 *.vscode
 *.swp
 
-_results_new/
-_results_server_new/
-certifiable-tools/
-mat_weight_certs/
-ro_certs/
-_results*
+*.code-workspace
+solve_mosek.ptf
+solve_cvxpy*.ptf
+build/
+dist/
+mosek_output.tmp
 
+mat_weight_certs
+certifiable-tools

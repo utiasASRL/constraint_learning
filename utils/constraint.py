@@ -118,7 +118,9 @@ class Constraint(object):
         Ai_sparse_small = A_poly.get_matrix(variables=mat_var_dict)
         ai = lifter.get_vec(Ai_sparse_small, correct=True)
         bi = lifter.augment_using_zero_padding(ai)
-        polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
+        # TODO(FD): below takes unnecessarily long, but is not required currently
+        # polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
+        polyrow_b = None
         polyrow_a = lifter.convert_a_to_polyrow(ai, mat_var_dict)
         Ai_sparse = A_poly.get_matrix(variables=lifter.var_dict)
         return Constraint(
@@ -136,9 +138,9 @@ class Constraint(object):
 
     @staticmethod
     def init_from_polyrow_b(
-        index: int,
         polyrow_b: PolyMatrix,
         lifter: StateLifter,
+        index: int = 0,
         known: bool = False,
         template_idx: int = None,
         mat_var_dict: dict = None,
@@ -146,8 +148,7 @@ class Constraint(object):
         if mat_var_dict is None:
             mat_var_dict = lifter.var_dict
         A_poly = lifter.convert_polyrow_to_Apoly(polyrow_b)
-        # dict_unroll = lifter.get_var_dict_unroll(mat_var_dict)
-        dict_unroll = lifter.var_dict_unroll
+        dict_unroll = lifter.get_var_dict_unroll(mat_var_dict)
         A_sparse = A_poly.get_matrix(dict_unroll)
         a_full = lifter.get_vec(A_sparse, sparse=True)
         return Constraint(

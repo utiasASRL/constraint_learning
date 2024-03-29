@@ -4,7 +4,6 @@ import numpy as np
 
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.state_lifter import StateLifter
-from lifters.stereo_lifter import StereoLifter
 
 TOL = 1e-10  # can be overwritten by a parameter.
 
@@ -14,23 +13,12 @@ TOL = 1e-10  # can be overwritten by a parameter.
 VERBOSE = False
 SOLVER = "MOSEK"  # first choice
 solver_options = {
-    None: {},
-    "CVXOPT": {
-        "verbose": VERBOSE,
-        "refinement": 1,
-        "kktsolver": "qr",  # important so that we can solve with redundant constraints
-        "abstol": 1e-7,  # will be changed according to primal
-        "reltol": 1e-6,  # will be changed according to primal
-        "feastol": 1e-9,
-    },
     "MOSEK": {
         "verbose": VERBOSE,
         "mosek_params": {
             "MSK_IPAR_INTPNT_MAX_ITERATIONS": 500,
-            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,  # was 1e-8
-            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,  # was 1e-8
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-7,
-            # "MSK_DPAR_INTPNT_CO_TOL_REL_GAP": 1e-10,  # this made the problem infeasible sometimes
+            "MSK_DPAR_INTPNT_CO_TOL_PFEAS": TOL,
+            "MSK_DPAR_INTPNT_CO_TOL_DFEAS": TOL,
             "MSK_DPAR_INTPNT_CO_TOL_MU_RED": TOL,
             "MSK_DPAR_INTPNT_CO_TOL_INFEAS": 1e-12,
             "MSK_IPAR_INTPNT_SOLVE_FORM": "MSK_SOLVE_DUAL",
@@ -41,22 +29,13 @@ solver_options = {
 
 def adjust_tol(options, tol):
     for opt in options:
-        if "mosek_params" in opt:
-            opt["mosek_params"].update(
-                {
-                    "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
-                    "MSK_DPAR_INTPNT_CO_TOL_MU_RED": tol,
-                }
-            )
-        else:
-            opt.update(
-                {
-                    "abstol": tol,
-                    "reltol": tol,
-                    "feastol": tol,
-                }
-            )
+        opt["mosek_params"].update(
+            {
+                "MSK_DPAR_INTPNT_CO_TOL_PFEAS": tol,
+                "MSK_DPAR_INTPNT_CO_TOL_DFEAS": tol,
+                "MSK_DPAR_INTPNT_CO_TOL_MU_RED": tol,
+            }
+        )
 
 
 def adjust_Q(Q, offset=True, scale=True, plot=False):
@@ -263,6 +242,7 @@ def find_local_minimum(
             cost_solver = np.nan
             t_local = np.nan
             failed.append(i)
+            continue
 
         costs.append(cost_solver)
         local_solutions.append(t_local)
@@ -286,7 +266,7 @@ def find_local_minimum(
         info["max res"] = max_res[global_inds[0]]
         info["cond Hess"] = cond_Hess[global_inds[0]]
 
-        for local_cost in local_costs:
+        for i, local_cost in enumerate(local_costs):
             local_ind = np.where(costs == local_cost)[0][0]
             info[f"local solution {i}"] = local_solutions[local_ind]
             info[f"local cost {i}"] = local_cost

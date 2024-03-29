@@ -13,7 +13,7 @@ from scipy.spatial.transform import Rotation as R
 def convert_theta_to_phi(theta):
     # convert [r, vec(C)] to [r, alpha] (in 2D only)
     assert len(theta) == 6
-    alpha = np.arctan2(theta[3], theta[2])  # theta has [x,y,cos(a),sin(a),...]
+    alpha = np.arctan2(-theta[3], theta[2])  # theta has [x,y,cos(a),-sin(a),...]
     return np.r_[theta[:2], alpha]
 
 
@@ -25,7 +25,7 @@ def convert_phi_to_theta(phi):
     return get_theta_from_C_r(C, r)
 
 
-def generate_random_pose(d=2, size=1, use_euler=True):
+def generate_random_pose(d=2, size=1, use_euler=False):
     r = np.random.rand(d) * size - size / 2
     if d == 2:
         rot = np.random.rand() * 2 * np.pi
@@ -46,13 +46,13 @@ def generate_random_pose(d=2, size=1, use_euler=True):
 
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
-    C = theta[d:].reshape((d, d)).T
+    C = theta[d:].reshape((d, d))
     return C, r
 
 
 def get_theta_from_C_r(C, r):
     # column-wise flatten
-    return np.r_[r, C.flatten("F")]
+    return np.r_[r, C.flatten("C")]
 
 
 def get_T(theta=None, d=None):
@@ -72,7 +72,7 @@ def get_theta_from_T(T):
 
 
 def get_theta_from_C_r(C, r):
-    return np.r_[r, C.flatten("F")]
+    return np.r_[r, C.flatten("C")]
 
 
 def get_pose_errors_from_theta(theta_hat, theta_gt, d):

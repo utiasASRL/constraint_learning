@@ -5,25 +5,19 @@ from auto_template.sim_experiments import (
     plot_scalability,
     run_oneshot_experiment,
     run_scalability_new,
-    save_table,
 )
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from utils.plotting_tools import savefig
-
-DEBUG = False
-
-N_SEEDS = 10
-RECOMPUTE = True
 
 n_positions = 3
 n_landmarks = 10
 d = 3
 
-# RESULTS_DIR = "_results"
-RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results"
+# RESULTS_DIR = "_results_server"
 
 
-def range_only_tightness():
+def range_only_tightness(results_dir=RESULTS_DIR):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
@@ -52,7 +46,7 @@ def range_only_tightness():
             apply_templates=False,
             n_inits=1,
         )
-        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
+        fname_root = f"{results_dir}/{lifter}_seed{seed}"
         run_oneshot_experiment(
             learner,
             fname_root,
@@ -60,11 +54,8 @@ def range_only_tightness():
         )
 
 
-def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
-    if DEBUG:
-        n_positions_list = [10, 15]
-    else:
-        n_positions_list = [10, 15, 20, 25, 30]
+def range_only_scalability_new(n_seeds, recompute, results_dir=RESULTS_DIR):
+    n_positions_list = [10, 15, 20, 25, 30]
     for level in ["no", "quad"]:
         print(f"=========== RO {level} scalability ===========")
         variable_list = None  # use the default one for the first step.
@@ -82,36 +73,39 @@ def range_only_scalability_new(n_seeds=N_SEEDS, recompute=RECOMPUTE):
             param_list=n_positions_list,
             n_seeds=n_seeds,
             recompute=recompute,
-            results_folder=RESULTS_DIR,
+            results_folder=results_dir,
         )
         if df is None:
             continue
 
         df = df[df.type != "original"]
-        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+        fname_root = f"{results_dir}/scalability_{learner.lifter}"
 
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
-        ylim = []  # [df_sub.min(), df_sub.max()]
-        fig, axs = plot_scalability(
-            df, log=True, start="t ", legend_idx=1, extra_plot_ylim=ylim
-        )
+        fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
-        fig.set_size_inches(8, 3)
-        axs[-1].legend(loc="upper right", fontsize=10)  # , bbox_to_anchor=[1.0, 1.0])
+        fig.set_size_inches(4, 3)
+        axs[-1].legend(
+            loc="upper right", fontsize=10, framealpha=1.0
+        )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
         # tex_name = fname_root + f"_n.tex"
         # save_table(df, tex_name)
 
 
-def run_all(n_seeds=N_SEEDS, recompute=RECOMPUTE, tightness=True, scalability=True):
+def run_all(
+    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+):
     if scalability:
-        range_only_scalability_new(recompute=recompute, n_seeds=n_seeds)
+        range_only_scalability_new(
+            recompute=recompute, n_seeds=n_seeds, results_dir=results_dir
+        )
     if tightness:
-        range_only_tightness()
+        range_only_tightness(results_dir=results_dir)
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(n_seeds=1, recompute=True)

@@ -2,7 +2,6 @@
 TODO: SLAM is currently not supported and therefore these tests are not being kept up to date.
 """
 
-import matplotlib.pylab as plt
 import numpy as np
 
 from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
@@ -84,7 +83,7 @@ def old_test_gauge():
 
         try:
             S, V = np.linalg.eig(hess)
-        except:
+        except ValueError:
             S, V = np.linalg.eig(hess.toarray())
         mask = np.abs(S) < 1e-10
         n_null = np.sum(mask)

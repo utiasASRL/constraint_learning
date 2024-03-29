@@ -1,6 +1,7 @@
 import time
 from copy import deepcopy
 
+import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -12,7 +13,13 @@ from solvers.common import find_local_minimum, solve_certificate, solve_sdp_cvxp
 from solvers.sparse import bisection, brute_force, solve_lambda
 from utils.common import rank_project
 from utils.constraint import Constraint
-from utils.plotting_tools import add_colorbar, add_rectangles, import_plt, savefig
+from utils.plotting_tools import (
+    add_colorbar,
+    add_rectangles,
+    import_plt,
+    plot_singular_values,
+    savefig,
+)
 
 plt = import_plt()
 
@@ -32,7 +39,13 @@ TOL_RANK_ONE = 1e7
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
 USE_KNOWN = True
-GLOBAL_THRESH = 1e-3
+USE_INCREMENTAL = True
+
+GLOBAL_THRESH = 1e-3  # consider dual problem optimal when eps<GLOBAL_THRESH
+
+METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
+
+EPSILON = 1e-4  # fixed epsilon for sparsity-promoting SDP
 
 
 class Learner(object):
@@ -43,18 +56,24 @@ class Learner(object):
     def __init__(
         self,
         lifter: StateLifter,
-        variable_list: list,
+        variable_list: list = None,
         apply_templates: bool = True,
         noise: float = None,
         n_inits: int = 10,
+        use_known: bool = USE_KNOWN,
+        use_incremental: bool = USE_INCREMENTAL,
     ):
-        self.noise = noise
+        if variable_list is None:
+            variable_list = lifter.variable_list
         self.lifter = lifter
         self.variable_iter = iter(variable_list)
-
         self.apply_templates_to_others = apply_templates
+        self.noise = noise
 
-        self.mat_vars = ["h"]
+        self.use_known = use_known
+        self.use_incremental = use_incremental
+
+        self.mat_vars = []
 
         # templates contains the learned "templates" of the form:
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)
@@ -210,8 +229,8 @@ class Learner(object):
         self.ranks.append(eigs)
 
         if self.lifter.robust:
-            idx_theta = 1 + self.lifter.d + self.lifter.d**2
-            wi = X[0, idx_theta : idx_theta + self.lifter.n_landmarks]
+            x_dim = self.lifter.d + self.lifter.d**2 + 1
+            wi = X[0, x_dim::x_dim]
             print("should be plus or minus ones:", wi.round(4))
 
         cost_tight = self.duality_gap_is_zero(
@@ -227,12 +246,23 @@ class Learner(object):
         elif tightness == "cost":
             return cost_tight
 
+    def get_A_list(self, var_dict=None):
+        if var_dict is None:
+            A_known = []
+            if self.use_known:
+                A_known += [constraint.A_sparse_ for constraint in self.templates_known]
+            return A_known + [constraint.A_sparse_ for constraint in self.constraints]
+        else:
+            A_known = []
+            if self.use_known:
+                A_known += [constraint.A_poly_ for constraint in self.templates_known]
+            A_list_poly = A_known + [
+                constraint.A_poly_ for constraint in self.constraints
+            ]
+            return [A.get_matrix(var_dict) for A in A_list_poly]
+
     def get_A_b_list(self):
-        A_known = []
-        if USE_KNOWN:
-            # A_known = self.lifter.get_A_known()
-            A_known += [constraint.A_sparse_ for constraint in self.templates_known]
-        A_list = A_known + [constraint.A_sparse_ for constraint in self.constraints]
+        A_list = self.get_A_list()
         A_b_list_all = self.lifter.get_A_b_list(A_list)
         return A_b_list_all
 
@@ -242,10 +272,11 @@ class Learner(object):
         tightness="rank",
         use_last=None,
         use_bisection=False,
+        tol=TOL,
     ):
-        def function(A_b_list_here, df_data):
+        def function(A_b_list_here, df_data, verbose=False):
             """Function for bisection or brute_force"""
-            if len(A_b_list_here) in df_data.keys():
+            if (len(A_b_list_here) in df_data.keys()) and not verbose:
                 new_data = df_data[len(A_b_list_here)]
             else:
                 new_data = {"lifter": str(self.lifter), "reorder": reorder}
@@ -279,6 +310,12 @@ class Learner(object):
                     print(f"{len(A_b_list_here)}: not rank-tight yet")
                 df_data[len(A_b_list_here)] = deepcopy(new_data)
 
+                if verbose:
+                    print(
+                        f"dual cost: {dual_cost:4.4e}, primal cost: {self.solver_vars['qcqp_cost']:4.4f}"
+                    )
+                    print(f"largest 10 eigenvalues: {eigs[:10]}")
+
             if tightness == "rank":
                 return new_data["rank_tight"]
             else:
@@ -288,28 +325,32 @@ class Learner(object):
         B_list = self.lifter.get_B_known()
 
         force_first = 1
-        if USE_KNOWN:
+        if self.use_known:
             force_first += len(self.templates_known)
 
         if reorder:
+            if self.solver_vars is None:
+                self.find_local_solution()
+
             # find the importance of each constraint
-            __, lamdas = solve_lambda(
+            _, lamdas = solve_lambda(
                 self.solver_vars["Q"],
                 A_b_list_all,
                 self.solver_vars["xhat"],
                 B_list=B_list,
                 force_first=force_first,
-                tol=TOL,
+                tol=tol,
                 adjust=True,
+                primal=False,
                 verbose=False,
+                # fixed_epsilon=EPSILON,
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
                 print("Sanity checks:")
                 B_list = self.lifter.get_B_known()
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
-                assert info["msg"] == "converged"
-                xhat_from_X, __ = rank_project(X, p=1)
+                xhat_from_X, _ = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
                 print("xhat error:", xhat - xhat_from_X)
                 print("Hx=", info["H"] @ xhat)
@@ -357,9 +398,9 @@ class Learner(object):
 
         minimal_indices = []
         if tightness == "cost":
-            min_num = df_tight[df_tight.cost_tight == True].index.min()
+            min_num = df_tight[df_tight.cost_tight == 1].index.min()
         elif tightness == "rank":
-            min_num = df_tight[df_tight.rank_tight == True].index.min()
+            min_num = df_tight[df_tight.rank_tight == 1].index.min()
         if not np.isnan(min_num):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
@@ -370,19 +411,36 @@ class Learner(object):
         qcqp_that, qcqp_cost, info = find_local_minimum(
             self.lifter, y=y, verbose=verbose, n_inits=self.n_inits, plot=plot
         )
+        self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
+        self.solver_vars.update(info)
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
-            self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
-            self.solver_vars.update(info)
+            self.solver_vars["xhat"] = xhat
+
+            # calculate error for global estimate
             self.solver_vars.update(self.lifter.get_error(qcqp_that))
+            # calculate errors for local estimates
+            for key, qcqp_that_local in info.items():
+                if key.startswith("local solution"):
+                    solution_idx = key.strip("local solution ")
+                    error_dict = self.lifter.get_error(qcqp_that_local)
+                    self.solver_vars.update(
+                        {
+                            f"local {solution_idx} {error_name}": err
+                            for error_name, err in error_dict.items()
+                        }
+                    )
+
             return True
-        self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
 
     def find_global_solution(self, data_dict={}):
-        if self.tightness_dict["rank"] == True:
+        A_b_list_all = self.get_A_b_list()
+
+        # find or certify global solution
+        if self.lifter.TIGHTNESS == "rank":
             X = self.solver_vars["X"]
             x, info = rank_project(X, p=1)
-            print("rank projection info:", info)
+            x = x.flatten()
         else:
             """Try to solve dual problem."""
             xhat = self.solver_vars["xhat"]
@@ -392,8 +450,8 @@ class Learner(object):
                 self.solver_vars["Q"], A_b_list_all, xhat, adjust=True
             )
             if info["eps"] is not None:
-                print(f"global solution eps: {info['eps']:.2e}")
                 cert = abs(info["eps"]) <= GLOBAL_THRESH
+                print(f"global solution eps: {info['eps']:.2e}, cert: {cert}")
                 data_dict["global solution cert"] = cert
 
             if info["eps"] and cert:
@@ -401,18 +459,22 @@ class Learner(object):
             else:
                 x = None
 
-            # sanity check: solve wtih local minimum
-            keys = [key for key in data_dict.keys() if key.startswith("local solution")]
-            for key in keys:
-                x_local = data_dict[key]
-                x_local = self.lifter.get_x(theta=x_local)
-                H, info = solve_certificate(
-                    self.solver_vars["Q"], A_b_list_all, x_local, adjust=True
-                )
-                if info["eps"] is not None:
-                    print(f"local solution eps: {info['eps']:.2e}")
-                    cert = abs(info["eps"]) <= GLOBAL_THRESH
-                    data_dict[key + " cert"] = cert
+        # sanity check: try to certify local minima (should fail)
+        keys = [key for key in data_dict.keys() if key.startswith("local solution")]
+        for key in keys:
+            x_local = data_dict[key]
+            x_local = self.lifter.get_x(theta=x_local)
+            H, info = solve_certificate(
+                self.solver_vars["Q"],
+                A_b_list_all,
+                x_local,
+                adjust=False,
+                tol=1e-10,
+            )
+            if info["eps"] is not None:
+                print(f"local solution eps: {info['eps']:.2e}")
+                cert = abs(info["eps"]) <= GLOBAL_THRESH
+                data_dict[key + " cert"] = cert
 
         if x is not None:
             theta = self.lifter.get_theta(x)
@@ -430,7 +492,7 @@ class Learner(object):
         X, info = solve_sdp_cvxpy(
             self.solver_vars["Q"],
             A_b_list_all,
-            B_list,
+            B_list=B_list,
             adjust=ADJUST_Q,
             verbose=verbose,
             primal=PRIMAL,
@@ -470,17 +532,18 @@ class Learner(object):
 
         t1 = time.time()
         Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
-        if USE_KNOWN:
-            a_vectors = []
+        a_vectors = []
+        if self.use_incremental:
             for c in self.templates:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
                 a_vectors.append(bi)
+        elif self.use_known:
             for c in self.templates_known_sub:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
                 a_vectors.append(bi)
-            Y = np.vstack([Y] + a_vectors)
+        Y = np.vstack([Y] + a_vectors)
 
         if plot:
             fig, ax = plt.subplots()
@@ -488,8 +551,8 @@ class Learner(object):
         print(f"data matrix Y has shape {Y.shape} ")
         for i in range(self.lifter.N_CLEANING_STEPS + 1):
             print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
-            basis_new, S = self.lifter.get_basis(Y)
-            print(f"...done")
+            basis_new, S = self.lifter.get_basis(Y, method=METHOD_NULL)
+            print("...done")
             corank = basis_new.shape[0]
             if corank > 0:
                 self.lifter.test_S_cutoff(S, corank)
@@ -497,8 +560,6 @@ class Learner(object):
             bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
 
             if plot:
-                from lifters.plotting_tools import plot_singular_values
-
                 if len(bad_idx):
                     plot_singular_values(
                         S, eps=self.lifter.EPS_SVD, label=f"run {i}", ax=ax
@@ -662,10 +723,12 @@ class Learner(object):
                     del constraints[idx]
         return constraints
 
-    def create_known_templates(self, unroll=False):
+    def get_known_templates(self, unroll=False, use_known=USE_KNOWN):
         # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay
-        n_known = 0
-        self.templates_known = []
+        templates_known = []
+        if not use_known:
+            return templates_known
+
         if unroll:
             target_dict = self.lifter.get_var_dict_unroll()
         else:
@@ -681,10 +744,8 @@ class Learner(object):
                 mat_var_dict=self.lifter.var_dict,
             )
             self.constraint_index += 1
-            self.templates_known.append(template)
-            n_known += 1
-        print(f"using {n_known} new known constraints")
-        return n_known
+            templates_known.append(template)
+        return templates_known
 
     def scale_templates(self, learner, new_order, data_dict={}):
         """Use the templates in learner to populate the own templates etc."""
@@ -719,7 +780,7 @@ class Learner(object):
             self.templates = learner.templates
         # apply the templates
         data_dict[f"n templates"] = len(self.templates)
-        self.create_known_templates()
+        self.templates_known += self.get_known_templates()
         n_new, n_total = self.apply_templates(reapply_all=True)
         data_dict[f"n constraints"] = n_total
         data_dict[f"t create constraints"] = time.time() - t1
@@ -729,13 +790,14 @@ class Learner(object):
         #    self.constraints, [], remove_imprecise=False
         # )
 
-    # @profile
     def run(self, verbose=False, plot=False):
         data = []
         success = False
 
-        if USE_KNOWN:
-            self.create_known_templates()
+        if self.use_known:
+            self.templates_known = self.get_known_templates()
+            n_known = len(self.templates_known)
+            print(f"using {n_known} new known constraints")
 
         while 1:
             # add one more variable to the list of variables to vary
@@ -745,13 +807,13 @@ class Learner(object):
             print(f"======== {self.mat_vars} ========")
 
             n_new = 0
-            if USE_KNOWN:
+            if self.use_known:
                 n_new += self.extract_known_templates()
 
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
 
-            print(f"-------- templates learning --------")
+            print("-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.
             n_new_learned, n_all = self.learn_templates(plot=plot, data_dict=data_dict)
             n_new += n_new_learned
@@ -763,11 +825,12 @@ class Learner(object):
             )
             if n_new == 0:
                 print("new variables didn't have any effect")
+                data.append(data_dict)
                 continue
 
             # apply the pattern to all landmarks
             if self.apply_templates_to_others:
-                print(f"------- applying templates ---------")
+                print("------- applying templates ---------")
                 t1 = time.time()
                 n_new, n_all = self.apply_templates(reapply_all=True)
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
@@ -783,9 +846,9 @@ class Learner(object):
                     self.constraints.append(con)
 
             t1 = time.time()
-            print(f"-------- checking tightness ----------")
+            print("-------- checking tightness ----------")
             self.reset_tightness_dict()
-            is_tight = self.is_tight(verbose=False, data_dict=data_dict)
+            is_tight = self.is_tight(verbose=verbose, data_dict=data_dict)
             ttot = time.time() - t1
             data_dict["t check tightness"] = ttot
             data.append(data_dict)
@@ -953,12 +1016,10 @@ class Learner(object):
                 old_param = p
         ax.set_title(title)
         if "required (sorted)" in df.columns:
-            from matplotlib.patches import Rectangle
-
-            for i, (__, row) in enumerate(df.iterrows()):
+            for i, (_, row) in enumerate(df.iterrows()):
                 if row["required (sorted)"] < 0:
                     ax.add_patch(
-                        Rectangle(
+                        matplotlib.patches.Rectangle(
                             (ax.get_xlim()[0], i - 0.5),
                             ax.get_xlim()[1] + 0.5,
                             1.0,
@@ -1032,8 +1093,6 @@ class Learner(object):
             1 - A_agg.toarray(), vmin=0, vmax=1, cmap="gray"
         )  # 1 (white) is empty, 0 (black) is nonempty
 
-        import matplotlib
-
         vmin = min(-np.max(Q), np.min(Q))
         vmax = max(np.max(Q), -np.min(Q))
         norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
@@ -1098,8 +1157,4 @@ class Learner(object):
                 savefig(figi, fname_root + f"_matrix{i}.pdf")
         for ax in axs[i + 1 :]:
             ax.axis("off")
-
-        # plt.subplots_adjust(wspace=0.1, hspace=0.1)
-        # if fname_root != "":
-        #    savefig(fig, fname_root + "_matrices-poly.png")
         return fig, axs

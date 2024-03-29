@@ -194,7 +194,8 @@ def local_solver(
             T_op = T_op_new
             cost = cost_new
 
-        rmse_g = np.linalg.norm(b) / np.sqrt(len(b))
+        # norm_g = np.linalg.norm(b) / np.sqrt(len(b))
+        rmse_g = np.max(b)
         if rmse_g <= gtol:  # rmse of gradient
             info["success"] = True
             info["msg"] = f"converged in gradient after {i} iterations."

@@ -9,7 +9,6 @@ import pandas as pd
 from auto_template.learner import Learner
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.robust_pose_lifter import RobustPoseLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.wahba_lifter import WahbaLifter
@@ -32,27 +31,45 @@ ylabels = {
     "zoom": "",
 }
 
-RESULTS_FOLDER = "_results_server"
-EARLY_STOP = True
+RESULTS_FOLDER = "_results_new"
+EARLY_STOP = False
+LIMITS = {
+    Stereo3DLifter: {
+        # "basic": 25,
+        # "original": 25,  # not required on server
+        "oneshot": 15,
+    },
+    Stereo2DLifter: {
+        "oneshot": 20,
+    },
+    MonoLifter: {
+        "oneshot": 11,  # TODO(FD) can be 11 on server
+    },
+    WahbaLifter: {
+        "oneshot": 11,  # TODO(FD) can be 11 on server
+    },
+    RangeOnlyLocLifter: {"oneshot": 15},  # TODO(only for level quad, normally)
+    # MatWeightLocLifter: {"oneshot": 10},
+}
 
 
-def create_newinstance(lifter, n_params):
+def create_newinstance(lifter, n_params, n_outliers=None):
     # TODO(FD): replace below with copy constructor
-    if type(lifter) == Stereo2DLifter:
+    if type(lifter) is Stereo2DLifter:
         new_lifter = Stereo2DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif type(lifter) == Stereo3DLifter:
+    elif type(lifter) is Stereo3DLifter:
         new_lifter = Stereo3DLifter(
             n_landmarks=n_params,
             level=lifter.level,
             param_level=lifter.param_level,
             variable_list=None,
         )
-    elif type(lifter) == RangeOnlyLocLifter:
+    elif type(lifter) is RangeOnlyLocLifter:
         new_lifter = RangeOnlyLocLifter(
             n_positions=n_params,
             n_landmarks=lifter.n_landmarks,
@@ -60,23 +77,23 @@ def create_newinstance(lifter, n_params):
             d=lifter.d,
             variable_list=None,
         )
-    elif type(lifter) == MonoLifter:
+    elif type(lifter) is MonoLifter:
         new_lifter = MonoLifter(
             n_landmarks=n_params,
             robust=lifter.robust,
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
-    elif type(lifter) == WahbaLifter:
+    elif type(lifter) is WahbaLifter:
         new_lifter = WahbaLifter(
             n_landmarks=n_params,
             robust=lifter.robust,
             level=lifter.level,
             d=lifter.d,
             variable_list=None,
-            n_outliers=lifter.n_outliers,
+            n_outliers=lifter.n_outliers if not n_outliers else n_outliers,
         )
     else:
         raise ValueError(lifter)
@@ -115,13 +132,7 @@ def plot_scalability_new(df, log=True, start="t "):
     return fig, ax
 
 
-def plot_scalability(
-    df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]
-):
-    if len(extra_plot_ylim):
-        return plot_scalability_zoom(
-            df, log, start, legend_idx, extra_plot_ylim, extra_plot_xlim
-        )
+def plot_scalability(df, log=True, start="t ", legend_idx=0):
     import seaborn as sns
 
     dict_ = plot_dict[start]
@@ -132,7 +143,7 @@ def plot_scalability(
     df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.replace(
         {
-            "sorted": "\\textsc{AutoTemplate} (suff.)",
+            "sorted": "\\textsc{AutoTemplate} (red.)",
             "basic": "\\textsc{AutoTemplate} (all)",
             "from scratch": "\\textsc{AutoTight}",
         }
@@ -178,121 +189,6 @@ def plot_scalability(
         title = ylabels[key]
         ax.set_title(title, visible=True)
         ax.set_yscale("log")
-    return fig, axs
-
-
-def plot_scalability_zoom(
-    df, log=True, start="t ", legend_idx=0, extra_plot_ylim=[], extra_plot_xlim=[11, 29]
-):
-    import seaborn as sns
-    from matplotlib import gridspec
-    from matplotlib.ticker import MaxNLocator
-
-    dict_ = plot_dict[start]
-    var_name = dict_["var_name"]
-
-    df_plot = df[df.type != "original"]
-
-    df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
-    df_plot = df_plot.replace({"sorted": "sufficient", "basic": "all"})
-    df_plot = df_plot.melt(
-        id_vars=["N", "type"],
-        value_vars=[v for v in df_plot.columns if v.startswith(start)],
-        value_name=dict_["value_name"],
-        var_name=var_name,
-    )
-    add_extra = 1 if len(extra_plot_ylim) else 0
-    df_plot.replace(rename_dict, inplace=True)
-    var_name_list = list(df_plot[var_name].unique())
-    fig = plt.figure()
-    axs = []
-    sharex = None
-    sharey = None
-    gs = gridspec.GridSpec(
-        1,
-        len(var_name_list) + add_extra,
-        width_ratios=len(var_name_list) * [2] + add_extra * [1],
-    )
-    for i, key in enumerate(var_name_list):
-        axs.append(plt.subplot(gs[i], sharex=sharex, sharey=sharey))
-        # axs[key] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i, sharex=sharex, sharey=sharey)
-        sharex = axs[i]
-        sharey = axs[i]
-    if add_extra:
-        axs.append(plt.subplot(gs[i + 1], sharex=None, sharey=None))
-        # axs["zoom"] = fig.add_subplot(1, len(var_name_list) + add_extra, 1+i+1, sharex=None, sharey=None)
-
-    def plot_here(ax, df_sub, add_legend):
-        remove = []
-        for type_, df_per_type in df_sub.groupby("type"):
-            values = df_per_type[dict_["value_name"]]
-            if (~values.isna()).sum() <= 1:
-                ax.scatter(df_per_type.N, values, marker="o", label=type_, color="k")
-                remove.append(type_)
-            if add_legend:
-                ax.legend(loc="lower right")
-
-        df_sub = df_sub[~df_sub.type.isin(remove)]
-        values = df_sub[dict_["value_name"]]
-        sns.lineplot(
-            df_sub,
-            x="N",
-            y=dict_["value_name"],
-            style="type",
-            ax=ax,
-            legend=add_legend,
-            color="k",
-        )
-
-    for i, key in enumerate(var_name_list):
-        df_sub = df_plot[df_plot[var_name] == key]
-        plot_here(axs[i], df_sub, i == legend_idx)
-
-    if len(extra_plot_ylim):
-        from matplotlib.patches import Rectangle
-
-        plot_here(axs[-1], df_sub, add_legend=False)
-        axs[-1].set_xlim(*extra_plot_xlim)
-        axs[-1].set_ylim(*extra_plot_ylim)
-        axs[-1].set_title("zoom")
-        axs[-2].add_patch(
-            Rectangle(
-                [extra_plot_xlim[0], extra_plot_ylim[0]],
-                width=np.diff(extra_plot_xlim)[0],
-                height=np.diff(extra_plot_ylim)[0],
-                edgecolor="k",
-                facecolor="none",
-            )
-        )
-        axs[-1].add_patch(
-            Rectangle(
-                [extra_plot_xlim[0], extra_plot_ylim[0]],
-                width=np.diff(extra_plot_xlim)[0],
-                height=np.diff(extra_plot_ylim)[0],
-                edgecolor="k",
-                facecolor="none",
-            )
-        )
-        axs[-1].set_xticks(df_plot.N.unique())
-        axs[-1].grid("on")
-        axs[-1].set_title("zoom")
-
-    for i, ax in enumerate(axs):
-        try:
-            key = var_name_list[i]
-            title = ylabels[key]
-        except:
-            title = "zoom"
-        ax.set_title(title, visible=True)
-        ax.set_yscale("log")
-        if i > 0:
-            ax.set_yticklabels([])
-            ax.set_ylabel("")
-        else:
-            ax.set_ylabel("time [s]")
-
-    # axs[operation].legend(loc="lower right")
-    # axs[var_name].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
     return fig, axs
 
 
@@ -374,13 +270,16 @@ def save_tightness_order(
         ax_eigs.set_ylabel("eigenvalue")
         ax_eigs.grid(True)
 
+        handles, labels = ax_eigs.get_legend_handles_labels()
+        order = np.argsort([int(l.split(" ")[0]) for l in labels])
+        ax_eigs.legend([handles[idx] for idx in order], [labels[idx] for idx in order])
+
         if reorder:
             name = "sorted"
             # ax_eigs.set_title("sorted by dual values")
         else:
             name = "original"
             # ax_eigs.set_title("original order")
-        ax_eigs.legend()
         if fname_root != "":
             savefig(fig_eigs, fname_root + f"_tightness-eigs-{name}.pdf")
 
@@ -433,7 +332,7 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
     except (AssertionError, FileNotFoundError, AttributeError) as e:
         print(e)
         # find which of the constraints are actually necessary
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         df = pd.DataFrame(data)
         with open(fname, "wb") as f:
             pickle.dump(learner, f)
@@ -461,24 +360,11 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
     savefig(fig, fname_root + f"_templates.pdf")
 
 
-def run_scalability_new(
-    learner: Learner,
-    param_list: list,
-    n_seeds: int = 1,
-    recompute=False,
-    results_folder=RESULTS_FOLDER,
+def run_autotemplate_old(
+    learner: Learner, recompute: bool = False, results_folder: str = RESULTS_FOLDER
 ):
-    fname_root = f"{results_folder}/scalability_{learner.lifter}"
-    fname_all = fname_root + "_complete.pkl"
-    try:
-        assert recompute is False
-        df = pd.read_pickle(fname_all)
-        print("read", fname_all)
-        return df
-    except (AssertionError, FileNotFoundError) as e:
-        print(e)
-
     fname = f"{results_folder}/{learner.lifter}.pkl"
+    fname_root = f"{results_folder}/scalability_{learner.lifter}"
     try:
         assert not recompute, "forcing to recompute"
         with open(fname, "rb") as f:
@@ -490,7 +376,7 @@ def run_scalability_new(
         # find which of the constraints are actually necessary
         orig_dict = {}
         t1 = time.time()
-        data, success = learner.run(verbose=True, plot=False)
+        data, success = learner.run(verbose=False, plot=False)
         if not success:
             raise RuntimeError(f"{learner}: did not achieve tightness.")
         orig_dict["t learn templates"] = time.time() - t1
@@ -529,6 +415,24 @@ def run_scalability_new(
         with open(fname, "wb") as f:
             pickle.dump(order_dict, f)
             pickle.dump(learner, f)
+
+    return learner, order_dict
+
+
+def run_scalability_new(
+    learner: Learner,
+    param_list: list,
+    results_folder: str,
+    n_seeds: int = 1,
+    recompute: bool = False,
+):
+    fname_root = f"{results_folder}/scalability_{learner.lifter}"
+
+    fname_autotemplate = f"{results_folder}/autotemplate_{learner.lifter}.pkl"
+    with open(fname_autotemplate, "rb") as f:
+        learner = pickle.load(f)
+        order_dict = pickle.load(f)
+    # learner, order_dict = run_autotemplate_old(learner, recompute, results_folder)
 
     if learner is not None:
         save_tightness_order(
@@ -575,16 +479,19 @@ def run_scalability_new(
                         continue
                     n_successful_seeds += 1
 
+                    # extract the templates from constraints
+                    print(f"=========== get templates: {name} ===============")
+                    t1 = time.time()
                     new_learner.scale_templates(learner, new_order, data_dict)
-
+                    
+                    data_dict["t create constraints"] = time.time() - t1
+                    data_dict["n templates"] = len(new_learner.templates)
+                    data_dict["n constraints"] = len(new_learner.constraints)
                     # determine tightness
-                    if (
-                        isinstance(new_lifter, Stereo3DLifter)
-                        and (n_params > 25)
-                        and (name == "basic")
-                    ):
+                    n_param_lim = LIMITS.get(type(new_lifter), {}).get(name, 1e3)
+                    if n_params > n_param_lim:
                         print(
-                            f"skipping tightness test of stereo3D with {n_params} because it leeds to memory error"
+                            f"skipping tightness test of {new_lifter} with {n_params} because it leeds to memory error"
                         )
                     else:
                         print(f"=========== tightness test: {name} ===============")
@@ -598,6 +505,7 @@ def run_scalability_new(
                 df.to_pickle(fname)
 
     fname = f"{fname_root}_df_oneshot.pkl"
+    df_oneshot = None
     try:
         assert recompute is False
         df_oneshot = pd.read_pickle(fname)
@@ -607,31 +515,11 @@ def run_scalability_new(
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
-            # if isinstance(learner.lifter, RobustPoseLifter) and learner.lifter.robust:
-            #    print("cannot do one-shot with robust pose lifters, too expensive!")
-            #    df_oneshot = None
-            #    break
-
-            if isinstance(learner.lifter, Stereo2DLifter) and n_params >= 20:
-                print(f"skipping N={n_params} for stereo2D because so slow.")
-                continue
-            if isinstance(learner.lifter, Stereo3DLifter) and n_params > 15:
+            n_params_lim = LIMITS.get(type(learner.lifter), {}).get("oneshot", 1000)
+            if n_params > n_params_lim:
                 print(
-                    f"skipping N={n_params} for stereo3D because this will cause out of memory error."
+                    f"skipping N={n_params} for {learner.lifter} because of memory/speed."
                 )
-                continue
-            if isinstance(learner.lifter, RobustPoseLifter) and n_params > 11:
-                print(
-                    f"skipping N={n_params} for {learner.lifter} because this will cause out of memory error."
-                )
-                continue
-
-            if (
-                isinstance(learner.lifter, RangeOnlyLocLifter)
-                and (learner.lifter.level == "quad")
-                and (n_params > 15)
-            ):
-                print(f"skipping tightness test of RO with {n_params} because so slow")
                 continue
 
             n_successful_seeds = 0
@@ -642,7 +530,7 @@ def run_scalability_new(
                 data_dict = {"N": n_params, "seed": seed, "type": "from scratch"}
                 new_lifter = create_newinstance(learner.lifter, n_params)
 
-                ############ standard one-shot ############
+                # standard one-shot
                 new_lifter.param_level = "no"
                 variable_list = new_lifter.get_all_variables()
                 new_learner = Learner(
@@ -680,9 +568,9 @@ def run_scalability_new(
         df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
 
+    fname_all = fname_root + "_complete.pkl"
     df.to_pickle(fname_all)
     print("wrote df as", fname_all)
-
     return df
 
 
@@ -696,16 +584,23 @@ def run_oneshot_experiment(
     if "svd" in plots:
         fig = plt.gcf()
         ax = plt.gca()
-        ax.get_legend().remove()
+        l = ax.get_legend()
+        if l is not None:
+            l.remove()
         fig.set_size_inches(3, 3)
         savefig(fig, fname_root + "_svd.pdf")
 
     idx_subset_original, idx_subset_reorder = tightness_study(
         learner,
-        use_bisection=False,
+        use_bisection=learner.lifter.TIGHTNESS == "cost",
     )
     if "tightness" in plots:
-        save_tightness_order(learner, fname_root, figsize=4, use_bisection=True)
+        save_tightness_order(
+            learner,
+            fname_root,
+            figsize=4,
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+        )
 
     if "matrices" in plots:
         A_matrices = []
@@ -735,14 +630,16 @@ def run_oneshot_experiment(
         if idx_subset_reorder is not None and len(idx_subset_reorder):
             constraints = learner.templates_known + learner.constraints
             A_matrices = [constraints[i - 1].A_poly_ for i in idx_subset_reorder[1:]]
-            fig, ax = learner.save_matrices_sparsity(A_matrices)
-            savefig(fig, fname_root + "_matrices-sparsity-reorder.pdf")
+            if len(A_matrices):
+                fig, ax = learner.save_matrices_sparsity(A_matrices)
+                savefig(fig, fname_root + "_matrices-sparsity-reorder.pdf")
 
         if idx_subset_original is not None and len(idx_subset_original):
             constraints = learner.templates_known + learner.constraints
             A_matrices = [constraints[i - 1].A_poly_ for i in idx_subset_original[1:]]
-            fig, ax = learner.save_matrices_sparsity(A_matrices)
-            savefig(fig, fname_root + "_matrices-sparsity-original.pdf")
+            if len(A_matrices):
+                fig, ax = learner.save_matrices_sparsity(A_matrices)
+                savefig(fig, fname_root + "_matrices-sparsity-original.pdf")
 
     if "templates" in plots:
         templates_poly = learner.generate_templates_poly(factor_out_parameters=True)

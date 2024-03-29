@@ -110,7 +110,7 @@ class Stereo3DLifter(StereoLifter):
             W=W,
             M=self.M_matrix,
             log=False,
-            min_update_norm=1e-10,
+            min_update_norm=-1,  # disabled this stopping criterion
         )
 
         if verbose:

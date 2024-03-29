@@ -186,7 +186,6 @@ class StereoLifter(StateLifter, ABC):
         a3) u_zj * [cz @ pj + tz] = 1          u_zj * cz @ pj + u_zj * tz - 1 = 0
                                                ----- 1 -----    --- 2 ---
         """
-        return []
         # x contains: [c1, c2, c3, t]
         # z contains: [u_xj, u_yj, u_zj, H.O.T.]
         if self.d == 2:

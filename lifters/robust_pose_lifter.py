@@ -165,7 +165,7 @@ class RobustPoseLifter(StateLifter, ABC):
             elif key == "t":
                 x_data += list(t)
             elif key == "c":
-                x_data += list(R.flatten("F"))
+                x_data += list(R.flatten("C"))
             elif "w" in key:
                 j = int(key.split("_")[-1])
                 w_j = theta[-self.n_landmarks + j]
