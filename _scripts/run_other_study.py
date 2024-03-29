@@ -2,10 +2,9 @@ import numpy as np
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
-    plot_scalability,
-    run_oneshot_experiment,
-    run_scalability_new,
-    save_table,
+    apply_autotemplate_base,
+    apply_autotight_base,
+    plot_autotemplate_time,
 )
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import savefig
@@ -14,7 +13,7 @@ RESULTS_DIR = "_results"
 # RESULTS_DIR = "_results_server"
 
 
-def lifter_tightness(
+def apply_autotight(
     Lifter=MonoLifter,
     robust: bool = False,
     d: int = 2,
@@ -23,12 +22,12 @@ def lifter_tightness(
     results_dir=RESULTS_DIR,
 ):
     """
-    Find the set of minimal constraints required for tightness for range-only problem.
+    Find the set of minimal constraints required for autotight for range-only problem.
     """
     seed = 0
     plots = ["tightness"]
     if robust:
-        levels = ["xwT"]  # ["xxT"] #["xwT", "xxT"]
+        levels = ["xwT"]
     else:
         levels = ["no"]
 
@@ -49,14 +48,14 @@ def lifter_tightness(
             n_inits=1,
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
-        run_oneshot_experiment(
+        apply_autotight_base(
             learner,
             fname_root,
             plots,
         )
 
 
-def lifter_scalability_new(
+def apply_autotemplate(
     Lifter,
     d,
     n_landmarks,
@@ -85,7 +84,7 @@ def lifter_scalability_new(
     )
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
 
-    df = run_scalability_new(
+    df = apply_autotemplate_base(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
@@ -95,25 +94,17 @@ def lifter_scalability_new(
     if df is None:
         return
 
-    fname_root = f"{results_dir}/scalability_{learner.lifter}"
-    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+    fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
+    fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs]
 
     fig.set_size_inches(4, 3)
     axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     savefig(fig, fname_root + f"_t.pdf")
 
-    # fig, ax = plot_scalability(df, log=True, start="n ")
-    # axs["t solve SDP"].legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-    # fig.set_size_inches(5, 3)
-    # savefig(fig, fname_root + f"_n.pdf")
-
-    # tex_name = fname_root + f"_n.tex"
-    # save_table(df, tex_name)
-
 
 def run_wahba(
-    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
     from lifters.wahba_lifter import WahbaLifter
 
@@ -122,12 +113,12 @@ def run_wahba(
 
     print("================= Wahba study ==================")
 
-    if tightness:
-        lifter_tightness(
+    if autotight:
+        apply_autotight(
             WahbaLifter, d=d, n_landmarks=4, robust=False, results_dir=results_dir
         )
-    if scalability:
-        lifter_scalability_new(
+    if autotemplate:
+        apply_autotemplate(
             WahbaLifter,
             d=d,
             n_landmarks=4,
@@ -137,7 +128,7 @@ def run_wahba(
             recompute=recompute,
             results_dir=results_dir,
         )
-        lifter_scalability_new(
+        apply_autotemplate(
             WahbaLifter,
             d=d,
             n_landmarks=4 + n_outliers,
@@ -150,7 +141,7 @@ def run_wahba(
 
 
 def run_mono(
-    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
     from lifters.mono_lifter import MonoLifter
 
@@ -159,12 +150,12 @@ def run_mono(
 
     print("================= Mono study ==================")
 
-    if tightness:
-        lifter_tightness(
+    if autotight:
+        apply_autotight(
             MonoLifter, d=d, n_landmarks=5, robust=False, results_dir=results_dir
         )
-    if scalability:
-        lifter_scalability_new(
+    if autotemplate:
+        apply_autotemplate(
             MonoLifter,
             d=d,
             n_landmarks=5,
@@ -174,7 +165,7 @@ def run_mono(
             recompute=recompute,
             results_dir=results_dir,
         )
-        lifter_scalability_new(
+        apply_autotemplate(
             MonoLifter,
             d=d,
             n_landmarks=5 + n_outliers,
@@ -187,20 +178,20 @@ def run_mono(
 
 
 def run_all(
-    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
     run_mono(
         n_seeds,
         recompute,
-        tightness=tightness,
-        scalability=scalability,
+        autotight=autotight,
+        autotemplate=autotemplate,
         results_dir=results_dir,
     )
     run_wahba(
         n_seeds,
         recompute,
-        tightness=tightness,
-        scalability=scalability,
+        autotight=autotight,
+        autotemplate=autotemplate,
         results_dir=results_dir,
     )
 

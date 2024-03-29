@@ -3,10 +3,10 @@ import numpy as np
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
-    plot_scalability,
-    run_oneshot_experiment,
-    run_scalability_new,
-    run_scalability_plot,
+    apply_autotemplate_base,
+    apply_autotemplate_plot,
+    apply_autotight_base,
+    plot_autotemplate_time,
 )
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -16,7 +16,7 @@ from utils.plotting_tools import plot_matrix, savefig
 RESULTS_DIR = "_results"
 
 
-def stereo_tightness(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
+def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
     """
@@ -54,10 +54,10 @@ def stereo_tightness(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
 
-        run_oneshot_experiment(learner, fname_root, plots)
+        apply_autotight_base(learner, fname_root, plots)
 
 
-def stereo_scalability_new(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
+def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
     n_landmarks_list = [10, 15, 20, 25, 30]
 
     level = "urT"
@@ -92,12 +92,12 @@ def stereo_scalability_new(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
     if lifter.d == 2:
-        fname_root = f"{results_dir}/scalability_{learner.lifter}"
+        fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
+        apply_autotemplate_plot(learner, recompute=recompute, fname_root=fname_root)
         return
 
-    df = run_scalability_new(
+    df = apply_autotemplate_base(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
@@ -107,9 +107,9 @@ def stereo_scalability_new(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
     if df is None:
         return
 
-    fname_root = f"{results_dir}/scalability_{learner.lifter}"
+    fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
 
-    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+    fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
     [ax.set_ylim(2, 8000) for ax in axs]
 
@@ -117,36 +117,30 @@ def stereo_scalability_new(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
     axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     savefig(fig, fname_root + f"_t.pdf")
 
-    # fig, ax = plot_scalability(df, log=True, start="n ")
-    # fig.set_size_inches(5, 5)
-    # savefig(fig, fname_root + f"_n.pdf")
-
-    # tex_name = fname_root + f"_n.tex"
-    # save_table(df, tex_name)
-
 
 def run_all(
-    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
-    if scalability:
-        # print("========== Stereo2D scalability ===========")
-        # stereo_scalability_new(
-        #    d=2, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
-        # )
-        print("========== Stereo3D scalability ===========")
-        stereo_scalability_new(
+    if autotemplate:
+        # print("========== Stereo2D autotemplate ===========")
+        apply_autotemplate(
+            d=2, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
+        )
+        print("========== Stereo3D autotemplate ===========")
+        apply_autotemplate(
             d=3, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
         )
-    if tightness:
-        print("========== Stereo2D tightness ===========")
-        stereo_tightness(d=2, results_dir=results_dir)
-        print("========== Stereo3D tightness ===========")
-        stereo_tightness(d=3, results_dir=results_dir)
+    if autotight:
+        print("========== Stereo2D autotight ===========")
+        apply_autotight(d=2, results_dir=results_dir)
+        print("========== Stereo3D autotight ===========")
+        apply_autotight(d=3, results_dir=results_dir)
 
 
 def run_stereo_1d():
     from cert_tools.linalg_tools import rank_project
     from cert_tools.sdp_solvers import solve_sdp_cvxpy
+
     np.random.seed(0)
     lifter = Stereo1DLifter(n_landmarks=2)
     # lifter.theta = np.array([3.0])
@@ -242,5 +236,5 @@ def run_stereo_1d():
 
 
 if __name__ == "__main__":
-    # run_stereo_1d()
-    run_all(n_seeds=1, tightness=False, scalability=True, recompute=False)
+    run_stereo_1d()
+    run_all(n_seeds=1, autotight=False, autotemplate=True, recompute=False)

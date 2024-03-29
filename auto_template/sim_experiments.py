@@ -14,18 +14,19 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.wahba_lifter import WahbaLifter
 from utils.plotting_tools import savefig
 
-plot_dict = {
+COMPUTE_ONESHOT = True
+PLOT_DICT = {
     "t ": {"value_name": "time [s]", "var_name": "operation", "start": "t "},
     "n ": {"value_name": "number", "var_name": "number of elements", "start": "n "},
     "N ": {"value_name": "number", "var_name": "number of elements", "start": "N "},
 }
-rename_dict = {
+RENAME_DICT = {
     "t learn templates": "learn templates",
     "t determine required": "determine subset",
     "t apply templates": "apply templates",
     "t check tightness": "solve SDP",
 }
-ylabels = {
+YLABELS = {
     "t solve SDP": "solve SDP",
     "t create constraints": "create constraints",
     "zoom": "",
@@ -49,7 +50,6 @@ LIMITS = {
         "oneshot": 11,  # TODO(FD) can be 11 on server
     },
     RangeOnlyLocLifter: {"oneshot": 15},  # TODO(only for level quad, normally)
-    # MatWeightLocLifter: {"oneshot": 10},
 }
 
 
@@ -100,42 +100,10 @@ def create_newinstance(lifter, n_params, n_outliers=None):
     return new_lifter
 
 
-def plot_scalability_new(df, log=True, start="t "):
+def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
     import seaborn as sns
 
-    dict_ = plot_dict[start]
-
-    var_name = dict_["var_name"]
-    df_plot = df.melt(
-        id_vars=["variables"],
-        value_vars=[v for v in df.columns if v.startswith(start)],
-        value_name=dict_["value_name"],
-        var_name=var_name,
-    )
-    fig, ax = plt.subplots()
-    df_plot.variables = df_plot.variables.astype("str")
-    if len(df_plot.variables.unique()) == 1:
-        for i, row in df_plot.iterrows():
-            ax.scatter([0], row["time [s]"], label=row.operation)
-        ax.set_xticks([0], [row.variables])
-        ax.set_xlabel("variables")
-        ax.set_ylabel("time [s]")
-    else:
-        sns.lineplot(
-            df_plot, x="variables", y=dict_["value_name"], hue=dict_["var_name"], ax=ax
-        )
-    if log:
-        ax.set_yscale("log")
-    ax.legend(loc="upper left")
-    ax.set_xticks(ax.get_xticks())
-    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
-    return fig, ax
-
-
-def plot_scalability(df, log=True, start="t ", legend_idx=0):
-    import seaborn as sns
-
-    dict_ = plot_dict[start]
+    dict_ = PLOT_DICT[start]
     var_name = dict_["var_name"]
 
     df_plot = df[df.type != "original"]
@@ -154,7 +122,7 @@ def plot_scalability(df, log=True, start="t ", legend_idx=0):
         value_name=dict_["value_name"],
         var_name=var_name,
     )
-    df_plot.replace(rename_dict, inplace=True)
+    df_plot.replace(RENAME_DICT, inplace=True)
     var_name_list = list(df_plot[var_name].unique())
     fig, axs = plt.subplots(1, len(var_name_list), sharex=True, sharey=True)
 
@@ -186,27 +154,45 @@ def plot_scalability(df, log=True, start="t ", legend_idx=0):
 
     for i, ax in enumerate(axs):
         key = var_name_list[i]
-        title = ylabels[key]
+        title = YLABELS[key]
         ax.set_title(title, visible=True)
         ax.set_yscale("log")
     return fig, axs
 
 
-def save_table(df, tex_name):
-    df_tab = df.set_index("N", drop=True)
-    df_tab.drop(
-        columns=[
-            c
-            for c in df_tab.columns
-            if c.startswith("t ") or c.startswith("variables") or c.startswith("order")
-        ],
-        inplace=True,
+def plot_autotemplate(df, log=True, start="t "):
+    import seaborn as sns
+
+    dict_ = PLOT_DICT[start]
+
+    var_name = dict_["var_name"]
+    df_plot = df.melt(
+        id_vars=["variables"],
+        value_vars=[v for v in df.columns if v.startswith(start)],
+        value_name=dict_["value_name"],
+        var_name=var_name,
     )
-    df_tab.style.to_latex(tex_name)
-    print(f"saved table as {tex_name}")
+    fig, ax = plt.subplots()
+    df_plot.variables = df_plot.variables.astype("str")
+    if len(df_plot.variables.unique()) == 1:
+        for i, row in df_plot.iterrows():
+            ax.scatter([0], row["time [s]"], label=row.operation)
+        ax.set_xticks([0], [row.variables])
+        ax.set_xlabel("variables")
+        ax.set_ylabel("time [s]")
+    else:
+        sns.lineplot(
+            df_plot, x="variables", y=dict_["value_name"], hue=dict_["var_name"], ax=ax
+        )
+    if log:
+        ax.set_yscale("log")
+    ax.legend(loc="upper left")
+    ax.set_xticks(ax.get_xticks())
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=90)
+    return fig, ax
 
 
-def save_tightness_order(
+def save_autotight_order(
     learner: Learner, fname_root="", use_bisection=False, figsize=4
 ):
     from matplotlib.ticker import MaxNLocator
@@ -321,7 +307,7 @@ def tightness_study(learner: Learner, use_bisection=True):
     return idx_subset_original, idx_subset_reorder
 
 
-def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
+def apply_autotemplate_plot(learner: Learner, recompute=False, fname_root=""):
     fname = fname_root + "_plot.pkl"
     try:
         assert not recompute, "forcing to recompute"
@@ -339,7 +325,7 @@ def run_scalability_plot(learner: Learner, recompute=False, fname_root=""):
             pickle.dump(df, f)
         print("wrote intermediate as", fname)
 
-    fig, ax = plot_scalability_new(df, start="t ")
+    fig, ax = plot_autotemplate(df, start="t ")
     savefig(fig, fname_root + f"_small.pdf")
 
     idx_subset_reorder = learner.generate_minimal_subset(
@@ -419,32 +405,25 @@ def run_autotemplate_old(
     return learner, order_dict
 
 
-def run_scalability_new(
+def apply_autotemplate_base(
     learner: Learner,
     param_list: list,
     results_folder: str,
     n_seeds: int = 1,
     recompute: bool = False,
 ):
-    fname_root = f"{results_folder}/scalability_{learner.lifter}"
+    fname_root = f"{results_folder}/autotemplate_{learner.lifter}"
 
-    fname_autotemplate = f"{results_folder}/autotemplate_{learner.lifter}.pkl"
+    fname_autotemplate = f"{fname_root}.pkl"
     with open(fname_autotemplate, "rb") as f:
         learner = pickle.load(f)
         order_dict = pickle.load(f)
-    # learner, order_dict = run_autotemplate_old(learner, recompute, results_folder)
 
-    if learner is not None:
-        save_tightness_order(
-            learner,
-            fname_root + "_new",
-            use_bisection=learner.lifter.TIGHTNESS == "cost",
-        )
+    save_autotight_order(
+        learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
+    )
 
-    if EARLY_STOP:
-        return None
-
-    fname = fname_root + "_df_all.pkl"
+    fname = fname_root + "_templates.pkl"
     try:
         assert not recompute, "forcing to recompute"
         df = pd.read_pickle(fname)
@@ -483,7 +462,7 @@ def run_scalability_new(
                     print(f"=========== get templates: {name} ===============")
                     t1 = time.time()
                     new_learner.scale_templates(learner, new_order, data_dict)
-                    
+
                     data_dict["t create constraints"] = time.time() - t1
                     data_dict["n templates"] = len(new_learner.templates)
                     data_dict["n constraints"] = len(new_learner.constraints)
@@ -504,7 +483,10 @@ def run_scalability_new(
                 df = pd.DataFrame(df_data)
                 df.to_pickle(fname)
 
-    fname = f"{fname_root}_df_oneshot.pkl"
+    if not COMPUTE_ONESHOT:
+        return
+
+    fname = f"{fname_root}_oneshot.pkl"
     df_oneshot = None
     try:
         assert recompute is False
@@ -567,14 +549,10 @@ def run_scalability_new(
     if df_oneshot is not None:
         df = pd.concat([df, df_oneshot], axis=0)
     df = df.apply(pd.to_numeric, errors="ignore")
-
-    fname_all = fname_root + "_complete.pkl"
-    df.to_pickle(fname_all)
-    print("wrote df as", fname_all)
     return df
 
 
-def run_oneshot_experiment(
+def apply_autotight_base(
     learner: Learner,
     fname_root,
     plots,
@@ -595,7 +573,7 @@ def run_oneshot_experiment(
         use_bisection=learner.lifter.TIGHTNESS == "cost",
     )
     if "tightness" in plots:
-        save_tightness_order(
+        save_autotight_order(
             learner,
             fname_root,
             figsize=4,

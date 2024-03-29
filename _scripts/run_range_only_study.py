@@ -2,9 +2,9 @@ import numpy as np
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
-    plot_scalability,
-    run_oneshot_experiment,
-    run_scalability_new,
+    apply_autotemplate_base,
+    apply_autotight_base,
+    plot_autotemplate_time,
 )
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from utils.plotting_tools import savefig
@@ -17,7 +17,7 @@ RESULTS_DIR = "_results"
 # RESULTS_DIR = "_results_server"
 
 
-def range_only_tightness(results_dir=RESULTS_DIR):
+def apply_autotight(results_dir=RESULTS_DIR):
     """
     Find the set of minimal constraints required for tightness for range-only problem.
     """
@@ -47,17 +47,17 @@ def range_only_tightness(results_dir=RESULTS_DIR):
             n_inits=1,
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
-        run_oneshot_experiment(
+        apply_autotight_base(
             learner,
             fname_root,
             plots,
         )
 
 
-def range_only_scalability_new(n_seeds, recompute, results_dir=RESULTS_DIR):
+def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
     n_positions_list = [10, 15, 20, 25, 30]
     for level in ["no", "quad"]:
-        print(f"=========== RO {level} scalability ===========")
+        print(f"=========== RO {level} autotemplate ===========")
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
         lifter = RangeOnlyLocLifter(
@@ -68,7 +68,7 @@ def range_only_scalability_new(n_seeds, recompute, results_dir=RESULTS_DIR):
             variable_list=variable_list,
         )
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
-        df = run_scalability_new(
+        df = apply_autotemplate_base(
             learner,
             param_list=n_positions_list,
             n_seeds=n_seeds,
@@ -79,10 +79,10 @@ def range_only_scalability_new(n_seeds, recompute, results_dir=RESULTS_DIR):
             continue
 
         df = df[df.type != "original"]
-        fname_root = f"{results_dir}/scalability_{learner.lifter}"
+        fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
 
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
-        fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+        fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
 
         # [ax.set_ylim(10, 1000) for ax in axs.values()]
 
@@ -92,19 +92,16 @@ def range_only_scalability_new(n_seeds, recompute, results_dir=RESULTS_DIR):
         )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
-        # tex_name = fname_root + f"_n.tex"
-        # save_table(df, tex_name)
-
 
 def run_all(
-    n_seeds, recompute, tightness=True, scalability=True, results_dir=RESULTS_DIR
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
-    if scalability:
-        range_only_scalability_new(
+    if autotemplate:
+        apply_autotemplate(
             recompute=recompute, n_seeds=n_seeds, results_dir=results_dir
         )
-    if tightness:
-        range_only_tightness(results_dir=results_dir)
+    if autotight:
+        apply_autotight(results_dir=results_dir)
 
 
 if __name__ == "__main__":

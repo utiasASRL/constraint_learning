@@ -97,7 +97,7 @@ def plot_poses(results_dir=RESULTS_DIR, n_successful=100):
             )
             for l in local_solution_labels.index:
                 if np.ndim(row[l]) > 0:
-                    T_c0 = get_T(xtheta=row[l], d=3)
+                    T_c0 = get_T(theta=row[l], d=3)
                     # project to orthogonal matrices.
                     T_c0 = project_so3(T_c0)
                     pose = sm.SE3(T_c0)

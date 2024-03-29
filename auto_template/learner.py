@@ -936,7 +936,13 @@ class Learner(object):
                         )
                     plot_rows.append(polyrow_a)
             else:
-                plot_rows.append(constraint.polyrow_b_)
+                if constraint.polyrow_b_ is not None:
+                    plot_rows.append(constraint.polyrow_b_)
+                else:
+                    plot_rows.append(
+                        self.lifter.convert_b_to_polyrow(constraint.b_, mat_vars)
+                    )
+
             if mat_vars != old_mat_vars:
                 j += 1
                 plot_row_labels.append(f"{j}:b{i}")

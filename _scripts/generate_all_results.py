@@ -1,6 +1,6 @@
 import matplotlib
 
-from _scripts.run_all_study import run_all as run_all_study
+from _scripts.run_autotemplate import run_all as run_autotemplate
 from _scripts.run_datasets_ro import run_all as run_datasets_ro
 from _scripts.run_datasets_stereo import run_all as run_datasets_stereo
 from _scripts.run_other_study import run_all as run_other_study
@@ -36,40 +36,46 @@ if __name__ == "__main__":
         default=RESULTS_DIR,
         help="results directory",
     )
+    parser.add_argument(
+        "-n",
+        "--n_seeds",
+        default=10,
+        help="number of random seeds",
+    )
     args = parser.parse_args()
     recompute = args.overwrite
     results_dir = args.directory
-    n_seeds = 10
-    tightness = True
-    scalability = True
+    n_seeds = 3  # args.n_seeds
+    autotight = True
+    autotemplate = True
 
+    print("------- Generate results table and templates-------")
+    run_autotemplate(recompute=recompute, results_dir=results_dir)
+
+    print("------- Generate RO results -------")
+    run_range_only_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        autotight=autotight,
+        autotemplate=autotemplate,
+        results_dir=results_dir,
+    )
     print("------- Generate stereo results -------")
     run_stereo_study(
         n_seeds=n_seeds,
         recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
+        autotight=autotight,
+        autotemplate=autotemplate,
         results_dir=results_dir,
     )
     print("------- Generate other results -------")
     run_other_study(
         n_seeds=n_seeds,
         recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
+        autotight=autotight,
+        autotemplate=autotemplate,
         results_dir=results_dir,
     )
-    print("------- Generate RO results -------")
-    run_range_only_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        tightness=tightness,
-        scalability=scalability,
-        results_dir=results_dir,
-    )
-
-    print("------- Generate results table -------")
-    run_all_study(recompute=recompute, results_dir=results_dir)
 
     print("------- Generate dataset results (100) -------")
     n_successful = 100
