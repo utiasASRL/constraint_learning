@@ -12,7 +12,7 @@ from cert_tools.sdp_solvers import solve_sdp_cvxpy
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from solvers.common import find_local_minimum  # solve_certificate, solve_sdp_cvxpy
+from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
 from utils.constraint import Constraint
 from utils.plotting_tools import (
@@ -454,7 +454,7 @@ class Learner(object):
                 self.solver_vars["Q"],
                 A_b_list_all,
                 xhat,
-                adjust=False,
+                adjust=True,
                 options=options_cvxpy,
                 tol=1e-10,
                 # soft_epsilon=False,
@@ -480,7 +480,7 @@ class Learner(object):
                 self.solver_vars["Q"],
                 A_b_list_all,
                 x_local,
-                adjust=False,
+                adjust=True,
                 tol=1e-10,
                 options=options_cvxpy,
             )

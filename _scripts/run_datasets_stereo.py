@@ -141,7 +141,6 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     fname_root = f"{results_dir}/stereo"
     # don't change order! (because of plotting)
     datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-    datasets = ["starrynight"]
     for dataset in datasets:
         if USE_GT:
             fname = f"{fname_root}_{dataset}_{n_successful}_gt.pkl"
@@ -206,4 +205,4 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=20, stride=1, recompute=True, results_dir=RESULTS_DIR)
+    run_all(n_successful=100, stride=1, recompute=True, results_dir=RESULTS_DIR)

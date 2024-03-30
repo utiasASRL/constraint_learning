@@ -148,6 +148,7 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_orde
 
 class Experiment(object):
     def __init__(self, dataset_root, dataset, data_type, from_id=None):
+        assert data_type in ["apriltag_cal_individual", "stereo", "uwb"]
         self.dataset = dataset
         self.data_type = data_type
 
@@ -179,7 +180,7 @@ class Experiment(object):
                 self.data = self.data.loc[self.data.from_id == from_id]
             self.landmark_ids = list(self.all_landmarks.id.values)
 
-            if len(EXCLUDE_ANCHORS):
+            if len(EXCLUDE_ANCHORS) and data_type == "uwb":
                 self.all_landmarks = self.all_landmarks[
                     ~self.all_landmarks.id.isin(EXCLUDE_ANCHORS)
                 ]
