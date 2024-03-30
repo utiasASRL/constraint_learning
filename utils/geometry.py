@@ -90,10 +90,19 @@ def get_pose_errors_from_theta(theta_hat, theta_gt, d):
 
 def get_noisy_pose(C, r, delta):
     def skew(x):
-        return np.array([[0, -x[2], x[1]], [x[2], 0, -x[0]], [-x[1], x[0], 0]])
+        if np.ndim(x) == 0:
+            return np.array([[0, -x], [x, 0]])
+        elif len(x) == 3:
+            return np.array([[0, -x[2], x[1]], [x[2], 0, -x[0]], [-x[1], x[0], 0]])
+        else:
+            raise ValueError(x)
 
     d = len(r)
-    rot_eps = np.random.normal(scale=delta, loc=0, size=d)
-    C_eps = expm(skew(rot_eps)) @ C
+    if d == 3:
+        rot_eps = np.random.normal(scale=delta, loc=0, size=d)
+        C_eps = expm(skew(rot_eps)) @ C
+    else:
+        rot_eps = np.random.normal(scale=delta)
+        C_eps = expm(skew(rot_eps)) @ C
     r_eps = r + np.random.normal(scale=delta, loc=0, size=d)
     return get_theta_from_C_r(C_eps, r_eps)

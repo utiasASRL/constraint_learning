@@ -4,3 +4,6 @@
 [submodule "starloc"]
 	path = starloc
 	url = git@github.com:duembgen/starloc
+[submodule "certifiable-tools"]
+	path = certifiable-tools
+	url = git@github.com:utiasASRL/certifiable-tools

@@ -1,11 +1,10 @@
 import numpy as np
 
-from _test.tools import all_lifters
-from lifters.matweight_lifter import MatWeightLifter
+# from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.poly_lifters import PolyLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
-from utils.geometry import get_xtheta_from_theta
+from utils.test_tools import all_lifters
 
 NOISE = 1e-2
 
@@ -141,7 +140,7 @@ def test_cost(noise=0.0):
             noise == 0
             and not isinstance(lifter, PolyLifter)
             and not lifter.robust
-            and not isinstance(lifter, MatWeightLifter)
+            # and not isinstance(lifter, MatWeightLifter)
         ):
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
@@ -186,7 +185,6 @@ def test_solvers(n_seeds=1, noise=0.0):
                         np.testing.assert_allclose(theta_hat, theta_gt)
                     else:
                         # theta_gt = lifter.get_vec_around_gt(delta=0)
-                        theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                         np.testing.assert_allclose(theta_hat, theta_gt)
 
             else:
@@ -223,8 +221,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                     progress += np.linalg.norm(val_hat - val_gt)
             else:
                 if len(theta_0) != len(theta_hat):
-                    xtheta_0 = get_xtheta_from_theta(theta_0, lifter.d)
-                    progress = np.linalg.norm(xtheta_0 - theta_hat)
+                    progress = np.linalg.norm(theta_0 - theta_hat)
                 else:
                     progress = np.linalg.norm(theta_0 - theta_hat)
             assert progress > 1e-10, progress
@@ -248,8 +245,6 @@ def test_solvers(n_seeds=1, noise=0.0):
                         if len(theta_hat) == len(theta_gt):
                             np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                         else:
-                            # theta_gt = lifter.get_vec_around_gt(delta=0)
-                            theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                             np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                 except AssertionError as e:
                     print(

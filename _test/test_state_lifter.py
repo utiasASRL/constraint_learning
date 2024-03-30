@@ -1,8 +1,8 @@
 import numpy as np
 import pytest
 
-from _test.tools import all_lifters
 from lifters.state_lifter import ravel_multi_index_triu, unravel_multi_index_triu
+from utils.test_tools import all_lifters
 
 
 def pytest_configure():

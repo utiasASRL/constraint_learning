@@ -3,7 +3,7 @@ import itertools
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from cert_tools.linalg_tools import get_nullspace
+from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
@@ -75,6 +75,15 @@ class StateLifter(BaseClass):
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
     TIGHTNESS = "cost"
+
+    REDUCE_DEPENDENT = False
+
+    # properties of template scaling
+    ALL_PAIRS = True
+    # Below only have effect if ALL_PAIRS is False.
+    # Then, they determine the clique size hierarchy.
+    CLIQUE_SIZE = 5
+    STEP_SIZE = 1
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
@@ -700,23 +709,6 @@ class StateLifter(BaseClass):
                 current_basis = np.r_[current_basis, ai[None, :]]
         return basis_list
 
-    def apply_templates(self, basis_list, n_landmarks=None, verbose=False):
-        """
-        Apply the learned patterns in basis_list to all landmarks.
-
-        :param basis_list: list of poly matrices.
-        """
-
-        if n_landmarks is None:
-            n_landmarks = self.n_landmarks
-
-        new_poly_rows = []
-        for bi_poly in basis_list:
-            new_poly_rows += self.apply_template(
-                bi_poly, n_landmarks=n_landmarks, verbose=verbose
-            )
-        return new_poly_rows
-
     def apply_template(self, bi_poly, n_landmarks=None, verbose=False):
         if n_landmarks is None:
             n_landmarks = self.n_landmarks
@@ -775,6 +767,39 @@ class StateLifter(BaseClass):
                 new_poly_row[self.HOM, key_ij] = bi_poly["h", key]
             new_poly_rows.append(new_poly_row)
         return new_poly_rows
+
+    def apply_templates(
+        self, templates, starting_index=0, var_dict=None, all_pairs=None
+    ):
+        from utils.constraint import Constraint, remove_dependent_constraints
+
+        if all_pairs is None:
+            all_pairs = self.ALL_PAIRS
+        if var_dict is None:
+            var_dict = self.var_dict
+
+        new_constraints = []
+        index = starting_index
+        for template in templates:
+            constraints = self.apply_template(template.polyrow_b_)
+            template.applied_list = []
+            for new_constraint in constraints:
+                template.applied_list.append(
+                    Constraint.init_from_polyrow_b(
+                        index=index,
+                        polyrow_b=new_constraint,
+                        lifter=self,
+                        template_idx=template.index,
+                        known=template.known,
+                        mat_var_dict=var_dict,
+                    )
+                )
+                new_constraints += template.applied_list
+                index += 1
+
+        if len(new_constraints):
+            remove_dependent_constraints(new_constraints)
+        return new_constraints
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
@@ -982,9 +1007,22 @@ class StateLifter(BaseClass):
             var_dict = self.get_var_dict(var_dict)
 
         A_list = []
+        basis_reduced = []
         for i in range(n_basis):
-            ai = self.get_reduced_a(basis[i], var_dict)
-            Ai = self.get_mat(ai, sparse=sparse, var_dict=var_dict, correct=True)
+            ai = self.get_reduced_a(basis[i], var_dict, sparse=True)
+            basis_reduced.append(ai)
+        basis_reduced = sp.vstack(basis_reduced)
+
+        if self.REDUCE_DEPENDENT:
+            bad_idx = find_dependent_columns(basis_reduced.T, tolerance=1e-6)
+        else:
+            bad_idx = []
+
+        for i in range(basis_reduced.shape[0]):
+            if i in bad_idx:
+                continue
+            ai = basis_reduced[[i], :].toarray().flatten()
+            Ai = self.get_mat(ai, sparse=sparse, correct=True, var_dict=None)
             # Normalize the matrix
             if normalize and not sparse:
                 # Ai /= np.max(np.abs(Ai))
