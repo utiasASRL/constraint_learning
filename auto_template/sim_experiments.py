@@ -346,65 +346,6 @@ def apply_autotemplate_plot(learner: Learner, recompute=False, fname_root=""):
     savefig(fig, fname_root + f"_templates.pdf")
 
 
-def run_autotemplate_old(
-    learner: Learner, recompute: bool = False, results_folder: str = RESULTS_FOLDER
-):
-    fname = f"{results_folder}/{learner.lifter}.pkl"
-    fname_root = f"{results_folder}/scalability_{learner.lifter}"
-    try:
-        assert not recompute, "forcing to recompute"
-        with open(fname, "rb") as f:
-            learner = pickle.load(f)
-            orig_dict = pickle.load(f)
-        print(f"--------- read {fname} \n")
-    except (AssertionError, FileNotFoundError, AttributeError) as e:
-        print(e)
-        # find which of the constraints are actually necessary
-        orig_dict = {}
-        t1 = time.time()
-        data, success = learner.run(verbose=False, plot=False)
-        if not success:
-            raise RuntimeError(f"{learner}: did not achieve tightness.")
-        orig_dict["t learn templates"] = time.time() - t1
-
-        with open(fname, "wb") as f:
-            pickle.dump(learner, f)
-            pickle.dump(orig_dict, f)
-        print("wrote intermediate as", fname)
-
-    fname = fname_root + "_order_dict.pkl"
-    try:
-        assert not recompute, "forcing to recompute"
-        try:
-            with open(fname, "rb") as f:
-                order_dict = pickle.load(f)
-                learner = pickle.load(f)
-        except EOFError:
-            learner = None
-        print(f"--------- read {fname} \n")
-
-    except (AssertionError, FileNotFoundError, AttributeError) as e:
-        print(e)
-        t1 = time.time()
-        idx_subset_original, idx_subset_reorder = tightness_study(
-            learner, use_bisection=learner.lifter.TIGHTNESS == "cost"
-        )
-
-        order_dict = {}
-        orig_dict["t determine required"] = time.time() - t1
-        if idx_subset_reorder is not None:
-            order_dict["sorted"] = idx_subset_reorder
-        if idx_subset_original is not None:
-            order_dict["original"] = idx_subset_original
-        # order_dict["all"] = range(len(learner.constraints))
-        order_dict["basic"] = None
-        with open(fname, "wb") as f:
-            pickle.dump(order_dict, f)
-            pickle.dump(learner, f)
-
-    return learner, order_dict
-
-
 def apply_autotemplate_base(
     learner: Learner,
     param_list: list,

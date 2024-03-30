@@ -76,18 +76,25 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
             variable_list=variable_list,
         )
     elif d == 3:
-        fname = "_results/stereo3d_lifter.pkl"
-        try:
-            lifter = Stereo3DLifter.from_file(fname)
-        except FileNotFoundError:
-            lifter = Stereo3DLifter(
-                n_landmarks=n_landmarks,
-                level=level,
-                param_level=param_level,
-                variable_list=variable_list,
-            )
-            lifter.to_file(fname)
-            lifter = Stereo3DLifter.from_file(fname)
+        lifter = Stereo3DLifter(
+            n_landmarks=n_landmarks,
+            level=level,
+            param_level=param_level,
+            variable_list=variable_list,
+        )
+        # can be used for reproducibility
+        # fname = "_results/stereo3d_lifter.pkl"
+        # try:
+        #     lifter = Stereo3DLifter.from_file(fname)
+        # except FileNotFoundError:
+        #     lifter = Stereo3DLifter(
+        #         n_landmarks=n_landmarks,
+        #         level=level,
+        #         param_level=param_level,
+        #         variable_list=variable_list,
+        #     )
+        #     lifter.to_file(fname)
+        #     lifter = Stereo3DLifter.from_file(fname)
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 

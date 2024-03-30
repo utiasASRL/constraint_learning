@@ -16,6 +16,9 @@ from starloc.reader import read_calib, read_data, read_landmarks
 from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
 
+REJECT_OUTLIERS = True
+OUTLIER_THRESHOLD = 0.5
+
 # how many single pose estimates to plot
 PLOT_NUMBER = 0  # 10
 
@@ -32,6 +35,7 @@ DEGENERATE_DICT = {
 }
 # how to loop through subsets of anchors (random or round-robin or all), RO only
 ANCHOR_CHOICE = "all"
+EXCLUDE_ANCHORS = [6, 7]
 
 
 def plot_local_vs_global(df, fname_root="", cost_thresh=None):
@@ -175,6 +179,14 @@ class Experiment(object):
                 self.data = self.data.loc[self.data.from_id == from_id]
             self.landmark_ids = list(self.all_landmarks.id.values)
 
+            if len(EXCLUDE_ANCHORS):
+                self.all_landmarks = self.all_landmarks[
+                    ~self.all_landmarks.id.isin(EXCLUDE_ANCHORS)
+                ]
+                for a in EXCLUDE_ANCHORS:
+                    self.landmark_ids.remove(a)
+                self.data = self.data[~self.data.to_id.isin(EXCLUDE_ANCHORS)]
+
             if "apriltag" in data_type:
                 calib_dict = read_calib(dataset_root=dataset_root, dataset=dataset)
                 # fmt: off
@@ -235,6 +247,12 @@ class Experiment(object):
             (self.data.position_idx >= time_idx)
             & (self.data.position_idx < time_idx + n_positions)
         ]
+        if REJECT_OUTLIERS:
+            mask = np.abs(data_here.bias_calib) < OUTLIER_THRESHOLD
+            n_outliers = np.sum(~mask)
+            if n_outliers > 0:
+                print(f"removing {n_outliers} outliers")
+            data_here = data_here[mask]
 
         assert len(data_here.position_idx.unique()) == n_positions
 
@@ -487,10 +505,9 @@ def run_real_experiment(
         if from_scratch:
             new_learner.run()
 
-        # new_learner.templates = learner.get_sufficient_templates(new_order, new_lifter)
-        # new_learner.templates_known = new_learner.get_known_templates()
-        # new_learner.apply_templates()
-        new_learner.scale_templates(learner, new_order, data_dict)
+        new_learner.templates = learner.get_sufficient_templates(new_order, new_lifter)
+        new_learner.templates_known = new_learner.get_known_templates()
+        new_learner.apply_templates()
 
         new_learner.find_local_solution(plot=plot)
 
@@ -550,15 +567,7 @@ def run_real_experiment(
     return df
 
 
-def create_rmse_table(fname_root, n_successful=10):
-    fname = fname_root + f"_dataset_errors_n{n_successful}.pkl"
-    try:
-        df = pd.read_pickle(fname)
-        print(f"result df as {fname}")
-    except FileNotFoundError:
-        print("Need to generate results first! Use run_all().")
-        return
-
+def create_rmse_table(df, fname_root):
     # use only once local solution per row (the best one)
     df.reset_index(inplace=True)
     for i, row in df.iterrows():
@@ -582,8 +591,10 @@ def create_rmse_table(fname_root, n_successful=10):
 
     # drop the rows where no local solution was found.
     print("total number of datapoints:", len(df), end=", ")
-    df = df[df["local cost"].notna()]
+    df = df[df["success rate"] != 1.0]
     print("after pruning:", len(df))
+    if not len(df):
+        return
     df = df.apply(pd.to_numeric, errors="ignore")
 
     # df.loc[:, "local C error"] = df[
@@ -624,12 +635,12 @@ def create_rmse_table(fname_root, n_successful=10):
     )
     error_table = pt.agg(["min", "max", "median", "mean", "std"])
     print(error_table)
-    fname = fname.replace(".pkl", ".tex")
     # s = error_table.style.highlight_min(props="itshape:; bfseries:;", axis=1)
     s = error_table.style
-    with open(fname, "w"):
-        s.to_latex(fname)
-    print(f"saved as {fname}")
+    out_name = fname_root + "_error_table.tex"
+    with open(out_name, "w"):
+        s.to_latex(out_name)
+    print(f"saved as {out_name}")
 
 
 def run_experiments(

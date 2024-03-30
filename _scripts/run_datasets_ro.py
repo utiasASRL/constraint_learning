@@ -27,7 +27,7 @@ from utils.plotting_tools import savefig
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 
-MAX_N_LANDMARKS = 5
+MAX_N_LANDMARKS = 8
 MIN_N_LANDMARKS = 4
 
 USE_GT = False
@@ -35,18 +35,15 @@ SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_new"
+RESULTS_DIR = "_results_v3"
 
 
-def plot_positions(results_dir=RESULTS_DIR, n_successful=100):
-    fname = f"{results_dir}/ro_quad_dataset_errors_n{n_successful}.pkl"
-    df_all = pd.read_pickle(fname)
-    print(f"read {fname}")
+def plot_positions(df_all, fname_root=""):
     for (max_n_landmarks, dataset), df in df_all.groupby(
         ["max_n_landmarks", "dataset"], sort=False
     ):
         exp = Experiment(DATASET_ROOT, dataset, data_type="uwb", from_id=1)
-        for (chosen_idx), df_sub in df.groupby(["chosen idx"]):
+        for chosen_idx, df_sub in df.groupby("chosen idx"):
             if chosen_idx >= 0:
                 landmark_ids = DEGENERATE_DICT[chosen_idx]
                 landmarks = exp.all_landmarks.loc[
@@ -95,9 +92,7 @@ def plot_positions(results_dir=RESULTS_DIR, n_successful=100):
             ax.view_init(elev=20.0, azim=-45)
             ax.axis("off")
             fig.suptitle(f"{chosen_idx}")
-            savefig(
-                fig, f"{results_dir}/ro_{dataset}_{chosen_idx}_{max_n_landmarks}.pdf"
-            )
+            savefig(fig, f"{fname_root}_{dataset}_{chosen_idx}_{max_n_landmarks}.pdf")
     return
 
 
@@ -108,13 +103,15 @@ def run_all(
 
     datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3"]
     df_list = []
+
+    fname_root = f"{results_dir}/ro"
     for dataset in datasets:
         exp = Experiment(DATASET_ROOT, dataset, data_type="uwb", from_id=1)
-        for max_n_landmarks in range(4, 9):
+        for max_n_landmarks in [4, 5, 6]:
             if USE_GT:
-                fname = f"{results_dir}/ro_{dataset}_{level}_{n_successful}_{max_n_landmarks}_gt.pkl"
+                fname = f"{fname_root}_{dataset}_{level}_{n_successful}_{max_n_landmarks}_gt.pkl"
             else:
-                fname = f"{results_dir}/ro_{dataset}_{level}_{n_successful}_{max_n_landmarks}.pkl"
+                fname = f"{fname_root}_{dataset}_{level}_{n_successful}_{max_n_landmarks}.pkl"
 
             try:
                 assert recompute is False
@@ -148,37 +145,32 @@ def run_all(
     df.to_pickle(fname)
     print(f"saved result df as {fname}")
 
-    if n_successful > 10:
-        constraint_type = "sorted"
-        df = df[df.type == constraint_type]
-        df["RDG"] = df["RDG"].abs()
+    constraint_type = "sorted"
+    df = df[df.type == constraint_type]
+    df["RDG"] = df["RDG"].abs()
 
-        plot_local_vs_global(df, fname_root=fname_root)
+    plot_local_vs_global(df, fname_root=fname_root)
 
-        plot_results(
-            df,
-            ylabel="SVR",
-            fname_root=fname_root,
-            thresh=TOL_RANK_ONE,
-            datasets=datasets,
-        )
-        plot_results(
-            df,
-            ylabel="RDG",
-            fname_root=fname_root,
-            thresh=TOL_REL_GAP,
-            datasets=datasets,
-        )
-        plt.show()
-        print("done")
+    plot_results(
+        df,
+        ylabel="SVR",
+        fname_root=fname_root,
+        thresh=TOL_RANK_ONE,
+        datasets=datasets,
+    )
+    plot_results(
+        df,
+        ylabel="RDG",
+        fname_root=fname_root,
+        thresh=TOL_REL_GAP,
+        datasets=datasets,
+    )
+
+    plot_positions(df, fname_root=fname_root)
+    create_rmse_table(df, fname_root=fname_root)
+    plt.show()
 
 
 if __name__ == "__main__":
     # run many and plot distributions
-    # run_all(n_successful=100, plot_poses=False, recompute=False)
-
-    plot_positions(n_successful=100)
-
-    # create error table
-    # fname_root = f"{RESULTS_DIR}/ro_quad"
-    # create_rmse_table(fname_root=fname_root, n_successful=20)
+    run_all(n_successful=100, plot_poses=False, recompute=True)

@@ -4,7 +4,7 @@ results_server_plot:
 	python _scripts/generate_all_results.py --directory="_results_server_new"
 
 results_generate:
-	python _scripts/generate_all_results.py --overwrite --directory="_results_new"
+	python _scripts/generate_all_results.py --overwrite --directory="_results_v3"
 
 results_generate_continue:
-	python _scripts/generate_all_results.py --directory="_results_new"
+	python _scripts/generate_all_results.py --directory="_results_v3"

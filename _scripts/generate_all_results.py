@@ -15,7 +15,7 @@ except Exception as e:
     pass
 
 # RESULTS_DIR = "_results_server_new/"
-RESULTS_DIR = "_results_new/"
+RESULTS_DIR = "_results_v2/"
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -43,14 +43,32 @@ if __name__ == "__main__":
         help="number of random seeds",
     )
     args = parser.parse_args()
-    recompute = True  # args.overwrite
+    recompute = args.overwrite
     results_dir = args.directory
-    n_seeds = 3  # args.n_seeds
+    n_seeds = args.n_seeds
     autotight = True
     autotemplate = True
+    n_successful = 100
 
-    # print("------- Generate results table and templates-------")
-    # run_autotemplate(recompute=recompute, results_dir=results_dir)
+    print("------- Generate results table and templates-------")
+    run_autotemplate(recompute=recompute, results_dir=results_dir)
+
+    print("------- Generate dataset results -------")
+    run_datasets_ro(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    run_datasets_stereo(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+
+    print("------- Generate RO results -------")
+    run_range_only_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        autotight=autotight,
+        autotemplate=autotemplate,
+        results_dir=results_dir,
+    )
 
     print("------- Generate other results -------")
     run_other_study(
@@ -60,14 +78,7 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
-    print("------- Generate RO results -------")
-    run_range_only_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        autotight=autotight,
-        autotemplate=autotemplate,
-        results_dir=results_dir,
-    )
+
     print("------- Generate stereo results -------")
     run_stereo_study(
         n_seeds=n_seeds,
@@ -76,28 +87,3 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
-
-    print("------- Generate dataset results (100) -------")
-    n_successful = 100
-    run_datasets_ro(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-    run_datasets_stereo(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-
-    print("------- Generate dataset results (10)-------")
-    n_successful = 10
-    run_datasets_ro(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-    run_datasets_stereo(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-
-    print("------- Generate dataset results (RMSE)-------")
-    fname_root = f"{results_dir}/ro_quad"
-    create_rmse_table(fname_root=fname_root, n_successful=100)
-
-    fname_root = f"{results_dir}/stereo"
-    create_rmse_table(fname_root=fname_root, n_successful=100)

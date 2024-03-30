@@ -33,7 +33,7 @@ SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_new"
+RESULTS_DIR = "_results_v3"
 
 
 def load_experiment(dataset):
@@ -49,13 +49,8 @@ def load_experiment(dataset):
     return exp
 
 
-def plot_poses(results_dir=RESULTS_DIR, n_successful=100):
-    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-    for dataset in datasets:
-        fname = f"{results_dir}/stereo_{dataset}_{n_successful}.pkl"
-        df = pd.read_pickle(fname)
-        print(f"read {fname}")
-
+def plot_poses(df_all, fname_root=""):
+    for dataset, df in df_all.groupby("dataset"):
         exp = load_experiment(dataset)
         try:
             landmarks = exp.all_landmarks[["x", "y", "z"]].values
@@ -136,20 +131,22 @@ def plot_poses(results_dir=RESULTS_DIR, n_successful=100):
         )
         ax.view_init(elev=20.0, azim=-45)
         ax.axis("off")
-        savefig(fig, f"{results_dir}/stereo_{dataset}_all.pdf")
+        savefig(fig, f"{fname_root}_{dataset}_all.pdf")
     return
 
 
 def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_DIR):
     df_list = []
 
+    fname_root = f"{results_dir}/stereo"
     # don't change order! (because of plotting)
     datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
+    datasets = ["starrynight"]
     for dataset in datasets:
         if USE_GT:
-            fname = f"{results_dir}/stereo_{dataset}_{n_successful}_gt.pkl"
+            fname = f"{fname_root}_{dataset}_{n_successful}_gt.pkl"
         else:
-            fname = f"{results_dir}/stereo_{dataset}_{n_successful}.pkl"
+            fname = f"{fname_root}_{dataset}_{n_successful}.pkl"
         try:
             assert recompute is False
             df_all = pd.read_pickle(fname)
@@ -181,39 +178,32 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     df.to_pickle(fname)
     print(f"result df as {fname}")
 
-    if n_successful > 10:
-        constraint_type = "sorted"
-        df = df[df.type == constraint_type]
-        df["RDG"] = df["RDG"].abs()
+    constraint_type = "sorted"
+    df = df[df.type == constraint_type]
+    df["RDG"] = df["RDG"].abs()
 
-        # cost below is found empirically
-        plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
+    # cost below is found empirically
+    plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
 
-        plot_results(
-            df,
-            ylabel="RDG",
-            fname_root=fname_root,
-            thresh=TOL_REL_GAP,
-            datasets=datasets,
-        )
-        plot_results(
-            df,
-            ylabel="SVR",
-            fname_root=fname_root,
-            thresh=TOL_RANK_ONE,
-            datasets=datasets,
-        )
-        plt.show()
-        print("done")
+    plot_results(
+        df,
+        ylabel="RDG",
+        fname_root=fname_root,
+        thresh=TOL_REL_GAP,
+        datasets=datasets,
+    )
+    plot_results(
+        df,
+        ylabel="SVR",
+        fname_root=fname_root,
+        thresh=TOL_RANK_ONE,
+        datasets=datasets,
+    )
+    plot_poses(df, fname_root=fname_root)
+    create_rmse_table(df, fname_root=fname_root)
+    plt.show()
 
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=100, stride=1, recompute=True, results_dir=RESULTS_DIR)
-
-    # create plots of all estimates
-    plot_poses(results_dir=RESULTS_DIR, n_successful=100)
-
-    # create error table
-    fname_root = f"{RESULTS_DIR}/stereo"
-    create_rmse_table(fname_root=fname_root, n_successful=100)
+    run_all(n_successful=20, stride=1, recompute=True, results_dir=RESULTS_DIR)

@@ -21,6 +21,7 @@ SOLVER_KWARGS = {
     "TNC": dict(gtol=1e-6, xtol=1e-10),
 }
 
+
 class RangeOnlyLocLifter(StateLifter):
     """Range-only localization
 
@@ -437,7 +438,6 @@ class RangeOnlyLocLifter(StateLifter):
         info["success"] = sol.success
         info["msg"] = sol.message + f"(# iterations: {sol.nit})"
         if sol.success:
-            print("RangeOnly local solver:", sol.nit)
             that = sol.x
             rel_error = self.get_cost(that, y) - self.get_cost(sol.x, y)
             assert abs(rel_error) < 1e-10, rel_error
