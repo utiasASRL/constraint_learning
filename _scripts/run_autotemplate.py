@@ -94,7 +94,7 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
-        df = generate_results(LIFTERS)
+        df = generate_results(LIFTERS, results_dir=results_dir)
         df.to_pickle(fname)
 
     times = {
