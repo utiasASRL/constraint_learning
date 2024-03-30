@@ -2,7 +2,6 @@ import itertools
 
 import matplotlib.pylab as plt
 import numpy as np
-import scipy.linalg as la
 import scipy.sparse as sp
 from cert_tools.linalg_tools import get_nullspace
 
@@ -875,52 +874,22 @@ class StateLifter(BaseClass):
             Y = np.vstack([Y, basis_known.T])
         elif len(A_known):
             A = np.vstack(
-                [self.augment_using_zero_padding(self.get_vec(a)) for a in A_known]
+                [
+                    self.augment_using_zero_padding(
+                        self.get_vec(a), var_subset=var_subset
+                    )
+                    for a in A_known
+                ]
             )
             Y = np.vstack([Y, A])
 
         if method != "qrp":
             print("using a method other than qrp is not recommended.")
 
-        if method == "svd":
-            U, S, Vh = np.linalg.svd(
-                Y
-            )  # nullspace of Y is in last columns of V / last rows of Vh
-            rank = np.sum(np.abs(S) > self.EPS_SVD)
-            basis = Vh[rank:, :]
-
-            # test that it is indeed a null space
-            np.testing.assert_allclose(Y @ basis.T, 0.0, atol=1e-5)
-        elif method == "qr":
-            # if Y.T = QR, the last n-r columns
-            # of R make up the nullspace of Y.
-            Q, R = np.linalg.qr(Y.T)
-            S = np.abs(np.diag(R))
-            sorted_idx = np.argsort(S)[::-1]
-            S = S[sorted_idx]
-            rank = np.where(S < self.EPS_SVD)[0][0]
-            # decreasing order
-            basis = Q[:, sorted_idx[rank:]].T
-        elif method == "qrp":
-            # Based on Section 5.5.5 "Basic Solutions via QR with Column Pivoting" from Golub and Van Loan.
-
-            assert Y.shape[0] >= Y.shape[1], "only tall matrices supported"
-
-            Q, R, p = la.qr(Y, pivoting=True, mode="economic")
-            S = np.abs(np.diag(R))
-            rank = np.sum(S > self.EPS_SVD)
-            R1, R2 = R[:rank, :rank], R[:rank, rank:]
-            # [R1  R2]  @  [R1^-1 @ R2] = [R2 - R2]
-            # [0   0 ]     [    -I    ]   [0]
-            N = np.vstack([la.solve_triangular(R1, R2), -np.eye(R2.shape[1])])
-
-            basis = np.zeros(N.T.shape)
-            basis[:, p] = N.T
-        else:
-            raise ValueError(method)
+        basis, info = get_nullspace(Y, method=method, tolerance=self.EPS_SVD)
 
         basis[np.abs(basis) < self.EPS_SPARSE] = 0.0
-        return basis, S
+        return basis, info["values"]
 
     def get_reduced_a(self, bi, var_subset=None, sparse=False):
         """

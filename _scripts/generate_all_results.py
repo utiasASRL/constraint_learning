@@ -43,15 +43,23 @@ if __name__ == "__main__":
         help="number of random seeds",
     )
     args = parser.parse_args()
-    recompute = args.overwrite
+    recompute = True  # args.overwrite
     results_dir = args.directory
     n_seeds = 3  # args.n_seeds
     autotight = True
     autotemplate = True
 
-    print("------- Generate results table and templates-------")
-    run_autotemplate(recompute=recompute, results_dir=results_dir)
+    # print("------- Generate results table and templates-------")
+    # run_autotemplate(recompute=recompute, results_dir=results_dir)
 
+    print("------- Generate other results -------")
+    run_other_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        autotight=autotight,
+        autotemplate=autotemplate,
+        results_dir=results_dir,
+    )
     print("------- Generate RO results -------")
     run_range_only_study(
         n_seeds=n_seeds,
@@ -62,14 +70,6 @@ if __name__ == "__main__":
     )
     print("------- Generate stereo results -------")
     run_stereo_study(
-        n_seeds=n_seeds,
-        recompute=recompute,
-        autotight=autotight,
-        autotemplate=autotemplate,
-        results_dir=results_dir,
-    )
-    print("------- Generate other results -------")
-    run_other_study(
         n_seeds=n_seeds,
         recompute=recompute,
         autotight=autotight,

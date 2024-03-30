@@ -78,6 +78,7 @@ def solve_lambda(
     primal=False,
     verbose=False,
     tol=None,
+    fixed_epsilon=EPSILON,
 ):
     """Determine lambda with an SDP.
     :param force_first: number of constraints on which we do not put a L1 cost, effectively encouraging the problem to use them.
@@ -97,10 +98,10 @@ def solve_lambda(
         m = len(A_b_list)
         y = cp.Variable(shape=(m,))
 
-        if EPSILON is None:
+        if fixed_epsilon is None:
             epsilon = cp.Variable()
         else:
-            epsilon = EPSILON
+            epsilon = fixed_epsilon
 
         k = len(B_list)
         if k > 0:
@@ -112,21 +113,21 @@ def solve_lambda(
             + [u[i] * Bi for (i, Bi) in enumerate(B_list)]
         )
 
-        if k > 0 and EPSILON is None:
+        if (k > 0) and (fixed_epsilon is None):
             objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u) + epsilon)
         elif k > 0:  # EPSILONS is fixed
             objective = cp.Minimize(cp.norm1(y[force_first:]) + cp.norm1(u))
-        elif EPSILON is None:
+        elif fixed_epsilon is None:
             objective = cp.Minimize(cp.norm1(y[force_first:]) + epsilon)
         else:  # EPSILONS is fixed
             objective = cp.Minimize(cp.norm1(y[force_first:]))
 
         constraints = [H >> 0]  # >> 0 denotes positive SEMI-definite
 
-        if EPSILON != 0:
+        if (fixed_epsilon is None) or (fixed_epsilon != 0):
             constraints += [H @ xhat <= epsilon]
             constraints += [H @ xhat >= -epsilon]
-        else:
+        elif fixed_epsilon == 0:
             constraints += [H @ xhat == 0]
         if k > 0:
             constraints += [u >= 0]

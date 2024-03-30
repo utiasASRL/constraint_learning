@@ -15,6 +15,22 @@ RECOMPUTE = True
 
 RESULTS_DIR = "_results_new"
 
+ADD_ORIGINAL = True
+LIFTERS = [
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+    # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+    (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+    # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+    # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+    # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+    # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+]
+LIFTERS = [
+    (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+    (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+]
+
 
 def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
     all_list = []
@@ -42,11 +58,14 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         if idx_subset_reorder is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
 
-        idx_subset_original = learner.generate_minimal_subset(
-            reorder=False,
-            use_bisection=learner.lifter.TIGHTNESS == "cost",
-            tightness=learner.lifter.TIGHTNESS,
-        )
+        if ADD_ORIGINAL:
+            idx_subset_original = learner.generate_minimal_subset(
+                reorder=False,
+                use_bisection=learner.lifter.TIGHTNESS == "cost",
+                tightness=learner.lifter.TIGHTNESS,
+            )
+        else:
+            idx_subset_original = None
         for d in dict_list:
             d["lifter"] = str(lifter)
             d["t find sufficient"] = t_suff
@@ -67,30 +86,19 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     np.random.seed(0)
-    lifters = [
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-        (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-        (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-        (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-        (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-        (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
-        (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-        (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
-    ]
-
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
         df = pd.read_pickle(fname)
         print(f"read {fname}")
-        lifters_str = set([str(L(**d)) for L, d in lifters])
+        lifters_str = set([str(L(**d)) for L, d in LIFTERS])
         assert lifters_str.issubset(
             df.lifter.unique().astype(str)
         ), f"{lifters_str.difference(df.lifter.unique())} not in df"
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
-        df = generate_results(lifters)
+        df = generate_results(LIFTERS)
         df.to_pickle(fname)
 
     times = {

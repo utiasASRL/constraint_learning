@@ -5,13 +5,15 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-import sparseqr as sqr
+from cert_tools.linalg_tools import find_dependent_columns, rank_project
+from cert_tools.sdp_solvers import solve_feasibility_sdp
+from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
+from cert_tools.sdp_solvers import solve_sdp_cvxpy
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from solvers.common import find_local_minimum, solve_certificate, solve_sdp_cvxpy
-from solvers.sparse import bisection, brute_force, solve_lambda
-from utils.common import rank_project
+from solvers.common import find_local_minimum  # solve_certificate, solve_sdp_cvxpy
+from solvers.sparse import bisection, brute_force
 from utils.constraint import Constraint
 from utils.plotting_tools import (
     add_colorbar,
@@ -140,9 +142,9 @@ class Learner(object):
             return res
 
         if res:
-            print(f"achieved cost tightness:")
+            print("achieved cost tightness:")
         else:
-            print(f"no cost tightness yet:")
+            print("no cost tightness yet:")
         print(f"qcqp cost={primal_cost:.4e}, dual cost={dual_cost:.4e}")
         return res
 
@@ -343,7 +345,7 @@ class Learner(object):
                 adjust=True,
                 primal=False,
                 verbose=False,
-                # fixed_epsilon=EPSILON,
+                fixed_epsilon=EPSILON,
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
@@ -434,7 +436,10 @@ class Learner(object):
             return True
 
     def find_global_solution(self, data_dict={}):
+        from cert_tools.sdp_solvers import options_cvxpy
+
         A_b_list_all = self.get_A_b_list()
+        options_cvxpy["accept_unknown"] = True
 
         # find or certify global solution
         if self.lifter.TIGHTNESS == "rank":
@@ -445,9 +450,16 @@ class Learner(object):
             """Try to solve dual problem."""
             xhat = self.solver_vars["xhat"]
 
-            A_b_list_all = self.get_A_b_list()
-            H, info = solve_certificate(
-                self.solver_vars["Q"], A_b_list_all, xhat, adjust=True
+            H, info = solve_feasibility_sdp(
+                self.solver_vars["Q"],
+                A_b_list_all,
+                xhat,
+                adjust=False,
+                options=options_cvxpy,
+                tol=1e-10,
+                # soft_epsilon=False,
+                # eps_tol=1e-4,
+                soft_epsilon=True,
             )
             if info["eps"] is not None:
                 cert = abs(info["eps"]) <= GLOBAL_THRESH
@@ -464,12 +476,13 @@ class Learner(object):
         for key in keys:
             x_local = data_dict[key]
             x_local = self.lifter.get_x(theta=x_local)
-            H, info = solve_certificate(
+            H, info = solve_feasibility_sdp(
                 self.solver_vars["Q"],
                 A_b_list_all,
                 x_local,
                 adjust=False,
                 tol=1e-10,
+                options=options_cvxpy,
             )
             if info["eps"] is not None:
                 print(f"local solution eps: {info['eps']:.2e}")
@@ -485,10 +498,13 @@ class Learner(object):
         return False
 
     def _test_tightness(self, A_b_list_all, B_list=[], verbose=False):
+        from cert_tools.sdp_solvers import options_cvxpy
+
         if self.solver_vars is None:
             self.find_local_solution(verbose=verbose)
 
         # compute lambas by solving dual problem
+        options_cvxpy["accept_unknown"] = True
         X, info = solve_sdp_cvxpy(
             self.solver_vars["Q"],
             A_b_list_all,
@@ -497,6 +513,7 @@ class Learner(object):
             verbose=verbose,
             primal=PRIMAL,
             tol=TOL,
+            options=options_cvxpy,
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -671,42 +688,10 @@ class Learner(object):
             if A_vec.shape[0] < A_vec.shape[1]:
                 print("Warning: fat matrix.")
 
-            # Use sparse rank revealing QR
-            # We "solve" a least squares problem to get the rank and permutations
-            # This is the cheapest way to use sparse QR, since it does not require
-            # explicit construction of the Q matrix. We can't do this with qr function
-            # because the "just return R" option is not exposed.
-            Z, R, E, rank = sqr.rz(
-                A_vec, np.zeros((A_vec.shape[0], 1)), tolerance=1e-10
-            )
-            # Sort the diagonal values. Note that SuiteSparse uses AMD/METIS ordering
-            # to acheive sparsity.
-            r_vals = np.abs(R.diagonal())
-            sort_inds = np.argsort(r_vals)[::-1]
-            if rank < A_vec.shape[1]:
-                print(f"clean_constraints: keeping {rank}/{A_vec.shape[1]} independent")
-
-            bad_idx = list(range(A_vec.shape[1]))
-            keep_idx = sorted(E[sort_inds[:rank]])[::-1]
-            for good_idx in keep_idx:
-                del bad_idx[good_idx]
-            # bad_idx = list(E[sort_inds[rank:]])
-
-            # Sanity check, removed because too expensive. It almost always passed anyways.
-            Z, R, E, rank_full = sqr.rz(
-                A_vec.tocsc()[:, keep_idx],
-                np.zeros((A_vec.shape[0], 1)),
-                tolerance=1e-10,
-            )
-            if rank_full != rank:
-                print(
-                    f"Warning: selected constraints did not pass lin. independence check. Rank is {rank_full}, should be {rank}."
-                )
-
+            bad_idx = find_dependent_columns(A_vec)
             if len(bad_idx):
                 for idx in sorted(bad_idx)[::-1]:
                     del constraints[idx]
-                assert len(constraints) == rank
 
         if remove_imprecise:
             error, bad_idx = self.lifter.test_constraints(

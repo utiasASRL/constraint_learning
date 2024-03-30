@@ -105,6 +105,7 @@ class Constraint(object):
             template_idx=template_idx,
         )
 
+
     @staticmethod
     def init_from_A_poly(
         lifter: StateLifter,

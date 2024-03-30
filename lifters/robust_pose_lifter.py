@@ -156,7 +156,8 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             theta_here = theta
 
-        R, t = get_C_r_from_theta(theta_here, self.d)
+        RT, t = get_C_r_from_theta(theta_here, self.d)
+        R = RT.T
 
         x_data = []
         for key in var_subset:
@@ -386,7 +387,7 @@ class RobustPoseLifter(StateLifter, ABC):
             var_dict = self.var_dict
 
         if "c" in var_dict:
-            # enforce diagonal
+            # enforce diagonal == 1
             for i in range(self.d):
                 Ei = np.zeros((self.d, self.d))
                 Ei[i, i] = 1.0
@@ -396,7 +397,7 @@ class RobustPoseLifter(StateLifter, ABC):
                 Ai["h", "h"] = -1
                 self.test_and_add(A_list, Ai, output_poly=output_poly)
 
-            # enforce off-diagonal
+            # enforce off-diagonal == 0
             for i in range(self.d):
                 for j in range(i + 1, self.d):
                     Ei = np.zeros((self.d, self.d))

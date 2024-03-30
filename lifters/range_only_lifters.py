@@ -21,7 +21,6 @@ SOLVER_KWARGS = {
     "TNC": dict(gtol=1e-6, xtol=1e-10),
 }
 
-
 class RangeOnlyLocLifter(StateLifter):
     """Range-only localization
 

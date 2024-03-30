@@ -2,9 +2,6 @@
 
 This codebase allows for the learning of constraint matrices for arbitrary lifting functions.
 
-## Usage
-
-- To regenerate all results from the paper, run `python _scripts/generate_all_results.sh`.
 
 ## Installation
 
@@ -25,6 +22,21 @@ Run below commands for installation with conda.
 conda env create -f environment.yml
 ```
 
-## Author
+## Usage
 
-Frederike Dümbgen
+After installation above, to regenerate all results from the paper, run 
+```
+conda activate constraint_learning 
+make results_generate
+```
+
+Alternatively, to inspect and plot existing results, run
+```
+make results_plot
+```
+
+## Contributors
+
+- Frederike Dümbgen
+- Connor Holmes
+- Ben Agro

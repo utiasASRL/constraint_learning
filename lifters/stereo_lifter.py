@@ -155,7 +155,7 @@ class StereoLifter(StateLifter, ABC):
                 elif self.level == "uuT":
                     x_data += list(np.outer(u, u).flatten())
                 elif self.level == "urT":
-                    # this works:
+                    # this works
                     x_data += list(np.outer(u, r).flatten())
                 elif self.level == "uxT":
                     x = np.r_[r, C.flatten("C")]
