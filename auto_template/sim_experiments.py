@@ -402,8 +402,16 @@ def apply_autotemplate_base(
                     # extract the templates from constraints
                     print(f"=========== get templates: {name} ===============")
                     t1 = time.time()
-                    new_learner.scale_templates(learner, new_order, data_dict)
+                    if new_order is not None:
+                        new_learner.templates = learner.get_sufficient_templates(
+                            new_order, new_lifter
+                        )
+                    else:
+                        new_learner.templates = learner.templates
 
+                    # apply the templates, to generate constraints
+                    new_learner.templates_known = new_learner.get_known_templates()
+                    new_learner.apply_templates()
                     data_dict["t create constraints"] = time.time() - t1
                     data_dict["n templates"] = len(new_learner.templates)
                     data_dict["n constraints"] = len(new_learner.constraints)
