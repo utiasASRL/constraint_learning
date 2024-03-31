@@ -33,7 +33,7 @@ SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v3"
+RESULTS_DIR = "_results_v4"
 
 
 def load_experiment(dataset):
@@ -56,9 +56,16 @@ def plot_poses(df_all, fname_root=""):
             landmarks = exp.all_landmarks[["x", "y", "z"]].values
         except IndexError:
             landmarks = exp.all_landmarks
-
         fig = plt.figure()
         ax = plt.axes(projection="3d")
+        scale = abs(np.min(landmarks) - np.max(landmarks))
+        default_kwargs = dict(
+            axislabel=False,
+            originsize=scale,  # default is 20
+            style="line",
+            ax=ax,
+        )
+
         ax.scatter(
             landmarks[:, 0],
             landmarks[:, 1],
@@ -72,18 +79,18 @@ def plot_poses(df_all, fname_root=""):
                 # plot global
                 T_c0 = get_T(theta=row["global theta"], d=3)
                 pose = sm.SE3(T_c0)
-                pose = pose.inv()
+                pose = pose.inv()  # T_0c
                 pose.plot(
                     color=["r", "g", "b"],
-                    length=0.1,
-                    ax=ax,
-                    axislabel=False,
                     origincolor="green",
+                    length=scale * 0.02,
+                    **default_kwargs,
                 )
 
-            T_c0 = get_T(theta=row["gt theta"], d=3)
+            T_c0 = get_T(theta=row["gt theta"], d=3)  # T_0c
             pose = sm.SE3(T_c0)
             pose = pose.inv()
+            ax.scatter(*pose.t, color="k", s=1)
             coordinates.append(pose.t[None, :])
 
             # plot local
@@ -98,12 +105,10 @@ def plot_poses(df_all, fname_root=""):
                     pose = sm.SE3(T_c0)
                     pose = pose.inv()
                     pose.plot(
-                        ax=ax,
-                        color=["r", "g", "b"],
-                        alpha=0.5,
-                        length=0.1,
-                        axislabel=False,
+                        color=["#ce7a69", "#84c464", "#6482c4"],  # pastel colors
                         origincolor="red",
+                        length=scale * 0.01,
+                        **default_kwargs,
                     )
 
         coordinates = np.vstack(coordinates)
@@ -112,24 +117,56 @@ def plot_poses(df_all, fname_root=""):
             coordinates[:, 0],
             coordinates[:, 1],
             coordinates[:, 2],
-            marker=".",
             color="k",
+            ls="-",
+            alpha=0.5,
         )
-
         fig.set_size_inches(10, 10)
+        ax.view_init(elev=20.0, azim=-45)
+        ax.set_xlim(np.min(landmarks), np.max(landmarks))
+        ax.set_ylim(np.min(landmarks), np.max(landmarks))
+        ax.set_zlim(np.min(landmarks), np.max(landmarks))
+        lims = {
+            "eight_s3": {
+                "xlim": [-3, 0],
+                "ylim": [-3, 0],
+                "zlim": [1, 4],
+            },
+            "loop-2d_s4": {
+                "xlim": [-2, 2],
+                "ylim": [-2, 2],
+                "zlim": [0, 4],
+            },
+            "starrynight": {
+                "xlim": [1, 4],
+                "ylim": [1, 4],
+                "zlim": [0, 3],
+            },
+            "zigzag_s3": {
+                "xlim": [-4, 1],
+                "ylim": [-2, 3],
+                "zlim": [0, 5],
+            },
+        }
+        default = [np.min(landmarks), np.max(landmarks)]
+        ax.set_xlim(*lims.get(dataset, {}).get("xlim", default))
+        ax.set_ylim(*lims.get(dataset, {}).get("ylim", default))
+        ax.set_zlim(*lims.get(dataset, {}).get("zlim", default))
         origin = np.eye(4)
-        centroid = np.min(landmarks, axis=0)
+        # centroid = np.min(landmarks, axis=0)
+        # centroid = np.mean(landmarks, axis=0)
+        centroid = [ax.get_xlim()[0], ax.get_ylim()[0], ax.get_zlim()[0]]
         origin[:3, 3] = centroid
         pose = sm.SE3(origin)
         pose.plot(
             ax=ax,
             color="k",
-            length=0.3,
+            length=1.0,
             axislabel=True,
             axislabels=["x", "y", "z"],
             origincolor="k",
         )
-        ax.view_init(elev=20.0, azim=-45)
+
         ax.axis("off")
         savefig(fig, f"{fname_root}_{dataset}_all.pdf")
     return
@@ -181,6 +218,8 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
 
+    plot_poses(df, fname_root=fname_root)
+
     # cost below is found empirically
     plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)
 
@@ -198,11 +237,10 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
         thresh=TOL_RANK_ONE,
         datasets=datasets,
     )
-    plot_poses(df, fname_root=fname_root)
     create_rmse_table(df, fname_root=fname_root)
     plt.show()
 
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=100, stride=1, recompute=True, results_dir=RESULTS_DIR)
+    run_all(n_successful=100, stride=1, recompute=False, results_dir=RESULTS_DIR)

@@ -7,4 +7,4 @@ results_generate:
 	python _scripts/generate_all_results.py --overwrite --directory="_results_v3"
 
 results_generate_continue:
-	python _scripts/generate_all_results.py --directory="_results_v3"
+	python _scripts/generate_all_results.py --directory="_results_v4"

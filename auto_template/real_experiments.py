@@ -152,6 +152,11 @@ class Experiment(object):
         self.dataset = dataset
         self.data_type = data_type
 
+        # an additional transform from measurements to ground truth frame.
+        # only used for starrynight dataset currently
+        self.T_cv = None
+        self.T_vc = None
+
         if dataset == "starrynight":
             from scipy.io import loadmat
 
@@ -159,6 +164,21 @@ class Experiment(object):
             self.data = loadmat(matfile)
 
             self.all_landmarks = self.data["rho_i_pj_i"].T  # 20 x 3, all landmarks
+
+            C_cv = self.data["C_c_v"]
+            rho_v_cv = self.data["rho_v_c_v"]
+            self.T_cv = np.vstack(
+                [
+                    np.hstack([C_cv, -C_cv @ rho_v_cv]),  # C_cv, rho_c_vc
+                    [0, 0, 0, 1],
+                ]
+            )
+            self.T_vc = np.vstack(
+                [
+                    np.hstack([C_cv.T, rho_v_cv]),  # C_vc, rho_v_cv
+                    [0, 0, 0, 1],
+                ]
+            )
 
             # fmt: off
             self.M_matrix = np.r_[
@@ -334,14 +354,14 @@ class Experiment(object):
             r_cv_v = self.data["rho_v_c_v"].flatten()
 
             C_c0 = C_cv @ C_v0
-            r_0c_c = -C_c0 @ r_v0_0 - C_cv @ r_cv_v
+            r_0c_c = -C_c0 @ r_v0_0 - C_cv @ r_cv_v  # r_0v_c + r_vc_c
 
             y = self.data["y_k_j"][:, time_idx, :].T  # 20 x 4
 
             valid_idx = np.all(y >= 0, axis=1)
             self.landmarks = self.all_landmarks[valid_idx, :]
             self.y_ = y[valid_idx, :]
-            self.theta = get_theta_from_C_r(C_c0, r_0c_c)
+            self.theta = get_theta_from_C_r(C_c0, r_0c_c)  # corresponds to T_c0
 
         else:
             # for reproducibility
