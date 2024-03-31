@@ -17,6 +17,7 @@ import pandas as pd
 
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
+    PLOT_LIMITS,
     Experiment,
     create_rmse_table,
     plot_local_vs_global,
@@ -27,15 +28,15 @@ from utils.plotting_tools import savefig
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 
-MAX_N_LANDMARKS = 8
 MIN_N_LANDMARKS = 4
+N_LANDMARKS_LIST = [4, 5, 6]
 
 USE_GT = False
 SIM_NOISE = 0.1
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v3"
+RESULTS_DIR = "_results_v4"
 
 
 def plot_positions(df_all, fname_root=""):
@@ -77,9 +78,14 @@ def plot_positions(df_all, fname_root=""):
                         ax.scatter(theta[:, 0], theta[:, 1], theta[:, 2], color="red")
 
             fig.set_size_inches(10, 10)
+
+            default = [np.min(landmarks), np.max(landmarks)]
+            ax.set_xlim(*PLOT_LIMITS.get(dataset, {}).get("xlim", default))
+            ax.set_ylim(*PLOT_LIMITS.get(dataset, {}).get("ylim", default))
+            ax.set_zlim(*PLOT_LIMITS.get(dataset, {}).get("zlim", default))
             origin = np.eye(4)
-            centroid = np.min(landmarks, axis=0)
-            origin[:2, 3] = centroid[:2]
+            centroid = [ax.get_xlim()[0], ax.get_ylim()[0], ax.get_zlim()[0]]
+            origin[:3, 3] = centroid
             pose = sm.SE3(origin)
             pose.plot(
                 ax=ax,
@@ -91,8 +97,9 @@ def plot_positions(df_all, fname_root=""):
             )
             ax.view_init(elev=20.0, azim=-45)
             ax.axis("off")
-            fig.suptitle(f"{chosen_idx}")
             savefig(fig, f"{fname_root}_{dataset}_{chosen_idx}_{max_n_landmarks}.pdf")
+    # ce7a69
+
     return
 
 
@@ -101,13 +108,14 @@ def run_all(
 ):
     level = "quad"
 
-    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3"]
     df_list = []
+
+    datasets = ["loop-2d_s4", "eight_s3", "zigzag_s3"]
 
     fname_root = f"{results_dir}/ro"
     for dataset in datasets:
         exp = Experiment(DATASET_ROOT, dataset, data_type="uwb", from_id=1)
-        for max_n_landmarks in [4, 5, 6]:
+        for max_n_landmarks in N_LANDMARKS_LIST:
             if USE_GT:
                 fname = f"{fname_root}_{dataset}_{level}_{n_successful}_{max_n_landmarks}_gt.pkl"
             else:
@@ -132,6 +140,7 @@ def run_all(
                     stride=20,
                     plot_poses=plot_poses,
                     results_dir=results_dir,
+                    start_idx=10,
                 )
                 # df_all.to_pickle(fname)
             if df_all is not None:
@@ -149,6 +158,8 @@ def run_all(
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
 
+    plot_positions(df, fname_root=fname_root)
+
     plot_local_vs_global(df, fname_root=fname_root)
 
     plot_results(
@@ -165,12 +176,10 @@ def run_all(
         thresh=TOL_REL_GAP,
         datasets=datasets,
     )
-
-    plot_positions(df, fname_root=fname_root)
     create_rmse_table(df, fname_root=fname_root)
     plt.show()
 
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=100, plot_poses=False, recompute=True)
+    run_all(n_successful=100, plot_poses=False, recompute=False)

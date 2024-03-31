@@ -15,6 +15,7 @@ import spatialmath as sm
 
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
+    PLOT_LIMITS,
     Experiment,
     create_rmse_table,
     plot_local_vs_global,
@@ -123,35 +124,10 @@ def plot_poses(df_all, fname_root=""):
         )
         fig.set_size_inches(10, 10)
         ax.view_init(elev=20.0, azim=-45)
-        ax.set_xlim(np.min(landmarks), np.max(landmarks))
-        ax.set_ylim(np.min(landmarks), np.max(landmarks))
-        ax.set_zlim(np.min(landmarks), np.max(landmarks))
-        lims = {
-            "eight_s3": {
-                "xlim": [-3, 0],
-                "ylim": [-3, 0],
-                "zlim": [1, 4],
-            },
-            "loop-2d_s4": {
-                "xlim": [-2, 2],
-                "ylim": [-2, 2],
-                "zlim": [0, 4],
-            },
-            "starrynight": {
-                "xlim": [1, 4],
-                "ylim": [1, 4],
-                "zlim": [0, 3],
-            },
-            "zigzag_s3": {
-                "xlim": [-4, 1],
-                "ylim": [-2, 3],
-                "zlim": [0, 5],
-            },
-        }
         default = [np.min(landmarks), np.max(landmarks)]
-        ax.set_xlim(*lims.get(dataset, {}).get("xlim", default))
-        ax.set_ylim(*lims.get(dataset, {}).get("ylim", default))
-        ax.set_zlim(*lims.get(dataset, {}).get("zlim", default))
+        ax.set_xlim(*PLOT_LIMITS.get(dataset, {}).get("xlim", default))
+        ax.set_ylim(*PLOT_LIMITS.get(dataset, {}).get("ylim", default))
+        ax.set_zlim(*PLOT_LIMITS.get(dataset, {}).get("zlim", default))
         origin = np.eye(4)
         # centroid = np.min(landmarks, axis=0)
         # centroid = np.mean(landmarks, axis=0)

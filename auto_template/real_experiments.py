@@ -37,6 +37,29 @@ DEGENERATE_DICT = {
 ANCHOR_CHOICE = "all"
 EXCLUDE_ANCHORS = [6, 7]
 
+PLOT_LIMITS = {
+    "eight_s3": {
+        "xlim": [-3, 0],
+        "ylim": [-3, 0],
+        "zlim": [1, 4],
+    },
+    "loop-2d_s4": {
+        "xlim": [-2, 2],
+        "ylim": [-2, 2],
+        "zlim": [0, 4],
+    },
+    "starrynight": {
+        "xlim": [1, 4],
+        "ylim": [1, 4],
+        "zlim": [0, 3],
+    },
+    "zigzag_s3": {
+        "xlim": [-4, 1],
+        "ylim": [-2, 3],
+        "zlim": [0, 5],
+    },
+}
+
 
 def plot_local_vs_global(df, fname_root="", cost_thresh=None):
     fig, ax = plt.subplots()
@@ -671,6 +694,7 @@ def run_experiments(
     stride=1,
     plot_poses=False,
     results_dir=RESULTS_DIR,
+    start_idx=0,
 ):
     df_list = []
     counter = 0
@@ -678,7 +702,7 @@ def run_experiments(
         fig, ax = plt.subplots()
 
     chosen_idx = 0
-    for time_idx in np.arange(0, 1900, step=stride):
+    for time_idx in np.arange(start_idx, 1900, step=stride):
         try:
             # choose which anchors are going to be used (for RO only)
             np.random.seed(time_idx)
