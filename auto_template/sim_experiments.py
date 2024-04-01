@@ -365,6 +365,10 @@ def apply_autotemplate_base(
         learner = pickle.load(f)
         order_dict = pickle.load(f)
 
+    save_autotight_order(
+        learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
+    )
+
     fname = fname_root + "_templates.pkl"
     try:
         assert not recompute, "forcing to recompute"

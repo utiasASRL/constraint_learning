@@ -13,7 +13,7 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import FIGSIZE, add_lines, plot_matrix, savefig
 
-RESULTS_DIR = "_results_v4"
+RESULTS_DIR = "_results_server_v3"
 
 
 def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
@@ -107,6 +107,7 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
 
     fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
 
+    df = df.loc[~((df.N == 30) & (df["type"] == "basic"))]
     fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
     [ax.set_ylim(2, 8000) for ax in axs]
