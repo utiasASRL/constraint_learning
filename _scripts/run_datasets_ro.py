@@ -40,8 +40,8 @@ RESULTS_DIR = "_results_v4"
 
 
 def plot_positions(df_all, fname_root=""):
-    for (max_n_landmarks, dataset), df in df_all.groupby(
-        ["max_n_landmarks", "dataset"], sort=False
+    for (n_landmarks, dataset), df in df_all.groupby(
+        ["n landmarks", "dataset"], sort=False
     ):
         exp = Experiment(DATASET_ROOT, dataset, data_type="uwb", from_id=1)
         for chosen_idx, df_sub in df.groupby("chosen idx"):
@@ -67,7 +67,7 @@ def plot_positions(df_all, fname_root=""):
             ax.plot(theta[:, 0], theta[:, 1], theta[:, 2], color="k")
 
             theta = np.vstack(df_sub["global theta"].values)
-            ax.plot(theta[:, 0], theta[:, 1], theta[:, 2], color="green")
+            ax.scatter(theta[:, 0], theta[:, 1], theta[:, 2], color="green")
 
             for i in range(10):
                 label = f"local solution {i}"
@@ -97,9 +97,19 @@ def plot_positions(df_all, fname_root=""):
             )
             ax.view_init(elev=20.0, azim=-45)
             ax.axis("off")
-            savefig(fig, f"{fname_root}_{dataset}_{chosen_idx}_{max_n_landmarks}.pdf")
+            savefig(fig, f"{fname_root}_{dataset}_{n_landmarks}.pdf")
     # ce7a69
 
+    return
+
+
+def plot_success_rate(df_all, fname_root):
+    import seaborn as sns
+
+    fig, ax = plt.subplots()
+    fig.set_size_inches(3, 3)
+    sns.lineplot(df_all, x="n landmarks", y="success rate", ax=ax, hue="dataset")
+    savefig(fig, f"{fname_root}_success.pdf")
     return
 
 
@@ -145,7 +155,6 @@ def run_all(
                 # df_all.to_pickle(fname)
             if df_all is not None:
                 df_all["dataset"] = dataset
-                df_all["max_n_landmarks"] = max_n_landmarks
                 df_list.append(df_all)
 
     fname_root = f"{results_dir}/ro_{level}"
@@ -157,6 +166,14 @@ def run_all(
     constraint_type = "sorted"
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
+    df["success rate"] = df["n global"] / (
+        df["n global"] + df["n fail"] + df["n local"]
+    )
+    create_rmse_table(df, fname_root=fname_root, add_n_landmarks=False)
+    plot_success_rate(df, fname_root=fname_root)
+
+    df_here = df[df.dataset == "loop-2d_s4"]
+    create_rmse_table(df_here, fname_root=fname_root, add_n_landmarks=True)
 
     plot_positions(df, fname_root=fname_root)
 
@@ -176,7 +193,7 @@ def run_all(
         thresh=TOL_REL_GAP,
         datasets=datasets,
     )
-    create_rmse_table(df, fname_root=fname_root)
+
     plt.show()
 
 

@@ -193,6 +193,9 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     constraint_type = "sorted"
     df = df[df.type == constraint_type]
     df["RDG"] = df["RDG"].abs()
+    df["success rate"] = df["n global"] / (
+        df["n global"] + df["n fail"] + df["n local"]
+    )
 
     plot_poses(df, fname_root=fname_root)
 

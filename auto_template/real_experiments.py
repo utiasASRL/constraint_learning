@@ -16,7 +16,7 @@ from starloc.reader import read_calib, read_data, read_landmarks
 from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
 
-REJECT_OUTLIERS = True
+REJECT_OUTLIERS = False
 OUTLIER_THRESHOLD = 0.5
 
 # how many single pose estimates to plot
@@ -156,9 +156,6 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_orde
 
     fig, ax = plt.subplots()
     fig.set_size_inches(5, 5)
-    df["success rate"] = df["n global"] / (
-        df["n global"] + df["n fail"] + df["n local"]
-    )
     sns.boxplot(
         data=df,
         x="dataset",
@@ -319,6 +316,9 @@ class Experiment(object):
         self.landmark_ids = list(landmarks.id.values)
         print(f"using landmark ids: {self.landmark_ids}")
         n_landmarks = self.landmarks.shape[0]
+        if n_landmarks != self.params["max_n_landmarks"]:
+            print("Warning: less landmarks than requested.")
+            return False
 
         # y_ is of shape n_positions * n_landmarks
         self.y_ = np.zeros((n_positions, n_landmarks))
@@ -337,7 +337,7 @@ class Experiment(object):
 
                 self.W_[position_idx, landmark_idx] = 1.0
                 self.y_[position_idx, landmark_idx] = row[RANGE_TYPE] ** 2
-        return chosen_idx
+        return True
 
     def get_stereo_measurements(self, time_idx=0):
         """
@@ -471,12 +471,14 @@ class Experiment(object):
             combine_measurements = True
             n_positions = 1
 
-            self.get_range_measurements(
+            success = self.get_range_measurements(
                 time_idx=time_idx,
                 n_positions=n_positions,
                 combine_measurements=combine_measurements,
                 chosen_idx=chosen_idx,
             )
+            if not success:
+                return None
 
             new_lifter = RangeOnlyLocLifter(
                 d=3,
@@ -611,7 +613,7 @@ def run_real_experiment(
     return df
 
 
-def create_rmse_table(df, fname_root):
+def create_rmse_table(df, fname_root, add_n_landmarks=False):
     # use only once local solution per row (the best one)
     df.reset_index(inplace=True)
     for i, row in df.iterrows():
@@ -660,10 +662,13 @@ def create_rmse_table(df, fname_root):
             # "local solution cert",
             # "global solution cert",
         ]
+    index = ["dataset", "time index"]
+    columns = ["n landmarks"] if add_n_landmarks else []
     pt = pd.pivot_table(
         data=df,
         values=values,
-        index=["dataset", "time index"],
+        index=index,
+        columns=columns,
         sort=False,
     )
     pt.rename(
@@ -681,7 +686,10 @@ def create_rmse_table(df, fname_root):
     print(error_table)
     # s = error_table.style.highlight_min(props="itshape:; bfseries:;", axis=1)
     s = error_table.style
-    out_name = fname_root + "_error_table.tex"
+    if add_n_landmarks:
+        out_name = fname_root + f"_error_table_landmarks.tex"
+    else:
+        out_name = fname_root + f"_error_table.tex"
     with open(out_name, "w"):
         s.to_latex(out_name)
     print(f"saved as {out_name}")
@@ -766,6 +774,7 @@ def run_experiments(
         df_here["time index"] = time_idx
         df_here["chosen idx"] = chosen_idx
         df_here["n landmarks"] = new_lifter.n_landmarks
+        df_here["landmarks"] = str(sorted(exp.landmark_ids))
         df_list.append(df_here)
 
         if counter % 10 == 0:
