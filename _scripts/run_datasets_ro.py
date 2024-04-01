@@ -23,7 +23,7 @@ from utils.plotting_real import (
 )
 from utils.plotting_tools import add_scalebar, plot_frame, savefig
 
-matplotlib.use("TkAgg")  # non-interactive
+# matplotlib.use("Agg")  # non-interactive
 
 
 DATASET_ROOT = str(Path(__file__).parent.parent)

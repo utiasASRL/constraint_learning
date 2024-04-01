@@ -12,6 +12,8 @@ from utils.plotting_tools import add_scalebar, plot_frame, savefig
 
 DATASET_ROOT = str(Path(__file__).parent.parent)
 
+HUE_ORDER = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
+
 PLOT_LIMITS = {
     "eight_s3": {
         "xlim": [-3, 0],
@@ -86,7 +88,7 @@ def plot_local_vs_global(df, fname_root="", cost_thresh=None):
 
     for key, style_dict in style.items():
         ax.scatter([], [], **style_dict, label=key)
-    ax.legend()
+    ax.legend(loc="lower right")
     ax.set_xscale("log")
     ax.set_yscale("log")
     ax.set_xlabel("maximum residual")
@@ -97,10 +99,7 @@ def plot_local_vs_global(df, fname_root="", cost_thresh=None):
     return fig, ax
 
 
-hue_order = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-
-
-def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_order):
+def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=HUE_ORDER):
     label_names = {"max res": "maximum residual"}
     kwargs = {"edgecolor": "none"}
     for x in ["max res"]:  # ["total error", "cond Hess", "max res", "q"]:
@@ -120,7 +119,10 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_orde
         # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
         if thresh is not None:
             ax.axhline(thresh, color="k", ls=":", label="tightness threshold")
-        ax.legend(framealpha=1.0)
+        if ylabel == "RDG":
+            ax.legend(framealpha=1.0, loc="lower left")
+        else:
+            ax.legend(framealpha=1.0, loc="upper left")
         ax.set_yscale("log")
         ax.set_xscale("log")
         ax.set_ylabel(ylabel)
@@ -128,17 +130,6 @@ def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_orde
         ax.grid()
         if fname_root != "":
             savefig(fig, f"{fname_root}_{x.replace(' ', '_')}_{ylabel}.pdf")
-
-    fig, ax = plt.subplots()
-    fig.set_size_inches(5, 5)
-    sns.boxplot(
-        data=df,
-        x="dataset",
-        y="success rate",
-        ax=ax,
-    )
-    # if fname_root != "":
-    #    savefig(fig, f"{fname_root}_successrate.pdf")
 
 
 def plot_ground_truth(df_all, fname_root="", rangeonly=False):
@@ -221,7 +212,7 @@ def plot_positions(df_all, fname_root=""):
                         theta = np.vstack(values)
                         ax.scatter(theta[:, 0], theta[:, 1], theta[:, 2], color="red")
 
-            fig.set_size_inches(10, 10)
+            fig.set_size_inches(5, 5)
 
             default = [np.min(landmarks), np.max(landmarks)]
             ax.set_xlim(*PLOT_LIMITS.get(dataset, {}).get("xlim", default))
@@ -248,11 +239,23 @@ def plot_positions(df_all, fname_root=""):
 
 
 def plot_success_rate(df_all, fname_root):
+    import matplotlib.ticker as mtick
     import seaborn as sns
 
     fig, ax = plt.subplots()
-    fig.set_size_inches(3, 3)
+    fig.set_size_inches(2, 3)
     sns.lineplot(df_all, x="n landmarks", y="success rate", ax=ax, hue="dataset")
+    ax.set_xlabel("$N_m$")
+    ax.set_ylabel("success rate")
+    ax.spines["right"].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.yaxis.set_major_formatter(mtick.PercentFormatter(1.0, decimals=0))
+    ax.set_ylim([0.5, 1.0])
+    ax.set_yticks([0.5, 0.75, 1.0])
+    ax.legend(title="", loc="lower right")
+    ax.grid()
+    ax.set_xlim([4, 6])
+    # ax.set_title("success rate", y=1.05)
     savefig(fig, f"{fname_root}_success.pdf")
     return
 
@@ -265,6 +268,7 @@ def plot_poses(df_all, fname_root=""):
         except IndexError:
             landmarks = exp.all_landmarks
         fig = plt.figure()
+        fig.set_size_inches(8, 8)
         ax = plt.axes(projection="3d")
         scale = abs(np.min(landmarks) - np.max(landmarks))
         default_kwargs = dict(
@@ -291,7 +295,7 @@ def plot_poses(df_all, fname_root=""):
                 pose.plot(
                     color=["r", "g", "b"],
                     origincolor="green",
-                    length=scale * 0.02,
+                    length=scale * 0.03,
                     **default_kwargs,
                 )
 
@@ -315,7 +319,7 @@ def plot_poses(df_all, fname_root=""):
                     pose.plot(
                         color=["#ce7a69", "#84c464", "#6482c4"],  # pastel colors
                         origincolor="red",
-                        length=scale * 0.01,
+                        length=scale * 0.015,
                         **default_kwargs,
                     )
 
@@ -329,7 +333,6 @@ def plot_poses(df_all, fname_root=""):
             ls="-",
             alpha=0.5,
         )
-        fig.set_size_inches(10, 10)
         ax.view_init(elev=20.0, azim=-45)
         default = [np.min(landmarks), np.max(landmarks)]
         ax.set_xlim(*PLOT_LIMITS.get(dataset, {}).get("xlim", default))
