@@ -11,7 +11,7 @@ from auto_template.sim_experiments import (
 from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.plotting_tools import plot_matrix, savefig
+from utils.plotting_tools import FIGSIZE, add_lines, plot_matrix, savefig
 
 RESULTS_DIR = "_results_v4"
 
@@ -111,8 +111,10 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
     [ax.set_ylim(2, 8000) for ax in axs]
 
-    fig.set_size_inches(4, 3)
-    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
+    axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+
+    add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min(), facs=[3])
+    add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min(), facs=[3])
     savefig(fig, fname_root + f"_t.pdf")
 
 

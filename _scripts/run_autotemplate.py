@@ -14,7 +14,12 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v4"
+RESULTS_DIR = "_results_server_v3"
+
+LIFTERS_NO = [
+    (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
+    (Stereo3DLifter, dict(n_landmarks=4, param_level="no", level="no")),
+]
 
 LIFTERS = [
     (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
@@ -40,10 +45,6 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
-        if not success:
-            raise RuntimeError(
-                f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
-            )
 
         t1 = time.time()
         idx_subset_reorder = learner.generate_minimal_subset(
@@ -52,8 +53,6 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
             tightness=learner.lifter.TIGHTNESS,
         )
         t_suff = time.time() - t1
-        if idx_subset_reorder is None:
-            print(f"{lifter}: did not find valid lamdas tightness.")
 
         idx_subset_original = learner.generate_minimal_subset(
             reorder=False,
@@ -64,6 +63,10 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         save_autotight_order(
             learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
         )
+
+        if not success:
+            print(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
+            continue
 
         for d in dict_list:
             d["lifter"] = str(lifter)
@@ -84,6 +87,11 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
+    # Run lifters that are not tight
+    np.random.seed(0)
+    generate_results(LIFTERS_NO, results_dir=results_dir)
+
+    # Run lifter that are tight
     np.random.seed(0)
     fname = f"{results_dir}/all_df_new.pkl"
     try:

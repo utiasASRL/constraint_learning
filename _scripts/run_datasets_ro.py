@@ -93,6 +93,8 @@ def run_all(recompute=RECOMPUTE, n_successful=100, results_dir=RESULTS_DIR):
         df["n global"] + df["n fail"] + df["n local"]
     )
 
+    plot_positions(df, fname_root=fname_root)
+
     plot_ground_truth(df, fname_root=fname_root, rangeonly=True)
 
     create_rmse_table(df, fname_root=fname_root, add_n_landmarks=False)
@@ -100,8 +102,6 @@ def run_all(recompute=RECOMPUTE, n_successful=100, results_dir=RESULTS_DIR):
 
     df_here = df[df.dataset == "loop-2d_s4"]
     create_rmse_table(df_here, fname_root=fname_root, add_n_landmarks=True)
-
-    plot_positions(df, fname_root=fname_root)
 
     plot_local_vs_global(df, fname_root=fname_root)
 

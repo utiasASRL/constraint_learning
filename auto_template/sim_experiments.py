@@ -106,7 +106,7 @@ def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
     dict_ = PLOT_DICT[start]
     var_name = dict_["var_name"]
 
-    df_plot = df  # df[df.type != "original"]
+    df_plot = df[df.type != "original"]
 
     df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.replace(
@@ -157,6 +157,11 @@ def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
         title = YLABELS[key]
         ax.set_title(title, visible=True)
         ax.set_yscale("log")
+
+    fig.set_size_inches(2 * FIGSIZE, 3)
+    [ax.grid() for ax in axs]
+    [ax.set_xscale("log") for ax in axs]
+    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     return fig, axs
 
 

@@ -199,7 +199,15 @@ def plot_positions(df_all, fname_root=""):
             )
 
             theta = np.vstack(df_sub["gt theta"].values)
-            ax.plot(theta[:, 0], theta[:, 1], theta[:, 2], color="k")
+            ax.plot(
+                theta[:, 0],
+                theta[:, 1],
+                theta[:, 2],
+                color="k",
+                alpha=0.5,
+                marker=".",
+                markersize=1,
+            )
 
             theta = np.vstack(df_sub["global theta"].values)
             ax.scatter(theta[:, 0], theta[:, 1], theta[:, 2], color="green")
@@ -243,7 +251,7 @@ def plot_success_rate(df_all, fname_root):
     import seaborn as sns
 
     fig, ax = plt.subplots()
-    fig.set_size_inches(2, 3)
+    fig.set_size_inches(2, 4)
     sns.lineplot(df_all, x="n landmarks", y="success rate", ax=ax, hue="dataset")
     ax.set_xlabel("$N_m$")
     ax.set_ylabel("success rate")
@@ -253,8 +261,9 @@ def plot_success_rate(df_all, fname_root):
     ax.set_ylim([0.5, 1.0])
     ax.set_yticks([0.5, 0.75, 1.0])
     ax.legend(title="", loc="lower right")
+    # , ncols=len(df_all["dataset"].unique()) // 2)
     ax.grid()
-    ax.set_xlim([4, 6])
+    ax.set_xlim([df_all["n landmarks"].min(), df_all["n landmarks"].max()])
     # ax.set_title("success rate", y=1.05)
     savefig(fig, f"{fname_root}_success.pdf")
     return

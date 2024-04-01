@@ -7,7 +7,7 @@ from auto_template.sim_experiments import (
     plot_autotemplate_time,
 )
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from utils.plotting_tools import savefig
+from utils.plotting_tools import FIGSIZE, add_lines, savefig
 
 n_positions = 3
 n_landmarks = 10
@@ -84,12 +84,10 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
         fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
 
-        # [ax.set_ylim(10, 1000) for ax in axs.values()]
+        axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+        add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min())
+        add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min())
 
-        fig.set_size_inches(4, 3)
-        axs[-1].legend(
-            loc="upper right", fontsize=10, framealpha=1.0
-        )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
 
