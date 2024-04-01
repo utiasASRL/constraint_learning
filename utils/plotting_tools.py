@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from poly_matrix.poly_matrix import PolyMatrix
+from utils.geometry import get_C_r_from_theta
 
 
 def import_plt():
@@ -23,6 +24,8 @@ def import_plt():
 
 
 plt = import_plt()
+
+FIGSIZE = 4
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True, size=None):
@@ -100,8 +103,7 @@ def savefig(fig, name, verbose=True):
 
 
 def plot_frame(
-    lifter,
-    ax,
+    ax=None,
     theta=None,
     color="k",
     marker="+",
@@ -111,24 +113,27 @@ def plot_frame(
     alpha=0.5,
     **kwargs,
 ):
-    p_gt = lifter.get_position(theta=theta)
     try:
-        C_cw = lifter.get_C_cw(theta=theta)
+        C_cw, r_wc_c = get_C_r_from_theta(theta, d=3)
+        p_gt = -C_cw.T @ r_wc_c
+    except:
+        C_cw = None
+        p_gt = theta
+
+    if C_cw is not None:
         for i, col in enumerate(["r", "g", "b"]):
             z_gt = C_cw[i, :]
             length = scale / np.linalg.norm(z_gt)
             ax.plot(
-                [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
-                [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
+                [p_gt[0], p_gt[0] + length * z_gt[0]],
+                [p_gt[1], p_gt[1] + length * z_gt[1]],
                 color=col,
                 ls=ls,
                 alpha=alpha,
                 zorder=-1,
             )
-    except Exception as e:
-        pass
     ax.scatter(
-        *p_gt[:, :2].T,
+        *p_gt[:2].T,
         color=color,
         marker=marker,
         label=label,

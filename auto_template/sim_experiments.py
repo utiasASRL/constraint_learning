@@ -12,7 +12,7 @@ from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from lifters.wahba_lifter import WahbaLifter
-from utils.plotting_tools import savefig
+from utils.plotting_tools import FIGSIZE, savefig
 
 COMPUTE_ONESHOT = True
 PLOT_DICT = {
@@ -31,25 +31,25 @@ YLABELS = {
     "t create constraints": "create constraints",
     "zoom": "",
 }
+USE_ORDERS = ["sorted", "basic"]
 
 RESULTS_FOLDER = "_results_new"
 EARLY_STOP = False
 LIMITS = {
     Stereo3DLifter: {
-        # "basic": 25,
-        # "original": 25,  # not required on server
+        "basic": 25,
         "oneshot": 15,
     },
     Stereo2DLifter: {
         "oneshot": 20,
     },
     MonoLifter: {
-        "oneshot": 11,  # TODO(FD) can be 11 on server
+        "oneshot": 11,
     },
     WahbaLifter: {
-        "oneshot": 11,  # TODO(FD) can be 11 on server
+        "oneshot": 11,
     },
-    RangeOnlyLocLifter: {"oneshot": 15},  # TODO(only for level quad, normally)
+    RangeOnlyLocLifter: {"oneshot": 15},
 }
 
 
@@ -106,7 +106,7 @@ def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
     dict_ = PLOT_DICT[start]
     var_name = dict_["var_name"]
 
-    df_plot = df[df.type != "original"]
+    df_plot = df  # df[df.type != "original"]
 
     df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.replace(
@@ -193,7 +193,7 @@ def plot_autotemplate(df, log=True, start="t "):
 
 
 def save_autotight_order(
-    learner: Learner, fname_root="", use_bisection=False, figsize=4
+    learner: Learner, fname_root="", use_bisection=False, figsize=FIGSIZE
 ):
     from matplotlib.ticker import MaxNLocator
 
@@ -360,10 +360,6 @@ def apply_autotemplate_base(
         learner = pickle.load(f)
         order_dict = pickle.load(f)
 
-    save_autotight_order(
-        learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
-    )
-
     fname = fname_root + "_templates.pkl"
     try:
         assert not recompute, "forcing to recompute"
@@ -373,7 +369,12 @@ def apply_autotemplate_base(
     except (AssertionError, FileNotFoundError):
         max_seeds = n_seeds + 5
         df_data = []
+
+        order_dict["basic"] = None
         for name, new_order in order_dict.items():
+            if name not in USE_ORDERS:
+                continue
+
             data_dict = {}
             for n_params in param_list:
                 n_successful_seeds = 0
@@ -506,7 +507,7 @@ def apply_autotight_base(
     fname_root,
     plots,
 ):
-    learner.run(verbose=True, plot=True)
+    learner.run(verbose=False, plot=True)
 
     if "svd" in plots:
         fig = plt.gcf()
@@ -525,11 +526,14 @@ def apply_autotight_base(
         save_autotight_order(
             learner,
             fname_root,
-            figsize=4,
             use_bisection=learner.lifter.TIGHTNESS == "cost",
         )
 
-    if "matrices" in plots:
+    save_individual = False
+    if "matrix" in plots:
+        save_individual = True
+
+    if "matrices" in plots or "matrix" in plots:
         A_matrices = []
         from poly_matrix import PolyMatrix
 
@@ -541,9 +545,6 @@ def apply_autotight_base(
             # if "x:0" in c.A_poly_.adjacency_i:
             A_matrices.append(c.A_poly_)
 
-        save_individual = False
-        if "matrix" in plots:
-            save_individual = True
         fig, ax = learner.save_matrices_poly(
             A_matrices=A_matrices,
             n_matrices=5,

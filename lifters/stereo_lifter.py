@@ -45,6 +45,7 @@ class StereoLifter(StateLifter, ABC):
         ["h", "x", "z_0"],
         ["h", "z_0", "z_1"],  # should achieve tightness here
     ]
+    EPS_SVD = 1e-6
 
     def __init__(
         self, n_landmarks, d, level="no", param_level="no", variable_list=None

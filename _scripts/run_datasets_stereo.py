@@ -15,17 +15,20 @@ import spatialmath as sm
 
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
-    PLOT_LIMITS,
     Experiment,
     create_rmse_table,
-    plot_local_vs_global,
-    plot_results,
+    load_experiment,
     run_experiments,
 )
 from utils.geometry import get_T
+from utils.plotting_real import (
+    plot_ground_truth,
+    plot_local_vs_global,
+    plot_poses,
+    plot_results,
+)
 from utils.plotting_tools import savefig
 
-DATASET_ROOT = str(Path(__file__).parent.parent)
 MAX_N_LANDMARKS = 8
 MIN_N_LANDMARKS = 4
 
@@ -37,118 +40,7 @@ RECOMPUTE = True
 RESULTS_DIR = "_results_v4"
 
 
-def load_experiment(dataset):
-    if dataset == "starrynight":
-        exp = Experiment(
-            dataset_root=DATASET_ROOT, dataset="starrynight", data_type="stereo"
-        )
-    else:
-        data_type = "apriltag_cal_individual"
-        exp = Experiment(
-            dataset_root=DATASET_ROOT, dataset=dataset, data_type=data_type
-        )
-    return exp
-
-
-def plot_poses(df_all, fname_root=""):
-    for dataset, df in df_all.groupby("dataset"):
-        exp = load_experiment(dataset)
-        try:
-            landmarks = exp.all_landmarks[["x", "y", "z"]].values
-        except IndexError:
-            landmarks = exp.all_landmarks
-        fig = plt.figure()
-        ax = plt.axes(projection="3d")
-        scale = abs(np.min(landmarks) - np.max(landmarks))
-        default_kwargs = dict(
-            axislabel=False,
-            originsize=scale,  # default is 20
-            style="line",
-            ax=ax,
-        )
-
-        ax.scatter(
-            landmarks[:, 0],
-            landmarks[:, 1],
-            landmarks[:, 2],
-            marker="x",
-            color="k",
-        )
-        coordinates = []
-        for i, row in df.iterrows():
-            if ("global theta" in row) and np.ndim(row["global theta"]):
-                # plot global
-                T_c0 = get_T(theta=row["global theta"], d=3)
-                pose = sm.SE3(T_c0)
-                pose = pose.inv()  # T_0c
-                pose.plot(
-                    color=["r", "g", "b"],
-                    origincolor="green",
-                    length=scale * 0.02,
-                    **default_kwargs,
-                )
-
-            T_c0 = get_T(theta=row["gt theta"], d=3)  # T_0c
-            pose = sm.SE3(T_c0)
-            pose = pose.inv()
-            ax.scatter(*pose.t, color="k", s=1)
-            coordinates.append(pose.t[None, :])
-
-            # plot local
-            local_solution_labels = row.filter(
-                regex="local solution [0-9]",
-            )
-            for l in local_solution_labels.index:
-                if np.ndim(row[l]) > 0:
-                    T_c0 = get_T(theta=row[l], d=3)
-                    # project to orthogonal matrices.
-                    T_c0 = project_so3(T_c0)
-                    pose = sm.SE3(T_c0)
-                    pose = pose.inv()
-                    pose.plot(
-                        color=["#ce7a69", "#84c464", "#6482c4"],  # pastel colors
-                        origincolor="red",
-                        length=scale * 0.01,
-                        **default_kwargs,
-                    )
-
-        coordinates = np.vstack(coordinates)
-        # plot ground truth
-        ax.plot(
-            coordinates[:, 0],
-            coordinates[:, 1],
-            coordinates[:, 2],
-            color="k",
-            ls="-",
-            alpha=0.5,
-        )
-        fig.set_size_inches(10, 10)
-        ax.view_init(elev=20.0, azim=-45)
-        default = [np.min(landmarks), np.max(landmarks)]
-        ax.set_xlim(*PLOT_LIMITS.get(dataset, {}).get("xlim", default))
-        ax.set_ylim(*PLOT_LIMITS.get(dataset, {}).get("ylim", default))
-        ax.set_zlim(*PLOT_LIMITS.get(dataset, {}).get("zlim", default))
-        origin = np.eye(4)
-        # centroid = np.min(landmarks, axis=0)
-        # centroid = np.mean(landmarks, axis=0)
-        centroid = [ax.get_xlim()[0], ax.get_ylim()[0], ax.get_zlim()[0]]
-        origin[:3, 3] = centroid
-        pose = sm.SE3(origin)
-        pose.plot(
-            ax=ax,
-            color="k",
-            length=1.0,
-            axislabel=True,
-            axislabels=["x", "y", "z"],
-            origincolor="k",
-        )
-
-        ax.axis("off")
-        savefig(fig, f"{fname_root}_{dataset}_all.pdf")
-    return
-
-
-def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_DIR):
+def run_all(recompute=RECOMPUTE, n_successful=10, results_dir=RESULTS_DIR):
     df_list = []
 
     fname_root = f"{results_dir}/stereo"
@@ -176,7 +68,6 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
                 exp,
                 out_name=fname,
                 n_successful=n_successful,
-                stride=stride,
                 results_dir=results_dir,
             )
 
@@ -196,6 +87,8 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
     df["success rate"] = df["n global"] / (
         df["n global"] + df["n fail"] + df["n local"]
     )
+
+    plot_ground_truth(df, fname_root=fname_root)
 
     plot_poses(df, fname_root=fname_root)
 
@@ -222,4 +115,4 @@ def run_all(recompute=RECOMPUTE, n_successful=10, stride=1, results_dir=RESULTS_
 
 if __name__ == "__main__":
     # run many and plot distributions
-    run_all(n_successful=100, stride=1, recompute=False, results_dir=RESULTS_DIR)
+    run_all(n_successful=100, recompute=False)

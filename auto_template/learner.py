@@ -585,6 +585,7 @@ class Learner(object):
                     plot_singular_values(S, eps=self.lifter.EPS_SVD, ax=ax, label=None)
 
             if len(bad_idx) > 0:
+                print(f"there are {len(bad_idx)} bad indices")
                 Y = np.delete(Y, bad_idx, axis=0)
             else:
                 break
@@ -955,9 +956,9 @@ class Learner(object):
             for lbl in ax.get_xticklabels():
                 lbl = lbl.get_text()
                 if "_" in lbl:  # avoid double subscript
-                    new_lbl = f"${lbl.replace('l-', '').replace(':', '^')}$"
+                    new_lbl = f"${lbl.replace('h-', '').replace(':', '^')}$"
                 else:
-                    new_lbl = f"${lbl.replace('l-', '').replace(':', '_')}$"
+                    new_lbl = f"${lbl.replace('h-', '').replace(':', '_')}$"
                 new_xticks.append(new_lbl)
             ax.set_xticklabels(new_xticks, fontsize=7)
 

@@ -7,9 +7,9 @@ from auto_template.sim_experiments import (
     plot_autotemplate_time,
 )
 from lifters.mono_lifter import MonoLifter
-from utils.plotting_tools import savefig
+from utils.plotting_tools import FIGSIZE, savefig
 
-RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server_v3"
 # RESULTS_DIR = "_results_server"
 
 
@@ -25,7 +25,7 @@ def apply_autotight(
     Find the set of minimal constraints required for autotight for range-only problem.
     """
     seed = 0
-    plots = ["tightness"]
+    plots = ["templates", "templates-full"]
     if robust:
         levels = ["xwT"]
     else:
@@ -98,7 +98,7 @@ def apply_autotemplate(
     fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs]
 
-    fig.set_size_inches(4, 3)
+    fig.set_size_inches(2 * FIGSIZE, FIGSIZE)
     axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     savefig(fig, fname_root + f"_t.pdf")
 
@@ -197,6 +197,6 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True)
+    run_all(n_seeds=1, recompute=True, autotemplate=True, autotight=False)
     # run_mono(n_seeds=1, recompute=True)
     # run_wahba(n_seeds=1, recompute=True)

@@ -2,11 +2,11 @@ import os
 import pickle
 import time
 from copy import deepcopy
+from pathlib import Path
 
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
-import seaborn as sns
 from pylgmath.so3.operations import hat
 
 from auto_template.learner import Learner
@@ -37,133 +37,20 @@ DEGENERATE_DICT = {
 ANCHOR_CHOICE = "all"
 EXCLUDE_ANCHORS = [6, 7]
 
-PLOT_LIMITS = {
-    "eight_s3": {
-        "xlim": [-3, 0],
-        "ylim": [-3, 0],
-        "zlim": [1, 4],
-    },
-    "loop-2d_s4": {
-        "xlim": [-2, 2],
-        "ylim": [-2, 2],
-        "zlim": [0, 4],
-    },
-    "starrynight": {
-        "xlim": [1, 4],
-        "ylim": [1, 4],
-        "zlim": [0, 3],
-    },
-    "zigzag_s3": {
-        "xlim": [-4, 1],
-        "ylim": [-2, 3],
-        "zlim": [0, 5],
-    },
-}
+DATASET_ROOT = str(Path(__file__).parent.parent)
 
 
-def plot_local_vs_global(df, fname_root="", cost_thresh=None):
-    fig, ax = plt.subplots()
-    fig.set_size_inches(5, 5)
-    style = {
-        "tp": {"color": "C0", "marker": "o"},
-        "tn": {"color": "C1", "marker": "x"},
-        "fn": {"color": "C2", "marker": "s"},
-    }
-    for i, row in df.iterrows():
-        # for ro, we don't have a certificate (it's always true because rank-1)
-        type_ = None
-        if row.get("global solution cert", True):  # solution is certified
-            if cost_thresh and row.qcqp_cost < cost_thresh:  # it is global minimum
-                type_ = "tp"
-            elif cost_thresh and row.qcqp_cost >= cost_thresh:  # it is local minimum
-                raise ValueError("false positive detected")
-            else:
-                type_ = "tp"
-        else:  # non-certified
-            if cost_thresh and row.qcqp_cost < cost_thresh:  # it is a global minimum
-                type_ = "fn"
-            elif cost_thresh and row.qcqp_cst >= cost_thresh:
-                type_ = "tn"
-            else:
-                type_ = "tn"
-
-        ax.scatter(row["max res"], row.qcqp_cost, **style[type_])
-        for key in row.index:
-            if key.startswith("local solution") and not ("cert" in key):
-                idx = int(key.split("local solution ")[-1])
-                cert = row.get(f"local solution {idx} cert", False)
-                cost = row[f"local cost {idx}"]
-                if not np.isnan(cert) and cert:  # certified
-                    if cost_thresh and cost < cost_thresh:
-                        type_ = "tp"
-                    elif cost_thresh and cost > cost_thresh:
-                        raise ValueError("false positive detected")
-                    else:
-                        type_ = "tp"
-                else:
-                    if cost_thresh and cost < cost_thresh:
-                        type_ = "fn"
-                    elif cost_thresh and cost > cost_thresh:
-                        type_ = "tn"
-                    else:
-                        type_ = "tn"
-                ax.scatter(row["max res"], cost, **style[type_])
-
-    for key, style_dict in style.items():
-        ax.scatter([], [], **style_dict, label=key)
-    ax.legend()
-    ax.set_xscale("log")
-    ax.set_yscale("log")
-    ax.set_xlabel("maximum residual")
-    ax.set_ylabel("cost")
-    ax.grid()
-    if fname_root != "":
-        savefig(fig, fname_root + "_local_vs_global.pdf")
-    return fig, ax
-
-
-hue_order = ["loop-2d_s4", "eight_s3", "zigzag_s3", "starrynight"]
-
-
-def plot_results(df, ylabel="RDG", fname_root="", thresh=None, datasets=hue_order):
-    label_names = {"max res": "maximum residual"}
-    kwargs = {"edgecolor": "none"}
-    for x in ["max res"]:  # ["total error", "cond Hess", "max res", "q"]:
-        fig, ax = plt.subplots()
-        fig.set_size_inches(5, 5)
-        sns.scatterplot(
-            data=df,
-            x=x,
-            y=ylabel,
-            ax=ax,
-            hue="dataset",
-            hue_order=datasets,
-            style="dataset",
-            style_order=datasets,
-            **kwargs,
+def load_experiment(dataset):
+    if dataset == "starrynight":
+        exp = Experiment(
+            dataset_root=DATASET_ROOT, dataset="starrynight", data_type="stereo"
         )
-        # ax.legend(loc="upper left", bbox_to_anchor=[1.0, 1.0])
-        if thresh is not None:
-            ax.axhline(thresh, color="k", ls=":", label="tightness threshold")
-        ax.legend(framealpha=1.0)
-        ax.set_yscale("log")
-        ax.set_xscale("log")
-        ax.set_ylabel(ylabel)
-        ax.set_xlabel(label_names.get(x, x))
-        ax.grid()
-        if fname_root != "":
-            savefig(fig, f"{fname_root}_{x.replace(' ', '_')}_{ylabel}.pdf")
-
-    fig, ax = plt.subplots()
-    fig.set_size_inches(5, 5)
-    sns.boxplot(
-        data=df,
-        x="dataset",
-        y="success rate",
-        ax=ax,
-    )
-    # if fname_root != "":
-    #    savefig(fig, f"{fname_root}_successrate.pdf")
+    else:
+        data_type = "apriltag_cal_individual"
+        exp = Experiment(
+            dataset_root=DATASET_ROOT, dataset=dataset, data_type=data_type
+        )
+    return exp
 
 
 class Experiment(object):
@@ -383,6 +270,7 @@ class Experiment(object):
 
             valid_idx = np.all(y >= 0, axis=1)
             self.landmarks = self.all_landmarks[valid_idx, :]
+            self.landmark_ids = []  # unused
             self.y_ = y[valid_idx, :]
             self.theta = get_theta_from_C_r(C_c0, r_0c_c)  # corresponds to T_c0
 
@@ -448,6 +336,7 @@ class Experiment(object):
             elif n_landmarks > self.params["max_n_landmarks"]:
                 self.landmarks = self.landmarks[: self.params["max_n_landmarks"]]
                 self.y_ = self.y_[: self.params["max_n_landmarks"], :]
+            self.landmark_ids = []
 
             new_lifter = Stereo3DLifter(
                 n_landmarks=self.landmarks.shape[0],
@@ -577,7 +466,6 @@ def run_real_experiment(
                 cost = data_dict["global cost"]
 
                 plot_frame(
-                    new_learner.lifter,
                     ax,
                     theta=that,
                     color="k",
@@ -700,14 +588,11 @@ def run_experiments(
     n_successful=100,
     out_name="",
     stride=1,
-    plot_poses=False,
     results_dir=RESULTS_DIR,
     start_idx=0,
 ):
     df_list = []
     counter = 0
-    if plot_poses:
-        fig, ax = plt.subplots()
 
     chosen_idx = 0
     for time_idx in np.arange(start_idx, 1900, step=stride):
@@ -734,27 +619,6 @@ def run_experiments(
             print(f"skipping {time_idx} because not enough valid landmarks")
             continue
 
-        if plot_poses:
-            ax.scatter(*new_lifter.landmarks[:, :2].T, color="k", marker="+")
-            if "starrynight" in out_name:
-                plot_frame(
-                    new_lifter,
-                    ax,
-                    theta=new_lifter.theta,
-                    color="blue",
-                    marker="o",
-                    scale=0.1,
-                )
-            else:
-                plot_frame(
-                    new_lifter,
-                    ax,
-                    theta=new_lifter.theta,
-                    color="blue",
-                    marker="o",
-                    scale=1.0,
-                )
-
         counter += 1
         if counter >= n_successful:
             break
@@ -774,7 +638,8 @@ def run_experiments(
         df_here["time index"] = time_idx
         df_here["chosen idx"] = chosen_idx
         df_here["n landmarks"] = new_lifter.n_landmarks
-        df_here["landmarks"] = str(sorted(exp.landmark_ids))
+        if exp.data_type == "uwb":
+            df_here["landmarks"] = str(sorted(exp.landmark_ids))
         df_list.append(df_here)
 
         if counter % 10 == 0:
@@ -783,25 +648,6 @@ def run_experiments(
                 df.to_pickle(out_name)
                 print(f"===== saved intermediate as {out_name} ==========")
             print(df)
-
-    if plot_poses:
-        from utils.plotting_tools import add_scalebar
-
-        fig.set_size_inches(5, 5)
-        ax.set_xlabel("x [m]")
-        ax.set_ylabel("y [m]")
-        if "starrynight" not in out_name:
-            ax.set_xlim([-6.2, 4.1])
-            ax.set_ylim([-6.2, 4.1])
-            size = np.diff(ax.get_ylim())[0]
-            add_scalebar(
-                ax, size=1, size_vertical=1 / size, loc="lower right", fontsize=40
-            )
-        else:
-            ax.axis("equal")
-            add_scalebar(ax, size=1, size_vertical=0.03, loc="lower right", fontsize=40)
-        ax.axis("off")
-        savefig(fig, out_name.split(".")[0] + "_poses.pdf")
 
     df = pd.concat(df_list)
     if out_name != "":

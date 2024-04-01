@@ -5,6 +5,7 @@ import numpy as np
 import pandas as pd
 
 from auto_template.learner import Learner
+from auto_template.sim_experiments import save_autotight_order
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -13,9 +14,8 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v3"
+RESULTS_DIR = "_results_v4"
 
-ADD_ORIGINAL = True
 LIFTERS = [
     (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
     (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
@@ -33,7 +33,8 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
     for Lifter, dict in lifters:
         np.random.seed(seed)
         lifter = Lifter(**dict)
-        fname = f"{results_dir}/autotemplate_{lifter}.pkl"
+        fname_root = f"{results_dir}/autotemplate_{lifter}"
+        fname = f"{fname_root}.pkl"
 
         print(f"\n\n ======================== {lifter} ==========================")
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
@@ -54,14 +55,16 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         if idx_subset_reorder is None:
             print(f"{lifter}: did not find valid lamdas tightness.")
 
-        if ADD_ORIGINAL:
-            idx_subset_original = learner.generate_minimal_subset(
-                reorder=False,
-                use_bisection=learner.lifter.TIGHTNESS == "cost",
-                tightness=learner.lifter.TIGHTNESS,
-            )
-        else:
-            idx_subset_original = None
+        idx_subset_original = learner.generate_minimal_subset(
+            reorder=False,
+            use_bisection=learner.lifter.TIGHTNESS == "cost",
+            tightness=learner.lifter.TIGHTNESS,
+        )
+
+        save_autotight_order(
+            learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
+        )
+
         for d in dict_list:
             d["lifter"] = str(lifter)
             d["t find sufficient"] = t_suff

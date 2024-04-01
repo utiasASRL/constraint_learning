@@ -13,7 +13,7 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import plot_matrix, savefig
 
-RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_v4"
 
 
 def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
@@ -32,22 +32,13 @@ def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
         np.random.seed(seed)
 
         variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
-        if d == 2:
-            plots = ["tightness", "matrix", "templates", "svd"]
-            lifter = Stereo2DLifter(
-                n_landmarks=n_landmarks,
-                level=level,
-                param_level=param_level,
-                variable_list=variable_list,
-            )
-        elif d == 3:
-            plots = ["tightness"]
-            lifter = Stereo3DLifter(
-                n_landmarks=n_landmarks,
-                level=level,
-                param_level=param_level,
-                variable_list=variable_list,
-            )
+        plots = ["matrix", "templates", "svd"]
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks,
+            level=level,
+            param_level=param_level,
+            variable_list=variable_list,
+        )
 
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
@@ -128,8 +119,11 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
 def run_all(
     n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
+    if autotight:
+        print("========== Stereo2D autotight ===========")
+        apply_autotight(d=2, results_dir=results_dir)
     if autotemplate:
-        # print("========== Stereo2D autotemplate ===========")
+        print("========== Stereo2D autotemplate ===========")
         apply_autotemplate(
             d=2, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
         )
@@ -137,11 +131,6 @@ def run_all(
         apply_autotemplate(
             d=3, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
         )
-    if autotight:
-        print("========== Stereo2D autotight ===========")
-        apply_autotight(d=2, results_dir=results_dir)
-        print("========== Stereo3D autotight ===========")
-        apply_autotight(d=3, results_dir=results_dir)
 
 
 def run_stereo_1d():
