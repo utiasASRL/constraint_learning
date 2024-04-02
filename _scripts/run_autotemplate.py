@@ -88,11 +88,11 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     # Run lifters that are not tight
-    np.random.seed(0)
-    generate_results(LIFTERS_NO, results_dir=results_dir)
+    if recompute:
+        np.random.seed(0)
+        generate_results(LIFTERS_NO, results_dir=results_dir)
 
     # Run lifter that are tight
-    np.random.seed(0)
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
@@ -105,6 +105,7 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
+        np.random.seed(0)
         df = generate_results(LIFTERS, results_dir=results_dir)
         df.to_pickle(fname)
 
@@ -127,23 +128,40 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     fname = f"{results_dir}/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
-            out(
-                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
+            header = (
+                [
+                    f"Problem & Dimension $n$ per iteration",
+                    "\\# Constraints",
+                    "\\# Reduced",
+                ]
+                + [f"{t} [s]" for t in times.values()]
+                + [
+                    "total [s]",
+                    "RDG",
+                    "SVR",
+                ]
             )
+            out(" & ".join(header) + "\\\\ \n")
             out("\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
                 out(lifter_names[lifter] + " & ")
                 out(str(df_sub["n dims"].values) + " & ")
-                out(str(df_sub["n nullspace"].values) + " & ")
+                # out(str(df_sub["n nullspace"].values) + " & ")
                 out(str(df_sub["n constraints"].values[-1]) + " & ")
                 out(str(df_sub["n required"].values[-1]) + " & ")
                 for t in times.keys():
                     out(f"{df_sub[t].sum():.2f} &")
                 out(f"{df_sub[times.keys()].sum().sum():.2f} & ")
-                out(f"{abs(df_sub['RDG'].values[-1]):.2e} & ")
-                out(f"{df_sub['SVR'].values[-1]:.2e} \\\\ \n")
+                rdg = abs(df_sub["RDG"].values[-1])
+                svr = df_sub["SVR"].values[-1]
+                if svr > 1e7:
+                    out(f"{rdg:.2e} & ")
+                    out(f"\\textbf{{{svr:.2e}}} \\\\ \n")
+                else:
+                    out(f"\\textbf{{{rdg:.2e}}} & ")
+                    out(f"{svr:.2e} \\\\ \n")
     print("\nwrote above in", fname)
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(recompute=False)
