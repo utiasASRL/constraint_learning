@@ -140,11 +140,11 @@ def _cost(phi, p_w, y, W, M):
     return np.sum(u.transpose((0, 2, 1)) @ W @ u, axis=0)[0, 0]
 
 
-def local_solver(p_w, y, init_phi, W, max_iters=500, min_update_norm=1e-10, log=False):
+def local_solver(p_w, y, init_phi, W, max_iters=500, gtol=1e-6, log=False):
     from scipy.optimize import minimize
 
     res = minimize(
-        _cost, x0=init_phi, args=(p_w, y, W, M), method="Nelder-Mead", tol=1e-10
+        _cost, x0=init_phi, args=(p_w, y, W, M), method="Nelder-Mead", tol=gtol
     )
     return res.success, res.x, res.fun
 

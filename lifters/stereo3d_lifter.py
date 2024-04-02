@@ -13,6 +13,9 @@ def change_dimensions(a, y):
     return p_w[:, :, None], y_mat[:, :, None]
 
 
+GTOL = 1e-6
+
+
 class Stereo3DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no", param_level="no", variable_list=None):
         self.W = np.stack([np.eye(4)] * n_landmarks)
@@ -110,6 +113,7 @@ class Stereo3DLifter(StereoLifter):
             W=W,
             M=self.M_matrix,
             log=False,
+            gtol=GTOL,
             min_update_norm=-1,  # makes this inactive
         )
 

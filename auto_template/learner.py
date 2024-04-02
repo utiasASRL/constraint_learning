@@ -796,7 +796,7 @@ class Learner(object):
                 data_dict["t apply templates"] = ttot
             else:
                 self.constraints = []
-                for temp in self.templates:
+                for temp in self.templates_known + self.templates:
                     con = deepcopy(temp)
                     con.template_idx = temp.index
                     self.constraints.append(con)

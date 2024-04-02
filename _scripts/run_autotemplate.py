@@ -45,6 +45,7 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
+        learner.constraints = learner.templates
 
         t1 = time.time()
         idx_subset_reorder = learner.generate_minimal_subset(

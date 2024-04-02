@@ -220,12 +220,12 @@ def save_autotight_order(
         fig_eigs.set_size_inches(figsize, figsize)
 
         try:
-            cost_idx = df[df.cost_tight == True].index[0]
+            cost_idx = df[df.cost_tight == True].index.min()
         except IndexError:
             cost_idx = None
 
         try:
-            rank_idx = df[df.rank_tight == True].index[0]
+            rank_idx = df[df.rank_tight == True].index.min()
         except IndexError:
             rank_idx = None
 
@@ -235,14 +235,14 @@ def save_autotight_order(
         n_min = df_valid.iloc[0].name
         n_max = df_valid.iloc[-1].name
         # choose the index before tightness for plotting
-        if rank_idx:
+        if rank_idx and not np.isnan(rank_idx):
             try:
-                n_mid = df[df.rank_tight == False].index[-1]
+                n_mid = df[df.rank_tight == False].index.max()
             except IndexError:
                 n_mid = None
-        elif cost_idx:
+        elif cost_idx and not np.isnan(cost_idx):
             try:
-                n_mid = df[df.cost_tight == False].index[-1]
+                n_mid = df[df.cost_tight == False].index.max()
             except IndexError:
                 n_mid = None
         else:
@@ -251,8 +251,9 @@ def save_autotight_order(
             n_mid = None
         ls = ["--", "-.", ":"]
         for n, ls in zip([n_min, n_mid, n_max], ls):
-            if n is None:
+            if n is None or np.isnan(n):
                 continue
+
             eig = df.loc[n].eigs
             if not np.any(np.isfinite(eig)):
                 continue

@@ -21,14 +21,13 @@ def apply_autotight(results_dir=RESULTS_DIR):
     Find the set of minimal constraints required for tightness for range-only problem.
     """
     seed = 0
-    # plots = []
     plots = [
         "svd",
         "matrices",
         "matrix",
-        "tightness",
+        # "tightness",
         "templates",
-    ]  # ["svd", "matrices"]
+    ]
 
     for level in ["no", "quad"]:
         np.random.seed(seed)
@@ -44,6 +43,7 @@ def apply_autotight(results_dir=RESULTS_DIR):
             variable_list=lifter.variable_list,
             apply_templates=False,
             n_inits=1,
+            use_known=False,
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
         apply_autotight_base(
@@ -102,4 +102,4 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True, autotight=False, autotemplate=True)
+    run_all(n_seeds=1, recompute=True, autotight=True, autotemplate=False)

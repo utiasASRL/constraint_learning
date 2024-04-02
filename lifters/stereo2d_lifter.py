@@ -10,6 +10,9 @@ def change_dimensions(a, y, x):
     return p_w[:, :, None], y_mat[:, :, None], x[:, None]
 
 
+GTOL = 1e-6
+
+
 class Stereo2DLifter(StereoLifter):
     def __init__(self, n_landmarks, level="no", param_level="no", variable_list=None):
         self.W = np.stack([np.eye(2)] * n_landmarks)
@@ -52,7 +55,7 @@ class Stereo2DLifter(StereoLifter):
         init_phi = convert_theta_to_phi(t_init)
         p_w, y, __ = change_dimensions(a, y, init_phi)
         success, phi_hat, cost = local_solver(
-            p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose
+            p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose, gtol=GTOL
         )
         if NORMALIZE:
             cost /= self.n_landmarks * self.d
