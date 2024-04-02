@@ -27,32 +27,31 @@ def apply_autotight(
     seed = 0
     plots = ["templates", "templates-full"]
     if robust:
-        levels = ["xwT"]
+        level = "xwT"
     else:
-        levels = ["no"]
+        level = "no"
 
-    for level in levels:
-        np.random.seed(seed)
-        lifter = Lifter(
-            n_landmarks=n_landmarks,
-            d=d,
-            level=level,
-            variable_list="all",
-            robust=robust,
-            n_outliers=n_outliers if robust else 0,
-        )
-        learner = Learner(
-            lifter=lifter,
-            variable_list=lifter.variable_list,
-            apply_templates=False,
-            n_inits=1,
-        )
-        fname_root = f"{results_dir}/{lifter}_seed{seed}"
-        apply_autotight_base(
-            learner,
-            fname_root,
-            plots,
-        )
+    np.random.seed(seed)
+    lifter = Lifter(
+        n_landmarks=n_landmarks,
+        d=d,
+        level=level,
+        variable_list="all",
+        robust=robust,
+        n_outliers=n_outliers if robust else 0,
+    )
+    learner = Learner(
+        lifter=lifter,
+        variable_list=lifter.variable_list,
+        apply_templates=False,
+        n_inits=1,
+    )
+    fname_root = f"{results_dir}/{lifter}_seed{seed}"
+    apply_autotight_base(
+        learner,
+        fname_root,
+        plots,
+    )
 
 
 def apply_autotemplate(

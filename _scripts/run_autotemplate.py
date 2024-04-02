@@ -14,7 +14,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_server_v3"
 
 LIFTERS_NO = [
     (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),

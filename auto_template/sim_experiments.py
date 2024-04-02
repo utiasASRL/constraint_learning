@@ -219,16 +219,35 @@ def save_autotight_order(
         fig_eigs, ax_eigs = plt.subplots()
         fig_eigs.set_size_inches(figsize, figsize)
 
-        cost_idx = df[df.cost_tight == True].index.min()
-        rank_idx = df[df.rank_tight == True].index.min()
+        try:
+            cost_idx = df[df.cost_tight == True].index[0]
+        except IndexError:
+            cost_idx = None
+
+        try:
+            rank_idx = df[df.rank_tight == True].index[0]
+        except IndexError:
+            rank_idx = None
 
         df.sort_index(inplace=True)
 
         df_valid = df[~df["dual cost"].isna()]
         n_min = df_valid.iloc[0].name
         n_max = df_valid.iloc[-1].name
-        n_mid = df_valid.iloc[len(df_valid) // 2].name
-        if n_mid == n_max:
+        # choose the index before tightness for plotting
+        if rank_idx:
+            try:
+                n_mid = df[df.rank_tight == False].index[-1]
+            except IndexError:
+                n_mid = None
+        elif cost_idx:
+            try:
+                n_mid = df[df.cost_tight == False].index[-1]
+            except IndexError:
+                n_mid = None
+        else:
+            n_mid = df_valid.iloc[len(df_valid) // 2].name
+        if n_mid in [n_max, n_min]:
             n_mid = None
         ls = ["--", "-.", ":"]
         for n, ls in zip([n_min, n_mid, n_max], ls):
@@ -243,7 +262,7 @@ def save_autotight_order(
             color = "gray"
             ax_eigs.semilogy(eig, ls=ls, label=label, color=color)
 
-        if cost_idx == rank_idx:
+        if cost_idx and (cost_idx == rank_idx):
             n = cost_idx
             eig = df.loc[n].eigs
             label = f"{n} (C+R)"
@@ -251,7 +270,9 @@ def save_autotight_order(
             ax_eigs.semilogy(eig, ls="-", label=label, color=color)
         else:
             for n in [cost_idx, rank_idx]:
-                if not np.isfinite(n):
+                if n is None:
+                    continue
+                elif not np.isfinite(n):
                     continue
                 elif n == cost_idx:
                     label = f"{n} (C)"

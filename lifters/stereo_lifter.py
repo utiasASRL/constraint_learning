@@ -178,23 +178,25 @@ class StereoLifter(StateLifter, ABC):
 
         Let u be the substitution variable, which has d-1 elements.
         Then we want to enforce that:
-        -u_xj = 1/zj * xj -> u_xj = u_zj * xj = u_zj * [cx @ pj + tx]
-        -u_yj = 1/zj * yj -> u_yj = u_zj * yj = u_zj * [cy @ pj + ty]
-        -u_zj = 1/zj -> u_zj * zj = 1
+        u_xj = 1/zj * xj -> u_xj * zj = xj  ->  (cz @ pj + tz) * u_xj - (cx @ pj + tx) = 0
+        u_yj = 1/zj * yj -> u_yj * zj = yj  -> same as above
+        u_zj = 1/zj -> u_zj * zj = 1  -> u_zj * (cz @ pj + tz) -1 = 0
         Writing things as homogeneous constraints:
-        a1) u_xj - u_zj * [cx @ pj + tx] = 0   u_zj * cx @ pj + u_zj * tx  -  h * u_xj = 0
-        a2) u_yj - u_zj * [cy @ pj + ty] = 0   ----- 1 -----    --- 2 ---     -- 3 --
-        a3) u_zj * [cz @ pj + tz] = 1          u_zj * cz @ pj + u_zj * tz - 1 = 0
-                                               ----- 1 -----    --- 2 ---
+        a1) cz @ pj * u_xj + tz*u_xj - cx @ pj - h * tx = 0
+        a2) -----1x-------   --2x---   -- 3 --   --4---
+        a3) cz @ pj * u_zj + tz*u_zj  - h*h = 0
+           ------1z-------   --2z---
         """
         # x contains: [c1, c2, c3, t]
         # z contains: [u_xj, u_yj, u_zj, H.O.T.]
         if self.d == 2:
             x = self.get_x()
-            _, tx, ty, cx1, cx2, cy1, cy2, u_x1, u_z1, *_ = x
-            p1 = self.landmarks[0]
-            assert abs(u_z1 * (cx1 * p1[0] + cx2 * p1[1]) + u_z1 * tx - u_x1) < 1e-10
-            assert abs(u_z1 * (cy1 * p1[0] + cy2 * p1[1]) + u_z1 * ty - 1) < 1e-10
+            _, tx, tz, cx1, cx2, cz1, cz2, u_xj, u_zj, *_ = x
+            cz = np.array([cz1, cz2])
+            cx = np.array([cx1, cx2])
+            pj = self.landmarks[0]
+            assert abs(cz @ pj * u_xj + tz * u_xj - cx @ pj - tx) < 1e-10
+            assert abs(u_zj * cz @ pj + u_zj * tz - 1) < 1e-10
         elif self.d == 3:
             x = self.get_x()
             # fmt: off
@@ -217,6 +219,9 @@ class StereoLifter(StateLifter, ABC):
         if var_dict is None:
             var_dict = self.var_dict
 
+        print("Not using known stereo templates because they depend on the landmarks.")
+        return []
+
         A_known = []
         z_dim = self.get_level_dims()[self.level]
 
@@ -228,27 +233,36 @@ class StereoLifter(StateLifter, ABC):
             pj = self.landmarks[j]
             for i in range(self.d):
                 A = PolyMatrix()
-                # --- 1 ---
+                #     -----1i-------   --2i---   -- 3 --   --4---
+                # a1) cz @ pj * u_xj + tz*u_xj - cx @ pj - h * tx = 0
+                # a2) cz @ pj * u_yj + tz*u_yj - cy @ pj - h * ty = 0
+                # a3) cz @ pj * u_zj + tz*u_zj  - h*h = 0
+                #     ------1i-------   --2i---
+                # --- 1i ---
                 fill_mat = np.zeros((self.d + self.d**2, self.d + z_dim))
-                # chooses ci of x, and u_zj of z
-                fill_mat[(i + 1) * self.d : (i + 2) * self.d, self.d - 1] = pj
+                # chooses cz of x, and u_xj, u_yj or u_zj of z
+                fill_mat[-self.d :, i] = pj
 
-                # --- 2 ---
-                # chooses ti of x, and u_zj of z
-                fill_mat[i, self.d - 1] = 1.0
+                # --- 2 --- u_zj * tx
+                # chooses tz of x, and u_ij of z
+                fill_mat[self.d - 1, i] = 1.0
                 A[f"x", f"z_{j}"] = fill_mat
 
-                # --- 3 ---
-                fill_mat = np.zeros((1, self.d + z_dim))
                 if i < self.d - 1:  # u, (v)
-                    fill_mat[0, i] = -1
-                    A["h", f"z_{j}"] = fill_mat
+                    fill_mat = np.zeros((self.d + self.d**2, 1))
+                    # chooses ci of x
+                    fill_mat[(i + 1) * self.d : (i + 2) * self.d, 0] = -pj
+
+                    # chooses ti of x
+                    fill_mat[i, 0] = -1
+                    A["x", "h"] = fill_mat
                 elif i == self.d - 1:  # z
-                    A["h", "h"] = -2.0
+                    A["h", "h"] = -0  # 2.0
                 if output_poly:
                     A_known.append(A)
                 else:
                     A_known.append(A.get_matrix(var_dict))
+        self.test_constraints(A_known)
         return A_known
 
     def sample_theta(self):

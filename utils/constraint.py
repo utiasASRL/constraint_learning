@@ -105,7 +105,6 @@ class Constraint(object):
             template_idx=template_idx,
         )
 
-
     @staticmethod
     def init_from_A_poly(
         lifter: StateLifter,
@@ -114,14 +113,15 @@ class Constraint(object):
         known: bool = False,
         index: int = 0,
         template_idx: int = None,
+        compute_polyrow_b=False,
     ):
         Ai_sparse_small = A_poly.get_matrix(variables=mat_var_dict)
         ai = lifter.get_vec(Ai_sparse_small, correct=True)
         bi = lifter.augment_using_zero_padding(ai)
-        # Below takes unnecessarily long, but is currently only required for plotting.
-        # We set it to None and calculate it on demand.
-        # polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
-        polyrow_b = None
+        if compute_polyrow_b:
+            polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
+        else:
+            polyrow_b = None
         polyrow_a = lifter.convert_a_to_polyrow(ai, mat_var_dict)
         Ai_sparse = A_poly.get_matrix(variables=lifter.var_dict)
         return Constraint(
