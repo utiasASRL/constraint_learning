@@ -14,7 +14,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_server_v3"
+RESULTS_DIR = "_results"
 
 LIFTERS_NO = [
     (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
@@ -88,7 +88,7 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     # Run lifters that are not tight
-    if recompute:
+    if False:  # recompute:
         np.random.seed(0)
         generate_results(LIFTERS_NO, results_dir=results_dir)
 
@@ -164,4 +164,4 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
 
 
 if __name__ == "__main__":
-    run_all(recompute=False)
+    run_all(recompute=True)

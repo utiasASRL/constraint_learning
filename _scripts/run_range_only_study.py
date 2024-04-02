@@ -55,7 +55,7 @@ def apply_autotight(results_dir=RESULTS_DIR):
 
 def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
     n_positions_list = [10, 15, 20, 25, 30]
-    for level in ["no", "quad"]:
+    for level in ["quad"]:  # ["no", "quad"]:
         print(f"=========== RO {level} autotemplate ===========")
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -102,4 +102,4 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=False)
+    run_all(n_seeds=1, recompute=True, autotight=False, autotemplate=True)
