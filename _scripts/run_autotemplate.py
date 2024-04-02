@@ -45,7 +45,6 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
-        learner.constraints = learner.templates
 
         t1 = time.time()
         idx_subset_reorder = learner.generate_minimal_subset(
@@ -86,14 +85,10 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
     df = df.apply(pd.to_numeric, errors="ignore")
     return df
 
-
-def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
-    # Run lifters that are not tight
-    if recompute:
-        np.random.seed(0)
-        generate_results(LIFTERS_NO, results_dir=results_dir)
-
     # Run lifter that are tight
+
+
+def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
@@ -164,5 +159,15 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     print("\nwrote above in", fname)
 
 
+def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
+    # Run lifters that are not tight
+    if recompute:
+        np.random.seed(0)
+        generate_results(LIFTERS_NO, results_dir=results_dir)
+
+    run_all_tight(recompute=recompute, results_dir=results_dir)
+
+
 if __name__ == "__main__":
     run_all(recompute=True)
+    # run_all_tight(recompute=True)

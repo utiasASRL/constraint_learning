@@ -12,6 +12,8 @@ from utils.plotting_tools import FIGSIZE, add_lines, savefig
 RESULTS_DIR = "_results_server_v3"
 # RESULTS_DIR = "_results_server"
 
+ONLY_ROBUST = False
+
 
 def apply_autotight(
     Lifter=MonoLifter,
@@ -113,21 +115,22 @@ def run_wahba(
 
     print("================= Wahba study ==================")
 
-    if autotight:
+    if autotight and not ONLY_ROBUST:
         apply_autotight(
             WahbaLifter, d=d, n_landmarks=4, robust=False, results_dir=results_dir
         )
     if autotemplate:
-        apply_autotemplate(
-            WahbaLifter,
-            d=d,
-            n_landmarks=4,
-            robust=False,
-            n_outliers=0,
-            n_seeds=n_seeds,
-            recompute=recompute,
-            results_dir=results_dir,
-        )
+        if not ONLY_ROBUST:
+            apply_autotemplate(
+                WahbaLifter,
+                d=d,
+                n_landmarks=4,
+                robust=False,
+                n_outliers=0,
+                n_seeds=n_seeds,
+                recompute=recompute,
+                results_dir=results_dir,
+            )
         apply_autotemplate(
             WahbaLifter,
             d=d,
@@ -150,21 +153,22 @@ def run_mono(
 
     print("================= Mono study ==================")
 
-    if autotight:
+    if autotight and not ONLY_ROBUST:
         apply_autotight(
             MonoLifter, d=d, n_landmarks=5, robust=False, results_dir=results_dir
         )
     if autotemplate:
-        apply_autotemplate(
-            MonoLifter,
-            d=d,
-            n_landmarks=5,
-            robust=False,
-            n_outliers=0,
-            n_seeds=n_seeds,
-            recompute=recompute,
-            results_dir=results_dir,
-        )
+        if not ONLY_ROBUST:
+            apply_autotemplate(
+                MonoLifter,
+                d=d,
+                n_landmarks=5,
+                robust=False,
+                n_outliers=0,
+                n_seeds=n_seeds,
+                recompute=recompute,
+                results_dir=results_dir,
+            )
         apply_autotemplate(
             MonoLifter,
             d=d,
@@ -180,14 +184,14 @@ def run_mono(
 def run_all(
     n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
 ):
-    run_mono(
+    run_wahba(
         n_seeds,
         recompute,
         autotight=autotight,
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
-    run_wahba(
+    run_mono(
         n_seeds,
         recompute,
         autotight=autotight,
@@ -197,6 +201,6 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=False, autotemplate=True, autotight=False)
+    run_all(n_seeds=1, recompute=True, autotemplate=True, autotight=False)
     # run_mono(n_seeds=1, recompute=True)
     # run_wahba(n_seeds=1, recompute=True)

@@ -262,10 +262,17 @@ class Learner(object):
 
     def get_A_list(self, var_dict=None):
         if var_dict is None:
-            return [constraint.A_sparse_ for constraint in self.constraints]
+            A_known = []
+            if self.use_known:
+                A_known += [constraint.A_sparse_ for constraint in self.templates_known]
+            return A_known + [constraint.A_sparse_ for constraint in self.constraints]
         else:
             A_known = []
-            A_list_poly = [constraint.A_poly_ for constraint in self.constraints]
+            if self.use_known:
+                A_known += [constraint.A_poly_ for constraint in self.templates_known]
+            A_list_poly = A_known + [
+                constraint.A_poly_ for constraint in self.constraints
+            ]
             return [A.get_matrix(var_dict) for A in A_list_poly]
 
     def get_A_b_list(self):
@@ -626,7 +633,7 @@ class Learner(object):
     def apply_templates(self):
         # the new templates are all the ones corresponding to the new matrix variables.
         new_constraints = self.lifter.apply_templates(
-            self.templates + self.templates_known, self.constraint_index
+            self.templates, self.constraint_index
         )
         self.constraint_index += len(new_constraints)
         if not len(new_constraints):
@@ -792,11 +799,11 @@ class Learner(object):
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
-                data_dict["n constraints"] = n_all + 1
+                data_dict["n constraints"] = n_all + len(self.templates_known) + 1
                 data_dict["t apply templates"] = ttot
             else:
                 self.constraints = []
-                for temp in self.templates_known + self.templates:
+                for temp in self.templates:
                     con = deepcopy(temp)
                     con.template_idx = temp.index
                     self.constraints.append(con)
@@ -869,7 +876,7 @@ class Learner(object):
 
     def generate_templates_poly(self, constraints=None, factor_out_parameters=False):
         if constraints is None:
-            constraints = self.constraints
+            constraints = self.templates_known + self.constraints
 
         plot_rows = []
         plot_row_labels = []

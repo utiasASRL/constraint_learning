@@ -512,7 +512,7 @@ def apply_autotemplate_base(
                     continue
                 n_successful_seeds += 1
 
-                dict_list, success = new_learner.run(verbose=True)
+                dict_list, success = new_learner.run(verbose=False)
                 new_dict = dict_list[-1]
                 if not success:
                     raise RuntimeError(
