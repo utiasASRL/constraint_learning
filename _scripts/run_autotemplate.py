@@ -147,8 +147,8 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
                 out(lifter_names[lifter] + " & ")
                 out(str(df_sub["n dims"].values) + " & ")
                 # out(str(df_sub["n nullspace"].values) + " & ")
-                out(str(df_sub["n constraints"].values[-1]) + " & ")
-                out(str(df_sub["n required"].values[-1]) + " & ")
+                out(str(int(df_sub["n constraints"].values[-1])) + " & ")
+                out(str(int(df_sub["n required"].values[-1])) + " & ")
                 for t in times.keys():
                     out(f"{df_sub[t].sum():.2f} &")
                 out(f"{df_sub[times.keys()].sum().sum():.2f} & ")

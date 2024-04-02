@@ -228,8 +228,12 @@ def save_autotight_order(
         n_min = df_valid.iloc[0].name
         n_max = df_valid.iloc[-1].name
         n_mid = df_valid.iloc[len(df_valid) // 2].name
+        if n_mid == n_max:
+            n_mid = None
         ls = ["--", "-.", ":"]
         for n, ls in zip([n_min, n_mid, n_max], ls):
+            if n is None:
+                continue
             eig = df.loc[n].eigs
             if not np.any(np.isfinite(eig)):
                 continue

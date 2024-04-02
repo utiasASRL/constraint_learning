@@ -13,8 +13,7 @@ n_positions = 3
 n_landmarks = 10
 d = 3
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results_server_v3"
 
 
 def apply_autotight(results_dir=RESULTS_DIR):
@@ -103,4 +102,4 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True)
+    run_all(n_seeds=1, recompute=False)
