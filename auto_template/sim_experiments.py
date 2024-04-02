@@ -106,7 +106,7 @@ def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
     dict_ = PLOT_DICT[start]
     var_name = dict_["var_name"]
 
-    df_plot = df  # df[df.type != "original"]
+    df_plot = df[df.type != "original"]
 
     df_plot = df_plot.dropna(axis=1, inplace=False, how="all")
     df_plot = df_plot.replace(
@@ -157,6 +157,11 @@ def plot_autotemplate_time(df, log=True, start="t ", legend_idx=0):
         title = YLABELS[key]
         ax.set_title(title, visible=True)
         ax.set_yscale("log")
+
+    fig.set_size_inches(2 * FIGSIZE, 3)
+    [ax.grid() for ax in axs]
+    [ax.set_xscale("log") for ax in axs]
+    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
     return fig, axs
 
 
@@ -223,8 +228,12 @@ def save_autotight_order(
         n_min = df_valid.iloc[0].name
         n_max = df_valid.iloc[-1].name
         n_mid = df_valid.iloc[len(df_valid) // 2].name
+        if n_mid == n_max:
+            n_mid = None
         ls = ["--", "-.", ":"]
         for n, ls in zip([n_min, n_mid, n_max], ls):
+            if n is None:
+                continue
             eig = df.loc[n].eigs
             if not np.any(np.isfinite(eig)):
                 continue
@@ -359,6 +368,10 @@ def apply_autotemplate_base(
     with open(fname_autotemplate, "rb") as f:
         learner = pickle.load(f)
         order_dict = pickle.load(f)
+
+    save_autotight_order(
+        learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
+    )
 
     fname = fname_root + "_templates.pkl"
     try:

@@ -250,17 +250,10 @@ class Learner(object):
 
     def get_A_list(self, var_dict=None):
         if var_dict is None:
-            A_known = []
-            if self.use_known:
-                A_known += [constraint.A_sparse_ for constraint in self.templates_known]
-            return A_known + [constraint.A_sparse_ for constraint in self.constraints]
+            return [constraint.A_sparse_ for constraint in self.constraints]
         else:
             A_known = []
-            if self.use_known:
-                A_known += [constraint.A_poly_ for constraint in self.templates_known]
-            A_list_poly = A_known + [
-                constraint.A_poly_ for constraint in self.constraints
-            ]
+            A_list_poly = [constraint.A_poly_ for constraint in self.constraints]
             return [A.get_matrix(var_dict) for A in A_list_poly]
 
     def get_A_b_list(self):

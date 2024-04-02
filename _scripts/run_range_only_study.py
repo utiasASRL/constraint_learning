@@ -7,14 +7,13 @@ from auto_template.sim_experiments import (
     plot_autotemplate_time,
 )
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from utils.plotting_tools import savefig
+from utils.plotting_tools import FIGSIZE, add_lines, savefig
 
 n_positions = 3
 n_landmarks = 10
 d = 3
 
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results_server_v3"
 
 
 def apply_autotight(results_dir=RESULTS_DIR):
@@ -56,7 +55,7 @@ def apply_autotight(results_dir=RESULTS_DIR):
 
 def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
     n_positions_list = [10, 15, 20, 25, 30]
-    for level in ["no", "quad"]:
+    for level in ["quad"]:  # ["no", "quad"]:
         print(f"=========== RO {level} autotemplate ===========")
         variable_list = None  # use the default one for the first step.
         np.random.seed(0)
@@ -84,12 +83,10 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
         fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
 
-        # [ax.set_ylim(10, 1000) for ax in axs.values()]
+        axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+        add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min())
+        add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min())
 
-        fig.set_size_inches(4, 3)
-        axs[-1].legend(
-            loc="upper right", fontsize=10, framealpha=1.0
-        )  # , bbox_to_anchor=[1.0, 1.0])
         savefig(fig, fname_root + f"_t.pdf")
 
 
@@ -105,4 +102,4 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True)
+    run_all(n_seeds=1, recompute=True, autotight=False, autotemplate=True)

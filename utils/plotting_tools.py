@@ -392,3 +392,16 @@ def add_scalebar(
         fontproperties=fontprops,
     )
     ax.add_artist(scalebar)
+
+
+def add_lines(ax, xs, start, facs=[1, 2, 3]):
+    for fac in facs:
+        ys = xs**fac / (np.min(xs) ** fac) * start
+        ax.plot(
+            xs,
+            ys,
+            color="k",
+            alpha=0.5,
+            ls=":",
+        )
+        ax.annotate(xy=(xs[-2], ys[-2] * 0.7), text=f"O(N$^{fac}$)", alpha=0.5)

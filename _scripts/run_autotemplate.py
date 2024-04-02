@@ -14,7 +14,12 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v4"
+RESULTS_DIR = "_results"
+
+LIFTERS_NO = [
+    (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
+    (Stereo3DLifter, dict(n_landmarks=4, param_level="no", level="no")),
+]
 
 LIFTERS = [
     (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
@@ -40,10 +45,6 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
-        if not success:
-            raise RuntimeError(
-                f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness."
-            )
 
         t1 = time.time()
         idx_subset_reorder = learner.generate_minimal_subset(
@@ -52,8 +53,6 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
             tightness=learner.lifter.TIGHTNESS,
         )
         t_suff = time.time() - t1
-        if idx_subset_reorder is None:
-            print(f"{lifter}: did not find valid lamdas tightness.")
 
         idx_subset_original = learner.generate_minimal_subset(
             reorder=False,
@@ -64,6 +63,10 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         save_autotight_order(
             learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
         )
+
+        if not success:
+            print(f"{lifter}: did not achieve {learner.lifter.TIGHTNESS} tightness.")
+            continue
 
         for d in dict_list:
             d["lifter"] = str(lifter)
@@ -84,7 +87,12 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
-    np.random.seed(0)
+    # Run lifters that are not tight
+    if recompute:
+        np.random.seed(0)
+        generate_results(LIFTERS_NO, results_dir=results_dir)
+
+    # Run lifter that are tight
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
@@ -97,6 +105,7 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
         df = df[df.lifter.isin(lifters_str)]
     except (FileNotFoundError, AssertionError) as e:
         print(e)
+        np.random.seed(0)
         df = generate_results(LIFTERS, results_dir=results_dir)
         df.to_pickle(fname)
 
@@ -119,23 +128,40 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     fname = f"{results_dir}/all_df.tex"
     with open(fname, "w") as f:
         for out in (lambda x: print(x, end=""), f.write):
-            out(
-                f"problem & $n$ per variable group  & $N_l$ per variable group & \\# constraints & \\# required & {' & '.join(times.values())} & total [s] & RDG & SVR \\\\ \n"
+            header = (
+                [
+                    f"Problem & Dimension $n$ per iteration",
+                    "\\# Constraints",
+                    "\\# Reduced",
+                ]
+                + [f"{t} [s]" for t in times.values()]
+                + [
+                    "total [s]",
+                    "RDG",
+                    "SVR",
+                ]
             )
+            out(" & ".join(header) + "\\\\ \n")
             out("\\midrule \n")
             for lifter, df_sub in df.groupby("lifter", sort=False):
                 out(lifter_names[lifter] + " & ")
                 out(str(df_sub["n dims"].values) + " & ")
-                out(str(df_sub["n nullspace"].values) + " & ")
-                out(str(df_sub["n constraints"].values[-1]) + " & ")
-                out(str(df_sub["n required"].values[-1]) + " & ")
+                # out(str(df_sub["n nullspace"].values) + " & ")
+                out(str(int(df_sub["n constraints"].values[-1])) + " & ")
+                out(str(int(df_sub["n required"].values[-1])) + " & ")
                 for t in times.keys():
                     out(f"{df_sub[t].sum():.2f} &")
                 out(f"{df_sub[times.keys()].sum().sum():.2f} & ")
-                out(f"{abs(df_sub['RDG'].values[-1]):.2e} & ")
-                out(f"{df_sub['SVR'].values[-1]:.2e} \\\\ \n")
+                rdg = abs(df_sub["RDG"].values[-1])
+                svr = df_sub["SVR"].values[-1]
+                if svr > 1e7:
+                    out(f"{rdg:.2e} & ")
+                    out(f"\\textbf{{{svr:.2e}}} \\\\ \n")
+                else:
+                    out(f"\\textbf{{{rdg:.2e}}} & ")
+                    out(f"{svr:.2e} \\\\ \n")
     print("\nwrote above in", fname)
 
 
 if __name__ == "__main__":
-    run_all()
+    run_all(recompute=True)

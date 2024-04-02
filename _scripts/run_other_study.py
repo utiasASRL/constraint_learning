@@ -7,7 +7,7 @@ from auto_template.sim_experiments import (
     plot_autotemplate_time,
 )
 from lifters.mono_lifter import MonoLifter
-from utils.plotting_tools import FIGSIZE, savefig
+from utils.plotting_tools import FIGSIZE, add_lines, savefig
 
 RESULTS_DIR = "_results_server_v3"
 # RESULTS_DIR = "_results_server"
@@ -98,8 +98,9 @@ def apply_autotemplate(
     fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     [ax.set_ylim(10, 1000) for ax in axs]
 
-    fig.set_size_inches(2 * FIGSIZE, FIGSIZE)
-    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
+    axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+    add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min(), facs=[3])
+    add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min(), facs=[3])
     savefig(fig, fname_root + f"_t.pdf")
 
 
@@ -197,6 +198,6 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True, autotemplate=True, autotight=False)
+    run_all(n_seeds=1, recompute=False, autotemplate=True, autotight=False)
     # run_mono(n_seeds=1, recompute=True)
     # run_wahba(n_seeds=1, recompute=True)

@@ -26,6 +26,7 @@ from utils.plotting_real import (
     plot_local_vs_global,
     plot_poses,
     plot_results,
+    plot_success_rate,
 )
 from utils.plotting_tools import savefig
 
@@ -88,9 +89,11 @@ def run_all(recompute=RECOMPUTE, n_successful=10, results_dir=RESULTS_DIR):
         df["n global"] + df["n fail"] + df["n local"]
     )
 
-    plot_ground_truth(df, fname_root=fname_root)
-
     plot_poses(df, fname_root=fname_root)
+
+    plot_success_rate(df, fname_root)
+
+    plot_ground_truth(df, fname_root=fname_root)
 
     # cost below is found empirically
     plot_local_vs_global(df, fname_root=fname_root, cost_thresh=1e3)

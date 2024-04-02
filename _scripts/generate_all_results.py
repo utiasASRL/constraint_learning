@@ -1,4 +1,5 @@
 import matplotlib
+import matplotlib.pylab as plt
 
 from _scripts.run_autotemplate import run_all as run_autotemplate
 from _scripts.run_datasets_ro import run_all as run_datasets_ro
@@ -14,8 +15,8 @@ try:
 except Exception as e:
     pass
 
-# RESULTS_DIR = "_results_server_new/"
-RESULTS_DIR = "_results_v4/"
+RESULTS_DIR = "_results_server_v3/"
+# RESULTS_DIR = "_results_v4/"
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -53,6 +54,7 @@ if __name__ == "__main__":
 
     print("------- Generate results table and templates-------")
     run_autotemplate(recompute=recompute, results_dir=results_dir)
+    plt.close("all")
 
     print("------- Generate RO results -------")
     run_range_only_study(
@@ -62,6 +64,7 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
+    plt.close("all")
 
     print("------- Generate other results -------")
     run_other_study(
@@ -71,6 +74,7 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
+    plt.close("all")
 
     print("------- Generate stereo results -------")
     run_stereo_study(
@@ -80,12 +84,15 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
+    plt.close("all")
 
     print("------- Generate dataset results -------")
     run_datasets_ro(
         recompute=recompute, n_successful=n_successful, results_dir=results_dir
     )
+    plt.close("all")
+
     run_datasets_stereo(
         recompute=recompute, n_successful=n_successful, results_dir=results_dir
     )
-
+    plt.close("all")
