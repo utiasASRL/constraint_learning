@@ -88,7 +88,7 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
 
 def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     # Run lifters that are not tight
-    if False:  # recompute:
+    if recompute:
         np.random.seed(0)
         generate_results(LIFTERS_NO, results_dir=results_dir)
 
