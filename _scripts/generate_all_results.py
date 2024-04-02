@@ -45,21 +45,14 @@ if __name__ == "__main__":
     args = parser.parse_args()
     recompute = args.overwrite
     results_dir = args.directory
-    n_seeds = args.n_seeds
+    n_seeds = int(args.n_seeds)
     autotight = True
     autotemplate = True
     n_successful = 100
+    print("n seeds:", n_seeds)
 
     print("------- Generate results table and templates-------")
     run_autotemplate(recompute=recompute, results_dir=results_dir)
-
-    print("------- Generate dataset results -------")
-    run_datasets_ro(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-    run_datasets_stereo(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
 
     print("------- Generate RO results -------")
     run_range_only_study(
@@ -87,3 +80,12 @@ if __name__ == "__main__":
         autotemplate=autotemplate,
         results_dir=results_dir,
     )
+
+    print("------- Generate dataset results -------")
+    run_datasets_ro(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    run_datasets_stereo(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+
