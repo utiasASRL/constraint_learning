@@ -14,7 +14,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_server_v3"
+RESULTS_DIR = "_results_v4"
 
 LIFTERS_NO = [
     (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
@@ -22,14 +22,14 @@ LIFTERS_NO = [
 ]
 
 LIFTERS = [
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+    #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+    #(RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
     (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
     (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-    (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-    (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
-    (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-    (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+    # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+    # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+    # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+    # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
 ]
 
 
@@ -169,5 +169,5 @@ def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
 
 
 if __name__ == "__main__":
-    run_all(recompute=True)
-    # run_all_tight(recompute=True)
+    # run_all(recompute=True)
+    run_all_tight(recompute=True)
