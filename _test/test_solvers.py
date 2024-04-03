@@ -1,6 +1,6 @@
 import numpy as np
 
-# from lifters.matweight_lifter import MatWeightLifter
+from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.poly_lifters import PolyLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
