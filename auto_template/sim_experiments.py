@@ -51,10 +51,7 @@ LIMITS = {
         "level": "xwT",
         "oneshot": 12,
     },
-    RangeOnlyLocLifter: {
-        "level": "quad",
-        "oneshot": 15
-    },
+    RangeOnlyLocLifter: {"level": "quad", "oneshot": 15},
 }
 
 
@@ -458,8 +455,12 @@ def apply_autotemplate_base(
                     data_dict["n constraints"] = len(new_learner.constraints)
                     # determine tightness
                     n_param_lim = LIMITS.get(type(new_lifter), {}).get(name, 1e3)
-                    level_affected = LIMITS.get(type(learner.lifter), {}).get("level", "none")
-                    if (n_params > n_param_lim) and (learner.lifter.level == level_affected):
+                    level_affected = LIMITS.get(type(learner.lifter), {}).get(
+                        "level", "none"
+                    )
+                    if (n_params > n_param_lim) and (
+                        learner.lifter.level == level_affected
+                    ):
                         print(
                             f"skipping tightness test of {new_lifter} with {n_params} because it leeds to memory error"
                         )

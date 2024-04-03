@@ -9,8 +9,7 @@ from auto_template.sim_experiments import (
 from lifters.mono_lifter import MonoLifter
 from utils.plotting_tools import add_lines, savefig
 
-RESULTS_DIR = "_results_v4"
-# RESULTS_DIR = "_results_server"
+RESULTS_DIR = "_results_server_v3"
 
 ONLY_ROBUST = False
 
@@ -201,6 +200,6 @@ def run_all(
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=3, recompute=True, autotemplate=True, autotight=False)
+    run_all(n_seeds=3, recompute=False, autotemplate=True, autotight=False)
     # run_mono(n_seeds=1, recompute=True)
     # run_wahba(n_seeds=1, recompute=True)
