@@ -457,6 +457,7 @@ def apply_autotemplate_base(
                         print(
                             f"skipping tightness test of {new_lifter} with {n_params} because it leeds to memory error"
                         )
+                        data_dict[f"t solve SDP"] = None
                     else:
                         print(f"=========== tightness test: {name} ===============")
                         t1 = time.time()

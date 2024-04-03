@@ -1,15 +1,11 @@
-import itertools
 from pathlib import Path
 
 import matplotlib
 import matplotlib.pylab as plt
-import numpy as np
 import pandas as pd
-import spatialmath as sm
 
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
-    DEGENERATE_DICT,
     Experiment,
     create_rmse_table,
     run_experiments,
@@ -21,7 +17,6 @@ from utils.plotting_real import (
     plot_results,
     plot_success_rate,
 )
-from utils.plotting_tools import add_scalebar, plot_frame, savefig
 
 matplotlib.use("Agg")  # non-interactive
 

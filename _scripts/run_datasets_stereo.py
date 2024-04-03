@@ -1,26 +1,18 @@
-from pathlib import Path
-
 import matplotlib
 import matplotlib.pylab as plt
-import numpy as np
 import pandas as pd
-from cert_tools.linalg_tools import project_so3
 
 try:
     matplotlib.use("TkAgg")  # non-interactive
 except ImportError:
     pass
 
-import spatialmath as sm
-
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
-    Experiment,
     create_rmse_table,
     load_experiment,
     run_experiments,
 )
-from utils.geometry import get_T
 from utils.plotting_real import (
     plot_ground_truth,
     plot_local_vs_global,
@@ -28,7 +20,6 @@ from utils.plotting_real import (
     plot_results,
     plot_success_rate,
 )
-from utils.plotting_tools import savefig
 
 MAX_N_LANDMARKS = 8
 MIN_N_LANDMARKS = 4

@@ -7,7 +7,7 @@ from auto_template.sim_experiments import (
     plot_autotemplate_time,
 )
 from lifters.range_only_lifters import RangeOnlyLocLifter
-from utils.plotting_tools import FIGSIZE, add_lines, savefig
+from utils.plotting_tools import add_lines, savefig
 
 n_positions = 3
 n_landmarks = 10
