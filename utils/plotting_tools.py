@@ -3,6 +3,7 @@ import os
 import numpy as np
 
 from poly_matrix.poly_matrix import PolyMatrix
+from utils.geometry import get_C_r_from_theta
 
 USE_METHODS = {
     "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
@@ -33,6 +34,8 @@ def import_plt():
 
 
 plt = import_plt()
+
+FIGSIZE = 4
 
 
 def add_colorbar(fig, ax, im, title=None, nticks=None, visible=True, size=None):
@@ -110,10 +113,8 @@ def savefig(fig, name, verbose=True):
 
 
 def plot_frame(
-    lifter,
-    ax,
+    ax=None,
     theta=None,
-    xtheta=None,
     color="k",
     marker="+",
     label=None,
@@ -122,24 +123,27 @@ def plot_frame(
     alpha=0.5,
     **kwargs,
 ):
-    p_gt = lifter.get_position(theta=theta, xtheta=xtheta)
     try:
-        C_cw = lifter.get_C_cw(theta=theta, xtheta=xtheta)
+        C_cw, r_wc_c = get_C_r_from_theta(theta, d=3)
+        p_gt = -C_cw.T @ r_wc_c
+    except:
+        C_cw = None
+        p_gt = theta
+
+    if C_cw is not None:
         for i, col in enumerate(["r", "g", "b"]):
             z_gt = C_cw[i, :]
             length = scale / np.linalg.norm(z_gt)
             ax.plot(
-                [p_gt[0, 0], p_gt[0, 0] + length * z_gt[0]],
-                [p_gt[0, 1], p_gt[0, 1] + length * z_gt[1]],
+                [p_gt[0], p_gt[0] + length * z_gt[0]],
+                [p_gt[1], p_gt[1] + length * z_gt[1]],
                 color=col,
                 ls=ls,
                 alpha=alpha,
                 zorder=-1,
             )
-    except Exception as e:
-        pass
     ax.scatter(
-        *p_gt[:, :2].T,
+        *p_gt[:2].T,
         color=color,
         marker=marker,
         label=label,
@@ -371,6 +375,46 @@ def plot_aggregate_sparsity(mask):
     plt.show(block=False)
     return fig, ax
 
+
+def add_scalebar(
+    ax, size=5, size_vertical=1, loc="lower left", fontsize=8, color="black", pad=0.1
+):
+    """Add a scale bar to the plot.
+
+    :param ax: axis to use.
+    :param size: size of scale bar.
+    :param size_vertical: height (thckness) of the bar
+    :param loc: location (same syntax as for matplotlib legend)
+    """
+    import matplotlib.font_manager as fm
+    from mpl_toolkits.axes_grid1.anchored_artists import AnchoredSizeBar
+
+    fontprops = fm.FontProperties(size=fontsize)
+    scalebar = AnchoredSizeBar(
+        ax.transData,
+        size,
+        "{} m".format(size),
+        loc,
+        pad=pad,
+        color=color,
+        frameon=False,
+        size_vertical=size_vertical,
+        fontproperties=fontprops,
+    )
+    ax.add_artist(scalebar)
+
+
+def add_lines(ax, xs, start, facs=[1, 2, 3]):
+    for fac in facs:
+        ys = xs**fac / (np.min(xs) ** fac) * start
+        ax.plot(
+            xs,
+            ys,
+            color="k",
+            alpha=0.5,
+            ls=":",
+        )
+        ax.annotate(xy=(xs[-2], ys[-2] * 0.7), text=f"O(N$^{fac}$)", alpha=0.5)
 
 def matshow_list(*args, log=False, ticks=False, **kwargs):
     fig, axs = plt.subplots(1, len(args), squeeze=False)

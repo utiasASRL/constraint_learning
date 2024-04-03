@@ -1,3 +1,4 @@
+import matplotlib.pylab as plt
 import numpy as np
 
 from _test.tools import all_lifters

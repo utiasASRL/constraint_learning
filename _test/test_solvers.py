@@ -1,13 +1,11 @@
 import numpy as np
-import scipy.sparse as sp
 
-from _test.tools import all_lifters
-from lifters.matweight_lifter import MatWeightLifter
+# from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.poly_lifters import PolyLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
-from utils.geometry import get_xtheta_from_theta
+from utils.test_tools import all_lifters
 
 NOISE = 1e-2
 
@@ -44,7 +42,6 @@ def test_hess_finite_diff():
                 abs_error = np.abs(hess_est - hess[i, :])
                 errors_mat[i, :] = np.maximum(abs_error, errors_mat[i, :])
                 max_err = max(np.max(abs_error), max_err)
-                print(f"max error for element {i}: {np.max(abs_error)}")
             errors.append(max_err)
 
         try:
@@ -171,7 +168,7 @@ def test_solvers(n_seeds=1, noise=0.0):
             # test that we stay at real solution when initializing at it
             theta_gt = lifter.get_vec_around_gt(delta=0)
             try:
-                theta_hat, msg, cost_solver = lifter.local_solver(theta_gt, y)
+                theta_hat, info, cost_solver = lifter.local_solver(theta_gt, y)
                 print("local solution:", theta_hat, f"cost: {cost_solver:.4e}")
                 print("ground truth:  ", theta_gt)
             except NotImplementedError:
@@ -191,7 +188,6 @@ def test_solvers(n_seeds=1, noise=0.0):
                         np.testing.assert_allclose(theta_hat, theta_gt)
                     else:
                         # theta_gt = lifter.get_vec_around_gt(delta=0)
-                        theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                         np.testing.assert_allclose(theta_hat, theta_gt)
 
             else:
@@ -200,7 +196,7 @@ def test_solvers(n_seeds=1, noise=0.0):
 
             # test that we converge to real solution when initializing around it
             theta_0 = lifter.get_vec_around_gt(delta=NOISE)
-            theta_hat, msg, cost_solver = lifter.local_solver(theta_0, y)
+            theta_hat, info, cost_solver = lifter.local_solver(theta_0, y)
 
             print("init:          ", theta_0)
             print("local solution:", theta_hat, f"cost: {cost_solver:.4e}")
@@ -228,8 +224,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                     progress += np.linalg.norm(val_hat - val_gt)
             else:
                 if len(theta_0) != len(theta_hat):
-                    xtheta_0 = get_xtheta_from_theta(theta_0, lifter.d)
-                    progress = np.linalg.norm(xtheta_0 - theta_hat)
+                    progress = np.linalg.norm(theta_0 - theta_hat)
                 else:
                     progress = np.linalg.norm(theta_0 - theta_hat)
             assert progress > 1e-10, progress
@@ -253,8 +248,6 @@ def test_solvers(n_seeds=1, noise=0.0):
                         if len(theta_hat) == len(theta_gt):
                             np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                         else:
-                            # theta_gt = lifter.get_vec_around_gt(delta=0)
-                            theta_gt = get_xtheta_from_theta(theta_gt, lifter.d)
                             np.testing.assert_allclose(theta_hat, theta_gt, rtol=1e-3)
                 except AssertionError as e:
                     print(

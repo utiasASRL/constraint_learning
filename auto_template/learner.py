@@ -8,7 +8,7 @@ from cert_tools.linalg_tools import find_dependent_columns, rank_project
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from solvers.common import find_local_minimum, solve_certificate
+from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
 from utils.constraint import Constraint
 from utils.plotting_tools import (
@@ -55,9 +55,11 @@ PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 USE_KNOWN = False
 USE_INCREMENTAL = True
 
-GLOBAL_THRESH = 1e-3
+GLOBAL_THRESH = 1e-3  # consider dual problem optimal when eps<GLOBAL_THRESH
 
 METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at qrp
+
+EPSILON = 1e-4  # fixed epsilon for sparsity-promoting SDP
 
 
 class Learner(object):
@@ -85,29 +87,41 @@ class Learner(object):
         self.use_known = use_known
         self.use_incremental = use_incremental
 
-        self.mat_vars = []
-
         # templates contains the learned "templates" of the form:
         # ((i, mat_vars), <i-th learned vector for these mat_vars variables, PolyRow form>)
         self.templates_poly_ = None  # for plotting only: all templats stacked in one
 
-        # new representation, making sure we don't compute the same thing twice.
+        # constraints after applying templates to the parameters.
         self.constraints = []
-        self.templates = []
-        self.constraint_index = 0
-        self.index_tested = set()
-        self.templates_known = []
-        self.templates_known_sub = []
 
-        # list of dual costs
+        # templates contains all the learned templates
+        self.templates = []
+
+        # contains all known constraints, computed only once.
+        self.templates_known = []
+
+        # contains the currently relevant known constraints
+        self.templates_known_sub = []
+        self.constraint_index = 0
+
+        # keep track of which constraints have been tested any constraint twice.
+        self.index_tested = set()
+
+        # solver results
+        self.solver_vars = None
         self.df_tight = None
         self.ranks = []
         self.dual_costs = []
-        self.variable_list = []
-        self.solver_vars = None
-
         self.n_inits = n_inits
+
+        # tightness dict makes sure we don't compute tightness twice.
         self.reset_tightness_dict()
+
+        # currently used variables
+        self.mat_vars = []
+
+        # so-far used variables
+        self.variable_list = []
 
     def reset_tightness_dict(self):
         self.tightness_dict = {"rank": None, "cost": None}
@@ -142,6 +156,10 @@ class Learner(object):
     def duality_gap_is_zero(self, dual_cost, verbose=False, data_dict={}):
         primal_cost = self.solver_vars["qcqp_cost"]
         RDG = (primal_cost - dual_cost) / abs(dual_cost)
+        if RDG < -1e-4:
+            print(
+                f"Warning: dual is significantly larger than primal: d={dual_cost:.5f} > p={primal_cost:.5f}, diff={dual_cost-primal_cost:.5f}"
+            )
         res = RDG < TOL_REL_GAP
         data_dict["RDG"] = RDG
         if not verbose:
@@ -151,9 +169,7 @@ class Learner(object):
             print("achieved cost tightness:")
         else:
             print("no cost tightness yet:")
-        print(
-            f"qcqp cost={self.solver_vars['qcqp_cost']:.4e}, dual cost={dual_cost:.4e}"
-        )
+        print(f"qcqp cost={primal_cost:.4e}, dual cost={dual_cost:.4e}")
         return res
 
     def is_rank_one(self, eigs, verbose=False, data_dict={}):
@@ -179,7 +195,7 @@ class Learner(object):
             return self.tightness_dict[tightness]
 
         A_b_list_all = self.get_A_b_list()
-        A_list = [A for A, _ in A_b_list_all[1:]]  # for debugging only
+        A_list = [A for A, __ in A_b_list_all[1:]]  # for debugging only
 
         B_list = self.lifter.get_B_known()
         X, info = self._test_tightness(A_b_list_all, B_list, verbose=verbose)
@@ -351,7 +367,9 @@ class Learner(object):
                 force_first=force_first,
                 tol=tol,
                 adjust=True,
-                verbose=True,
+                primal=False,
+                verbose=False,
+                fixed_epsilon=EPSILON,
             )
             if lamdas is None:
                 print("Warning: problem doesn't have feasible solution!")
@@ -360,25 +378,18 @@ class Learner(object):
                 X, info = self._test_tightness(A_b_list_all, B_list, verbose=False)
                 xhat_from_X, _ = rank_project(X, p=1)
                 xhat = self.solver_vars["xhat"]
-                print("xhat error:", xhat - xhat_from_X)
-                try:
-                    print("Hx=", info["H"] @ xhat)
-                    print("Hx_from_X=", info["H"] @ xhat_from_X)
-                    eigs = np.linalg.eigvalsh(info["H"].toarray())
-                    print("eigs of H", eigs)
-                except KeyError:
-                    print("skipping H tests")
+                print("max xhat error:", np.min(xhat - xhat_from_X))
+                print("max Hx", np.max(np.abs(info["H"] @ xhat)))
+                print("max Hx_from_X", np.max(np.abs(info["H"] @ xhat_from_X)))
+                eigs = np.linalg.eigvalsh(info["H"].toarray())
+                print("min eig of H", np.min(eigs))
                 return None
-
             print("found valid lamdas")
+
             # order the redundant constraints by importance
             redundant_idx = np.argsort(np.abs(lamdas[force_first:]))[::-1]
-            # example: force_first is 4
-            # [0, 1, 2, 3], 4 + [1, 0, 2] = [0, 1, 2, 3, 5, 4, 6]
             sorted_idx = np.r_[np.arange(force_first), force_first + redundant_idx]
         else:
-            # if force_first is 7, then
-            # sorted idx is simply 7, 8, 9, ..., 20
             sorted_idx = range(len(A_b_list_all))
 
         inputs = [A_b_list_all[idx] for idx in sorted_idx]
@@ -422,30 +433,58 @@ class Learner(object):
         qcqp_that, qcqp_cost, info = find_local_minimum(
             self.lifter, y=y, verbose=verbose, n_inits=self.n_inits, plot=plot
         )
+        self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
+        self.solver_vars.update(info)
         if qcqp_cost is not None:
             xhat = self.lifter.get_x(qcqp_that)
-            self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=xhat)
-            self.solver_vars.update(info)
+            self.solver_vars["xhat"] = xhat
+
+            # calculate error for global estimate
             self.solver_vars.update(self.lifter.get_error(qcqp_that))
+            # calculate errors for local estimates
+            for key, qcqp_that_local in info.items():
+                if key.startswith("local solution"):
+                    solution_idx = key.strip("local solution ")
+                    error_dict = self.lifter.get_error(qcqp_that_local)
+                    self.solver_vars.update(
+                        {
+                            f"local {solution_idx} {error_name}": err
+                            for error_name, err in error_dict.items()
+                        }
+                    )
+
             return True
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
 
     def find_global_solution(self, data_dict={}):
-        if self.tightness_dict["rank"] is True:
+        from cert_tools.sdp_solvers import options_cvxpy
+
+        A_b_list_all = self.get_A_b_list()
+        options_cvxpy["accept_unknown"] = True
+
+        # find or certify global solution
+        if self.lifter.TIGHTNESS == "rank":
             X = self.solver_vars["X"]
             x, info = rank_project(X, p=1)
-            print("rank projection info:", info)
+            x = x.flatten()
         else:
             """Try to solve dual problem."""
             xhat = self.solver_vars["xhat"]
 
-            A_b_list_all = self.get_A_b_list()
-            H, info = solve_certificate(
-                self.solver_vars["Q"], A_b_list_all, xhat, adjust=True
+            H, info = solve_feasibility_sdp(
+                self.solver_vars["Q"],
+                A_b_list_all,
+                xhat,
+                adjust=True,
+                options=options_cvxpy,
+                tol=1e-10,
+                # soft_epsilon=False,
+                # eps_tol=1e-4,
+                soft_epsilon=True,
             )
             if info["eps"] is not None:
-                print(f"global solution eps: {info['eps']:.2e}")
                 cert = abs(info["eps"]) <= GLOBAL_THRESH
+                print(f"global solution eps: {info['eps']:.2e}, cert: {cert}")
                 data_dict["global solution cert"] = cert
 
             if info["eps"] and cert:
@@ -453,18 +492,23 @@ class Learner(object):
             else:
                 x = None
 
-            # sanity check: solve wtih local minimum
-            keys = [key for key in data_dict.keys() if key.startswith("local solution")]
-            for key in keys:
-                x_local = data_dict[key]
-                x_local = self.lifter.get_x(theta=x_local)
-                H, info = solve_certificate(
-                    self.solver_vars["Q"], A_b_list_all, x_local, adjust=True
-                )
-                if info["eps"] is not None:
-                    print(f"local solution eps: {info['eps']:.2e}")
-                    cert = abs(info["eps"]) <= GLOBAL_THRESH
-                    data_dict[key + " cert"] = cert
+        # sanity check: try to certify local minima (should fail)
+        keys = [key for key in data_dict.keys() if key.startswith("local solution")]
+        for key in keys:
+            x_local = data_dict[key]
+            x_local = self.lifter.get_x(theta=x_local)
+            H, info = solve_feasibility_sdp(
+                self.solver_vars["Q"],
+                A_b_list_all,
+                x_local,
+                adjust=True,
+                tol=1e-10,
+                options=options_cvxpy,
+            )
+            if info["eps"] is not None:
+                print(f"local solution eps: {info['eps']:.2e}")
+                cert = abs(info["eps"]) <= GLOBAL_THRESH
+                data_dict[key + " cert"] = cert
 
         if x is not None:
             theta = self.lifter.get_theta(x)
@@ -475,11 +519,14 @@ class Learner(object):
         return False
 
     def _test_tightness(self, A_b_list_all, B_list=[], verbose=False):
+        from cert_tools.sdp_solvers import options_cvxpy
+
         if self.solver_vars is None:
             self.find_local_solution(verbose=verbose)
 
         # compute lambas by solving dual problem
-        X, info = solve_sdp(
+        options_cvxpy["accept_unknown"] = True
+        X, info = solve_sdp_cvxpy(
             self.solver_vars["Q"],
             A_b_list_all,
             B_list=B_list,
@@ -487,6 +534,7 @@ class Learner(object):
             verbose=verbose,
             primal=PRIMAL,
             tol=TOL,
+            options=options_cvxpy,
         )  # , rho_hat=qcqp_cost)
         return X, info
 
@@ -499,6 +547,7 @@ class Learner(object):
             return False
 
     def extract_known_templates(self):
+        """Find which of the known constraints are relevant for the current variables."""
         templates_known_sub = []
         for c in self.templates_known:
             var_subset = set(c.A_poly_.get_variables())
@@ -510,10 +559,6 @@ class Learner(object):
         diff_index_set = new_index_set.difference(old_index_set)
 
         self.templates_known_sub = templates_known_sub
-        # all_idx = new_index_set.union(old_index_set)
-        # for idx in all_idx:
-        #    matches = [t for t in templates_known_sub + self.templates_known_sub if t.index == idx]
-        #    self.templates_known_sub.append(matches[0])
         return len(diff_index_set)
 
     # @profile
@@ -528,7 +573,7 @@ class Learner(object):
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
                 a_vectors.append(bi)
-        elif self.use_known:
+        if self.use_known:
             for c in self.templates_known_sub:
                 ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
@@ -558,6 +603,7 @@ class Learner(object):
                     plot_singular_values(S, eps=self.lifter.EPS_SVD, ax=ax, label=None)
 
             if len(bad_idx) > 0:
+                print(f"there are {len(bad_idx)} bad indices")
                 Y = np.delete(Y, bad_idx, axis=0)
             else:
                 break
@@ -724,7 +770,7 @@ class Learner(object):
         if self.use_known:
             self.templates_known = self.get_known_templates()
             n_known = len(self.templates_known)
-            print(f"using {n_known} new known constraints")
+            print(f"using {n_known} known constraints")
 
         while 1:
             # add one more variable to the list of variables to vary
@@ -735,7 +781,9 @@ class Learner(object):
 
             n_new = 0
             if self.use_known:
-                n_new += self.extract_known_templates()
+                n_known_here = self.extract_known_templates()
+                n_new += n_known_here
+                print(f"using {n_known_here}/{n_known} known constraints")
 
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
@@ -759,7 +807,7 @@ class Learner(object):
             if self.apply_templates_to_others:
                 print("------- applying templates ---------")
                 t1 = time.time()
-                n_new, n_all = self.apply_templates()
+                n_new, n_all = self.apply_templates(reapply_all=True)
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
@@ -863,7 +911,13 @@ class Learner(object):
                         )
                     plot_rows.append(polyrow_a)
             else:
-                plot_rows.append(constraint.polyrow_b_)
+                if constraint.polyrow_b_ is not None:
+                    plot_rows.append(constraint.polyrow_b_)
+                else:
+                    plot_rows.append(
+                        self.lifter.convert_b_to_polyrow(constraint.b_, mat_vars)
+                    )
+
             if mat_vars != old_mat_vars:
                 j += 1
                 plot_row_labels.append(f"{j}:b{i}")
@@ -922,9 +976,9 @@ class Learner(object):
             for lbl in ax.get_xticklabels():
                 lbl = lbl.get_text()
                 if "_" in lbl:  # avoid double subscript
-                    new_lbl = f"${lbl.replace('l-', '').replace(':', '^')}$"
+                    new_lbl = f"${lbl.replace('h-', '').replace(':', '^')}$"
                 else:
-                    new_lbl = f"${lbl.replace('l-', '').replace(':', '_')}$"
+                    new_lbl = f"${lbl.replace('h-', '').replace(':', '_')}$"
                 new_xticks.append(new_lbl)
             ax.set_xticklabels(new_xticks, fontsize=7)
 
@@ -943,12 +997,10 @@ class Learner(object):
                 old_param = p
         ax.set_title(title)
         if "required (sorted)" in df.columns:
-            from matplotlib.patches import Rectangle
-
             for i, (_, row) in enumerate(df.iterrows()):
                 if row["required (sorted)"] < 0:
                     ax.add_patch(
-                        Rectangle(
+                        matplotlib.patches.Rectangle(
                             (ax.get_xlim()[0], i - 0.5),
                             ax.get_xlim()[1] + 0.5,
                             1.0,

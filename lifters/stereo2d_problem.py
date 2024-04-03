@@ -1,6 +1,7 @@
 """ 
 Temporary copy of Ben's code, to get the local solver
 """
+
 import numpy as np
 
 f_u = 484.5
@@ -101,18 +102,11 @@ def _svdsolve(A: np.array, b: np.array):
     return x
 
 
-def _qn(phi, p_w):
-    # p_w.shape = (N, 3, 1)
-    T = _T(phi)  # (3, 3)
-    return T @ p_w  # (N, 3, 1)
-
-
 def _un(y, p_w, phi, M):
     # y = (N, 1)
     y = y.reshape((p_w.shape[0], M.shape[0], 1))
-    q = _qn(phi, p_w)  # (N, 3, 1)
-    I = np.eye(3)  # (1, 3) -> (N, 3, 3)
-    u = y - ((M @ q) / (I[:, 1:2].T @ q))  # (N, 1, 1)
+    q = _T(phi) @ p_w  # (N, 3, 1)
+    u = y - (M @ q) / q[:, [1], :]  # (N, 1, 1)
     # assert u.shape == (p_w.shape[0], 1, 1)
     return u
 
@@ -132,7 +126,7 @@ def _dq_dphi(p_w, phi):
 def _du_dq(p_w, phi, M):
     # p_w: (N, 3, 1)
     # phi: (3, 1)
-    q = _qn(phi, p_w)  # (N, 3, 1)
+    q = _T(phi) @ p_w  # (N, 3, 1)
     I = np.eye(3)
     du_dq = (1 / (I[:, 1:2].T @ q)) * (
         (1 / (I[:, 1:2].T @ q)) * (M @ q @ I[:, 1:2].T) - M
@@ -155,11 +149,11 @@ def _cost(phi, p_w, y, W, M):
     return np.sum(u.transpose((0, 2, 1)) @ W @ u, axis=0)[0, 0]
 
 
-def local_solver(p_w, y, init_phi, W, max_iters=500, min_update_norm=1e-10, log=False):
+def local_solver(p_w, y, init_phi, W, max_iters=500, gtol=1e-6, log=False):
     from scipy.optimize import minimize
 
     res = minimize(
-        _cost, x0=init_phi, args=(p_w, y, W, M), method="Nelder-Mead", tol=1e-10
+        _cost, x0=init_phi, args=(p_w, y, W, M), method="Nelder-Mead", tol=gtol
     )
     return res.success, res.x, res.fun
 

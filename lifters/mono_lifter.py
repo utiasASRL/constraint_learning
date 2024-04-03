@@ -1,6 +1,8 @@
 from copy import deepcopy
 
 import autograd.numpy as np
+import matplotlib
+import matplotlib.pylab as plt
 
 from lifters.robust_pose_lifter import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -98,8 +100,7 @@ class MonoLifter(RobustPoseLifter):
 
         if self.y_ is None:
             self.y_ = np.zeros((self.n_landmarks, self.d))
-            n_angles = self.d * (self.d - 1) // 2
-            theta = self.theta[: self.d + n_angles]
+            theta = self.theta[: self.d + self.d**2]
             R, t = get_C_r_from_theta(theta, self.d)
             for i in range(self.n_landmarks):
                 pi = self.landmarks[i]

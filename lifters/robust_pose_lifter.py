@@ -2,15 +2,13 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 
 import autograd.numpy as np
+import matplotlib
+import matplotlib.pylab as plt
+from scipy.spatial.transform import Rotation as R
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
-from utils.geometry import (
-    get_C_r_from_theta,
-    get_C_r_from_xtheta,
-    get_xtheta_from_C_r,
-    get_xtheta_from_theta,
-)
+from utils.geometry import get_C_r_from_theta, get_noisy_pose, get_theta_from_C_r
 
 N_TRYS = 10
 
@@ -96,7 +94,8 @@ class RobustPoseLifter(StateLifter, ABC):
                 [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
             )
         except RuntimeWarning:
-            u *= 0.1
+            PENALTY_U *= 0.1
+            u = PENALTY_U
             return np.sum(
                 [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
             )
@@ -189,16 +188,7 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             theta_here = theta
 
-        if (self.d == 2) and len(theta_here) == 6:  # x, y, vec(C)
-            RT, t = get_C_r_from_xtheta(theta_here, self.d)
-        elif (self.d == 2) and len(theta_here) == 3:  # x, y, alpha
-            RT, t = get_C_r_from_theta(theta_here, self.d)
-        elif (self.d == 3) and len(theta_here) == 12:  # x, y, z, vec(C)
-            RT, t = get_C_r_from_xtheta(theta_here, self.d)
-        elif (self.d == 3) and len(theta_here) == 6:  # x, y, z, alpha
-            RT, t = get_C_r_from_theta(theta_here, self.d)
-        else:
-            raise ValueError(theta_here)
+        RT, t = get_C_r_from_theta(theta_here, self.d)
         R = RT.T
 
         x_data = []
@@ -214,12 +204,12 @@ class RobustPoseLifter(StateLifter, ABC):
                 w_j = theta[-self.n_landmarks + j]
                 x_data.append(w_j)
             elif (self.level == "xxT") and (key == "z_0"):
-                x_vec = list(get_xtheta_from_C_r(R, t))
+                x_vec = list(get_theta_from_C_r(R, t))
                 x_data += list(np.kron(x_vec, x_vec).flatten())
             elif (self.level == "xwT") and ("z" in key):
                 j = int(key.split("_")[-1])
                 w_j = theta[-self.n_landmarks + j]
-                x_vec = get_xtheta_from_C_r(R, t)
+                x_vec = get_theta_from_C_r(R, t)
                 x_data += list(x_vec * w_j)
         dim_x = self.get_dim_x(var_subset=var_subset)
         assert len(x_data) == dim_x
@@ -245,38 +235,40 @@ class RobustPoseLifter(StateLifter, ABC):
             if i >= N_TRYS:
                 raise ValueError("didn't find valid initialization")
 
-        n_angles = self.d * (self.d - 1) // 2
-        angles = np.random.uniform(0, 2 * np.pi, size=n_angles)
+        if self.d == 2:
+            angle = np.random.uniform(0, 2 * np.pi)
+            C = R.from_euler("z", angle).as_matrix()[:2, :2]
+        else:
+            C = R.random().as_matrix()
+        theta_x = get_theta_from_C_r(C, pc_cw)
         if self.robust:
             # we always assume the first elements correspond to outliers
             # and the last elements to inliers.
             w = [-1] * self.n_outliers + [1.0] * (self.n_landmarks - self.n_outliers)
-            return np.r_[pc_cw, angles, w]
-        return np.r_[pc_cw, angles]
+            return np.r_[theta_x, w]
+        return theta_x
 
     def get_error(self, theta_hat):
-        from utils.geometry import get_pose_errors_from_xtheta
+        from utils.geometry import get_pose_errors_from_theta
 
-        xtheta_hat_pose = theta_hat[: self.d + self.d**2]
-
-        n_rot = self.d * (self.d - 1) // 2
-        xtheta_gt_pose = get_xtheta_from_theta(self.theta[: self.d + n_rot], self.d)
-        return get_pose_errors_from_xtheta(xtheta_hat_pose, xtheta_gt_pose, self.d)
+        theta_hat_pose = theta_hat[: self.d + self.d**2]
+        theta_gt_pose = self.theta[: self.d + self.d**2]
+        return get_pose_errors_from_theta(theta_hat_pose, theta_gt_pose, self.d)
 
     def get_vec_around_gt(self, delta: float = 0):
         """Sample around ground truth.
         :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
         """
         if self.robust:
-            n_rot = self.d * (self.d - 1) // 2
-            theta_x = deepcopy(self.theta[: self.d + n_rot])
-            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
-            theta_w = self.theta[self.d + n_rot :]
-            return np.r_[get_xtheta_from_theta(theta_x, self.d), theta_w]
+            theta = deepcopy(self.theta[: self.d + self.d**2])
+            C, r = get_C_r_from_theta(theta, self.d)
+            theta_noisy = get_noisy_pose(C, r, delta=delta)
+            theta_w = self.theta[self.d + self.d**2 :]
+            return np.r_[theta_noisy, theta_w]
         else:
-            theta_x = deepcopy(self.theta)
-            theta_x += np.random.normal(size=theta_x.shape, scale=delta)
-            return get_xtheta_from_theta(theta_x, self.d)
+            C, r = get_C_r_from_theta(self.theta, self.d)
+            theta_noisy = get_noisy_pose(C, r, delta=delta)
+            return theta_noisy
 
     def get_cost(self, theta, y):
         if self.robust:
@@ -286,10 +278,7 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             x = theta
 
-        try:
-            R, t = get_C_r_from_theta(x, self.d)
-        except Exception:
-            R, t = get_C_r_from_xtheta(x, self.d)
+        R, t = get_C_r_from_theta(x, self.d)
 
         cost = 0
         for i in range(self.n_landmarks):
@@ -366,13 +355,7 @@ class RobustPoseLifter(StateLifter, ABC):
         )
         optimizer = Optimizer(**solver_kwargs)
 
-        if self.robust:
-            try:
-                R_0, t_0 = get_C_r_from_theta(t0[: -self.n_landmarks], self.d)
-            except ValueError:
-                R_0, t_0 = get_C_r_from_xtheta(t0[: -self.n_landmarks], self.d)
-        else:
-            R_0, t_0 = get_C_r_from_xtheta(t0[: self.d + self.d**2], self.d)
+        R_0, t_0 = get_C_r_from_theta(t0[: self.d + self.d**2], self.d)
         res = optimizer.run(problem, initial_point=(R_0, t_0))
         R, t = res.point
 
@@ -397,9 +380,9 @@ class RobustPoseLifter(StateLifter, ABC):
             print("qcqp cost:", res.cost)
 
         if self.robust:
-            theta_hat = np.r_[get_xtheta_from_C_r(R, t), w]
+            theta_hat = np.r_[get_theta_from_C_r(R, t), w]
         else:
-            theta_hat = get_xtheta_from_C_r(R, t)
+            theta_hat = get_theta_from_C_r(R, t)
 
         cost_penalized = res.cost
         if self.robust:

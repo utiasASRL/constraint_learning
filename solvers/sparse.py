@@ -1,4 +1,5 @@
-VERBOSE = False
+import cvxpy as cp
+import numpy as np
 
 
 def bisection(function, inputs, left_num, right_num):
@@ -13,8 +14,8 @@ def bisection(function, inputs, left_num, right_num):
     """
     A_list, df_data = inputs
 
-    left_tight = function(A_list[: left_num + 1], df_data)
-    right_tight = function(A_list[: right_num + 1], df_data)
+    left_tight = function(A_list[:left_num], df_data)
+    right_tight = function(A_list[:right_num], df_data)
 
     if left_tight and right_tight:
         print(
@@ -23,12 +24,6 @@ def bisection(function, inputs, left_num, right_num):
         return
     elif (not left_tight) and (not right_tight):
         print("Warning: problem is not tight on left or right.")
-        print(
-            "Dual cost:",
-            df_data[right_num]["dual cost"],
-            "eigs:",
-            df_data[right_num]["eigs"][:10],
-        )
         return
 
     assert not left_tight
@@ -54,5 +49,5 @@ def brute_force(function, inputs, left_num, right_num):
         is_tight = function(A_list[:idx], df_data)
         if is_tight:
             tightness_counter += 1
-        if tightness_counter >= 10:
+        if tightness_counter >= 100:
             return

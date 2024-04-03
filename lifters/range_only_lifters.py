@@ -221,6 +221,8 @@ class RangeOnlyLocLifter(StateLifter):
             var_subset = self.var_dict
         if theta is None:
             theta = self.theta
+        if parameters is None:
+            parameters = self.parameters
 
         positions = theta.reshape(self.n_positions, self.k)
 
@@ -241,7 +243,7 @@ class RangeOnlyLocLifter(StateLifter):
         return np.array(x_data)
 
     def get_J_lifting(self, t):
-        pos = t.reshape((-1, self.k))
+        pos = t.reshape((-1, self.d))
         ii = []
         jj = []
         data = []

@@ -77,8 +77,7 @@ class WahbaLifter(RobustPoseLifter):
         self, noise: float = None, output_poly: bool = False, use_cliques: list = []
     ):
         if self.y_ is None:
-            n_angles = self.d * (self.d - 1) // 2
-            theta = self.theta[: self.d + n_angles]
+            theta = self.theta[: self.d + self.d**2]
             self.y_ = np.empty((self.n_landmarks, self.d))
             R, t = get_C_r_from_theta(theta, self.d)
             for i in range(self.n_landmarks):

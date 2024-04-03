@@ -4,11 +4,12 @@ from copy import deepcopy
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from cert_tools.linalg_tools import get_nullspace
+from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
+from utils.plotting_tools import plot_singular_values
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -79,9 +80,11 @@ class StateLifter(BaseClass):
     REDUCE_DEPENDENT = False
 
     # properties of template scaling
+    ALL_PAIRS = False
+    # Below only have effect if ALL_PAIRS is False.
+    # Then, they determine the clique size hierarchy.
     CLIQUE_SIZE = 5
     STEP_SIZE = 1
-    ALL_PAIRS = False
 
     @staticmethod
     def get_variable_indices(var_subset, variable="z"):
@@ -170,6 +173,10 @@ class StateLifter(BaseClass):
         if self.theta_ is None:
             self.theta_ = deepcopy(self.generate_random_theta())
         return self.theta_
+
+    @theta.setter
+    def theta(self, t):
+        self.theta_ = t
 
     @property
     def base_var_dict(self):
@@ -307,7 +314,7 @@ class StateLifter(BaseClass):
         return Ai_poly.get_matrix(all_var_dict)
 
     def get_A_learned(
-        self, A_known=[], var_dict=None, method=METHOD, verbose=False, output_poly=False
+        self, A_known=[], var_dict=None, method=METHOD, verbose=False
     ) -> list:
         import time
 
@@ -709,8 +716,6 @@ class StateLifter(BaseClass):
             for key in bi_poly.variable_dict_j:
                 # need intermediate variables cause otherwise z_0 -> z_1 -> z_2 etc. can happen.
                 key_ij = key
-                # TODO(FD) this is very ugly and should be replaced by lifter-specific
-                # class methods.
                 for from_, to_ in zip(unique_idx, idx):
                     key_ij = key_ij.replace(f"x_{from_}", f"xi_{to_}")
                     key_ij = key_ij.replace(f"w_{from_}", f"wi_{to_}")
@@ -730,6 +735,8 @@ class StateLifter(BaseClass):
                     .replace("xt0i", "xt0")
                     .replace("mi", "m")
                 )
+                if verbose and (key != key_ij):
+                    print("changed", key, "to", key_ij)
 
                 try:
                     params = key_ij.split("-")[0]
@@ -788,7 +795,6 @@ class StateLifter(BaseClass):
         dim_Y = self.get_dim_Y(var_subset)
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
-
         for seed in range(n_seeds):
             np.random.seed(seed)
 
@@ -827,7 +833,7 @@ class StateLifter(BaseClass):
         Y,
         A_known: list = [],
         basis_known: np.ndarray = None,
-        var_subset: dict() = None,
+        var_subset: dict = None,
         method=METHOD,
     ):
         """Generate basis from lifted state matrix Y.
@@ -854,6 +860,9 @@ class StateLifter(BaseClass):
                 ]
             )
             Y = np.vstack([Y, A])
+
+        if method != "qrp":
+            print("using a method other than qrp is not recommended.")
 
         basis, info = get_nullspace(Y, method=method, tolerance=self.EPS_SVD)
 
@@ -958,21 +967,13 @@ class StateLifter(BaseClass):
         basis_reduced = sp.vstack(basis_reduced)
 
         if self.REDUCE_DEPENDENT:
-            import sparseqr as sqr
-
-            Z, R, E, rank = sqr.rz(
-                basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
-            )
-            r_vals = np.abs(R.diagonal())
-            sort_inds = np.argsort(r_vals)[::-1]
-            keep_idx = sorted(E[sort_inds[:rank]])
-            basis_reduced = basis_reduced[keep_idx, :]
-            *_, rank_new = sqr.rz(
-                basis_reduced.T, np.zeros((basis_reduced.shape[1], 1)), tolerance=1e-6
-            )
-            assert rank_new == rank
+            bad_idx = find_dependent_columns(basis_reduced.T, tolerance=1e-6)
+        else:
+            bad_idx = []
 
         for i in range(basis_reduced.shape[0]):
+            if i in bad_idx:
+                continue
             ai = basis_reduced[[i], :].toarray().flatten()
             Ai = self.get_mat(ai, sparse=sparse, correct=True, var_dict=None)
             # Normalize the matrix

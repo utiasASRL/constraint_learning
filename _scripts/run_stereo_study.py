@@ -1,29 +1,22 @@
+import matplotlib.pylab as plt
 import numpy as np
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
-    plot_scalability,
-    run_oneshot_experiment,
-    run_scalability_new,
-    run_scalability_plot,
+    apply_autotemplate_base,
+    apply_autotemplate_plot,
+    apply_autotight_base,
+    plot_autotemplate_time,
 )
+from lifters.stereo1d_lifter import Stereo1DLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
-from utils.plotting_tools import savefig
+from utils.plotting_tools import add_lines, plot_matrix, savefig
 
-# matplotlib.use("TkAgg")
-# plt.ion()
-# matplotlib.use('Agg') # non-interactive
-# plt.ioff()
+RESULTS_DIR = "_results_server_v3"
 
 
-DEBUG = False
-
-RESULTS_DIR = "_results"
-# RESULTS_DIR = "_results_server"
-
-
-def stereo_tightness(d=2, n_landmarks=None):
+def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
     """
     Find the set of minimal constraints required for tightness for stereo problem.
     """
@@ -39,36 +32,24 @@ def stereo_tightness(d=2, n_landmarks=None):
         np.random.seed(seed)
 
         variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
-        if d == 2:
-            plots = ["tightness", "matrix", "templates", "svd"]
-            lifter = Stereo2DLifter(
-                n_landmarks=n_landmarks,
-                level=level,
-                param_level=param_level,
-                variable_list=variable_list,
-            )
-        elif d == 3:
-            plots = ["tightness"]
-            lifter = Stereo3DLifter(
-                n_landmarks=n_landmarks,
-                level=level,
-                param_level=param_level,
-                variable_list=variable_list,
-            )
+        plots = ["matrix", "templates", "svd"]
+        lifter = Stereo2DLifter(
+            n_landmarks=n_landmarks,
+            level=level,
+            param_level=param_level,
+            variable_list=variable_list,
+        )
 
         learner = Learner(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
-        fname_root = f"{RESULTS_DIR}/{lifter}_seed{seed}"
+        fname_root = f"{results_dir}/{lifter}_seed{seed}"
 
-        run_oneshot_experiment(learner, fname_root, plots)
+        apply_autotight_base(learner, fname_root, plots)
 
 
-def stereo_scalability_new(n_seeds, recompute, d=2):
-    if DEBUG:
-        n_landmarks_list = [10, 15]
-    else:
-        n_landmarks_list = [10, 15, 20, 25, 30]
+def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
+    n_landmarks_list = [10, 15, 20, 25, 30]
 
     level = "urT"
     param_level = "ppT"
@@ -92,56 +73,169 @@ def stereo_scalability_new(n_seeds, recompute, d=2):
             param_level=param_level,
             variable_list=variable_list,
         )
+        # can be used for reproducibility
+        # fname = "_results/stereo3d_lifter.pkl"
+        # try:
+        #     lifter = Stereo3DLifter.from_file(fname)
+        # except FileNotFoundError:
+        #     lifter = Stereo3DLifter(
+        #         n_landmarks=n_landmarks,
+        #         level=level,
+        #         param_level=param_level,
+        #         variable_list=variable_list,
+        #     )
+        #     lifter.to_file(fname)
+        #     lifter = Stereo3DLifter.from_file(fname)
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
     if lifter.d == 2:
-        fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+        fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
-        run_scalability_plot(learner, recompute=recompute, fname_root=fname_root)
+        apply_autotemplate_plot(learner, recompute=recompute, fname_root=fname_root)
+        return
 
-    df = run_scalability_new(
+    df = apply_autotemplate_base(
         learner,
         param_list=n_landmarks_list,
         n_seeds=n_seeds,
         recompute=recompute,
-        results_folder=RESULTS_DIR,
+        results_folder=results_dir,
     )
     if df is None:
         return
 
-    fname_root = f"{RESULTS_DIR}/scalability_{learner.lifter}"
+    fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
 
-    fig, axs = plot_scalability(df, log=True, start="t ", legend_idx=1)
+    # this entry is invalid (it is the copy of N=25)
+    df = df.loc[~((df.N == 30) & (df["type"] == "basic"))]
+
+    fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
     # [ax.set_ylim(10, 1000) for ax in axs.values()]
     [ax.set_ylim(2, 8000) for ax in axs]
 
-    fig.set_size_inches(4, 3)
-    axs[1].legend(loc="upper right", fontsize=10, framealpha=1.0)
+    axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+
+    add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min(), facs=[3])
+    add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min(), facs=[3])
     savefig(fig, fname_root + f"_t.pdf")
 
-    # fig, ax = plot_scalability(df, log=True, start="n ")
-    # fig.set_size_inches(5, 5)
-    # savefig(fig, fname_root + f"_n.pdf")
 
-    # tex_name = fname_root + f"_n.tex"
-    # save_table(df, tex_name)
+def run_all(
+    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+):
+    if autotight:
+        print("========== Stereo2D autotight ===========")
+        apply_autotight(d=2, results_dir=results_dir)
+    if autotemplate:
+        print("========== Stereo2D autotemplate ===========")
+        apply_autotemplate(
+            d=2, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
+        )
+        print("========== Stereo3D autotemplate ===========")
+        apply_autotemplate(
+            d=3, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
+        )
 
 
-def run_all(n_seeds, recompute, tightness=True, scalability=True):
-    if scalability:
-        print("========== Stereo2D scalability ===========")
-        stereo_scalability_new(d=2, n_seeds=n_seeds, recompute=recompute)
-        if not DEBUG:
-            print("========== Stereo3D scalability ===========")
-            stereo_scalability_new(d=3, n_seeds=n_seeds, recompute=recompute)
-    if tightness:
-        print("========== Stereo2D tightness ===========")
-        stereo_tightness(d=2)
-        if not DEBUG:
-            print("========== Stereo3D tightness ===========")
-            stereo_tightness(d=3)
+def run_stereo_1d():
+    from cert_tools.linalg_tools import rank_project
+    from cert_tools.sdp_solvers import solve_sdp_cvxpy
+
+    np.random.seed(0)
+    lifter = Stereo1DLifter(n_landmarks=2)
+    # lifter.theta = np.array([3.0])
+    # lifter.landmarks = np.array([2.3, 4.6])
+
+    print("theta:", lifter.theta, "landmarks:", lifter.landmarks)
+    print("x:", lifter.get_x())
+    # AutoTight
+
+    A_known_all = lifter.get_A_known(add_known_redundant=True)
+    A_known = lifter.get_A_known()
+    # shortcut: A_learned = lifter.get_A_learned_simple(A_known=A_known)
+
+    Y = lifter.generate_Y(factor=1.0)
+
+    # with A_known
+    basis, S = lifter.get_basis(Y, A_known=A_known)
+    print("with known:", S)
+    A_red = lifter.generate_matrices_simple(basis=basis)
+    fig, axs = plt.subplots(1, len(A_red) + len(A_known), sharey=True)
+    for i, Ai in enumerate(A_known):
+        title = f"$A_{{k,{i}}}$"
+        fig, ax, im = plot_matrix(Ai, ax=axs[i], colorbar=False)
+        ax.set_title(title)
+        print(f"known {i}", Ai.toarray())
+    for j, Ai in enumerate(A_red):
+        title = f"$A_{{\ell,{j}}}$"
+        fig, ax, im = plot_matrix(Ai, ax=axs[i + 1 + j], colorbar=False)
+        ax.set_title(title)
+        print(f"learned {j}", Ai.toarray())
+
+    # without A_known:
+    basis, S = lifter.get_basis(Y, A_known=[])
+    print("without known:", S)
+    A_all = lifter.generate_matrices_simple(basis=basis)
+    fig_raw, axs_raw = plt.subplots(1, len(A_all), sharey=True)
+    for i, Ai in enumerate(A_all):
+        title = f"$A_{{\ell,{i}}}$"
+        plot_matrix(Ai, ax=axs_raw[i], colorbar=False)
+        axs_raw[i].set_title(title)
+
+    # hard coded for better comparability
+    fig, axs = plt.subplots(3, len(A_all), sharey=True)
+    plot_matrix(A_all[0] * np.sqrt(2), ax=axs[0, 0], colorbar=False)
+    plot_matrix(A_all[1] * np.sqrt(2), ax=axs[0, 1], colorbar=False)
+    plot_matrix(-A_all[2], ax=axs[0, 2], colorbar=False)
+    axs[0, 0].set_title(f"$A_{{\ell,{1}}}$")
+    axs[0, 1].set_title(f"$A_{{\ell,{2}}}$")
+    axs[0, 2].set_title(f"$A_{{\ell,{3}}}$")
+    print(np.round(A_all[0].toarray() * np.sqrt(2), 4))
+    print(np.round(A_all[1].toarray() * np.sqrt(2), 4))
+    print(np.round(-A_all[2].toarray(), 4))
+
+    plot_matrix(A_known[0], ax=axs[1, 0], colorbar=False)
+    plot_matrix(A_known[1], ax=axs[1, 1], colorbar=False)
+    plot_matrix(A_red[0] * np.sqrt(2) / 2, ax=axs[1, 2], colorbar=False)
+    axs[1, 0].set_title(f"$A_{{k,{1}}}$")
+    axs[1, 1].set_title(f"$A_{{k,{2}}}$")
+    axs[1, 2].set_title(f"$A_{{\ell,{1}}}$")
+
+    plot_matrix(A_known_all[0], ax=axs[2, 0], colorbar=False)
+    plot_matrix(A_known_all[1], ax=axs[2, 1], colorbar=False)
+    plot_matrix(A_known_all[2], ax=axs[2, 2], colorbar=False)
+    axs[2, 0].set_title(f"$A_{{k,{1}}}$")
+    axs[2, 1].set_title(f"$A_{{k,{2}}}$")
+    axs[2, 2].set_title(f"$A_{{k,{3}}}$")
+
+    Q, y = lifter.get_Q()
+    fig, ax, im = plot_matrix(Q)
+    x = lifter.get_x()
+
+    print("theta gt:", lifter.theta)
+
+    theta_hat, info_local, cost_local = lifter.local_solver(t_init=lifter.theta, y=y)
+    print("theta global:", theta_hat, "cost:", cost_local)
+
+    # sanity check
+    x_hat = lifter.get_x(theta=theta_hat)
+    assert abs(x_hat.T @ Q @ x_hat - cost_local) / cost_local < 1e-10
+    for A_list, label in zip([A_known, A_all], ["known", "learned"]):
+        lifter.test_constraints(A_list)
+        Constraints = [(lifter.get_A0(), 1.0)] + [(Ai, 0.0) for Ai in A_list]
+        X, info_sdp = solve_sdp_cvxpy(Q=Q, Constraints=Constraints, verbose=False)
+        x_round, info_rank = rank_project(X, 1)
+        error = abs(X[0, 1] - theta_hat) / theta_hat
+        RDG = abs(cost_local - info_sdp["cost"]) / cost_local
+        print(
+            f"{label}, theta sdp:{X[0,1]}, theta rounded:{x_round[1]} EVR:{info_rank['EVR']}, cost:{info_sdp['cost']}"
+        )
+        print("eigvals:", np.linalg.eigvalsh(X))
+        print("RDG:", RDG)
+        print("error", error)
 
 
 if __name__ == "__main__":
-    run_all(n_seeds=1, recompute=True)
+    run_stereo_1d()
+    run_all(n_seeds=1, autotight=False, autotemplate=True, recompute=False)
