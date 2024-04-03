@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from auto_template.learner import Learner
+from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -52,7 +53,7 @@ LIMITS = {
         "oneshot": 12,
     },
     RangeOnlyLocLifter: {"level": "quad", "oneshot": 15},
-    MatWeightLocLifter: {"oneshot": 10}
+    MatWeightLocLifter: {"oneshot": 10},
 }
 
 
