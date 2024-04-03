@@ -1,7 +1,4 @@
-import matplotlib.pylab as plt
 import numpy as np
-import pandas as pd
-import seaborn as sns
 from cert_tools.linalg_tools import rank_project
 from cert_tools.sdp_solvers import solve_sdp
 
@@ -13,10 +10,10 @@ from utils.plotting_tools import matshow_list, savefig
 
 USE_METHODS = ["local"]
 
-RESULTS_WRITE = "_results"
+RESULTS_DIR = "_results"
 
 
-def plot_matrices(new_lifter, n_params, fname=""):
+def plot_matrices(new_lifter, n_params, use_learning, fname=""):
     # ====== plot matrices =====
     new_lifter.generate_random_setup()
     new_lifter.simulate_y(noise=new_lifter.NOISE, sparsity=1.0)
@@ -49,14 +46,13 @@ def plot_matrices(new_lifter, n_params, fname=""):
             savefig(fig, fname + "_Ar.png")
 
 
-if __name__ == "__main__":
-    appendix = "exampleRO"
-    # appendix = "exampleMW"
+def run_example(results_dir=RESULTS_DIR, appendix="exampleRO"):
+    assert appendix in ["exampleRO", "exampleMW"]
     seed = 0
     n_params = 4
     use_learning = True
 
-    np.random.seed(0)
+    np.random.seed(seed)
     if appendix == "exampleRO":
         new_lifter = RangeOnlyLocLifter(
             n_landmarks=8, n_positions=n_params, reg=Reg.CONSTANT_VELOCITY, d=2
@@ -65,8 +61,8 @@ if __name__ == "__main__":
         new_lifter = MatWeightLocLifter(n_landmarks=8, n_poses=n_params)
 
     np.random.seed(seed)
-    fname = f"{RESULTS_WRITE}/{appendix}"
-    plot_matrices(new_lifter, n_params, fname=fname)
+    fname = f"{results_dir}/{appendix}"
+    plot_matrices(new_lifter, n_params, use_learning, fname=fname)
 
     # ====== plot estimates =====
     np.random.seed(seed)
@@ -91,7 +87,7 @@ if __name__ == "__main__":
         primal=USE_PRIMAL,
         use_fusion=USE_FUSION,
         tol=TOL_SDP,
-        verbose=True,
+        verbose=False,
     )
     x_sdp, info = rank_project(X, p=1)
 
@@ -110,3 +106,8 @@ if __name__ == "__main__":
     except Exception as e:
         print("Error plotting:", e)
     print("done")
+
+
+if __name__ == "__main__":
+    run_example("exampleRO")
+    run_example("exampleMW")

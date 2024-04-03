@@ -1,3 +1,7 @@
+"""
+This script was an unsuccessful attempt to use Parameters to speedup the solver (for warm starting).
+"""
+
 import time
 from copy import deepcopy
 
@@ -9,9 +13,7 @@ from cert_tools import adjust_Q, adjust_tol, options_cvxpy
 from _scripts.run_clique_study import read_saved_learner
 from auto_template.learner import ADJUST_Q, PRIMAL, TOL, Learner
 from auto_template.sim_experiments import create_newinstance
-from lifters.mono_lifter import MonoLifter
 from lifters.wahba_lifter import WahbaLifter
-from lifters.matweight_lifter import MatWeightLocLifter
 
 USE_PARAMETERS = True
 VERBOSE = False

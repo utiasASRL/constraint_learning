@@ -1,8 +1,7 @@
-_results/
-_results_server/
-_results_laptop/
+_results*/
 _plots/
 starrynight/
+starloc/
 log/
 
 __pycache__

@@ -15,18 +15,13 @@ from decomposition.sim_experiments import (
     read_saved_learner,
 )
 from lifters.matweight_lifter import MatWeightLocLifter
-from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.state_lifter import StateLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.stereo_lifter import StereoLifter
 from lifters.wahba_lifter import WahbaLifter
 from solvers.chordal import get_aggregate_sparsity, investigate_sparsity
 from utils.plotting_tools import plot_aggregate_sparsity, savefig
 
-RESULTS_WRITE = "_results"
-RESULTS_READ = "_results_server"
+RESULTS_DIR = "_results"
 
 COMPUTE_MINIMAL = True
 
@@ -37,6 +32,8 @@ USE_PRIMAL = True
 USE_KNOWN = False
 
 VERBOSE = False
+
+N_SEEDS = 3
 
 
 def compute_sparsities(learner: Learner, appendix=""):
@@ -51,7 +48,7 @@ def compute_sparsities(learner: Learner, appendix=""):
             tightness=learner.lifter.TIGHTNESS,
         )
         if indices is None:
-            print(f"{lifter}: did not find valid lamdas.")
+            print(f"{learner.lifter}: did not find valid lamdas.")
         else:
             A_b_suff = [A_b_all[i] for i in indices]
 
@@ -218,23 +215,41 @@ def solve_in_one(lifter, overlap_params):
         compute_sparsities(learner, appendix=appendix)
 
 
-if __name__ == "__main__":
-    # TODO(FD): Some running points
-    # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
-    # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
+def plot_hierarchy(df, fname_root, label="RDG"):
+    fig, ax = plt.subplots()
+    # fig.set_size_inches(7, 3.0)
+    fig.set_size_inches(4, 4)
+    df = df[df.n_landmarks.isin([4, 6, 8, 10])]
+    sns.lineplot(
+        data=df,
+        x="n_vars",
+        y=label,
+        ax=ax,
+        hue="n_landmarks",
+        style="n_landmarks",
+        palette="tab10",
+        # errorbar=("sd", 0.5),
+    )
+    ax.set_yscale("log")
+    ax.set_xlabel("clique width $\\ell$")
+    ax.set_ylabel(label)
+    ax.set_xticks(df.n_vars.unique())
+    ax.set_xticklabels(df.n_vars.unique())
+    ax.set_yscale("log")
+    ax.grid()
+    ax.legend(title="landmarks", loc="lower left")
 
-    # Possible lifters
-    # ================
-    # Stereo2DLifter(n_landmarks=10, param_level="ppT", level="urT"),
-    # Stereo3DLifter(n_landmarks=10, param_level="ppT", level="urT"),
-    # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="no"),
-    # RangeOnlyLocLifter(n_positions=3, n_landmarks=10, d=3, level="quad"),
-    # WahbaLifter(n_landmarks=4, d=3, robust=True, level="xwT", n_outliers=1),
-    # WahbaLifter(n_landmarks=20, d=3, robust=True, level="xwT", n_outliers=14),
-    # MonoLifter(n_landmarks=10, d=3, robust=True, level="xwT", n_outliers=1),
-    # WahbaLifter(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0),
-    # MonoLifter(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0),
-    # MatWeightLocLifter(n_landmarks=10, n_poses=10)
+    fname = f"{fname_root}_{label}.pdf"
+    savefig(fig, fname)
+
+
+def run_hierarchy_study(
+    results_dir=RESULTS_DIR, overwrite=False, n_seeds=N_SEEDS, appendix="hierarchy"
+):
+    if appendix == "hierarchy":
+        n_landmarks = [4, 5, 6, 7, 8, 9, 10]
+    elif appendix == "hierarchytest":
+        n_landmarks = [4, 5]
 
     overlap_params = [
         {"overlap_mode": 0, "n_vars": 1},
@@ -246,26 +261,19 @@ if __name__ == "__main__":
         # {"overlap_mode": 1, "n_vars": 7},
         # {"overlap_mode": 2, "n_vars": 2},
     ]
-    overwrite = False
-
-    # n_landmarks = [4, 5, 6, 7, 8]
-    # study_name = "study_overlap_large"
-
-    n_landmarks = [4, 5, 6, 7, 8, 9, 10]
-    study_name = "study_overlap_huge"
 
     try:
-        fname = f"{RESULTS_READ}/{study_name}.pkl"
+        fname = f"{results_dir}/{appendix}.pkl"
         overwrite is False
         df = pd.read_pickle(fname)
     except (FileNotFoundError, AssertionError):
-        fname = f"{RESULTS_WRITE}/{study_name}.pkl"
+        fname = f"{results_dir}/{appendix}.pkl"
         df_data = []
         # plot_fname = f"{RESULTS_WRITE}/{study_name}"
         plot_fname = ""
         for n_landmarks in n_landmarks:
             # solve_in_one(lifter, overlap_params)
-            for seed in range(3):
+            for seed in range(n_seeds):
                 np.random.seed(seed)
                 lifter = WahbaLifter(
                     n_landmarks=n_landmarks,
@@ -286,80 +294,11 @@ if __name__ == "__main__":
                 df.to_pickle(fname)
                 print(f"saved intermediate as {fname}")
 
-    plot_type = "line"
-    for label in ["RDG"]:  # , "EVR"]:
-        fig, ax = plt.subplots()
-        # fig.set_size_inches(7, 3.0)
-        fig.set_size_inches(4, 4)
-        df = df[df.n_landmarks.isin([4, 6, 8, 10])]
-        from copy import deepcopy
+    plot_hierarchy(df, fname_root=f"{results_dir}/{appendix}", label="RDG")
 
-        if plot_type == "line":
-            sns.lineplot(
-                data=df,
-                x="n_vars",
-                y=label,
-                ax=ax,
-                hue="n_landmarks",
-                style="n_landmarks",
-                palette="tab10",
-                # errorbar=("sd", 0.5),
-            )
-            ax.set_yscale("log")
-        elif plot_type == "box":
-            sns.boxplot(
-                data=df,
-                x="n_vars",
-                y=label,
-                ax=ax,
-                hue="n_landmarks",
-                palette="tab10",
-                legend=True,
-                # errorbar=("sd", 0.5),
-            )
-            sns.stripplot(
-                data=df,
-                x="n_vars",
-                y=label,
-                ax=ax,
-                hue="n_landmarks",
-                palette="tab10",
-                legend=False,
-                # errorbar=("sd", 0.5),
-            )
-        elif plot_type == "point-strip":
-            df_here = deepcopy(df)
-            df_here["n_vars"] = df_here["n_vars"] - 1  # only if using pointplot next
-            sns.pointplot(
-                data=df_here,
-                x="n_vars",
-                y=label,
-                ax=ax,
-                log_scale=True,
-                hue="n_landmarks",
-                palette="tab10",
-                markers="",
-                errorbar=("sd", 1.0),
-                legend=False,
-            )
-            sns.stripplot(
-                data=df_here,
-                x="n_vars",
-                y=label,
-                ax=ax,
-                hue="n_landmarks",
-                palette="tab10",
-                dodge=0.01,
-                legend=True,
-                # errorbar=("sd", 0.5),
-            )
-        ax.set_xlabel("clique width $\\ell$")
-        ax.set_ylabel(label)
-        fname = f"{RESULTS_READ}/{study_name}_{label}.pdf"
-        ax.set_xticks(df.n_vars.unique())
-        ax.set_xticklabels(df.n_vars.unique())
-        ax.set_yscale("log")
-        ax.grid()
-        ax.legend(title="landmarks", loc="lower left")
-        savefig(fig, fname)
-    print("done")
+
+if __name__ == "__main__":
+    # TODO(FD): Some running points
+    # - currently Stereo3D works for seed=0 but fails for others (didn't test extensively)
+    # - Mono robust doesn't become tight, but Wahba robust does. This is weird as they usually behave the same!
+    run_hierarchy_study(overwrite=True, n_seeds=1)
