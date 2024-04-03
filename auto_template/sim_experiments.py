@@ -44,12 +44,17 @@ LIMITS = {
         "oneshot": 20,
     },
     MonoLifter: {
-        "oneshot": 11,
+        "level": "xwT",
+        "oneshot": 12,
     },
     WahbaLifter: {
-        "oneshot": 11,
+        "level": "xwT",
+        "oneshot": 12,
     },
-    RangeOnlyLocLifter: {"oneshot": 15},
+    RangeOnlyLocLifter: {
+        "level": "quad",
+        "oneshot": 15
+    },
 }
 
 
@@ -453,7 +458,8 @@ def apply_autotemplate_base(
                     data_dict["n constraints"] = len(new_learner.constraints)
                     # determine tightness
                     n_param_lim = LIMITS.get(type(new_lifter), {}).get(name, 1e3)
-                    if n_params > n_param_lim:
+                    level_affected = LIMITS.get(type(learner.lifter), {}).get("level", "none")
+                    if (n_params > n_param_lim) and (learner.lifter.level == level_affected):
                         print(
                             f"skipping tightness test of {new_lifter} with {n_params} because it leeds to memory error"
                         )
@@ -483,8 +489,9 @@ def apply_autotemplate_base(
         max_seeds = n_seeds + 5
         df_data = []
         for n_params in param_list:
-            n_params_lim = LIMITS.get(type(learner.lifter), {}).get("oneshot", 1000)
-            if n_params > n_params_lim:
+            n_param_lim = LIMITS.get(type(learner.lifter), {}).get("oneshot", 1000)
+            level_affected = LIMITS.get(type(learner.lifter), {}).get("level", "none")
+            if (n_params > n_param_lim) and (learner.lifter.level == level_affected):
                 print(
                     f"skipping N={n_params} for {learner.lifter} because of memory/speed."
                 )
