@@ -6,6 +6,7 @@ import pandas as pd
 
 from auto_template.learner import Learner
 from auto_template.sim_experiments import save_autotight_order
+from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.mono_lifter import MonoLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from lifters.stereo2d_lifter import Stereo2DLifter
@@ -14,7 +15,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results_v4"
+RESULTS_DIR = "_results"
 
 LIFTERS_NO = [
     (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
@@ -22,14 +23,15 @@ LIFTERS_NO = [
 ]
 
 LIFTERS = [
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-    (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-    (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-    (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-    (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
-    (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-    (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+    # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+    # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+    # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+    # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+    # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+    # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+    (MatWeightLocLifter, dict(n_landmarks=5, n_poses=2, level="no")),
 ]
 
 
@@ -120,6 +122,7 @@ def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
         "rangeonlyloc3d_quad": f"RO ($\\vc{{y}}_n$)",
         "stereo2d_urT_ppT": "stereo (2d)",
         "stereo3d_urT_ppT": "stereo (3d)",
+        "mw_loc_3d": "MW-loc (3d)",
     }
     fname = f"{results_dir}/all_df.tex"
     with open(fname, "w") as f:
