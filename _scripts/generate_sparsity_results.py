@@ -5,7 +5,7 @@ from _scripts.run_time_study import run_time_study
 
 if __name__ == "__main__":
     n_seeds = 1
-    results_dir = "_results_new"
+    results_dir = "_results_sparsity"
     overwrite = True
 
     print("========== running exampels ===========")

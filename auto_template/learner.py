@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
+from cert_tools.sdp_solvers import solve_feasibility_sdp
+from matplotlib.patches import Rectangle
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -22,15 +24,12 @@ from utils.plotting_tools import (
 USE_FUSION = False
 
 if USE_FUSION:
-    # from cert_tools.sdp_solvers import solve_lambda_fusion as solve_lambda
     # TODO(FD) for some reason, cvxpy is much better at solving for lambda than
     # the fusion API. My guess is that it deals better with redundant constraints
     # (of which there are many).
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
     from cert_tools.sdp_solvers import solve_sdp_fusion as solve_sdp
 else:
-    # from solvers.common_bkp import solve_sdp_cvxpy as solve_sdp
-    # from solvers.sparse_bkp import solve_lambda as solve_lambda
     from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
     from cert_tools.sdp_solvers import solve_sdp_cvxpy as solve_sdp
 
@@ -526,7 +525,7 @@ class Learner(object):
 
         # compute lambas by solving dual problem
         options_cvxpy["accept_unknown"] = True
-        X, info = solve_sdp_cvxpy(
+        X, info = solve_sdp(
             self.solver_vars["Q"],
             A_b_list_all,
             B_list=B_list,
@@ -1000,7 +999,7 @@ class Learner(object):
             for i, (_, row) in enumerate(df.iterrows()):
                 if row["required (sorted)"] < 0:
                     ax.add_patch(
-                        matplotlib.patches.Rectangle(
+                        Rectangle(
                             (ax.get_xlim()[0], i - 0.5),
                             ax.get_xlim()[1] + 0.5,
                             1.0,
