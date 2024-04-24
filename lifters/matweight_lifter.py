@@ -349,4 +349,4 @@ class MatWeightLocLifter(MatWeightLifter):
         self.y_ = self.prob.G.E
 
     def __repr__(self):
-        return "mw_loc_lifter"
+        return f"mw_loc_{self.d}d"

@@ -62,7 +62,9 @@ class RangeOnlyLocLifter(StateLifter):
     ADMM_INIT_XHAT = False
 
     def get_vec_around_gt(self, delta: float = 0):
-        """Sample around ground truth."""
+        """Sample around ground truth.
+        :param delta: sample from gt + std(delta) (set to 0 to start from gt.)
+        """
         if delta == 0:
             return self.theta
         else:
@@ -553,6 +555,17 @@ class RangeOnlyLocLifter(StateLifter):
             pass
         return self.Q_fixed, self.y_
 
+    def get_D(self, that):
+        D = np.eye(1 + self.n_positions * self.d + self.size_z)
+        x = self.get_x(theta=that)
+        J = self.get_J_lifting(t=that)
+
+        D = sp.lil_array((len(x), len(x)))
+        D[range(len(x)), range(len(x))] = 1.0
+        D[:, 0] = x
+        D[-J.shape[0] :, 1 : 1 + J.shape[1]] = J
+        return D.tocsc()
+
     def get_sub_idx_x(self, sub_idx, add_z=True):
         sub_idx_x = [0]
         for idx in sub_idx:
@@ -566,11 +579,11 @@ class RangeOnlyLocLifter(StateLifter):
             ]
         return sub_idx_x
 
-    def get_position(self, theta=None, xtheta=None):
-        if theta is not None:
-            return theta.reshape(self.n_positions, self.d)
-        elif xtheta is not None:
-            return xtheta.reshape(self.n_positions, self.d)
+    def get_theta(self, x):
+        return x[1 : self.d + 1]
+
+    def get_position(self, theta):
+        return theta.reshape(self.n_positions, self.d)
 
     def get_error(self, that):
         err = np.sqrt(np.mean((self.theta - that) ** 2))

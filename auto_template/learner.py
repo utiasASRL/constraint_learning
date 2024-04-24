@@ -7,6 +7,7 @@ import scipy.sparse as sp
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from cert_tools.sdp_solvers import solve_feasibility_sdp
 from matplotlib.patches import Rectangle
+from matplotlib.colors import SymLogNorm
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -51,7 +52,7 @@ TOL_RANK_ONE = 1e7
 
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
-USE_KNOWN = False
+USE_KNOWN = True
 USE_INCREMENTAL = True
 
 GLOBAL_THRESH = 1e-3  # consider dual problem optimal when eps<GLOBAL_THRESH
@@ -453,7 +454,6 @@ class Learner(object):
                     )
 
             return True
-        self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
 
     def find_global_solution(self, data_dict={}):
         from cert_tools.sdp_solvers import options_cvxpy
@@ -720,6 +720,7 @@ class Learner(object):
                 index=self.constraint_index,
                 template_idx=self.constraint_index,
                 mat_var_dict=self.lifter.var_dict,
+                compute_polyrow_b=True,
             )
             self.constraint_index += 1
             templates_known.append(template)
@@ -806,7 +807,7 @@ class Learner(object):
             if self.apply_templates_to_others:
                 print("------- applying templates ---------")
                 t1 = time.time()
-                n_new, n_all = self.apply_templates(reapply_all=True)
+                n_new, n_all = self.apply_templates()
                 print(f"found {n_new} independent constraints, new total: {n_all} ")
                 ttot = time.time() - t1
 
@@ -1073,11 +1074,9 @@ class Learner(object):
             1 - A_agg.toarray(), vmin=0, vmax=1, cmap="gray"
         )  # 1 (white) is empty, 0 (black) is nonempty
 
-        import matplotlib
-
         vmin = min(-np.max(Q), np.min(Q))
         vmax = max(np.max(Q), -np.min(Q))
-        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
+        norm = SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
         im1 = axs[1].matshow(Q, norm=norm)
 
         for ax in axs:
@@ -1139,8 +1138,4 @@ class Learner(object):
                 savefig(figi, fname_root + f"_matrix{i}.pdf")
         for ax in axs[i + 1 :]:
             ax.axis("off")
-
-        # plt.subplots_adjust(wspace=0.1, hspace=0.1)
-        # if fname_root != "":
-        #    savefig(fig, fname_root + "_matrices-poly.png")
         return fig, axs

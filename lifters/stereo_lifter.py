@@ -222,6 +222,10 @@ class StereoLifter(StateLifter, ABC):
             assert abs(cz @ pj * u_xj + tz * u_xj - cx @ pj - tx) < 1e-10
             assert abs(u_zj * cz @ pj + u_zj * tz - 1) < 1e-10
         elif self.d == 3:
+            # TODO(FD) below is from a previous formulation
+            # (doesn't correspond to comments above)
+            # but it should still pass as it's equivalent.
+            # should be changed to the one in the docs.
             x = self.get_x()
             # fmt: off
             (_, tx, ty, tz, cx1, cx2, cx3, cy1, cy2, cy3, cz1, cz2, cz3, u_x1, u_y1, u_z1, *_) = x
@@ -247,6 +251,9 @@ class StereoLifter(StateLifter, ABC):
         return []
 
         A_known = []
+
+        print("Not using known stereo templates because they depend on the landmarks.")
+        return A_known
         z_dim = self.get_level_dims()[self.level]
 
         if "x" not in var_dict or "h" not in var_dict:
