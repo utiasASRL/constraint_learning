@@ -163,6 +163,15 @@ class MatWeightLifter(StateLifter):
 
         return np.hstack(vec)
 
+    def get_theta_from_x(self, x):
+        theta = {}
+        i = 0
+        for var_name, var_size in self.var_dict.items():
+            theta[var_name] = x[i : i + var_size]
+            i += var_size
+        assert i == len(x)
+        return theta
+
     def get_dim_x(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
@@ -233,7 +242,7 @@ class MatWeightLifter(StateLifter):
     def node_size(self):
         return self.var_dict["xt_0"] + self.var_dict[f"xC_0"]
 
-    def get_clique_vars_ij(self, *args):
+    def get_clique_vars_ij(self, *args, map_vars=False):
         var_dict = {
             "h": self.var_dict["h"],
         }
@@ -244,21 +253,31 @@ class MatWeightLifter(StateLifter):
                     f"xt_{i}": self.var_dict[f"xt_{i}"],
                 }
             )
+        if map_vars:
+            for k in range(self.n_landmarks):
+                var_dict[f"m_{k}"] = self.var_dict[f"m_{k}"]
+                for i in args:
+                    var_dict[f"z_{k}_{i}"] = self.var_dict[f"z_{k}_{i}"]
         return var_dict
 
-    def get_clique_vars(self, i, n_overlap=0):
-        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_poses)))
-        vars = {
+    def get_clique_vars(self, i, n_overlap=0, map_vars=False):
+        used_poses = list(range(i, min(i + n_overlap + 1, self.n_poses)))
+        var_dict = {
             "h": self.var_dict["h"],
         }
-        for j in used_landmarks:
-            vars.update(
+        for j in used_poses:
+            var_dict.update(
                 {
                     f"xC_{j}": self.var_dict[f"xC_{j}"],
                     f"xt_{j}": self.var_dict[f"xt_{j}"],
                 }
             )
-        return vars
+        if map_vars:
+            for k in range(self.n_landmarks):
+                var_dict[f"m_{k}"] = self.var_dict[f"m_{k}"]
+                for i in used_poses:
+                    var_dict[f"z_{k}_{i}"] = self.var_dict[f"z_{k}_{i}"]
+        return var_dict
 
     def get_clique_cost(self, i):
         return self.prob.generate_cost(
@@ -301,6 +320,9 @@ class MatWeightSLAMLifter(MatWeightLifter):
         if noise > 0:
             self.prob.add_init_pose_prior()
         self.y_ = self.prob.G.E
+
+    def get_clique_vars_ij(self, *args):
+        return super().get_clique_vars_ij(*args, map_vars=True)
 
     def __repr__(self):
         return "mw_slam_lifter"
