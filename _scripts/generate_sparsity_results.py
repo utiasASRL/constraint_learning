@@ -9,8 +9,8 @@ if __name__ == "__main__":
     overwrite = True
 
     print("========== running exampels ===========")
-    run_example(results_dir, "exampleRO")
-    run_example(results_dir, "exampleMW")
+    # run_example(results_dir, "exampleRO")
+    # run_example(results_dir, "exampleMW")
 
     print("========== running tightness study ===========")
     run_tightness_study(
@@ -20,7 +20,7 @@ if __name__ == "__main__":
     run_time_study(
         results_dir, overwrite=overwrite, n_seeds=n_seeds, appendix="timetest"
     )
-    print("========== running hierarhcy study ===========")
+    print("========== running hierarchy study ===========")
     run_hierarchy_study(
         results_dir, overwrite=overwrite, n_seeds=n_seeds, appendix="hierarchytest"
     )

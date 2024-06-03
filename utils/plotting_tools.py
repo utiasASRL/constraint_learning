@@ -5,15 +5,17 @@ import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
+# fmt: off
 USE_METHODS = {
-    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
-    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP"},
-    "SDP-redun": {"color": "C1", "marker": "d", "alpha": 0.5, "label": None},
-    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
-    "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 0.5, "label": None},
-    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "dSDP-admm"},
-    "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 0.5, "label": None},
+    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local", "ls":"-"},
+    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP", "ls":":"},
+    "SDP-redun": {"color": "C1", "marker": "d", "alpha": 0.5, "label": None, "ls":":"},
+    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP", "ls":":"},
+    "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 0.5, "label": None, "ls":":"},
+    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "dSDP-admm", "ls":":"},
+    "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 0.5, "label": None, "ls":":"},
 }
+# fmt: on
 
 
 def import_plt():
@@ -415,6 +417,7 @@ def add_lines(ax, xs, start, facs=[1, 2, 3]):
             ls=":",
         )
         ax.annotate(xy=(xs[-2], ys[-2] * 0.7), text=f"O(N$^{fac}$)", alpha=0.5)
+
 
 def matshow_list(*args, log=False, ticks=False, **kwargs):
     fig, axs = plt.subplots(1, len(args), squeeze=False)

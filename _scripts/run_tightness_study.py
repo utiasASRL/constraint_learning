@@ -47,10 +47,14 @@ def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
     ax.xaxis.set_major_formatter(ticker.FixedFormatter(labels))
 
 
-def plot_tightness_study(fname):
+def plot_accuracy_study(fname):
+    plot_tightness_study(fname, ylabels=["error"], ls=":")
+
+
+def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):
     df = pd.read_pickle(fname)
     print(f"read {fname}")
-    for label in ["EVR", "RDG"]:
+    for label in ylabels:
         value_vars = [f"{label} local"] + [
             f"{label} {method}" for method in USE_METHODS
         ]
@@ -89,6 +93,7 @@ def plot_tightness_study(fname):
                     errorbar=("sd", 0.8),
                     log_scale=True,
                     label=kwargs["label"],
+                    linestyles=kwargs["ls"],
                 )
                 # plot all points
                 sns.stripplot(
@@ -105,7 +110,12 @@ def plot_tightness_study(fname):
                 pass
         ax.grid("on")
         ax.legend()
-        ax.set_xticklabels([f"{eval(l.get_text()):.2f}" for l in ax.get_xticklabels()])
+        try:
+            ax.set_xticklabels(
+                [f"{eval(l.get_text()):.2f}" for l in ax.get_xticklabels()]
+            )
+        except SyntaxError:
+            ax.set_xticklabels([l.get_text() for l in ax.get_xticklabels()])
         ax.set_xlabel("noise")
         savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
 
@@ -126,22 +136,6 @@ def run_tightness_study(
     )
     if overwrite:
         np.random.seed(SEED)
-        noise_list = np.logspace(0, 1, 5)  # from 1 pixel to 10 pixels
-        fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
-        df = generate_results(
-            lifter_mw,
-            n_params_list=n_params_list,
-            fname=fname,
-            noise_list=noise_list,
-            sparsity_list=sparsity_list,
-            n_seeds=n_seeds,
-            use_methods=USE_METHODS,
-            add_redundant_constr=True,
-        )
-        df.to_pickle(fname)
-        print("saved final as", fname)
-
-        np.random.seed(SEED)
         noise_list = np.logspace(-2, 0, 5)  # from 1cm to 1m
         fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
         df = generate_results(
@@ -157,9 +151,26 @@ def run_tightness_study(
         df.to_pickle(fname)
         print("saved final as", fname)
 
+        np.random.seed(SEED)
+        noise_list = np.logspace(0, 1, 5)  # from 1 pixel to 10 pixels
+        fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
+        df = generate_results(
+            lifter_mw,
+            n_params_list=n_params_list,
+            fname=fname,
+            noise_list=noise_list,
+            sparsity_list=sparsity_list,
+            n_seeds=n_seeds,
+            use_methods=USE_METHODS,
+            add_redundant_constr=True,
+        )
+        df.to_pickle(fname)
+        print("saved final as", fname)
+
     for lifter in [lifter_mw, lifter_ro]:
         fname = f"{results_dir}/{lifter}_{appendix}.pkl"
         plot_tightness_study(fname=fname)
+        plot_accuracy_study(fname=fname)
 
 
 if __name__ == "__main__":

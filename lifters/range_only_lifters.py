@@ -585,8 +585,17 @@ class RangeOnlyLocLifter(StateLifter):
     def get_position(self, theta):
         return theta.reshape(self.n_positions, self.d)
 
-    def get_error(self, that):
-        err = np.sqrt(np.mean((self.theta - that) ** 2))
+    def get_theta_from_x(self, x):
+        out_dict = super().get_theta_from_x(x)
+        theta_flat = np.vstack(out_dict.values())
+        theta = theta_flat.reshape((self.n_positions, -1))
+        # np.testing.assert_allclose(
+        #     np.linalg.norm(theta[:, :2], axis=1) ** 2, theta[:, -1]
+        # )
+        return theta[:, :-1]  # remove element corresponding to ||x||^2
+
+    def get_error(self, theta_hat):
+        err = np.sqrt(np.mean((self.theta - theta_hat) ** 2))
         return {"total error": err, "error": err}
 
     def local_solver(
@@ -637,11 +646,12 @@ class RangeOnlyLocLifter(StateLifter):
     @property
     def var_dict(self):
         var_dict = {"h": 1}
-        var_dict.update({f"x_{n}": self.k for n in range(self.n_positions)})
-        if self.level == "no":
-            var_dict.update({f"z_{n}": 1 for n in range(self.n_positions)})
-        elif self.level == "quad":
-            var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
+        for n in range(self.n_positions):
+            var_dict.update({f"x_{n}": self.k})
+            if self.level == "no":
+                var_dict.update({f"z_{n}": 1})
+            elif self.level == "quad":
+                var_dict.update({f"z_{n}": self.size_z})
         return var_dict
 
     # clique stuff

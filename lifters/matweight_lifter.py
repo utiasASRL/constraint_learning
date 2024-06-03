@@ -163,15 +163,6 @@ class MatWeightLifter(StateLifter):
 
         return np.hstack(vec)
 
-    def get_theta_from_x(self, x):
-        theta = {}
-        i = 0
-        for var_name, var_size in self.var_dict.items():
-            theta[var_name] = x[i : i + var_size]
-            i += var_size
-        assert i == len(x)
-        return theta
-
     def get_dim_x(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
@@ -226,11 +217,11 @@ class MatWeightLifter(StateLifter):
         error_dict = {"error_trans": 0, "error_rot": 0, "error": 0}
         for key, val in self.theta.items():
             if "xt" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key])
+                err = np.linalg.norm(val - theta_hat[key].flatten())
                 error_dict["error_trans"] += err
                 error_dict["error"] += err
             elif "xC" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key])
+                err = np.linalg.norm(val - theta_hat[key].flatten())
                 error_dict["error_rot"] += err
                 error_dict["error"] += err
         return error_dict

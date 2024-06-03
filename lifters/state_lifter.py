@@ -168,6 +168,16 @@ class StateLifter(BaseClass):
         ), "Need to overwrite get_level_dims to use level different than 'no'"
         return {"no": 0}
 
+    def get_theta_from_x(self, x):
+        theta = {}
+        i = 0
+        for var_name, var_size in self.var_dict.items():
+            if var_name == self.HOM:
+                continue
+            theta[var_name] = x[i : i + var_size]
+            i += var_size
+        return theta
+
     @property
     def theta(self):
         if self.theta_ is None:
