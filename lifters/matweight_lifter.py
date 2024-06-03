@@ -25,7 +25,7 @@ class MatWeightLifter(StateLifter):
 
     ADMM_OPTIONS = dict(
         early_stop=False,
-        maxiter=10,
+        maxiter=3,
         use_fusion=True,
         rho_start=1e2,
     )

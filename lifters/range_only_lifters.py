@@ -58,7 +58,7 @@ class RangeOnlyLocLifter(StateLifter):
     MODEL_NOISE = 0.2  # creates a smooth trajectory
     NOISE = 1e-1  # distance noise -- something around 1cm is reasonable
 
-    ADMM_OPTIONS = dict(use_fusion=True, maxiter=10, early_stop=False, rho_start=1e2)
+    ADMM_OPTIONS = dict(use_fusion=True, maxiter=3, early_stop=False, rho_start=1e2)
     ADMM_INIT_XHAT = False
 
     def get_vec_around_gt(self, delta: float = 0):

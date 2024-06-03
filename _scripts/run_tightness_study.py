@@ -48,7 +48,7 @@ def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
 
 
 def plot_accuracy_study(fname):
-    plot_tightness_study(fname, ylabels=["error"], ls=":")
+    plot_tightness_study(fname, ylabels=["error"])
 
 
 def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):

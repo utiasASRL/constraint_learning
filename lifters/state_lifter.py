@@ -9,7 +9,6 @@ from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
-from utils.plotting_tools import plot_singular_values
 
 
 def ravel_multi_index_triu(index_tuple, shape):

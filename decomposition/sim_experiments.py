@@ -53,7 +53,7 @@ def read_saved_learner(lifter):
     return saved_learner
 
 
-def extract_solution(lifter: MatWeightLocLifter, X_list):
+def extract_solution(lifter: MatWeightLocLifter | RangeOnlyLocLifter, X_list):
     # x_list has format [1, x1, x2], [1, x2, x3], [1,  x3, x4], ...
     x_dim = lifter.node_size()
     x, info = rank_project(X_list[0], p=1)

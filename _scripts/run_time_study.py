@@ -39,7 +39,8 @@ def custom_plot(ax, x, y, data, **unused):
 
 def plot_timing(df, xlabel="", fname=""):
     for label, plot in zip(
-        ["t", "cost", "RDG"], [custom_plot, sns.barplot, sns.barplot]
+        ["t", "cost", "RDG", "error"],
+        [custom_plot, sns.barplot, sns.barplot, sns.scatterplot],
     ):
         value_vars = [f"{label} {m}" for m in USE_METHODS]
         value_vars = set(value_vars).intersection(df.columns.unique())
