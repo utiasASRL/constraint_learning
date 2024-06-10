@@ -49,10 +49,9 @@ def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
     ax.xaxis.set_major_formatter(ticker.FixedFormatter(labels))
 
 
-def plot_accuracy_study(fname):
+def plot_boxplots(fname, label="error"):
     df = pd.read_pickle(fname)
     print(f"read {fname}")
-    label = "error"
     value_vars = [f"{label} local"] + [f"{label} {method}" for method in USE_METHODS]
     value_vars = set(value_vars).intersection(df.columns.unique())
     # create long form for plotting
@@ -243,16 +242,24 @@ def run_tightness_study(
         plot_tightness_study(fname=fname)
 
 
-def plot_accuracy_study_all(
-    results_dir=RESULTS_DIR, overwrite=False, n_seeds=N_SEEDS, appendix="noise"
-):
+def plot_accuracy_study_all(results_dir=RESULTS_DIR, appendix="noise"):
     lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
     for lifter in [lifter_mw, lifter_ro]:
         fname = f"{results_dir}/{lifter}_{appendix}.pkl"
-        plot_accuracy_study(fname=fname)
+        plot_boxplots(fname=fname, label="error")
+
+
+def plot_success_study_all(results_dir=RESULTS_DIR, appendix="noise"):
+    lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
+    lifter_ro = RangeOnlyLocLifter(
+        n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
+    )
+    for lifter in [lifter_mw, lifter_ro]:
+        fname = f"{results_dir}/{lifter}_{appendix}.pkl"
+        plot_boxplots(fname=fname, label="success")
 
 
 if __name__ == "__main__":

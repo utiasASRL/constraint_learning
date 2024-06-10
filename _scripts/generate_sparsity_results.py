@@ -1,6 +1,10 @@
 from _scripts.run_clique_study import run_hierarchy_study
 from _scripts.run_examples import run_example
-from _scripts.run_tightness_study import plot_accuracy_study_all, run_tightness_study
+from _scripts.run_tightness_study import (
+    plot_accuracy_study_all,
+    plot_success_study_all,
+    run_tightness_study,
+)
 from _scripts.run_time_study import run_time_study
 
 if __name__ == "__main__":
@@ -12,14 +16,13 @@ if __name__ == "__main__":
     # run_example(results_dir, "exampleRO")
     # run_example(results_dir, "exampleMW")
 
-    # print("========== running tightness study ===========")
+    print("========== running tightness study ===========")
     run_tightness_study(
         results_dir, overwrite=overwrite, n_seeds=n_seeds, appendix="noisetest"
     )
-    # print("========== plotting accuracy study ===========")
-    plot_accuracy_study_all(
-        results_dir, overwrite=overwrite, n_seeds=n_seeds, appendix="noisetest"
-    )
+    print("========== plotting accuracy study ===========")
+    plot_accuracy_study_all(results_dir, appendix="noisetest")
+    plot_success_study_all(results_dir, appendix="noisetest")
 
     print("========== running timing study ===========")
     run_time_study(
