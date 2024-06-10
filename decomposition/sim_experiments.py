@@ -29,7 +29,7 @@ VERBOSE = False
 SDP_MAX_N = 500
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["SDP", "dSDP", "ADMM"]
+USE_METHODS = ["local"]
 # USE_METHODS = ["dSDP", "SDP"]
 
 DEBUG = False
@@ -37,6 +37,9 @@ TOL_SDP = 1e-10
 TOL_DSDP = 1e-10
 
 ADD_REDUNDANT = False
+
+# if EVR is bigger than EVR_THRESH, we consider success of SDP solvers.
+EVR_THRESH = 1e7
 
 
 def read_saved_learner(lifter):
@@ -116,13 +119,30 @@ def generate_results(
             new_lifter.simulate_y(noise=noise, sparsity=sparsity)
 
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
+            theta_rand = new_lifter.get_vec_around_gt(delta=0.5)
 
-            if "local" in use_methods:
-                print("solving local...")
+            if "local-gt" in use_methods:
+                print("solving local with gt...")
                 t1 = time.time()
                 theta_est, info, cost = new_lifter.local_solver(
                     theta_gt, new_lifter.y_, verbose=True
                 )
+                data_dict["success local-gt"] = info["success"]
+                data_dict["t local-gt"] = time.time() - t1
+                data_dict["cost local-gt"] = cost
+                for key, val in new_lifter.get_error(theta_hat=theta_est).items():
+                    data_dict[f"{key} local-gt"] = val
+                print(f"cost local: {cost:.2f}")
+            else:
+                info = {"cost-gt": 0}
+                data_dict["cost local-gt"] = 0
+            if "local" in use_methods:
+                print("solving local with random...")
+                t1 = time.time()
+                theta_est, info, cost = new_lifter.local_solver(
+                    theta_rand, new_lifter.y_, verbose=True
+                )
+                data_dict["success local"] = info["success"]
                 data_dict["t local"] = time.time() - t1
                 data_dict["cost local"] = cost
                 for key, val in new_lifter.get_error(theta_hat=theta_est).items():
@@ -159,7 +179,7 @@ def generate_results(
                     data_dict[f"t {method}"] = time.time() - t1
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
                     x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
@@ -168,6 +188,7 @@ def generate_results(
                         data_dict[f"{key} {method}"] = val
 
                     data_dict[f"EVR {method}"] = evr_mean
+                    data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"ADMM{appendix}"
                 if method in use_methods:
@@ -194,7 +215,7 @@ def generate_results(
                     print(info["msg"])
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
 
@@ -203,6 +224,7 @@ def generate_results(
                     for key, val in new_lifter.get_error(theta_hat=theta_ADMM).items():
                         data_dict[f"{key} {method}"] = val
                     data_dict[f"EVR {method}"] = evr_mean
+                    data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"pADMM{appendix}"
                 if method in use_methods:
@@ -219,7 +241,7 @@ def generate_results(
                                 X0.append(np.outer(x_clique, x_clique))
                         else:
                             X0 = None
-                        print("target", data_dict["cost local"])
+                        print("target", data_dict["cost local-gt"])
                         t1 = time.time()
                         X_list, info = solve_parallel(
                             deepcopy(clique_list),
@@ -235,7 +257,7 @@ def generate_results(
                         data_dict[f"cost {method}"] = info["cost"]
                         data_dict[f"cost history {method}"] = info["cost history"]
                         data_dict[f"RDG {method}"] = get_relative_gap(
-                            info["cost"], data_dict["cost local"]
+                            info["cost"], data_dict["cost local-gt"]
                         )
                         print(f"cost {method}: {info['cost']:.2f}")
 
@@ -246,6 +268,7 @@ def generate_results(
                         ).items():
                             data_dict[f"{key} {method}"] = val
                         data_dict[f"EVR {method}"] = evr_mean
+                        data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"SDP{appendix}"
                 if method in use_methods and (n_params > SDP_MAX_N):
@@ -294,7 +317,7 @@ def generate_results(
                     data_dict[f"t {method}"] = time.time() - t1
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
 
@@ -303,6 +326,7 @@ def generate_results(
                     for key, val in new_lifter.get_error(theta_hat=theta_SDP).items():
                         data_dict[f"{key} {method}"] = val
                     data_dict[f"EVR {method}"] = info["EVR"]
+                    data_dict[f"success {method}"] = info["EVR"] > EVR_THRESH
 
             df_data.append(deepcopy(data_dict))
             if fname != "":

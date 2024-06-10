@@ -26,22 +26,26 @@ def custom_plot(ax, x, y, data, **unused):
     for method in USE_METHODS.keys():
         if method in data_methods:
             df_sub = data[data["solver type"] == method]
-            no_label = deepcopy(USE_METHODS[method])
-            no_label["marker"] = None
-            ax.plot([], [], **no_label)
+            with_label = deepcopy(USE_METHODS[method])
+            with_label["marker"] = None
+            ax.plot([], [], **with_label)
 
             no_label = deepcopy(USE_METHODS[method])
+            no_label["marker"] = None
             no_label["label"] = None
+            no_label["ls"] = ""
             ax.plot(df_sub[x], df_sub[y], **no_label)
+
+            df_median = df_sub.groupby("n params")["t"].median()
+            no_label["marker"] = USE_METHODS[method]["marker"]
+            no_label["ls"] = USE_METHODS[method]["ls"]
+            ax.plot(df_median.index, df_median.values, **no_label)
         else:
             print(f"skipping {method}, not in {data_methods}")
 
 
 def plot_timing(df, xlabel="", fname=""):
-    for label, plot in zip(
-        ["t", "cost", "RDG", "error"],
-        [custom_plot, sns.barplot, sns.barplot, sns.scatterplot],
-    ):
+    for label, plot in zip(["t", "cost"], [custom_plot, sns.barplot]):
         value_vars = [f"{label} {m}" for m in USE_METHODS]
         value_vars = set(value_vars).intersection(df.columns.unique())
         df_long = df.melt(
@@ -68,7 +72,7 @@ def plot_timing(df, xlabel="", fname=""):
             for bar in group:
                 bar.set_alpha(kwargs["alpha"])
         ax.set_yscale("log")
-        if label not in ["cost", "RDG"]:
+        if label not in ["cost", "RDG", "error"]:
             ax.set_xscale("log")
             ax.plot(
                 df_long["n params"].unique(),
@@ -95,7 +99,7 @@ def plot_timing(df, xlabel="", fname=""):
             new_handles = [h for l, h in zip(new_labels, handles) if l is not None]
             new_labels = [l for l in new_labels if l is not None]
             ax.legend(new_handles, new_labels)
-            ax.set_ylabel("cost")
+            ax.set_ylabel(label)
         ax.grid("on")
         ax.set_xlabel(xlabel)
         savefig(fig, fname.replace(".pkl", f"_{label}.png"))
