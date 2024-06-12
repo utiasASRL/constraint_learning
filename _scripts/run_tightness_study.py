@@ -203,22 +203,6 @@ def run_tightness_study(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
     if overwrite:
-        np.random.seed(SEED)
-        noise_list = np.logspace(-2, 0, n_noises)  # from 1cm to 1m
-        fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
-        df = generate_results(
-            lifter_ro,
-            n_params_list=n_params_list,
-            fname=fname,
-            noise_list=noise_list,
-            sparsity_list=sparsity_list,
-            n_seeds=n_seeds,
-            use_methods=USE_METHODS,
-            add_redundant_constr=False,
-            n_threads_list=n_threads_list,
-        )
-        df.to_pickle(fname)
-        print("saved final as", fname)
 
         np.random.seed(SEED)
         noise_list = np.logspace(0, 1, n_noises)  # from 1 pixel to 10 pixels
@@ -232,6 +216,23 @@ def run_tightness_study(
             n_seeds=n_seeds,
             use_methods=USE_METHODS,
             add_redundant_constr=True,
+            n_threads_list=n_threads_list,
+        )
+        df.to_pickle(fname)
+        print("saved final as", fname)
+
+        np.random.seed(SEED)
+        noise_list = np.logspace(-2, 0, n_noises)  # from 1cm to 1m
+        fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
+        df = generate_results(
+            lifter_ro,
+            n_params_list=n_params_list,
+            fname=fname,
+            noise_list=noise_list,
+            sparsity_list=sparsity_list,
+            n_seeds=n_seeds,
+            use_methods=USE_METHODS,
+            add_redundant_constr=False,
             n_threads_list=n_threads_list,
         )
         df.to_pickle(fname)
