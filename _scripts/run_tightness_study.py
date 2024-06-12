@@ -49,7 +49,8 @@ def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
     ax.xaxis.set_major_formatter(ticker.FixedFormatter(labels))
 
 
-def plot_boxplots(fname, label="error"):
+def plot_success(fname):
+    label = "success"
     df = pd.read_pickle(fname)
     print(f"read {fname}")
     value_vars = [f"{label} local"] + [f"{label} {method}" for method in USE_METHODS]
@@ -69,6 +70,61 @@ def plot_boxplots(fname, label="error"):
     chosen_sparsity = 1.0
     df_long_here = df_long[df_long["sparsity"] == chosen_sparsity]
     print(f"plotting at sparsity={chosen_sparsity}")
+
+    df_long_here = (
+        df_long_here.groupby(["noise", "solver type"]).sum()
+        / df_long_here.groupby(["noise", "solver type"]).count()
+    ) * 100
+    df_long_here.reset_index(inplace=True)
+
+    df_long_here["solver type"] = pd.Categorical(
+        df_long_here["solver type"], categories=USE_METHODS.keys()
+    )
+    df_long_here = df_long_here.sort_values("solver type")
+
+    fig, axs = plt.subplots(1, len(df_long_here.noise.unique()), sharey=True)
+    fig.set_size_inches(5, 5)
+    for ax, (noise, df) in zip(axs, df_long_here.groupby("noise")):
+        sns.stripplot(
+            df,
+            y="solver type",
+            x=label,
+            ax=ax,
+            # hue=label,
+            # palette="coolwarm",
+            # palette={0: (255, 0, 0), 100: (0, 0, 255)}.update({i*10: (0, 255, 0) for i in range(1, 10)}),
+            # dodge=True,
+            # jitter=False,
+        )
+        ax.set_title(f"noise {noise}")
+        ax.grid()
+        ax.set_xlabel("success rate [\%]")
+    savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
+    print("done")
+    # print(rows)
+
+
+def plot_boxplots(fname, label="error", log=True):
+    df = pd.read_pickle(fname)
+    print(f"read {fname}")
+    value_vars = [f"{label} local"] + [f"{label} {method}" for method in USE_METHODS]
+    value_vars = set(value_vars).intersection(df.columns.unique())
+    # create long form for plotting
+    df_long = df.melt(
+        id_vars=["noise", "sparsity"],
+        value_vars=value_vars,
+        value_name=label,
+        var_name="solver type",
+    )
+    # rename EVR SDP -> SDP etc.
+    df_long.loc[:, "solver type"] = [
+        f.strip(f"{label} ") for f in df_long["solver type"]
+    ]
+
+    chosen_sparsity = 1.0
+    df_long_here = df_long[df_long["sparsity"] == chosen_sparsity]
+    print(f"plotting at sparsity={chosen_sparsity}")
+
     fig, ax = plt.subplots()
     fig.set_size_inches(5, 5)
     methods = df_long_here["solver type"].unique()
@@ -86,7 +142,7 @@ def plot_boxplots(fname, label="error"):
     sns.boxplot(
         df_long_here,
         x="noise",
-        y="error",
+        y=label,
         hue="solver type",
         ax=ax,
         palette=colors,
@@ -107,7 +163,8 @@ def plot_boxplots(fname, label="error"):
     new_h_l = [(hi, li) for hi, li in zip(h, l) if "redun" not in li]
     ax.legend([h_l[0] for h_l in new_h_l], [h_l[1] for h_l in new_h_l])
 
-    ax.set_yscale("log")
+    if log:
+        ax.set_yscale("log")
     ax.set_xticklabels(df_long_here.noise.unique().round(2))
     ax.grid(axis="y")
     savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
@@ -260,7 +317,7 @@ def plot_success_study_all(results_dir=RESULTS_DIR, appendix="noise"):
     )
     for lifter in [lifter_mw, lifter_ro]:
         fname = f"{results_dir}/{lifter}_{appendix}.pkl"
-        plot_boxplots(fname=fname, label="success")
+        plot_success(fname=fname)
 
 
 if __name__ == "__main__":

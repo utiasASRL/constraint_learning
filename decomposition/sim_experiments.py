@@ -164,8 +164,6 @@ def generate_results(
                 data_dict["t create cliques"] = time.time() - t1
 
                 method = f"dSDP{appendix}"
-                data_dict[f"dim {method}"] = clique_list[0].Q.shape[0]
-                data_dict[f"m {method}"] = sum(len(c.A_list) for c in clique_list)
                 if method in use_methods:
                     print(f"solving {method}...")
                     t1 = time.time()
