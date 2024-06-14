@@ -12,7 +12,7 @@ DEBUG = False
 if __name__ == "__main__":
     n_seeds = 3 if DEBUG else 10
     results_dir = "_results_sparsity"
-    overwrite = False
+    overwrite = True
 
     print("========== running exampels ===========")
     # run_example(results_dir, "exampleRO")
