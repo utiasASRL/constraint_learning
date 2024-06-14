@@ -49,11 +49,11 @@ def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
     ax.xaxis.set_major_formatter(ticker.FixedFormatter(labels))
 
 
-def plot_success(fname):
+def plot_success(fname, use_methods=USE_METHODS):
     label = "success"
     df = pd.read_pickle(fname)
     print(f"read {fname}")
-    value_vars = [f"{label} local"] + [f"{label} {method}" for method in USE_METHODS]
+    value_vars = [f"{label} local"] + [f"{label} {method}" for method in use_methods]
     value_vars = set(value_vars).intersection(df.columns.unique())
     # create long form for plotting
     df_long = df.melt(
@@ -78,7 +78,7 @@ def plot_success(fname):
     df_long_here.reset_index(inplace=True)
 
     df_long_here["solver type"] = pd.Categorical(
-        df_long_here["solver type"], categories=USE_METHODS.keys()
+        df_long_here["solver type"], categories=use_methods
     )
     df_long_here = df_long_here.sort_values("solver type")
 
@@ -96,18 +96,19 @@ def plot_success(fname):
             # dodge=True,
             # jitter=False,
         )
-        ax.set_title(f"noise {noise}")
+        ax.set_title(f"$\\sigma$={noise:.1f}")
         ax.grid()
-        ax.set_xlabel("success rate [\%]")
+        ax.set_xlabel("")
+    axs[0].set_xlabel("success rate [\%]", loc="left")
     savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
     print("done")
     # print(rows)
 
 
-def plot_boxplots(fname, label="error", log=True):
+def plot_boxplots(fname, label="error", log=True, use_methods=USE_METHODS):
     df = pd.read_pickle(fname)
     print(f"read {fname}")
-    value_vars = [f"{label} local"] + [f"{label} {method}" for method in USE_METHODS]
+    value_vars = [f"{label} local"] + [f"{label} {method}" for method in use_methods]
     value_vars = set(value_vars).intersection(df.columns.unique())
     # create long form for plotting
     df_long = df.melt(
@@ -135,7 +136,7 @@ def plot_boxplots(fname, label="error", log=True):
         v: list(TAB10_TO_RGB[m["color"]]) + [m["alpha"]] for v, m in USE_METHODS.items()
     }
     df_long_here["solver type"] = pd.Categorical(
-        df_long_here["solver type"], categories=USE_METHODS.keys()
+        df_long_here["solver type"], categories=use_methods
     )
     df_long_here = df_long_here.sort_values("solver type")
 
@@ -146,7 +147,7 @@ def plot_boxplots(fname, label="error", log=True):
         hue="solver type",
         ax=ax,
         palette=colors,
-        hue_order=USE_METHODS,
+        hue_order=use_methods,
     )
     # ordered by noise, solver type
     for i, (solver, noise) in enumerate(
@@ -158,26 +159,29 @@ def plot_boxplots(fname, label="error", log=True):
         print(noise, solver)
         patch = ax.patches[i]
         patch.set_facecolor(colors[solver])
-
-    h, l = ax.get_legend_handles_labels()
-    new_h_l = [(hi, li) for hi, li in zip(h, l) if "redun" not in li]
-    ax.legend([h_l[0] for h_l in new_h_l], [h_l[1] for h_l in new_h_l])
+    ax.legend(
+        loc="lower center",
+        bbox_to_anchor=[0.5, 1.0],
+        ncol=3,
+        columnspacing=0.5,
+    )
 
     if log:
         ax.set_yscale("log")
-    ax.set_xticklabels(df_long_here.noise.unique().round(2))
+    ax.set_xticklabels(sorted(df_long_here.noise.unique().round(2)))
     ax.grid(axis="y")
+
     savefig(fig, fname.replace(".pkl", f"_{label}_noise.png"))
     print("done")
     # print(rows)
 
 
-def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):
+def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS):
     df = pd.read_pickle(fname)
     print(f"read {fname}")
     for label in ylabels:
         value_vars = [f"{label} local"] + [
-            f"{label} {method}" for method in USE_METHODS
+            f"{label} {method}" for method in use_methods
         ]
         value_vars = set(value_vars).intersection(df.columns.unique())
         # create long form for plotting
@@ -199,7 +203,8 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):
         fig, ax = plt.subplots()
         fig.set_size_inches(5, 5)
         methods = df_long_here["solver type"].unique()
-        for m, kwargs in USE_METHODS.items():
+        for m in use_methods:
+            kwargs = USE_METHODS[m]
             if m in methods:
                 rows = df_long_here[df_long_here["solver type"] == m]
                 # plot error bars
@@ -210,7 +215,6 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):
                     ax=ax,
                     color=kwargs["color"],
                     marker=None,
-                    alpha=0.5 if "redun" in m else 1.0,
                     errorbar=("sd", 0.8),
                     log_scale=True,
                     label=kwargs["label"],
@@ -224,7 +228,6 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"]):
                     ax=ax,
                     color=kwargs["color"],
                     marker=kwargs["marker"],
-                    alpha=0.5 if "redun" in m else 1.0,
                     dodge=0.05,
                     label=None,
                 )
@@ -295,9 +298,13 @@ def run_tightness_study(
         df.to_pickle(fname)
         print("saved final as", fname)
 
-    for lifter in [lifter_mw, lifter_ro]:
-        fname = f"{results_dir}/{lifter}_{appendix}.pkl"
-        plot_tightness_study(fname=fname)
+    fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
+    use_methods = ["local", "local-gt", "SDP-redun", "pADMM-redun", "dSDP-redun"]
+    plot_tightness_study(fname=fname, use_methods=use_methods)
+
+    fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
+    use_methods = ["local", "local-gt", "SDP", "pADMM", "dSDP"]
+    plot_tightness_study(fname=fname, use_methods=use_methods)
 
 
 def plot_accuracy_study_all(results_dir=RESULTS_DIR, appendix="noise"):
@@ -305,9 +312,13 @@ def plot_accuracy_study_all(results_dir=RESULTS_DIR, appendix="noise"):
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
-    for lifter in [lifter_mw, lifter_ro]:
-        fname = f"{results_dir}/{lifter}_{appendix}.pkl"
-        plot_boxplots(fname=fname, label="error")
+    fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
+    use_methods = ["local", "local-gt", "SDP-redun", "pADMM-redun", "dSDP-redun"]
+    plot_boxplots(fname=fname, label="error", use_methods=use_methods)
+
+    fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
+    use_methods = ["local", "local-gt", "SDP", "pADMM", "dSDP"]
+    plot_boxplots(fname=fname, label="error", use_methods=use_methods)
 
 
 def plot_success_study_all(results_dir=RESULTS_DIR, appendix="noise"):
