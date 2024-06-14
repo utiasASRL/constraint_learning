@@ -25,10 +25,5 @@ dependencies:
     - pandas==1.5.3
 
     - pip:
-      - chompack>=2.3.1
-      - pymanopt>=2.1.1
-      - asrl-pylgmath>=1.0.3
-      - -e poly_matrix # build local poly_matrix submodule
-      - -e certifiable-tools
-      - -e mat_weight_certs
+      - -r requirements.txt
       - -e .  # build local lifting package

@@ -19,17 +19,17 @@ if __name__ == "__main__":
     # run_example(results_dir, "exampleMW")
 
     print("========== running tightness study ===========")
-    # run_tightness_study(
-    #     results_dir,
-    #     overwrite=overwrite,
-    #     n_seeds=n_seeds,
-    #     appendix="noisetest" if DEBUG else "noise",
-    # )
+    run_tightness_study(
+        results_dir,
+        overwrite=overwrite,
+        n_seeds=n_seeds,
+        appendix="noisetest" if DEBUG else "noise",
+    )
     print("========== plotting accuracy study ===========")
-    # plot_success_study_all(results_dir, appendix="noisetest" if DEBUG else "noise")
+    plot_success_study_all(results_dir, appendix="noisetest" if DEBUG else "noise")
     plot_accuracy_study_all(results_dir, appendix="noisetest" if DEBUG else "noise")
 
-    # print("========== running timing study ===========")
+    print("========== running timing study ===========")
     run_time_study(
         results_dir,
         overwrite=overwrite,
