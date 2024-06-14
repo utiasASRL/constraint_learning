@@ -9,8 +9,8 @@ from utils.geometry import get_C_r_from_theta
 
 # fmt: off
 USE_METHODS = {
-    "local-gt": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local-gt", "ls":"-"},
     "local": {"color": "C4", "marker": "o", "alpha": 1.0, "label": "local", "ls":"-"},
+    "local-gt": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local-gt", "ls":"-"},
     "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP", "ls":"-"},
     "SDP-redun": {"color": "C1", "marker": "d", "alpha": 1.0, "label": "SDP", "ls":"-"},
     "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP", "ls":"-"},
@@ -21,6 +21,9 @@ USE_METHODS = {
 # fmt: on
 
 TAB10_TO_RGB = {f"C{i}": colors.to_rgb(c) for i, c in enumerate(plt.cm.tab10.colors)}
+
+USE_METHODS_MW = ["local", "local-gt", "SDP-redun", "dSDP-redun", "pADMM-redun"]
+USE_METHODS_RO = ["local", "local-gt", "SDP", "dSDP", "pADMM"]
 
 
 def import_plt():

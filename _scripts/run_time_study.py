@@ -9,13 +9,9 @@ from decomposition.sim_experiments import generate_results
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
-from utils.plotting_tools import USE_METHODS, savefig
+from utils.plotting_tools import USE_METHODS, USE_METHODS_MW, USE_METHODS_RO, savefig
 
-# USE_METHODS = ["SDP", "dSDP", "ADMM"]
-# USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
-# USE_METHODS = ["ADMM", "pADMM"]
 ADD_REDUNDANT = True
-
 RESULTS_DIR = "_results"
 
 N_SEEDS = 1
@@ -37,12 +33,6 @@ def custom_plot(ax, x, y, data, **unused):
             ax.plot(df_sub[x], df_sub[y], **no_label)
 
             df_median = df_sub.groupby("n params")["t"].median()
-            # quantiles = np.vstack(
-            #     [
-            #         df_sub.groupby("n params")["t"].quantile(0.25)- df_median.values,
-            #         df_sub.groupby("n params")["t"].quantile(0.75)- df_median.values,
-            #     ]
-            # )
             quantiles = np.vstack(
                 [
                     np.zeros_like(df_median.values),
@@ -53,7 +43,7 @@ def custom_plot(ax, x, y, data, **unused):
             no_label["ls"] = USE_METHODS[method]["ls"]
             ax.errorbar(df_median.index, df_median.values, yerr=quantiles, **no_label)
         else:
-            print(f"skipping {method}, not in {data_methods}")
+            continue
 
 
 def plot_timing(df, xlabel="", fname="", use_methods=USE_METHODS):
@@ -70,7 +60,7 @@ def plot_timing(df, xlabel="", fname="", use_methods=USE_METHODS):
             l[len(label) + 1 :] for l in df_long["solver type"]
         ]
         fig, ax = plt.subplots()
-        fig.set_size_inches(5, 5)
+        fig.set_size_inches(5, 3)
         plot(
             data=df_long,
             x="n params",
@@ -159,14 +149,12 @@ def run_time_study(
     fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
     df = pd.read_pickle(fname)
     xlabel = "number of positions"
-    use_methods = ["local", "local-gt", "SDP", "pADMM", "dSDP"]
-    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=use_methods)
+    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=USE_METHODS_RO)
 
     xlabel = "number of poses"
     fname = f"{results_dir}/{lifter_mat}_{appendix}.pkl"
     df = pd.read_pickle(fname)
-    use_methods = ["local", "local-gt", "SDP-redun", "pADMM-redun", "dSDP-redun"]
-    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=use_methods)
+    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=USE_METHODS_MW)
 
 
 if __name__ == "__main__":
