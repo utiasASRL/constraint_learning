@@ -7,12 +7,12 @@ from _scripts.run_tightness_study import (
 )
 from _scripts.run_time_study import run_time_study
 
-DEBUG = False
+DEBUG = True
 
 if __name__ == "__main__":
     n_seeds = 3 if DEBUG else 10
     results_dir = "_results_sparsity_server"
-    overwrite = False
+    overwrite = True
 
     print("========== running exampels ===========")
     # run_example(results_dir, "exampleRO")

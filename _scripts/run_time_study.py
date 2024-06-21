@@ -39,8 +39,8 @@ def custom_plot(ax, x, y, data, **unused):
                     df_sub.groupby("n params")["t"].max().values - df_median.values,
                 ]
             )
-            no_label["marker"] = USE_METHODS[method]["marker"]
-            no_label["ls"] = USE_METHODS[method]["ls"]
+            no_label["marker"] = "o"
+            no_label["ls"] = "-"
             ax.errorbar(df_median.index, df_median.values, yerr=quantiles, **no_label)
         else:
             continue

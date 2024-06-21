@@ -130,10 +130,7 @@ def plot_boxplots(fname, label="error", log=True, use_methods=USE_METHODS):
 
     fig, ax = plt.subplots()
     fig.set_size_inches(2.5, 5)
-    colors = {
-        m["label"]: list(TAB10_TO_RGB[m["color"]]) + [m["alpha"]]
-        for v, m in USE_METHODS.items()
-    }
+    colors = {m["label"]: TAB10_TO_RGB[m["color"]] for m in USE_METHODS.values()}
     df_long_here["solver type"] = pd.Categorical(
         df_long_here["solver type"], categories=use_methods
     )
@@ -209,7 +206,6 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS)
                     errorbar=("sd", 0.8),
                     log_scale=True,
                     label=kwargs["label"],
-                    linestyles=kwargs["ls"],
                 )
                 # plot all points
                 sns.stripplot(
@@ -218,7 +214,6 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS)
                     data=rows,
                     ax=ax,
                     color=kwargs["color"],
-                    marker=kwargs["marker"],
                     dodge=0.05,
                     label=None,
                 )
@@ -259,7 +254,6 @@ def run_tightness_study(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
     if overwrite:
-
         np.random.seed(SEED)
         noise_list = np.logspace(0, 1, n_noises)  # from 1 pixel to 10 pixels
         fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"

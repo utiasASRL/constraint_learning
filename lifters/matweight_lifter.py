@@ -218,15 +218,21 @@ class MatWeightLifter(StateLifter):
 
     def get_error(self, theta_hat):
         error_dict = {"error_trans": 0, "error_rot": 0, "error": 0}
+        count_t = count_C = 0
         for key, val in self.theta.items():
             if "xt" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key].flatten())
+                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
                 error_dict["error_trans"] += err
                 error_dict["error"] += err
-            elif "xC" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key].flatten())
+                count_t += 1
+            elif "xC" in key:  # rotation errors
+                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
                 error_dict["error_rot"] += err
                 error_dict["error"] += err
+                count_C += 1
+        error_dict["error_trans"] = np.sqrt(error_dict["error_trans"] / count_t)
+        error_dict["error_rot"] = np.sqrt(error_dict["error_rot"] / count_C)
+        error_dict["error"] = np.sqrt(error_dict["error"] / (count_C + count_t))
         return error_dict
 
     # clique stuff

@@ -9,14 +9,14 @@ from utils.geometry import get_C_r_from_theta
 
 # fmt: off
 USE_METHODS = {
-    "local": {"color": "C4", "marker": "o", "alpha": 1.0, "label": "local", "ls":"-"},
-    "local-gt": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local-gt", "ls":"-"},
-    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP", "ls":"-"},
-    "SDP-redun": {"color": "C1", "marker": "d", "alpha": 1.0, "label": "SDP", "ls":"-"},
-    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP", "ls":"-"},
-    "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 1.0, "label": "dSDP", "ls":"-"},
-    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "dSDP-admm", "ls":"-"},
-    "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 1.0, "label": "dSDP-admm", "ls":"-"},
+    "local": {"color": "C4", "label": "local"},
+    "local-gt": {"color": "C0", "label": "local-gt"},
+    "SDP": {"color": "C1", "label": "SDP"},
+    "SDP-redun": {"color": "C1", "label": "SDP"},
+    "dSDP": {"color": "C2", "label": "dSDP"},
+    "dSDP-redun": {"color": "C2", "label": "dSDP"},
+    "pADMM": {"color": "C3", "label": "dSDP-admm"},
+    "pADMM-redun": {"color": "C3", "label": "dSDP-admm"},
 }
 # fmt: on
 
