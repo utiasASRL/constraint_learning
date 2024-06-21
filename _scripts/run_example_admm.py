@@ -1,5 +1,6 @@
 from copy import deepcopy
 
+import matplotlib.pylab as plt
 import numpy as np
 from cert_tools.admm_solvers import solve_alternating
 from cert_tools.sparse_solvers import solve_oneshot
@@ -7,6 +8,7 @@ from cert_tools.sparse_solvers import solve_oneshot
 from decomposition.generate_cliques import create_clique_list_loc
 from decomposition.sim_experiments import extract_solution
 from lifters.matweight_lifter import MatWeightLocLifter
+from utils.plotting_tools import savefig
 
 if __name__ == "__main__":
     noise = 1.0
@@ -49,5 +51,21 @@ if __name__ == "__main__":
     x_admm, evr_mean = extract_solution(new_lifter, X_list_admm)
     theta_admm = new_lifter.get_theta_from_x(x=x_admm)
 
-    print(x_dSDP)
-    print(x_admm)
+    fig, axs = plt.subplots(1, 2, sharex=True)
+    new_lifter.prob.plot(ax=axs[0])
+    axs[0].set_title("gorund truth")
+
+    new_lifter.prob.plot_estimates(
+        theta=theta_est, label="local", ax=axs[1], color="C1"
+    )
+    new_lifter.prob.plot_estimates(
+        theta=theta_dSDP, label="dSDP", ax=axs[1], color="C2"
+    )
+    new_lifter.prob.plot_estimates(
+        theta=theta_admm, label="ADMM", ax=axs[1], color="C3"
+    )
+    axs[1].set_title("estimates")
+    axs[1].legend()
+    axs[1].axis("equal")
+    savefig(fig, f"_results/example_admm_{new_lifter}.png")
+    print("done")
