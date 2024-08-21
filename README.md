@@ -1,23 +1,60 @@
 # Constraint Learning
 
-This codebase allows for the learning of constraint matrices for arbitrary lifting functions.
+This codebase allows for creating **tight** semidefinite relaxations of non-convex polynomial optimization problems in a semi-automatic way. The technique has been successfully applied to many state estimation problems in robotics and computer vision and is described in more detail in this [paper](http://arxiv.org/abs/2308.05783). 
+
+In a nutshell, the codebase provides the *AUTOTIGHT* and *AUTOTEMPLATE* algorithm. We start with an optimization problem written in QCQP form:
+
+$$ 
+\begin{align} q^\star &\min_{x} x^\top Q x  \\ 
+& \text{s.t. } (\forall i): x^\top A_i x = b_i
+\end{align} 
+$$
+
+with cost matrix $Q$, known constraint matrices $A_i$, and $b_0=1, b_{i\geq 0}=0$. *AUTOTIGHT* finds all possible additional (a.k.a. redundant) constraints matrices $B_i$, and checks if the SDP (rank-)relaxation of the QCQP is cost and/or rank-tight after adding these reduncdant constraints. The rank relaxation is given by:
+
+$$ 
+\begin{align} p^\star &\min_{X} \langle Q X \rangle  \\ 
+& \text{s.t. } (\forall i): \langle A_i X \rangle = b_i
+\end{align} 
+$$
+
+Cost-tight means that strong duality holds ($p^\star = q^\star$) while rank-tight means that we even have $\text{rank}(X)=1$.
+If successful, the output is a set of constraints that leads to a tight SDP relaxation of the original problem, which can be used to solve the problem to global optimality (if we have rank tightness) or certify given solutions (if we have cost tightness). 
+
+*AUTOTEMPLATE* follows the same principle as *AUTOTIGHT*, but its output are templates rather than constraints. These templates can be seen as "parametrized" versions of the constraints matrices, and can be applied to new problem instances of any size without having to learn the constraints again from scratch. 
+
+## Citation
+If you use this codebase, please cite our [paper](http://arxiv.org/abs/2308.05783):
+
+```bibtex
+@article{dumbgen_toward_2024,
+  title = {Toward Globally Optimal State Estimation Using Automatically Tightened Semidefinite Relaxations},
+  author = {Dümbgen, Frederike and Holmes, Connor and Agro, Ben and Barfoot, Timothy D.},
+  year = {2024},
+  journal = {IEEE Transactions on Robotics (to appear)},
+  publisher = {IEEE},
+}
+```
 
 ## Installation
 
-This codebase relies on several submodules. Make sure to clone it recursively:
+Clone this codebase by running:
 ```
 git clone --recurse-submodules git@github.com:utiasASRL/constraint_learning
 ```
-(if you forgot, you can still run `git submodule init` and `git submodule update` after a normal clone)
 
-The below command creates an environment with all dependencies and installs this package locally.
+The below command creates an environment with all dependencies and installs this package (and all required submodules) locally.
 ```
 conda env create -f environment.yml
 ```
 
+## Dependencies
+
+Besides the automatically installed dependencies when using the above instructions, you need to also have a valid mosek licnese in order to use this repository. If you are an academic, you can get a license for free [here](https://www.mosek.com/license/request/?i=acp).
+
 ## Usage
 
-If you want to automatically tighten your own SDP, all you need to do is to create your own lifter class implementing the specific lifting functions you want to use, the cost and constraints matrices. Many example lifters can be found in the `lifters/` folder. To analyze your lifter, you can refer to the scripts `_scripts/run_<lifter>_study.py` for inspiration, and also `_scripts/run_autotemplate.py`.
+If you want to automatically tighten your own SDP, all you need to do is to create your own lifter class implementing the specific lifting functions you want to use (i.e. define $x$), the cost ($Q$) and constraints matrices ($A_i$). Many example lifters can be found in the `lifters/` folder. To analyze your lifter, you can refer to the scripts `_scripts/run_<lifter>_study.py` for inspiration, and also `_scripts/run_autotemplate.py`.
 
 ## Reproducing results
 
