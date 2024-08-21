@@ -9,7 +9,6 @@ from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
-from utils.plotting_tools import plot_singular_values
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -167,6 +166,16 @@ class StateLifter(BaseClass):
             self.level == "no"
         ), "Need to overwrite get_level_dims to use level different than 'no'"
         return {"no": 0}
+
+    def get_theta_from_x(self, x):
+        theta = {}
+        i = 0
+        for var_name, var_size in self.var_dict.items():
+            if var_name == self.HOM:
+                continue
+            theta[var_name] = x[i : i + var_size]
+            i += var_size
+        return theta
 
     @property
     def theta(self):

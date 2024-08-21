@@ -25,7 +25,7 @@ class MatWeightLifter(StateLifter):
 
     ADMM_OPTIONS = dict(
         early_stop=False,
-        maxiter=10,
+        maxiter=3,
         use_fusion=True,
         rho_start=1e2,
     )
@@ -177,7 +177,10 @@ class MatWeightLifter(StateLifter):
             assert y == self.y_
         xhat, info = self.prob.gauss_newton(x_init=t0, verbose=verbose)
         if info["term_crit"] == "ITER":
+            info["success"] = False
             print("Warning: GN reached maximum number of iterations!")
+        else:
+            info["success"] = True
         return xhat, info, info["cost"]
 
     def get_cost(self, theta, y):
@@ -215,15 +218,21 @@ class MatWeightLifter(StateLifter):
 
     def get_error(self, theta_hat):
         error_dict = {"error_trans": 0, "error_rot": 0, "error": 0}
+        count_t = count_C = 0
         for key, val in self.theta.items():
             if "xt" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key])
+                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
                 error_dict["error_trans"] += err
                 error_dict["error"] += err
-            elif "xC" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key])
+                count_t += 1
+            elif "xC" in key:  # rotation errors
+                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
                 error_dict["error_rot"] += err
                 error_dict["error"] += err
+                count_C += 1
+        error_dict["error_trans"] = np.sqrt(error_dict["error_trans"] / count_t)
+        error_dict["error_rot"] = np.sqrt(error_dict["error_rot"] / count_C)
+        error_dict["error"] = np.sqrt(error_dict["error"] / (count_C + count_t))
         return error_dict
 
     # clique stuff
@@ -233,7 +242,7 @@ class MatWeightLifter(StateLifter):
     def node_size(self):
         return self.var_dict["xt_0"] + self.var_dict[f"xC_0"]
 
-    def get_clique_vars_ij(self, *args):
+    def get_clique_vars_ij(self, *args, map_vars=False):
         var_dict = {
             "h": self.var_dict["h"],
         }
@@ -244,21 +253,31 @@ class MatWeightLifter(StateLifter):
                     f"xt_{i}": self.var_dict[f"xt_{i}"],
                 }
             )
+        if map_vars:
+            for k in range(self.n_landmarks):
+                var_dict[f"m_{k}"] = self.var_dict[f"m_{k}"]
+                for i in args:
+                    var_dict[f"z_{k}_{i}"] = self.var_dict[f"z_{k}_{i}"]
         return var_dict
 
-    def get_clique_vars(self, i, n_overlap=0):
-        used_landmarks = list(range(i, min(i + n_overlap + 1, self.n_poses)))
-        vars = {
+    def get_clique_vars(self, i, n_overlap=0, map_vars=False):
+        used_poses = list(range(i, min(i + n_overlap + 1, self.n_poses)))
+        var_dict = {
             "h": self.var_dict["h"],
         }
-        for j in used_landmarks:
-            vars.update(
+        for j in used_poses:
+            var_dict.update(
                 {
                     f"xC_{j}": self.var_dict[f"xC_{j}"],
                     f"xt_{j}": self.var_dict[f"xt_{j}"],
                 }
             )
-        return vars
+        if map_vars:
+            for k in range(self.n_landmarks):
+                var_dict[f"m_{k}"] = self.var_dict[f"m_{k}"]
+                for i in used_poses:
+                    var_dict[f"z_{k}_{i}"] = self.var_dict[f"z_{k}_{i}"]
+        return var_dict
 
     def get_clique_cost(self, i):
         return self.prob.generate_cost(
@@ -301,6 +320,9 @@ class MatWeightSLAMLifter(MatWeightLifter):
         if noise > 0:
             self.prob.add_init_pose_prior()
         self.y_ = self.prob.G.E
+
+    def get_clique_vars_ij(self, *args):
+        return super().get_clique_vars_ij(*args, map_vars=True)
 
     def __repr__(self):
         return "mw_slam_lifter"

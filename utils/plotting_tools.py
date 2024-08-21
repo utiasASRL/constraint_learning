@@ -1,19 +1,29 @@
 import os
 
+import matplotlib.colors as colors
+import matplotlib.pylab as plt
 import numpy as np
 
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
+# fmt: off
 USE_METHODS = {
-    "local": {"color": "C0", "marker": "o", "alpha": 1.0, "label": "local"},
-    "SDP": {"color": "C1", "marker": "o", "alpha": 1.0, "label": "SDP"},
-    "SDP-redun": {"color": "C1", "marker": "d", "alpha": 0.5, "label": None},
-    "dSDP": {"color": "C2", "marker": "o", "alpha": 1.0, "label": "dSDP"},
-    "dSDP-redun": {"color": "C2", "marker": "d", "alpha": 0.5, "label": None},
-    "pADMM": {"color": "C3", "marker": "o", "alpha": 1.0, "label": "dSDP-admm"},
-    "pADMM-redun": {"color": "C3", "marker": "d", "alpha": 0.5, "label": None},
+    "local": {"color": "C4", "label": "local"},
+    "local-gt": {"color": "C0", "label": "local-gt"},
+    "SDP": {"color": "C1", "label": "SDP"},
+    "SDP-redun": {"color": "C1", "label": "SDP"},
+    "dSDP": {"color": "C2", "label": "dSDP"},
+    "dSDP-redun": {"color": "C2", "label": "dSDP"},
+    "pADMM": {"color": "C3", "label": "dSDP-admm"},
+    "pADMM-redun": {"color": "C3", "label": "dSDP-admm"},
 }
+# fmt: on
+
+TAB10_TO_RGB = {f"C{i}": colors.to_rgb(c) for i, c in enumerate(plt.cm.tab10.colors)}
+
+USE_METHODS_MW = ["local", "local-gt", "SDP-redun", "dSDP-redun", "pADMM-redun"]
+USE_METHODS_RO = ["local", "local-gt", "SDP", "dSDP", "pADMM"]
 
 
 def import_plt():
@@ -415,6 +425,7 @@ def add_lines(ax, xs, start, facs=[1, 2, 3]):
             ls=":",
         )
         ax.annotate(xy=(xs[-2], ys[-2] * 0.7), text=f"O(N$^{fac}$)", alpha=0.5)
+
 
 def matshow_list(*args, log=False, ticks=False, **kwargs):
     fig, axs = plt.subplots(1, len(args), squeeze=False)

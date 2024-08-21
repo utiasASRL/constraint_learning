@@ -1,12 +1,13 @@
 import time
 from copy import deepcopy
 
-import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from cert_tools.sdp_solvers import solve_feasibility_sdp
+from matplotlib.patches import Rectangle
+from matplotlib.colors import SymLogNorm
 
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
@@ -999,7 +1000,7 @@ class Learner(object):
             for i, (_, row) in enumerate(df.iterrows()):
                 if row["required (sorted)"] < 0:
                     ax.add_patch(
-                        matplotlib.patches.Rectangle(
+                        Rectangle(
                             (ax.get_xlim()[0], i - 0.5),
                             ax.get_xlim()[1] + 0.5,
                             1.0,
@@ -1075,7 +1076,7 @@ class Learner(object):
 
         vmin = min(-np.max(Q), np.min(Q))
         vmax = max(np.max(Q), -np.min(Q))
-        norm = matplotlib.colors.SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
+        norm = SymLogNorm(10**-5, vmin=vmin, vmax=vmax)
         im1 = axs[1].matshow(Q, norm=norm)
 
         for ax in axs:

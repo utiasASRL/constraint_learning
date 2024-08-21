@@ -9,13 +9,9 @@ from decomposition.sim_experiments import generate_results
 from lifters.matweight_lifter import MatWeightLocLifter
 from lifters.range_only_lifters import RangeOnlyLocLifter
 from ro_certs.problem import Reg
-from utils.plotting_tools import USE_METHODS, savefig
+from utils.plotting_tools import USE_METHODS, USE_METHODS_MW, USE_METHODS_RO, savefig
 
-# USE_METHODS = ["SDP", "dSDP", "ADMM"]
-# USE_METHODS = ["local", "dSDP", "ADMM", "pADMM"]
-# USE_METHODS = ["ADMM", "pADMM"]
 ADD_REDUNDANT = True
-
 RESULTS_DIR = "_results"
 
 N_SEEDS = 1
@@ -26,22 +22,33 @@ def custom_plot(ax, x, y, data, **unused):
     for method in USE_METHODS.keys():
         if method in data_methods:
             df_sub = data[data["solver type"] == method]
+            with_label = deepcopy(USE_METHODS[method])
+            with_label["marker"] = None
+            ax.plot([], [], **with_label)
+
             no_label = deepcopy(USE_METHODS[method])
             no_label["marker"] = None
-            ax.plot([], [], **no_label)
-
-            no_label = deepcopy(USE_METHODS[method])
             no_label["label"] = None
+            no_label["ls"] = ""
             ax.plot(df_sub[x], df_sub[y], **no_label)
+
+            df_median = df_sub.groupby("n params")["t"].median()
+            quantiles = np.vstack(
+                [
+                    np.zeros_like(df_median.values),
+                    df_sub.groupby("n params")["t"].max().values - df_median.values,
+                ]
+            )
+            no_label["marker"] = "o"
+            no_label["ls"] = "-"
+            ax.errorbar(df_median.index, df_median.values, yerr=quantiles, **no_label)
         else:
-            print(f"skipping {method}, not in {data_methods}")
+            continue
 
 
-def plot_timing(df, xlabel="", fname=""):
-    for label, plot in zip(
-        ["t", "cost", "RDG"], [custom_plot, sns.barplot, sns.barplot]
-    ):
-        value_vars = [f"{label} {m}" for m in USE_METHODS]
+def plot_timing(df, xlabel="", fname="", use_methods=USE_METHODS):
+    for label, plot in zip(["t", "cost"], [custom_plot, sns.barplot]):
+        value_vars = [f"{label} {m}" for m in use_methods]
         value_vars = set(value_vars).intersection(df.columns.unique())
         df_long = df.melt(
             id_vars=["n params"],
@@ -50,24 +57,27 @@ def plot_timing(df, xlabel="", fname=""):
             var_name="solver type",
         )
         df_long.loc[:, "solver type"] = [
-            l.strip(f"{label} ") for l in df_long["solver type"]
+            l[len(label) + 1 :] for l in df_long["solver type"]
         ]
         fig, ax = plt.subplots()
-        fig.set_size_inches(5, 5)
+        fig.set_size_inches(5, 3)
         plot(
             data=df_long,
             x="n params",
             y=label,
             ax=ax,
             hue="solver type",
-            hue_order=USE_METHODS.keys(),
-            palette={m: kwargs["color"] for m, kwargs in USE_METHODS.items()},
+            hue_order=use_methods,
+            palette={m: USE_METHODS[m]["color"] for m in use_methods},
         )
         for group, kwargs in zip(ax.containers, USE_METHODS.values()):
             for bar in group:
-                bar.set_alpha(kwargs["alpha"])
+                try:
+                    bar.set_alpha(kwargs["alpha"])
+                except:
+                    continue
         ax.set_yscale("log")
-        if label not in ["cost", "RDG"]:
+        if label not in ["cost", "RDG", "error"]:
             ax.set_xscale("log")
             ax.plot(
                 df_long["n params"].unique(),
@@ -94,7 +104,7 @@ def plot_timing(df, xlabel="", fname=""):
             new_handles = [h for l, h in zip(new_labels, handles) if l is not None]
             new_labels = [l for l in new_labels if l is not None]
             ax.legend(new_handles, new_labels)
-            ax.set_ylabel("cost")
+            ax.set_ylabel(label)
         ax.grid("on")
         ax.set_xlabel(xlabel)
         savefig(fig, fname.replace(".pkl", f"_{label}.png"))
@@ -117,13 +127,8 @@ def run_time_study(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2
     )
     lifter_mat = MatWeightLocLifter(n_landmarks=8, n_poses=10)
-    for lifter in [lifter_ro, lifter_mat]:
-        try:
-            assert overwrite is False
-            fname = f"{results_dir}/{lifter}_{appendix}.pkl"
-            df = pd.read_pickle(fname)
-            print(f"read {fname}")
-        except (FileNotFoundError, AssertionError):
+    if overwrite:
+        for lifter in [lifter_ro, lifter_mat]:
             fname = f"{results_dir}/{lifter}_{appendix}.pkl"
             add_redundant_constr = (
                 True if isinstance(lifter, MatWeightLocLifter) else False
@@ -141,11 +146,15 @@ def run_time_study(
             df.to_pickle(fname)
             print("saved final as", fname)
 
-        if isinstance(lifter, RangeOnlyLocLifter):
-            xlabel = "number of positions"
-        else:
-            xlabel = "number of poses"
-        plot_timing(df, xlabel=xlabel, fname=fname)
+    fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
+    df = pd.read_pickle(fname)
+    xlabel = "number of positions"
+    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=USE_METHODS_RO)
+
+    xlabel = "number of poses"
+    fname = f"{results_dir}/{lifter_mat}_{appendix}.pkl"
+    df = pd.read_pickle(fname)
+    plot_timing(df, xlabel=xlabel, fname=fname, use_methods=USE_METHODS_MW)
 
 
 if __name__ == "__main__":

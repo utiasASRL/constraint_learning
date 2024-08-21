@@ -29,7 +29,7 @@ VERBOSE = False
 SDP_MAX_N = 500
 
 # USE_METHODS = ["SDP", "dSDP", "ADMM"]
-USE_METHODS = ["SDP", "dSDP", "ADMM"]
+USE_METHODS = ["local"]
 # USE_METHODS = ["dSDP", "SDP"]
 
 DEBUG = False
@@ -37,6 +37,9 @@ TOL_SDP = 1e-10
 TOL_DSDP = 1e-10
 
 ADD_REDUNDANT = False
+
+# if EVR is bigger than EVR_THRESH, we consider success of SDP solvers.
+EVR_THRESH = 1e7
 
 
 def read_saved_learner(lifter):
@@ -53,14 +56,15 @@ def read_saved_learner(lifter):
     return saved_learner
 
 
-def extract_solution(lifter: MatWeightLocLifter, X_list):
+def extract_solution(lifter: MatWeightLocLifter | RangeOnlyLocLifter, X_list):
+    # x_list has format [1, x1, x2], [1, x2, x3], [1,  x3, x4], ...
     x_dim = lifter.node_size()
     x, info = rank_project(X_list[0], p=1)
     evr_mean = [info["EVR"]]
-    x_all = [x[1 : 1 + x_dim]]
+    x_all = [x[1 : 1 + x_dim]]  # x1
     for X in X_list:
         x, info = rank_project(X, p=1)
-        x_all.append(x[1 + x_dim : 1 + 2 * x_dim])
+        x_all.append(x[1 + x_dim : 1 + 2 * x_dim])  # x2
         evr_mean.append(info["EVR"])
     return np.vstack(x_all), np.mean(evr_mean)
 
@@ -115,15 +119,34 @@ def generate_results(
             new_lifter.simulate_y(noise=noise, sparsity=sparsity)
 
             theta_gt = new_lifter.get_vec_around_gt(delta=0)
+            theta_rand = new_lifter.get_vec_around_gt(delta=0.5)
 
-            if "local" in use_methods:
-                print("solving local...")
+            if "local-gt" in use_methods:
+                print("solving local with gt...")
                 t1 = time.time()
                 theta_est, info, cost = new_lifter.local_solver(
                     theta_gt, new_lifter.y_, verbose=True
                 )
+                data_dict["success local-gt"] = info["success"]
+                data_dict["t local-gt"] = time.time() - t1
+                data_dict["cost local-gt"] = cost
+                for key, val in new_lifter.get_error(theta_hat=theta_est).items():
+                    data_dict[f"{key} local-gt"] = val
+                print(f"cost local: {cost:.2f}")
+            else:
+                info = {"cost-gt": 0}
+                data_dict["cost local-gt"] = 0
+            if "local" in use_methods:
+                print("solving local with random...")
+                t1 = time.time()
+                theta_est, info, cost = new_lifter.local_solver(
+                    theta_rand, new_lifter.y_, verbose=True
+                )
+                data_dict["success local"] = info["success"]
                 data_dict["t local"] = time.time() - t1
                 data_dict["cost local"] = cost
+                for key, val in new_lifter.get_error(theta_hat=theta_est).items():
+                    data_dict[f"{key} local"] = val
                 print(f"cost local: {cost:.2f}")
             else:
                 info = {"cost": 0}
@@ -139,8 +162,6 @@ def generate_results(
                     add_redundant=add_redundant,
                 )
                 data_dict["t create cliques"] = time.time() - t1
-                data_dict[f"dim dSDP{appendix}"] = clique_list[0].Q.shape[0]
-                data_dict[f"m dSDP{appendix}"] = sum(len(c.A_list) for c in clique_list)
 
                 method = f"dSDP{appendix}"
                 if method in use_methods:
@@ -156,15 +177,16 @@ def generate_results(
                     data_dict[f"t {method}"] = time.time() - t1
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
+                    x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
+                    theta_dSDP = new_lifter.get_theta_from_x(x=x_dSDP)
+                    for key, val in new_lifter.get_error(theta_hat=theta_dSDP).items():
+                        data_dict[f"{key} {method}"] = val
 
-                    try:
-                        x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
-                        data_dict[f"EVR {method}"] = evr_mean
-                    except Exception as e:
-                        print("Could not extract solution:", e)
+                    data_dict[f"EVR {method}"] = evr_mean
+                    data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"ADMM{appendix}"
                 if method in use_methods:
@@ -191,15 +213,16 @@ def generate_results(
                     print(info["msg"])
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
 
-                    try:
-                        x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-                        data_dict[f"EVR {method}"] = evr_mean
-                    except Exception as e:
-                        print("Warning: could not extract solution:", e)
+                    x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+                    theta_ADMM = new_lifter.get_theta_from_x(x=x_ADMM)
+                    for key, val in new_lifter.get_error(theta_hat=theta_ADMM).items():
+                        data_dict[f"{key} {method}"] = val
+                    data_dict[f"EVR {method}"] = evr_mean
+                    data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"pADMM{appendix}"
                 if method in use_methods:
@@ -216,7 +239,7 @@ def generate_results(
                                 X0.append(np.outer(x_clique, x_clique))
                         else:
                             X0 = None
-                        print("target", data_dict["cost local"])
+                        print("target", data_dict["cost local-gt"])
                         t1 = time.time()
                         X_list, info = solve_parallel(
                             deepcopy(clique_list),
@@ -232,15 +255,18 @@ def generate_results(
                         data_dict[f"cost {method}"] = info["cost"]
                         data_dict[f"cost history {method}"] = info["cost history"]
                         data_dict[f"RDG {method}"] = get_relative_gap(
-                            info["cost"], data_dict["cost local"]
+                            info["cost"], data_dict["cost local-gt"]
                         )
                         print(f"cost {method}: {info['cost']:.2f}")
 
-                        try:
-                            x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-                            data_dict[f"EVR {method}"] = evr_mean
-                        except Exception as e:
-                            print("Warning: could not extract solution:", e)
+                        x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
+                        theta_ADMM = new_lifter.get_theta_from_x(x=x_ADMM)
+                        for key, val in new_lifter.get_error(
+                            theta_hat=theta_ADMM
+                        ).items():
+                            data_dict[f"{key} {method}"] = val
+                        data_dict[f"EVR {method}"] = evr_mean
+                        data_dict[f"success {method}"] = evr_mean > EVR_THRESH
 
                 method = f"SDP{appendix}"
                 if method in use_methods and (n_params > SDP_MAX_N):
@@ -289,15 +315,16 @@ def generate_results(
                     data_dict[f"t {method}"] = time.time() - t1
                     data_dict[f"cost {method}"] = info["cost"]
                     data_dict[f"RDG {method}"] = get_relative_gap(
-                        info["cost"], data_dict["cost local"]
+                        info["cost"], data_dict["cost local-gt"]
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
 
-                    try:
-                        x_SDP, info = rank_project(X, p=1)
-                        data_dict[f"EVR {method}"] = info["EVR"]
-                    except Exception as e:
-                        print("Could not extract solution:", e)
+                    x_SDP, info = rank_project(X, p=1)
+                    theta_SDP = new_lifter.get_theta_from_x(x=x_SDP[1:])
+                    for key, val in new_lifter.get_error(theta_hat=theta_SDP).items():
+                        data_dict[f"{key} {method}"] = val
+                    data_dict[f"EVR {method}"] = info["EVR"]
+                    data_dict[f"success {method}"] = info["EVR"] > EVR_THRESH
 
             df_data.append(deepcopy(data_dict))
             if fname != "":
