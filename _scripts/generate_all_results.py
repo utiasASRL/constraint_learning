@@ -55,6 +55,17 @@ if __name__ == "__main__":
     run_autotemplate(recompute=recompute, results_dir=results_dir)
     plt.close("all")
 
+    print("------- Generate dataset results -------")
+    run_datasets_ro(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    plt.close("all")
+
+    run_datasets_stereo(
+        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    )
+    plt.close("all")
+
     print("------- Generate RO results -------")
     run_range_only_study(
         n_seeds=n_seeds,
@@ -82,16 +93,5 @@ if __name__ == "__main__":
         autotight=autotight,
         autotemplate=autotemplate,
         results_dir=results_dir,
-    )
-    plt.close("all")
-
-    print("------- Generate dataset results -------")
-    run_datasets_ro(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-    plt.close("all")
-
-    run_datasets_stereo(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
     )
     plt.close("all")
