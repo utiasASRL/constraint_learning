@@ -13,7 +13,7 @@ from lifters.stereo2d_lifter import Stereo2DLifter
 from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import add_lines, plot_matrix, savefig
 
-RESULTS_DIR = "_results_server_v3"
+RESULTS_DIR = "_results_v4"
 
 
 def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
@@ -49,7 +49,7 @@ def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
 
 
 def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
-    n_landmarks_list = [10, 15, 20, 25, 30]
+    n_landmarks_list = [15, 20, 25, 30]
 
     level = "urT"
     param_level = "ppT"
@@ -237,5 +237,7 @@ def run_stereo_1d():
 
 
 if __name__ == "__main__":
+    print("========== Stereo3D autotemplate ===========")
+
     run_stereo_1d()
-    run_all(n_seeds=1, autotight=False, autotemplate=True, recompute=False)
+    run_all(n_seeds=1, autotight=False, autotemplate=True, recompute=True)

@@ -474,6 +474,7 @@ def apply_autotemplate_base(
                     if n_successful_seeds >= n_seeds:
                         break
                 df = pd.DataFrame(df_data)
+
                 df.to_pickle(fname)
 
     if not COMPUTE_ONESHOT:
@@ -486,8 +487,7 @@ def apply_autotemplate_base(
         df_oneshot = pd.read_pickle(fname)
         print(f"--------- read {fname} \n")
     except (FileNotFoundError, AssertionError):
-        n_seeds = 1
-        max_seeds = n_seeds + 5
+        max_seeds = 5
         df_data = []
         for n_params in param_list:
             n_param_lim = LIMITS.get(type(learner.lifter), {}).get("oneshot", 1000)
@@ -498,7 +498,6 @@ def apply_autotemplate_base(
                 )
                 continue
 
-            n_successful_seeds = 0
             for seed in range(max_seeds):
                 print(
                     f"================== oneshot N={n_params},seed={seed} ======================"
@@ -508,6 +507,7 @@ def apply_autotemplate_base(
 
                 # standard one-shot
                 new_lifter.param_level = "no"
+
                 variable_list = new_lifter.get_all_variables()
                 new_learner = Learner(
                     lifter=new_lifter,
@@ -519,7 +519,6 @@ def apply_autotemplate_base(
                 success = new_learner.find_local_solution()
                 if not success:
                     continue
-                n_successful_seeds += 1
 
                 dict_list, success = new_learner.run(verbose=False)
                 new_dict = dict_list[-1]
@@ -533,8 +532,7 @@ def apply_autotemplate_base(
                 data_dict["n constraints"] = new_dict["n templates"]
 
                 df_data.append(deepcopy(data_dict))
-                if n_successful_seeds >= n_seeds:
-                    break
+                break
 
             df_oneshot = pd.DataFrame(df_data)
             df_oneshot.to_pickle(fname)
