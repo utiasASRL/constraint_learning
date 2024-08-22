@@ -59,6 +59,8 @@ The command should run in less than 4 minutes on a modern laptop, and the output
 
 Besides the automatically installed dependencies when using the above instructions, you need to also have a valid mosek licnese in order to use this repository. If you are an academic, you can get a license for free [here](https://www.mosek.com/license/request/?i=acp).
 
+For plotting, we assume that LaTeX is installed.
+
 ## Usage
 
 If you want to automatically tighten your own SDP, all you need to do is to create your own lifter class implementing the specific lifting functions you want to use (i.e. define $x$), the cost ($Q$) and constraints matrices ($A_i$). Many example lifters can be found in the `lifters/` folder. To analyze your lifter, you can refer to the scripts `_scripts/run_<lifter>_study.py` for inspiration, and also `_scripts/run_autotemplate.py`.
