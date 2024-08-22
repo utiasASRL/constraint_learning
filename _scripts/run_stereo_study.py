@@ -14,6 +14,7 @@ from lifters.stereo3d_lifter import Stereo3DLifter
 from utils.plotting_tools import add_lines, plot_matrix, savefig
 
 RESULTS_DIR = "_results_v4"
+debug = False
 
 
 def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
@@ -48,8 +49,10 @@ def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
         apply_autotight_base(learner, fname_root, plots)
 
 
-def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
-    n_landmarks_list = [15, 20, 25, 30]
+def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR, debug=debug):
+    n_landmarks_list = [15, 20, 25, 30] if not debug else [15, 16]
+    use_orders = ["sorted", "basic"] if not debug else ["sorted"]
+    compute_oneshot = False if debug else True
 
     level = "urT"
     param_level = "ppT"
@@ -89,7 +92,7 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
 
     learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
-    if lifter.d == 2:
+    if lifter.d == 2 and not debug:
         fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
         learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         apply_autotemplate_plot(learner, recompute=recompute, fname_root=fname_root)
@@ -101,6 +104,8 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
         n_seeds=n_seeds,
         recompute=recompute,
         results_folder=results_dir,
+        use_orders=use_orders,
+        compute_oneshot=compute_oneshot,
     )
     if df is None:
         return
@@ -122,7 +127,12 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR):
 
 
 def run_all(
-    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+    n_seeds,
+    recompute,
+    autotight=True,
+    autotemplate=True,
+    results_dir=RESULTS_DIR,
+    debug=debug,
 ):
     if autotight:
         print("========== Stereo2D autotight ===========")
@@ -130,12 +140,17 @@ def run_all(
     if autotemplate:
         print("========== Stereo2D autotemplate ===========")
         apply_autotemplate(
-            d=2, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
+            d=2,
+            n_seeds=n_seeds,
+            recompute=recompute,
+            results_dir=results_dir,
+            debug=debug,
         )
-        print("========== Stereo3D autotemplate ===========")
-        apply_autotemplate(
-            d=3, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
-        )
+        if not debug:
+            print("========== Stereo3D autotemplate ===========")
+            apply_autotemplate(
+                d=3, n_seeds=n_seeds, recompute=recompute, results_dir=results_dir
+            )
 
 
 def run_stereo_1d():

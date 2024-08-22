@@ -385,6 +385,8 @@ def apply_autotemplate_base(
     results_folder: str,
     n_seeds: int = 1,
     recompute: bool = False,
+    use_orders: list = USE_ORDERS,
+    compute_oneshot: bool = COMPUTE_ONESHOT,
 ):
     fname_root = f"{results_folder}/autotemplate_{learner.lifter}"
 
@@ -409,7 +411,7 @@ def apply_autotemplate_base(
 
         order_dict["basic"] = None
         for name, new_order in order_dict.items():
-            if name not in USE_ORDERS:
+            if name not in use_orders:
                 continue
 
             data_dict = {}
@@ -477,8 +479,8 @@ def apply_autotemplate_base(
 
                 df.to_pickle(fname)
 
-    if not COMPUTE_ONESHOT:
-        return
+    if not compute_oneshot:
+        return df
 
     fname = f"{fname_root}_oneshot.pkl"
     df_oneshot = None
