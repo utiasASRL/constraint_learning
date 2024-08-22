@@ -86,7 +86,8 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR, debug=debug)
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
         fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
 
-        axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+        if not debug:
+            axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
         add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min())
         add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min())
 

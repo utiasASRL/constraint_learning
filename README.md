@@ -48,6 +48,13 @@ The below command creates an environment with all dependencies and installs this
 conda env create -f environment.yml
 ```
 
+To test that the installation was successful, you can generate a representative set of example results by running
+```
+conda activate constraint_learning 
+make results_test
+```
+The command should run in less than 4 minutes on a modern laptop, and the output can be found in the `_results_test` folder.
+
 ## Dependencies
 
 Besides the automatically installed dependencies when using the above instructions, you need to also have a valid mosek licnese in order to use this repository. If you are an academic, you can get a license for free [here](https://www.mosek.com/license/request/?i=acp).

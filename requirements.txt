@@ -13,7 +13,7 @@ pymanopt>=2.1.1
 chompack>=2.3.1
 sparseqr>=1.2.1
 asrl-pylgmath>=1.0.3
+spatialmath-python>=1.1.11
 -e poly_matrix/
 -e certifiable-tools/
--e mat_weight_certs/
 -e . 

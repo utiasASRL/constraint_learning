@@ -14,7 +14,7 @@ try:
 except Exception as e:
     pass
 
-DEBUG = True
+DEBUG = False
 RESULTS_DIR = "_results_v4/" if not DEBUG else "_results_test"
 
 if __name__ == "__main__":
@@ -46,6 +46,7 @@ if __name__ == "__main__":
         "-s",
         "--small",
         default=DEBUG,
+        action="store_true",
         help="run only small version for testing",
     )
     args = parser.parse_args()
