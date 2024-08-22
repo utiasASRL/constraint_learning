@@ -1,8 +1,5 @@
 _results*
 _plots/
-starrynight/
-starloc/
-ro_certs/
 log/
 
 __pycache__
@@ -20,4 +17,5 @@ dist/
 mosek_output.tmp
 
 mat_weight_certs
-starrynight
+starloc/
+ro_certs/
