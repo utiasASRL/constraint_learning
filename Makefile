@@ -3,6 +3,9 @@ results_server_plot:
 	- rsync -avz -e 'ssh' fdu@192.168.42.7:/home/fdu/constraint_learning/_results_v4/* _results_server_v3/ --exclude-from='utils/exclude-server.txt' --exclude="*.pdf"
 	python _scripts/generate_all_results.py --directory="_results_server_v3"
 
+results_test:
+	python _scripts/generate_all_results.py --overwrite --small --directory="_results_test" --n_seeds=1 
+
 results_generate:
 	python _scripts/generate_all_results.py --overwrite --directory="_results_v4" --n_seeds=3
 

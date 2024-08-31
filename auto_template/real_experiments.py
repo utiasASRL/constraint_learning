@@ -409,7 +409,7 @@ def run_real_experiment(
                 learner = pickle.load(f)
                 order_dict = pickle.load(f)
         except FileNotFoundError:
-            print(f"cannot read {fname_autotemplate}, need to run run_all_study first.")
+            print(f"cannot read {fname_autotemplate}, need to run run_autotemplate first.")
             return
         order_dict = {k: v for k, v in order_dict.items() if k in use_orders}
     else:

@@ -12,6 +12,7 @@ from utils.plotting_tools import add_lines, savefig
 RESULTS_DIR = "_results_server_v3"
 
 ONLY_ROBUST = False
+debug = False
 
 
 def apply_autotight(
@@ -64,6 +65,7 @@ def apply_autotemplate(
     n_seeds,
     recompute,
     results_dir=RESULTS_DIR,
+    debug=debug,
 ):
     if robust:
         level = "xwT"
@@ -71,7 +73,9 @@ def apply_autotemplate(
         level = "no"
     variable_list = None  # use the default one for the first step.
 
-    n_landmarks_list = [10, 11, 12, 13, 14, 15]
+    n_landmarks_list = [10, 11, 12, 13, 14, 15] if not debug else [10, 11]
+    use_orders = ["sorted", "basic"] if not debug else ["sorted"]
+    compute_oneshot = False if (debug and robust) else True
 
     np.random.seed(0)
     lifter = Lifter(
@@ -90,22 +94,30 @@ def apply_autotemplate(
         n_seeds=n_seeds,
         recompute=recompute,
         results_folder=results_dir,
+        use_orders=use_orders,
+        compute_oneshot=compute_oneshot,
     )
     if df is None:
         return
 
     fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
     fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
-    [ax.set_ylim(10, 1000) for ax in axs]
+    if not debug:
+        [ax.set_ylim(10, 1000) for ax in axs]
+        axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
 
-    axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
     add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min(), facs=[3])
     add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min(), facs=[3])
     savefig(fig, fname_root + f"_t.pdf")
 
 
 def run_wahba(
-    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+    n_seeds,
+    recompute,
+    autotight=True,
+    autotemplate=True,
+    results_dir=RESULTS_DIR,
+    debug=debug,
 ):
     from lifters.wahba_lifter import WahbaLifter
 
@@ -129,6 +141,7 @@ def run_wahba(
                 n_seeds=n_seeds,
                 recompute=recompute,
                 results_dir=results_dir,
+                debug=debug,
             )
         apply_autotemplate(
             WahbaLifter,
@@ -139,11 +152,17 @@ def run_wahba(
             n_seeds=n_seeds,
             recompute=recompute,
             results_dir=results_dir,
+            debug=debug,
         )
 
 
 def run_mono(
-    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+    n_seeds,
+    recompute,
+    autotight=True,
+    autotemplate=True,
+    results_dir=RESULTS_DIR,
+    debug=debug,
 ):
     from lifters.mono_lifter import MonoLifter
 
@@ -167,6 +186,7 @@ def run_mono(
                 n_seeds=n_seeds,
                 recompute=recompute,
                 results_dir=results_dir,
+                debug=debug,
             )
         apply_autotemplate(
             MonoLifter,
@@ -177,25 +197,34 @@ def run_mono(
             n_seeds=n_seeds,
             recompute=recompute,
             results_dir=results_dir,
+            debug=debug,
         )
 
 
 def run_all(
-    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+    n_seeds,
+    recompute,
+    autotight=True,
+    autotemplate=True,
+    results_dir=RESULTS_DIR,
+    debug=debug,
 ):
-    run_mono(
-        n_seeds,
-        recompute,
-        autotight=autotight,
-        autotemplate=autotemplate,
-        results_dir=results_dir,
-    )
+    if not debug:
+        run_mono(
+            n_seeds,
+            recompute,
+            autotight=autotight,
+            autotemplate=autotemplate,
+            results_dir=results_dir,
+            debug=debug,
+        )
     run_wahba(
         n_seeds,
         recompute,
         autotight=autotight,
         autotemplate=autotemplate,
         results_dir=results_dir,
+        debug=debug,
     )
 
 

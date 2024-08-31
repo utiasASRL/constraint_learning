@@ -14,8 +14,8 @@ try:
 except Exception as e:
     pass
 
-RESULTS_DIR = "_results_server_v3/"
-# RESULTS_DIR = "_results_v4/"
+DEBUG = False
+RESULTS_DIR = "_results_v4/" if not DEBUG else "_results_test"
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -27,7 +27,7 @@ if __name__ == "__main__":
         "-w",
         "--overwrite",
         action="store_true",
-        default=False,
+        default=False if not DEBUG else True,
         help="regenerate results",
     )
     parser.add_argument(
@@ -39,30 +39,38 @@ if __name__ == "__main__":
     parser.add_argument(
         "-n",
         "--n_seeds",
-        default=10,
+        default=10 if not DEBUG else 1,
         help="number of random seeds",
+    )
+    parser.add_argument(
+        "-s",
+        "--small",
+        default=DEBUG,
+        action="store_true",
+        help="run only small version for testing",
     )
     args = parser.parse_args()
     recompute = args.overwrite
     results_dir = args.directory
+    debug = args.small
     n_seeds = int(args.n_seeds)
     autotight = True
     autotemplate = True
-    n_successful = 100
+    n_successful = 100 if not debug else 10
     print("n seeds:", n_seeds)
 
     print("------- Generate results table and templates-------")
-    run_autotemplate(recompute=recompute, results_dir=results_dir)
+    run_autotemplate(recompute=recompute, results_dir=results_dir, debug=debug)
     plt.close("all")
 
-    print("------- Generate dataset results -------")
-    run_datasets_ro(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
-    )
-    plt.close("all")
-
-    run_datasets_stereo(
-        recompute=recompute, n_successful=n_successful, results_dir=results_dir
+    print("------- Generate stereo results -------")
+    run_stereo_study(
+        n_seeds=n_seeds,
+        recompute=recompute,
+        autotight=autotight,
+        autotemplate=autotemplate,
+        results_dir=results_dir,
+        debug=debug,
     )
     plt.close("all")
 
@@ -73,6 +81,7 @@ if __name__ == "__main__":
         autotight=autotight,
         autotemplate=autotemplate,
         results_dir=results_dir,
+        debug=debug,
     )
     plt.close("all")
 
@@ -83,15 +92,22 @@ if __name__ == "__main__":
         autotight=autotight,
         autotemplate=autotemplate,
         results_dir=results_dir,
+        debug=debug,
     )
     plt.close("all")
 
-    print("------- Generate stereo results -------")
-    run_stereo_study(
-        n_seeds=n_seeds,
+    print("------- Generate dataset results -------")
+    run_datasets_ro(
         recompute=recompute,
-        autotight=autotight,
-        autotemplate=autotemplate,
+        n_successful=n_successful,
         results_dir=results_dir,
     )
     plt.close("all")
+
+    if not debug:
+        run_datasets_stereo(
+            recompute=recompute,
+            n_successful=n_successful,
+            results_dir=results_dir,
+        )
+        plt.close("all")
