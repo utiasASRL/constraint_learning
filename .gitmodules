@@ -1,12 +1,12 @@
 [submodule "poly_matrix"]
 	path = poly_matrix
 	url = git@github.com:utiasASRL/poly_matrix
-[submodule "starloc"]
-	path = starloc
-	url = git@github.com:duembgen/starloc
 [submodule "certifiable-tools"]
 	path = certifiable-tools
 	url = git@github.com:utiasASRL/certifiable-tools
 [submodule "starrynight"]
 	path = starrynight
 	url = git@github.com:utiasASRL/aer1513
+[submodule "starloc"]
+	path = starloc
+	url = git@github.com:utiasASRL/starloc
