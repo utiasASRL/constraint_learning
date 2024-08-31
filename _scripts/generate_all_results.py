@@ -1,3 +1,5 @@
+import sys
+
 import matplotlib
 import matplotlib.pylab as plt
 
@@ -14,7 +16,7 @@ try:
 except Exception as e:
     pass
 
-DEBUG = False
+DEBUG = True
 RESULTS_DIR = "_results_v4/" if not DEBUG else "_results_test"
 
 if __name__ == "__main__":
@@ -58,6 +60,15 @@ if __name__ == "__main__":
     autotemplate = True
     n_successful = 100 if not debug else 10
     print("n seeds:", n_seeds)
+
+    print("------- Generate dataset results -------")
+    run_datasets_ro(
+        recompute=recompute,
+        n_successful=n_successful,
+        results_dir=results_dir,
+    )
+    plt.close("all")
+    sys.exit()
 
     print("------- Generate results table and templates-------")
     run_autotemplate(recompute=recompute, results_dir=results_dir, debug=debug)

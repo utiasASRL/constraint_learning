@@ -484,6 +484,10 @@ class Learner(object):
         for key in keys:
             x_local = data_dict[key]
             x_local = self.lifter.get_x(theta=x_local)
+
+            # TODO(FD) this is what's currently broken when using
+            # the admm branch of certifiable-tools. For some reason, this
+            # never returns non-None.
             H, info = solve_feasibility_sdp(
                 self.solver_vars["Q"],
                 A_b_list_all,
