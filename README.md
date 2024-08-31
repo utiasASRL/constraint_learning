@@ -55,7 +55,7 @@ To test that the installation was successful, you can generate a representative 
 conda activate constraint_learning 
 make results_test
 ```
-The command should run in less than 4 minutes on a modern laptop, and the output can be found in the `_results_test` folder.
+The command should run in less than 4 minutes on a modern laptop, and the output can be found in the `_results_test` folder. The expected terminal output can be found in `_results/test/terminal_output.log`.
 
 ## Dependencies
 
