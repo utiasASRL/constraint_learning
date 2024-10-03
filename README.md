@@ -2,7 +2,7 @@
 
 This codebase allows for creating **tight** semidefinite relaxations of non-convex polynomial optimization problems in a semi-automatic way. The technique has been successfully applied to many state estimation problems in robotics and computer vision and is described in more detail in this [paper](http://arxiv.org/abs/2308.05783). 
 
-In a nutshell, the codebase provides the *AUTOTIGHT* and *AUTOTEMPLATE* algorithm. We start with an optimization problem written in QCQP form:
+In a nutshell, the codebase provides the *AUTOTIGHT* and *AUTOTEMPLATE* algorithms. We start with an optimization problem written in (QCQP) form:
 
 $$ 
 \begin{align} q^\star &\min_{x} x^\top Q x  \\ 
@@ -10,7 +10,9 @@ $$
 \end{align} 
 $$
 
-with cost matrix $Q$, known constraint matrices $A_i$, and $b_0=1, b_{i\geq 0}=0$. *AUTOTIGHT* finds all possible additional (a.k.a. redundant) constraints matrices $B_i$, and checks if the SDP (rank-)relaxation of the QCQP is cost and/or rank-tight after adding these reduncdant constraints. The rank relaxation is given by:
+with cost matrix $Q$, known constraint matrices $A_i$, and $b_0=1, b_{i\geq 0}=0$. Many maximum-a-posteriori or maximum-likelihood estimation problems can be written as such, (for example range-only [localization](https://arxiv.org/abs/2209.04266) and range-aided [SLAM](https://arxiv.org/abs/2302.11614), ([matrix-weighted](https://arxiv.org/abs/2308.07275)) [SLAM](https://arxiv.org/abs/1612.07386), [outlier-robust estimation](https://ieeexplore.ieee.org/abstract/document/9785843)), and the same is true for many control and planning problems (for example [inverted pendulum](https://arxiv.org/abs/2406.05846) and other classical dynamical systems, and [slider-pusher planning systems](https://arxiv.org/abs/2402.10312)). 
+
+*AUTOTIGHT* finds all possible additional constraints matrices $B_i$ which are also automatically satisfied by solutions of (QCQP), called **redundant constraints** and checks if the SDP (rank-)relaxation of the QCQP is cost and/or rank-tight after adding them. The rank relaxation is given by:
 
 $$ 
 \begin{align} p^\star &\min_{X} \langle Q X \rangle  \\ 
@@ -48,9 +50,18 @@ The below command creates an environment with all dependencies and installs this
 conda env create -f environment.yml
 ```
 
+To test that the installation was successful, you can generate a representative set of example results by running
+```
+conda activate constraint_learning 
+make results_test
+```
+The command should run in less than 4 minutes on a modern laptop, and the output can be found in the `_results_test` folder. The expected terminal output can be found in `_results/test/terminal_output.log`.
+
 ## Dependencies
 
-Besides the automatically installed dependencies when using the above instructions, you need to also have a valid mosek licnese in order to use this repository. If you are an academic, you can get a license for free [here](https://www.mosek.com/license/request/?i=acp).
+Besides the automatically installed dependencies when using the above instructions, you need to also have a valid MOSEK license in order to use this repository. If you are an academic, you can get a license for free [here](https://www.mosek.com/license/request/?i=acp).
+
+For plotting, we assume that LaTeX is installed.
 
 ## Usage
 

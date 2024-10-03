@@ -23,6 +23,7 @@ dependencies:
     - tbb=2020.2 # sparseqr conflict
     - autograd>=1.6.2
     - pandas==1.5.3
+    - spatialmath-python=1.1.11
 
     - pip:
       - -r requirements.txt

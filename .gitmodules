@@ -1,6 +1,3 @@
-[submodule "certifiable-tools"]
-	path = certifiable-tools
-	url = git@github.com:utiasASRL/certifiable-tools
 [submodule "mat_weight_certs"]
 	path = mat_weight_certs
 	url = git@github.com:holmesco/mat_weight_certs
@@ -11,3 +8,12 @@
 [submodule "poly_matrix"]
 	path = poly_matrix
 	url = git@github.com:utiasASRL/poly_matrix
+[submodule "certifiable-tools"]
+	path = certifiable-tools
+	url = git@github.com:utiasASRL/certifiable-tools
+[submodule "starrynight"]
+	path = starrynight
+	url = git@github.com:utiasASRL/aer1513
+[submodule "starloc"]
+	path = starloc
+	url = git@github.com:utiasASRL/starloc

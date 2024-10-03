@@ -15,7 +15,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
-RESULTS_DIR = "_results"
+RESULTS_DIR = "_results_v4"
 
 LIFTERS_NO = [
     (Stereo2DLifter, dict(n_landmarks=3, param_level="no", level="no")),
@@ -23,21 +23,24 @@ LIFTERS_NO = [
 ]
 
 LIFTERS = [
-    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-    # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
-    # (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
-    # (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
-    # (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
-    # (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
-    # (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
+    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+    (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+    (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
+    (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
+    (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
+    (WahbaLifter, dict(n_landmarks=5, d=3, robust=True, level="xwT", n_outliers=1)),
+    (MonoLifter, dict(n_landmarks=6, d=3, robust=True, level="xwT", n_outliers=1)),
     (MatWeightLocLifter, dict(n_landmarks=5, n_poses=2, level="no")),
 ]
 
 
-def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
+def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=debug):
     all_list = []
-    for Lifter, dict in lifters:
+    for Lifter, dict in lifters_list:
+        if debug and Lifter in [MonoLifter, Stereo3DLifter]:
+            continue
+
         np.random.seed(seed)
         lifter = Lifter(**dict)
         fname_root = f"{results_dir}/autotemplate_{lifter}"
@@ -56,11 +59,13 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
         )
         t_suff = time.time() - t1
 
-        idx_subset_original = learner.generate_minimal_subset(
-            reorder=False,
-            use_bisection=learner.lifter.TIGHTNESS == "cost",
-            tightness=learner.lifter.TIGHTNESS,
-        )
+        idx_subset_original = None
+        if not debug:
+            idx_subset_original = learner.generate_minimal_subset(
+                reorder=False,
+                use_bisection=learner.lifter.TIGHTNESS == "cost",
+                tightness=learner.lifter.TIGHTNESS,
+            )
 
         save_autotight_order(
             learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"
@@ -90,7 +95,7 @@ def generate_results(lifters, seed=0, results_dir=RESULTS_DIR):
     # Run lifter that are tight
 
 
-def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
+def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=debug):
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
@@ -104,7 +109,7 @@ def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     except (FileNotFoundError, AssertionError) as e:
         print(e)
         np.random.seed(0)
-        df = generate_results(LIFTERS, results_dir=results_dir)
+        df = generate_results(LIFTERS, results_dir=results_dir, debug=debug)
         df.to_pickle(fname)
 
     times = {
@@ -162,13 +167,13 @@ def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
     print("\nwrote above in", fname)
 
 
-def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR):
+def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=debug):
     # Run lifters that are not tight
-    if recompute:
+    if recompute and not debug:
         np.random.seed(0)
         generate_results(LIFTERS_NO, results_dir=results_dir)
 
-    run_all_tight(recompute=recompute, results_dir=results_dir)
+    run_all_tight(recompute=recompute, results_dir=results_dir, debug=debug)
 
 
 if __name__ == "__main__":

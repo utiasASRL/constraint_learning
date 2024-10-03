@@ -14,6 +14,7 @@ n_landmarks = 10
 d = 3
 
 RESULTS_DIR = "_results_server_v3"
+debug = False
 
 
 def apply_autotight(results_dir=RESULTS_DIR):
@@ -53,8 +54,9 @@ def apply_autotight(results_dir=RESULTS_DIR):
         )
 
 
-def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
-    n_positions_list = [10, 15, 20, 25, 30]
+def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR, debug=debug):
+    n_positions_list = [10, 15, 20, 25, 30] if not debug else [10, 11]
+    use_orders = ["sorted", "basic"] if not debug else ["sorted"]
     for level in ["no", "quad"]:
         print(f"=========== RO {level} autotemplate ===========")
         variable_list = None  # use the default one for the first step.
@@ -73,6 +75,7 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
             n_seeds=n_seeds,
             recompute=recompute,
             results_folder=results_dir,
+            use_orders=use_orders,
         )
         if df is None:
             continue
@@ -83,7 +86,8 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
         df_sub = df[df.type != "from scratch"]["t solve SDP"]
         fig, axs = plot_autotemplate_time(df, log=True, start="t ", legend_idx=1)
 
-        axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
+        if not debug:
+            axs[0].set_xticks(df.N.unique(), [f"{x:.0f}" for x in df.N.unique()])
         add_lines(axs[0], df.N.unique(), start=df["t create constraints"].min())
         add_lines(axs[1], df.N.unique(), start=df["t solve SDP"].min())
 
@@ -91,11 +95,16 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR):
 
 
 def run_all(
-    n_seeds, recompute, autotight=True, autotemplate=True, results_dir=RESULTS_DIR
+    n_seeds,
+    recompute,
+    autotight=True,
+    autotemplate=True,
+    results_dir=RESULTS_DIR,
+    debug=debug,
 ):
     if autotemplate:
         apply_autotemplate(
-            recompute=recompute, n_seeds=n_seeds, results_dir=results_dir
+            recompute=recompute, n_seeds=n_seeds, results_dir=results_dir, debug=debug
         )
     if autotight:
         apply_autotight(results_dir=results_dir)
