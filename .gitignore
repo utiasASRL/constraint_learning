@@ -16,8 +16,4 @@ build/
 dist/
 mosek_output.tmp
 
-mat_weight_certs
-starloc/
-ro_certs/
-
 *.code-workspace

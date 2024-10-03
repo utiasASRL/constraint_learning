@@ -4,7 +4,6 @@
 [submodule "ro_certs"]
 	path = ro_certs
 	url = git@github.com:duembgen/dev_safe_and_smooth
-
 [submodule "poly_matrix"]
 	path = poly_matrix
 	url = git@github.com:utiasASRL/poly_matrix

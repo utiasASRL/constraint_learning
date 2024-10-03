@@ -15,6 +15,7 @@ from lifters.wahba_lifter import WahbaLifter
 
 RECOMPUTE = True
 
+DEBUG = False
 RESULTS_DIR = "_results_v4"
 
 LIFTERS_NO = [
@@ -35,7 +36,7 @@ LIFTERS = [
 ]
 
 
-def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=debug):
+def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=DEBUG):
     all_list = []
     for Lifter, dict in lifters_list:
         if debug and Lifter in [MonoLifter, Stereo3DLifter]:
@@ -95,7 +96,7 @@ def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=debug)
     # Run lifter that are tight
 
 
-def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=debug):
+def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=DEBUG):
     fname = f"{results_dir}/all_df_new.pkl"
     try:
         assert recompute is False
@@ -167,7 +168,7 @@ def run_all_tight(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=debug):
     print("\nwrote above in", fname)
 
 
-def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=debug):
+def run_all(recompute=RECOMPUTE, results_dir=RESULTS_DIR, debug=DEBUG):
     # Run lifters that are not tight
     if recompute and not debug:
         np.random.seed(0)
