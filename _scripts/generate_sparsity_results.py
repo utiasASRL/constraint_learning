@@ -8,11 +8,40 @@ from _scripts.run_tightness_study import (
 from _scripts.run_time_study import run_time_study
 
 DEBUG = True
+RESULTS_DIR = "_results_sparsity_server"
 
 if __name__ == "__main__":
-    n_seeds = 3 if DEBUG else 10
-    results_dir = "_results_sparsity_server"
-    overwrite = True
+
+    from argparse import ArgumentParser
+
+    parser = ArgumentParser(
+        "Run experiments. Use --recompute to regenerate all results. Otherwise plots exisitng data and recomputes missing."
+    )
+    parser.add_argument(
+        "-w",
+        "--overwrite",
+        action="store_true",
+        default=False if not DEBUG else True,
+        help="regenerate results",
+    )
+    parser.add_argument(
+        "-d",
+        "--directory",
+        default=RESULTS_DIR,
+        help="results directory",
+    )
+    parser.add_argument(
+        "-n",
+        "--n_seeds",
+        default=10 if not DEBUG else 3,
+        help="number of random seeds",
+    )
+
+    args = parser.parse_args()
+
+    n_seeds = args.n_seeds
+    results_dir = args.directory
+    overwrite = args.overwrite
 
     print("========== running exampels ===========")
     # run_example(results_dir, "exampleRO")
