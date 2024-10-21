@@ -10,3 +10,6 @@
 [submodule "starloc"]
 	path = starloc
 	url = git@github.com:utiasASRL/starloc
+[submodule "constraint_learning"]
+	path = constraint_learning
+	url = git@github.com:utiasASRL/constraint_learning
