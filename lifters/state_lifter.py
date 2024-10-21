@@ -3,12 +3,12 @@ import itertools
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
-
 from lifters.base_class import BaseClass
 from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
 from utils.plotting_tools import plot_singular_values
+
+from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 
 def ravel_multi_index_triu(index_tuple, shape):
@@ -1051,10 +1051,13 @@ class StateLifter(BaseClass):
                 A = A.get_matrix(self.var_dict_unroll)
 
             for i in range(n_seeds):
-                np.random.seed(i)
-                t = self.sample_theta()
-                p = self.get_parameters()
-                x = self.get_x(theta=t, parameters=p)
+                if i > 0:
+                    np.random.seed(i)
+                    t = self.sample_theta()
+                    p = self.sample_parameters(t=t)
+                    x = self.get_x(theta=t, parameters=p)
+                else:
+                    x = self.get_x()
 
                 constraint_violation = abs(x.T @ A @ x)
                 max_violation = max(max_violation, constraint_violation)
@@ -1078,7 +1081,7 @@ class StateLifter(BaseClass):
             var_dict = self.var_dict
         A0 = PolyMatrix()
         A0[self.HOM, self.HOM] = 1.0
-        return A0.get_matrix(var_dict)
+        return A0.get_matrix(var_dict, output_type="csr")
 
     def get_A_b_list(self, A_list, var_subset=None):
         return [(self.get_A0(var_subset), 1.0)] + [(A, 0.0) for A in A_list]
