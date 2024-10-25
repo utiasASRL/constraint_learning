@@ -48,6 +48,7 @@ def unravel_multi_index_triu(flat_indices, shape):
 
 class StateLifter(BaseClass):
     HOM = "h"
+
     # consider singular value zero below this
     EPS_SVD = 1e-5
 
@@ -86,7 +87,7 @@ class StateLifter(BaseClass):
     STEP_SIZE = 1
 
     @staticmethod
-    def get_variable_indices(var_subset, variable="z"):
+    def get_parameter_indices(var_subset, variable="z"):
         return np.unique(
             [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
         )
@@ -215,7 +216,7 @@ class StateLifter(BaseClass):
         if var_subset is None:
             var_subset = self.var_dict
 
-        landmarks_idx = self.get_variable_indices(var_subset)
+        landmarks_idx = self.get_parameter_indices(var_subset)
         if self.param_level == "no":
             return [1.0]
         else:
@@ -236,10 +237,11 @@ class StateLifter(BaseClass):
         if self.param_level == "no":
             return np.array([1.0])
 
-        landmarks = self.get_variable_indices(var_subset)
-        if len(landmarks):
-            all_p = parameters[1:].reshape((self.n_landmarks, self.d))
-            sub_p = np.r_[1.0, all_p[landmarks, :].flatten()]
+        n_parameters = len(self.get_parameters())
+        parameter_indices = self.get_parameter_indices(var_subset)
+        if len(parameter_indices):
+            all_p = np.array(parameters).reshape((n_parameters, self.d))
+            sub_p = np.r_[1.0, all_p[parameter_indices, :].flatten()]
             if self.param_level == "p":
                 return sub_p
             elif self.param_level == "ppT":
@@ -731,7 +733,7 @@ class StateLifter(BaseClass):
         elif len(unique_idx) > 2:
             raise ValueError("unexpected triple dependencies!")
 
-        variable_indices = self.get_variable_indices(self.var_dict)
+        variable_indices = self.get_parameter_indices(self.var_dict)
         # if z_0 is in this constraint, repeat the constraint for each landmark.
         for idx in itertools.combinations(variable_indices, len(unique_idx)):
             new_poly_row = PolyMatrix(symmetric=False)
@@ -1006,6 +1008,8 @@ class StateLifter(BaseClass):
         if isinstance(var_dict, list):
             var_dict = self.get_var_dict(var_dict)
 
+        # Generate constraints matrices with baked-in parameters by applying the learned
+        # templates in basis to the current set of parameters.
         A_list = []
         basis_reduced = []
         for i in range(n_basis):
@@ -1102,7 +1106,7 @@ class StateLifter(BaseClass):
 
         if var_subset is None:
             var_subset = self.var_dict
-        variables = self.get_variable_indices(var_subset)
+        variables = self.get_parameter_indices(var_subset)
         param_keys = [self.HOM] + [
             f"p_{i}:{d}" for i in variables for d in range(self.d)
         ]

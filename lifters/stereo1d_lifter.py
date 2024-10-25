@@ -1,5 +1,4 @@
 import numpy as np
-
 from lifters.state_lifter import StateLifter
 
 
@@ -46,7 +45,7 @@ class Stereo1DLifter(StateLifter):
     def get_parameters(self, var_subset=None):
         if var_subset is None:
             var_subset = self.var_dict
-        indices = self.get_variable_indices(var_subset)
+        indices = self.get_parameter_indices(var_subset)
         if self.param_level == "p":
             return np.r_[1.0, self.landmarks[indices]]
         elif self.param_level == "no":
@@ -93,7 +92,7 @@ class Stereo1DLifter(StateLifter):
         if self.param_level == "no":
             return np.array([1.0])
 
-        landmarks = self.get_variable_indices(var_subset)
+        landmarks = self.get_parameter_indices(var_subset)
         if len(landmarks):
             sub_p = np.r_[1.0, parameters[1:][landmarks]]
             if self.param_level == "p":
@@ -115,7 +114,7 @@ class Stereo1DLifter(StateLifter):
         if self.param_level == "no":
             return param_dict_
 
-        indices = self.get_variable_indices(var_subset)
+        indices = self.get_parameter_indices(var_subset)
         for n in indices:
             param_dict_[f"p_{n}"] = n + 1
         return param_dict_

@@ -1,10 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from scipy.optimize import minimize
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+from scipy.optimize import minimize
 
 plt.ion()
 
@@ -95,7 +94,7 @@ class RangeOnlyLocLifter(StateLifter):
         if var_subset is None:
             var_subset = self.var_dict
 
-        landmarks = self.get_variable_indices(var_subset)
+        landmarks = self.get_parameter_indices(var_subset)
         if self.param_level == "no":
             return [1.0]
         else:
@@ -118,7 +117,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         if var_dict is None:
             var_dict = self.var_dict
-        positions = self.get_variable_indices(var_dict)
+        positions = self.get_parameter_indices(var_dict)
 
         if self.level == "quad":
             from utils.common import diag_indices

@@ -2,7 +2,6 @@ import itertools
 from abc import abstractmethod
 
 import numpy as np
-
 from lifters.state_lifter import StateLifter
 
 # How to deal with Gauge freedom.
@@ -86,7 +85,7 @@ class RangeOnlyLifter(StateLifter):
         if var_subset is None:
             var_subset = self.var_dict
 
-        landmarks = self.get_variable_indices(var_subset)
+        landmarks = self.get_parameter_indices(var_subset)
         if self.param_level == "no":
             return [1.0]
         else:

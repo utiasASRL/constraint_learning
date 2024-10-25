@@ -17,7 +17,7 @@ class BaseClass(ABC):
         self,
         level="no",
         param_level="no",
-        d=2,
+        d=1,
         variable_list=None,
         robust=False,
         n_outliers=0,
