@@ -108,6 +108,7 @@ def plot_timing(df, xlabel="", fname="", use_methods=USE_METHODS):
         ax.grid("on")
         ax.set_xlabel(xlabel)
         savefig(fig, fname.replace(".pkl", f"_{label}.png"))
+        savefig(fig, fname.replace(".pkl", f"_{label}.pdf"))
 
 
 def run_time_study(

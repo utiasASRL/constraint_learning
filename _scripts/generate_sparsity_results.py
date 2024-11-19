@@ -7,7 +7,7 @@ from _scripts.run_tightness_study import (
 )
 from _scripts.run_time_study import run_time_study
 
-DEBUG = True
+DEBUG = False
 RESULTS_DIR = "_results_sparsity_server"
 
 if __name__ == "__main__":
@@ -21,7 +21,7 @@ if __name__ == "__main__":
         "-w",
         "--overwrite",
         action="store_true",
-        default=False if not DEBUG else True,
+        default=False,
         help="regenerate results",
     )
     parser.add_argument(

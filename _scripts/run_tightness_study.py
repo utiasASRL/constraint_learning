@@ -163,6 +163,7 @@ def plot_boxplots(fname, label="error", log=True, use_methods=USE_METHODS):
     ax.set_xticklabels([f"{n:.2f}" for n in noises])
     ax.grid(axis="y")
     savefig(fig, fname.replace(".pkl", f"_{label}.png"))
+    savefig(fig, fname.replace(".pkl", f"_{label}.pdf"))
 
 
 def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS):
@@ -217,7 +218,6 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS)
                     dodge=0.05,
                     label=None,
                 )
-                pass
         ax.grid("on")
         ax.legend(
             # loc="lower center", bbox_to_anchor=[0.5, 1.0], columnspacing=0.5, ncol=2
@@ -233,6 +233,7 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS)
             continue
         ax.set_xlabel("noise")
         savefig(fig, fname.replace(".pkl", f"_{label}.png"))
+        savefig(fig, fname.replace(".pkl", f"_{label}.pdf"))
 
 
 def run_tightness_study(
