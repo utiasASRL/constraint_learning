@@ -171,9 +171,8 @@ class StateLifter(BaseClass):
         theta = {}
         i = 0
         for var_name, var_size in self.var_dict.items():
-            if var_name == self.HOM:
-                continue
-            theta[var_name] = x[i : i + var_size]
+            if var_name != self.HOM:
+                theta[var_name] = x[i : i + var_size]
             i += var_size
         return theta
 

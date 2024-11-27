@@ -119,7 +119,6 @@ def run_example(results_dir=RESULTS_DIR, appendix="exampleRO", n_landmarks=8):
     x_sdp, info_rank = rank_project(X, p=1)
 
     fig, ax = new_lifter.prob.plot()
-    estimates = {}
     if isinstance(new_lifter, MatWeightLifter):
         theta_sdp = new_lifter.get_theta_from_x(x=x_sdp)
         new_lifter.prob.plot_estimates(
@@ -127,11 +126,9 @@ def run_example(results_dir=RESULTS_DIR, appendix="exampleRO", n_landmarks=8):
         )
         new_lifter.prob.plot_estimates(theta=theta_sdp, label="sdp", ax=ax, color="C2")
     else:
+        estimates = {}
         estimates["local"] = theta_est[:, : new_lifter.d]
-
-        theta_sdp = x_sdp[1 : 1 + new_lifter.k * new_lifter.n_positions].reshape(
-            -1, new_lifter.k
-        )
+        theta_sdp = new_lifter.get_theta_from_x(x=x_sdp)
         estimates["sdp"] = theta_sdp[:, : new_lifter.d]
         new_lifter.prob.plot_estimates(
             points_list=estimates.values(), labels=estimates.keys(), ax=ax

@@ -589,12 +589,10 @@ class RangeOnlyLocLifter(StateLifter):
 
     def get_theta_from_x(self, x):
         out_dict = super().get_theta_from_x(x)
-        theta_flat = np.vstack(out_dict.values())
-        theta = theta_flat.reshape((self.n_positions, -1))
-        # np.testing.assert_allclose(
-        #     np.linalg.norm(theta[:, :2], axis=1) ** 2, theta[:, -1]
-        # )
-        return theta[:, :-1]  # remove element corresponding to ||x||^2
+        theta = np.hstack(
+            [val for key, val in out_dict.items() if "x_" in key]
+        ).T  # n_positions x k
+        return theta  # remove element corresponding to ||x||^2
 
     def get_error(self, theta_hat):
         err = np.sqrt(np.mean((self.theta - theta_hat) ** 2))
