@@ -3,7 +3,8 @@ results_sparsity_server:
 	- rsync -avz -e 'ssh' fdu@192.168.42.7:/home/fdu/constraint_learning/_results_sparsity/* _results_sparsity_server/ --exclude-from='utils/exclude-server.txt' --exclude="*.pdf"
 
 results_sparsity:
-	python _scripts/generate_sparsity_results.py --directory="results_sparsity" --overwrite
+	- mkdir _results_sparsity
+	python _scripts/generate_sparsity_results.py --directory="_results_sparsity" --overwrite
 
 results_server_plot:
 	- mkdir _results_server_v3

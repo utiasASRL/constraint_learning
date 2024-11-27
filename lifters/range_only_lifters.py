@@ -58,6 +58,8 @@ class RangeOnlyLocLifter(StateLifter):
     MODEL_NOISE = 0.2  # creates a smooth trajectory
     NOISE = 1e-1  # distance noise -- something around 1cm is reasonable
 
+    EPS_SVD = 1e-8  # when using regularization; the cutoff is between 1e-6 and 1e-15
+
     ADMM_OPTIONS = dict(use_fusion=True, maxiter=3, early_stop=False, rho_start=1e2)
     ADMM_INIT_XHAT = False
 

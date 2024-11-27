@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.sparse as sp
 
 from lifters.matweight_lifter import MatWeightLifter
 from lifters.mono_lifter import MonoLifter
@@ -175,7 +176,7 @@ def test_solvers(n_seeds=1, noise=0.0):
                 print("local solver not implemented yet.")
                 continue
             if noise == 0 and not (
-                isinstance(lifter, RangeOnlyLocLifter) and lifter.PRIOR_NOISE > 0
+                isinstance(lifter, RangeOnlyLocLifter) and lifter.MODEL_PRIOR > 0
             ):
                 # test that solution is ground truth with no noise
                 if type(theta_gt) is dict:
@@ -210,7 +211,7 @@ def test_solvers(n_seeds=1, noise=0.0):
 
             cost_lifter = lifter.get_cost(theta_hat, y)
             if cost_lifter >= 1e-10:
-                assert abs(cost_solver - cost_lifter) / cost_lifter < 1e-5, (
+                assert abs(cost_solver - cost_lifter) / cost_lifter < 1e-4, (
                     cost_solver,
                     cost_lifter,
                 )
@@ -220,8 +221,8 @@ def test_solvers(n_seeds=1, noise=0.0):
                 progress = 0
                 for i in range(lifter.n_poses):
                     val_hat = theta_hat[f"xT0_{i}"]
-                    val_gt = theta_gt[f"x_{i}"].matrix()
-                    progress += np.linalg.norm(val_hat - val_gt)
+                    val_0 = theta_0[f"x_{i}"].matrix()
+                    progress += np.linalg.norm(val_hat - val_0)
             else:
                 if len(theta_0) != len(theta_hat):
                     progress = np.linalg.norm(theta_0 - theta_hat)

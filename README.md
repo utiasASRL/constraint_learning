@@ -26,14 +26,17 @@ If successful, the output is a set of constraints that leads to a tight SDP rela
 *AUTOTEMPLATE* follows the same principle as *AUTOTIGHT*, but its output are templates rather than constraints. These templates can be seen as "parametrized" versions of the constraints matrices, and can be applied to new problem instances of any size without having to learn the constraints again from scratch. 
 
 ## Citation
-If you use this codebase, please cite our [paper](http://arxiv.org/abs/2308.05783):
+
+If you use this codebase for learning constraints, please cite our paper ([arXiv](http://arxiv.org/abs/2308.05783)/[IEEE](https://ieeexplore.ieee.org/document/10665746)):
 
 ```bibtex
 @article{dumbgen_toward_2024,
   title = {Toward Globally Optimal State Estimation Using Automatically Tightened Semidefinite Relaxations},
   author = {Dümbgen, Frederike and Holmes, Connor and Agro, Ben and Barfoot, Timothy D.},
   year = {2024},
-  journal = {IEEE Transactions on Robotics (to appear)},
+  volume = {40}, 
+  pages = {4338 -- 4358}, 
+  journal = {IEEE Transactions on Robotics},
   publisher = {IEEE},
 }
 ```
@@ -69,7 +72,7 @@ If you want to automatically tighten your own SDP, all you need to do is to crea
 
 ## Reproducing results
 
-To reproduce the results from our [paper](https://arxiv.org/abs/2308.05783) on automatic tightening of SDPs, run:
+To reproduce the results from our [paper](https://arxiv.org/abs/2308.05783) on automatic tightening of SDPs, you can run:
 ```
 conda activate constraint_learning 
 make results_generate
@@ -78,6 +81,12 @@ make results_generate
 Alternatively, to inspect and plot existing results, run
 ```
 make results_plot
+```
+
+To reproduce the results from our [paper](https://arxiv.org/abs/2406.02365) on exploiting chordal sparsity, you can run: 
+```
+conda activate constraint_learning 
+make results_sparsity
 ```
 
 ## Contributors

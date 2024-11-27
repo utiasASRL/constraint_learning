@@ -7,11 +7,10 @@ from _scripts.run_tightness_study import (
 )
 from _scripts.run_time_study import run_time_study
 
-DEBUG = False
+DEBUG = True
 RESULTS_DIR = "_results_sparsity_server"
 
 if __name__ == "__main__":
-
     from argparse import ArgumentParser
 
     parser = ArgumentParser(
@@ -44,8 +43,8 @@ if __name__ == "__main__":
     overwrite = args.overwrite
 
     print("========== running exampels ===========")
-    # run_example(results_dir, "exampleRO")
-    # run_example(results_dir, "exampleMW")
+    run_example(results_dir, "exampleRO")
+    run_example(results_dir, "exampleMW")
 
     print("========== running tightness study ===========")
     run_tightness_study(

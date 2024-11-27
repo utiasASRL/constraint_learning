@@ -43,7 +43,7 @@ ROLifters = [
 
 
 # Below, we always reset seeds to make sure tests are reproducible.
-def all_lifters() -> StateLifter:
+def all_lifters():
     for Lifter, kwargs in Lifters + ROLifters:
         np.random.seed(1)
         yield Lifter(**kwargs)

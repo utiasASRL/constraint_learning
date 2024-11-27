@@ -1,7 +1,11 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-from lifters.state_lifter import ravel_multi_index_triu, unravel_multi_index_triu
+from lifters.state_lifter import (
+    StateLifter,
+    ravel_multi_index_triu,
+    unravel_multi_index_triu,
+)
 from utils.test_tools import all_lifters
 
 
@@ -60,6 +64,7 @@ def test_learned_constraints():
 
     methods = ["qrp", "svd"]
     for lifter in all_lifters():
+        assert isinstance(lifter, StateLifter)
         print(f"testing {lifter}...", end="")
         num_learned = None
         for method in methods:
