@@ -42,9 +42,9 @@ if __name__ == "__main__":
     results_dir = args.directory
     overwrite = args.overwrite
 
-    print("========== running exampels ===========")
-    run_example(results_dir, "exampleRO")
-    run_example(results_dir, "exampleMW")
+    # print("========== running exampels ===========")
+    # run_example(results_dir, "exampleRO")
+    # run_example(results_dir, "exampleMW")
 
     print("========== running tightness study ===========")
     run_tightness_study(

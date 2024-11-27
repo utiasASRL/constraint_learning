@@ -216,17 +216,19 @@ class MatWeightLifter(StateLifter):
             # using a lsit makes sure an error is thrown when a key is not available.
             return Q.get_matrix(self.var_dict), self.y_
 
-    def get_error(self, theta_hat):
+    def get_error(self, theta_hat, theta_gt=None):
+        if theta_gt is None:
+            theta_gt = self.theta
         error_dict = {"error_trans": 0, "error_rot": 0, "error": 0}
         count_t = count_C = 0
-        for key, val in self.theta.items():
-            if "xt" in key:  # translation errors
-                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
+        for key, val in theta_gt.items():
+            if "xt_" in key:  # translation errors
+                err = np.linalg.norm(val.flatten() - theta_hat[key].flatten()) ** 2
                 error_dict["error_trans"] += err
                 error_dict["error"] += err
                 count_t += 1
-            elif "xC" in key:  # rotation errors
-                err = np.linalg.norm(val - theta_hat[key].flatten()) ** 2
+            elif "xC_" in key:  # rotation errors
+                err = np.linalg.norm(val.flatten() - theta_hat[key].flatten()) ** 2
                 error_dict["error_rot"] += err
                 error_dict["error"] += err
                 count_C += 1

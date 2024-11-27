@@ -253,9 +253,11 @@ def create_clique_list_loc(
     m = len(clique_vars)
     A_list = []
     cost_total = 0
-    p = ProgressBar(max_value=m - 1)
+    if verbose:
+        p = ProgressBar(max_value=m - 1)
     for i in range(m):
-        p.update(i)
+        if verbose:
+            p.update(i)
         var_dict = clique_vars[i]
 
         if recreate_A_list or (len(A_list) == 0):

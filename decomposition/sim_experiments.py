@@ -70,7 +70,6 @@ def extract_solution(lifter: MatWeightLocLifter | RangeOnlyLocLifter, X_list):
 
 
 def get_relative_gap(cost_sdp, cost_global):
-    """See Yang & Carlone 2023"""
     if cost_sdp is None:
         return np.inf
     else:
@@ -110,7 +109,6 @@ def generate_results(
                 "sparsity": sparsity,
                 "seed": seed,
             }
-            print("create instance...")
             new_lifter = create_newinstance(lifter, n_params=n_params)
 
             print("fill graph...")
@@ -181,7 +179,9 @@ def generate_results(
                     )
                     print(f"cost {method}: {info['cost']:.2f}")
                     x_dSDP, evr_mean = extract_solution(new_lifter, X_list)
-                    theta_dSDP = new_lifter.get_theta_from_x(x=x_dSDP)
+                    theta_dSDP = new_lifter.get_theta_from_x(
+                        x=np.hstack([1.0, x_dSDP.flatten()])
+                    )
                     for key, val in new_lifter.get_error(theta_hat=theta_dSDP).items():
                         data_dict[f"{key} {method}"] = val
 
@@ -260,7 +260,9 @@ def generate_results(
                         print(f"cost {method}: {info['cost']:.2f}")
 
                         x_ADMM, evr_mean = extract_solution(new_lifter, X_list)
-                        theta_ADMM = new_lifter.get_theta_from_x(x=x_ADMM)
+                        theta_ADMM = new_lifter.get_theta_from_x(
+                            x=np.hstack([1.0, x_ADMM.flatten()])
+                        )
                         for key, val in new_lifter.get_error(
                             theta_hat=theta_ADMM
                         ).items():
@@ -320,7 +322,7 @@ def generate_results(
                     print(f"cost {method}: {info['cost']:.2f}")
 
                     x_SDP, info = rank_project(X, p=1)
-                    theta_SDP = new_lifter.get_theta_from_x(x=x_SDP[1:])
+                    theta_SDP = new_lifter.get_theta_from_x(x=x_SDP)
                     for key, val in new_lifter.get_error(theta_hat=theta_SDP).items():
                         data_dict[f"{key} {method}"] = val
                     data_dict[f"EVR {method}"] = info["EVR"]

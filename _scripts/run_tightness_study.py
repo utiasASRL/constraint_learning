@@ -245,7 +245,7 @@ def run_tightness_study(
         n_threads_list = [10]
         n_noises = 5
     elif appendix == "noisetest":
-        n_params_list = [100]
+        n_params_list = [5]
         sparsity_list = [1.0]
         n_threads_list = [2]
         n_noises = 2
@@ -254,10 +254,13 @@ def run_tightness_study(
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
-    if overwrite:
+
+    import os
+
+    fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
+    if overwrite or not os.path.exists(fname):
         np.random.seed(SEED)
         noise_list = np.logspace(0, 1, n_noises)  # from 1 pixel to 10 pixels
-        fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
         df = generate_results(
             lifter_mw,
             n_params_list=n_params_list,
@@ -271,7 +274,10 @@ def run_tightness_study(
         )
         df.to_pickle(fname)
         print("saved final as", fname)
+    plot_tightness_study(fname=fname, use_methods=USE_METHODS_MW)
 
+    fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
+    if overwrite or not os.path.exists(fname):
         np.random.seed(SEED)
         noise_list = np.logspace(-2, 0, n_noises)  # from 1cm to 1m
         fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
@@ -288,11 +294,6 @@ def run_tightness_study(
         )
         df.to_pickle(fname)
         print("saved final as", fname)
-
-    fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
-    plot_tightness_study(fname=fname, use_methods=USE_METHODS_MW)
-
-    fname = f"{results_dir}/{lifter_ro}_{appendix}.pkl"
     plot_tightness_study(fname=fname, use_methods=USE_METHODS_RO)
 
 

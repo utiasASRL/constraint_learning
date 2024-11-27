@@ -590,12 +590,14 @@ class RangeOnlyLocLifter(StateLifter):
     def get_theta_from_x(self, x):
         out_dict = super().get_theta_from_x(x)
         theta = np.hstack(
-            [val for key, val in out_dict.items() if "x_" in key]
+            [val.reshape((-1, 1)) for key, val in out_dict.items() if "x_" in key]
         ).T  # n_positions x k
         return theta  # remove element corresponding to ||x||^2
 
-    def get_error(self, theta_hat):
-        err = np.sqrt(np.mean((self.theta - theta_hat) ** 2))
+    def get_error(self, theta_hat, theta_gt=None):
+        if theta_gt is None:
+            theta_gt = self.theta
+        err = np.sqrt(np.mean((theta_gt - theta_hat) ** 2))
         return {"total error": err, "error": err}
 
     def local_solver(
@@ -613,6 +615,7 @@ class RangeOnlyLocLifter(StateLifter):
             t_init_mat = t_init.reshape(-1, self.prob.get_dim())
             that, info = gauss_newton(t_init_mat, self.prob, **solver_kwargs[method])
             that = that.reshape(-1, self.prob.get_dim())
+            n_iter = info["n it"]
             cost = info["cost"]
             success = info["success"]
             msg = info["status"]
@@ -630,15 +633,12 @@ class RangeOnlyLocLifter(StateLifter):
                 method=method,
                 options=options,
             )
+            n_iter = sol.nit
             that = sol.x.reshape(-1, self.prob.get_dim())
             cost = sol.fun
             success = sol.success
             msg = sol.message + f" (# iterations: {sol.nit})"
-        info = {
-            "msg": msg,
-            "cost": cost,
-            "success": success,
-        }
+        info = {"msg": msg, "cost": cost, "success": success, "n_iter": n_iter}
         if not success:
             print("Warning: local solver finished with", msg)
         return that, info, cost
