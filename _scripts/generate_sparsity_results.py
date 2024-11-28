@@ -1,3 +1,5 @@
+import matplotlib
+
 from _scripts.run_clique_study import run_hierarchy_study
 from _scripts.run_examples import run_example
 from _scripts.run_tightness_study import (
@@ -8,7 +10,9 @@ from _scripts.run_tightness_study import (
 from _scripts.run_time_study import run_time_study
 
 DEBUG = True
-RESULTS_DIR = "_results_sparsity_server"
+OVERWRITE = True
+HEADLESS = True
+RESULTS_DIR = "_results_sparsity"
 
 if __name__ == "__main__":
     from argparse import ArgumentParser
@@ -20,7 +24,7 @@ if __name__ == "__main__":
         "-w",
         "--overwrite",
         action="store_true",
-        default=False,
+        default=OVERWRITE,
         help="regenerate results",
     )
     parser.add_argument(
@@ -30,44 +34,42 @@ if __name__ == "__main__":
         help="results directory",
     )
     parser.add_argument(
+        "-g",
+        "--debug",
+        action="store_true",
+        default=DEBUG,
+        help="run in debug mode",
+    )
+    parser.add_argument(
         "-n",
-        "--n_seeds",
-        default=10 if not DEBUG else 3,
-        help="number of random seeds",
+        "--no_windows",
+        action="store_true",
+        default=HEADLESS,
+        help="do not open figure windows",
     )
 
     args = parser.parse_args()
+    if args.no_windows:
+        matplotlib.use("Agg")
 
-    n_seeds = args.n_seeds
+    debug = args.debug
     results_dir = args.directory
     overwrite = args.overwrite
 
-    # print("========== running exampels ===========")
-    # run_example(results_dir, "exampleRO")
-    # run_example(results_dir, "exampleMW")
+    print("========== running exampels ===========")
+    run_example(results_dir, "exampleRO")
+    run_example(results_dir, "exampleMW")
 
     print("========== running tightness study ===========")
-    run_tightness_study(
-        results_dir,
-        overwrite=overwrite,
-        n_seeds=n_seeds,
-        appendix="noisetest" if DEBUG else "noise",
-    )
+    run_tightness_study(results_dir, overwrite=overwrite, debug=debug)
     print("========== plotting accuracy study ===========")
-    plot_success_study_all(results_dir, appendix="noisetest" if DEBUG else "noise")
-    plot_accuracy_study_all(results_dir, appendix="noisetest" if DEBUG else "noise")
+    plot_success_study_all(results_dir, debug=debug)
+    plot_accuracy_study_all(results_dir, debug=debug)
 
     print("========== running timing study ===========")
     run_time_study(
         results_dir,
         overwrite=overwrite,
-        n_seeds=n_seeds,
-        appendix="timetest" if DEBUG else "time",
+        debug=debug,
     )
-    # print("========== running hierarchy study ===========")
-    # run_hierarchy_study(
-    #     results_dir,
-    #     overwrite=overwrite,
-    #     n_seeds=n_seeds,
-    #     appendix="hierarchytest" if DEBUG else "hierarchy",
-    # )
+    print("done")

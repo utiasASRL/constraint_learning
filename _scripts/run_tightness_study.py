@@ -1,4 +1,4 @@
-import itertools
+import os
 
 import matplotlib.pylab as plt
 import numpy as np
@@ -21,7 +21,7 @@ from utils.plotting_tools import (
 RESULTS_DIR = "_results"
 
 SEED = 0
-N_SEEDS = 5
+N_SEEDS = 10
 
 
 def plot_this_vs_other(df_long, ax, other="EVR", this="noise"):
@@ -236,26 +236,26 @@ def plot_tightness_study(fname, ylabels=["EVR", "RDG"], use_methods=USE_METHODS)
         savefig(fig, fname.replace(".pkl", f"_{label}.pdf"))
 
 
-def run_tightness_study(
-    results_dir=RESULTS_DIR, overwrite=False, n_seeds=N_SEEDS, appendix="noise"
-):
-    if appendix == "noise":
+def run_tightness_study(results_dir=RESULTS_DIR, overwrite=False, debug=False):
+    if debug:
+        appendix = "noisetest"
+        n_params_list = [100]
+        sparsity_list = [1.0]
+        n_threads_list = [2]
+        n_noises = 2
+        n_seeds = 2
+    else:
+        appendix = "noise"
         n_params_list = [100]
         sparsity_list = [1.0]
         n_threads_list = [10]
         n_noises = 5
-    elif appendix == "noisetest":
-        n_params_list = [5]
-        sparsity_list = [1.0]
-        n_threads_list = [2]
-        n_noises = 2
+        n_seeds = N_SEEDS
 
     lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
     )
-
-    import os
 
     fname = f"{results_dir}/{lifter_mw}_{appendix}.pkl"
     if overwrite or not os.path.exists(fname):
@@ -297,7 +297,8 @@ def run_tightness_study(
     plot_tightness_study(fname=fname, use_methods=USE_METHODS_RO)
 
 
-def plot_accuracy_study_all(results_dir=RESULTS_DIR, appendix="noise"):
+def plot_accuracy_study_all(results_dir=RESULTS_DIR, debug=False):
+    appendix = "noisetest" if debug else "noise"
     lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"
@@ -309,7 +310,8 @@ def plot_accuracy_study_all(results_dir=RESULTS_DIR, appendix="noise"):
     plot_boxplots(fname=fname, label="error", use_methods=USE_METHODS_RO)
 
 
-def plot_success_study_all(results_dir=RESULTS_DIR, appendix="noise"):
+def plot_success_study_all(results_dir=RESULTS_DIR, debug=False):
+    appendix = "noisetest" if debug else "noise"
     lifter_mw = MatWeightLocLifter(n_landmarks=8, n_poses=10)
     lifter_ro = RangeOnlyLocLifter(
         n_landmarks=8, n_positions=10, reg=Reg.CONSTANT_VELOCITY, d=2, level="no"

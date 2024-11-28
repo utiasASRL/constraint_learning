@@ -613,7 +613,9 @@ class RangeOnlyLocLifter(StateLifter):
         """
         if method == "GN":
             t_init_mat = t_init.reshape(-1, self.prob.get_dim())
-            that, info = gauss_newton(t_init_mat, self.prob, **solver_kwargs[method])
+            that, info = gauss_newton(
+                t_init_mat, self.prob, verbose=verbose, **solver_kwargs[method]
+            )
             that = that.reshape(-1, self.prob.get_dim())
             n_iter = info["n it"]
             cost = info["cost"]

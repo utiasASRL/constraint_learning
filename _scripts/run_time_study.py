@@ -14,7 +14,7 @@ from utils.plotting_tools import USE_METHODS, USE_METHODS_MW, USE_METHODS_RO, sa
 ADD_REDUNDANT = True
 RESULTS_DIR = "_results"
 
-N_SEEDS = 1
+N_SEEDS = 10
 
 
 def custom_plot(ax, x, y, data, **unused):
@@ -111,17 +111,17 @@ def plot_timing(df, xlabel="", fname="", use_methods=USE_METHODS):
         savefig(fig, fname.replace(".pkl", f"_{label}.pdf"))
 
 
-def run_time_study(
-    results_dir=RESULTS_DIR, overwrite=False, n_seeds=N_SEEDS, appendix="time"
-):
-    if appendix == "time":  # used to be "alltime"
+def run_time_study(results_dir=RESULTS_DIR, overwrite=False, debug=False):
+    if debug:
+        appendix = "timetest"
+        n_params_list = np.logspace(1, 6, 21).astype(int)[:2]
+        n_threads_list = [10]
+        n_seeds = 2
+    else:
+        appendix = "time"
         n_params_list = np.logspace(1, 6, 21).astype(int)[:11]
         n_threads_list = [10]
-    elif appendix == "timetest":
-        n_params_list = [10, 20, 30]
-        n_threads_list = [2]
-    else:
-        raise ValueError(appendix)
+        n_seeds = N_SEEDS
 
     np.random.seed(0)
     lifter_ro = RangeOnlyLocLifter(

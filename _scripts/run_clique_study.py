@@ -246,6 +246,12 @@ def plot_hierarchy(df, fname_root, label="RDG"):
 def run_hierarchy_study(
     results_dir=RESULTS_DIR, overwrite=False, n_seeds=N_SEEDS, appendix="hierarchy"
 ):
+    """
+    This methods is deprecated.
+
+    It used to be here to incrementally increase the size of each clique (going from the minimal, original chordal extension, to a fully connected matrix).
+    It is not currently used and should be replaced by something resembling more the TSOS method.
+    """
     if appendix == "hierarchy":
         n_landmarks = [4, 5, 6, 7, 8, 9, 10]
     elif appendix == "hierarchytest":
