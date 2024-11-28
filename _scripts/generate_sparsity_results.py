@@ -1,6 +1,5 @@
 import matplotlib
 
-from _scripts.run_clique_study import run_hierarchy_study
 from _scripts.run_examples import run_example
 from _scripts.run_tightness_study import (
     plot_accuracy_study_all,
