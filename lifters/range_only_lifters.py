@@ -490,7 +490,9 @@ class RangeOnlyLocLifter(StateLifter):
                     continue
                 Q_poly[f"x_{n-1}", f"x_{n}"] += self.prob.get_R_nm(n)
 
-        if save:
+        if save and output_poly:
+            self.Q_fixed = Q_poly
+        elif save and not output_poly:
             self.Q_fixed = Q_poly.get_matrix(self.var_dict)
 
         if output_poly:
