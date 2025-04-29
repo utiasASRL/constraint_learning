@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from lifters.state_lifter import ravel_multi_index_triu, unravel_multi_index_triu
 from utils.test_tools import all_lifters
 
@@ -130,4 +129,7 @@ if __name__ == "__main__":
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
 
+    print("all tests passed")
+    print("all tests passed")
+    print("all tests passed")
     print("all tests passed")

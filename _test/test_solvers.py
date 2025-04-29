@@ -1,7 +1,7 @@
 import numpy as np
 
 # from lifters.matweight_lifter import MatWeightLifter
-from lifters.mono_lifter import MonoLifter
+from lifters.examples import MonoLifter
 from lifters.poly_lifters import PolyLifter
 from lifters.robust_pose_lifter import RobustPoseLifter
 from utils.test_tools import all_lifters

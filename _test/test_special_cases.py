@@ -3,11 +3,12 @@ TODO: SLAM is currently not supported and therefore these tests are not being ke
 """
 
 import numpy as np
-
-from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
-from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.examples import (
+    RangeOnlySLAM1Lifter,
+    RangeOnlySLAM2Lifter,
+    Stereo2DLifter,
+    Stereo3DLifter,
+)
 
 d = 3
 n_landmarks = 5

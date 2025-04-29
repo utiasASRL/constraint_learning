@@ -1,7 +1,8 @@
 import autograd.numpy as np
-
 from lifters.stereo_lifter import NORMALIZE, StereoLifter
 from utils.geometry import convert_phi_to_theta, convert_theta_to_phi
+
+from .stereo2d_problem import _cost, local_solver
 
 
 def change_dimensions(a, y, x):
@@ -31,7 +32,6 @@ class Stereo2DLifter(StereoLifter):
         )
 
     def get_cost(self, t, y, W=None):
-        from lifters.stereo2d_problem import _cost
 
         if W is None:
             W = self.W
@@ -46,7 +46,6 @@ class Stereo2DLifter(StereoLifter):
             return cost
 
     def local_solver(self, t_init, y, W=None, verbose=False, **kwargs):
-        from lifters.stereo2d_problem import local_solver
 
         if W is None:
             W = self.W

@@ -1,15 +1,17 @@
 import numpy as np
-
-from lifters.mono_lifter import MonoLifter
-from lifters.poly_lifters import Poly4Lifter, Poly6Lifter, PolyLifter
-from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.range_only_slam1 import RangeOnlySLAM1Lifter
-from lifters.range_only_slam2 import RangeOnlySLAM2Lifter
-from lifters.state_lifter import StateLifter
-from lifters.stereo1d_lifter import Stereo1DLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
-from lifters.wahba_lifter import WahbaLifter
+from lifters import StateLifter
+from lifters.examples import (
+    MonoLifter,
+    Poly4Lifter,
+    Poly6Lifter,
+    RangeOnlyLocLifter,
+    RangeOnlySLAM1Lifter,
+    RangeOnlySLAM2Lifter,
+    Stereo1DLifter,
+    Stereo2DLifter,
+    Stereo3DLifter,
+    WahbaLifter,
+)
 
 d = 2
 n_landmarks = 3

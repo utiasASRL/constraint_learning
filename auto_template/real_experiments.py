@@ -7,11 +7,9 @@ from pathlib import Path
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
-from pylgmath.so3.operations import hat
-
 from auto_template.learner import Learner
-from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.stereo3d_lifter import Stereo3DLifter
+from lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
+from pylgmath.so3.operations import hat
 from starloc.reader import read_calib, read_data, read_landmarks
 from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
@@ -409,7 +407,9 @@ def run_real_experiment(
                 learner = pickle.load(f)
                 order_dict = pickle.load(f)
         except FileNotFoundError:
-            print(f"cannot read {fname_autotemplate}, need to run run_autotemplate first.")
+            print(
+                f"cannot read {fname_autotemplate}, need to run run_autotemplate first."
+            )
             return
         order_dict = {k: v for k, v in order_dict.items() if k in use_orders}
     else:

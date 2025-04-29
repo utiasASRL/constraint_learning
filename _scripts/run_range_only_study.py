@@ -1,12 +1,11 @@
 import numpy as np
-
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from lifters.range_only_lifters import RangeOnlyLocLifter
+from lifters.examples import RangeOnlyLocLifter
 from utils.plotting_tools import add_lines, savefig
 
 n_positions = 3

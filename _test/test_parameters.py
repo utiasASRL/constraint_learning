@@ -1,9 +1,7 @@
 import matplotlib.pylab as plt
 import numpy as np
-
-from lifters.stereo1d_lifter import Stereo1DLifter
-from lifters.stereo2d_lifter import Stereo2DLifter
-from poly_matrix.poly_matrix import PolyMatrix
+from lifters.examples import Stereo1DLifter, Stereo2DLifter
+from poly_matrix import PolyMatrix
 
 
 def test_canonical_operations():

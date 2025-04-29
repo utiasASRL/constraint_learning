@@ -1,8 +1,6 @@
 import itertools
 
-import matplotlib.pylab as plt
 import numpy as np
-
 from lifters.range_only_slam_lifters import RangeOnlyLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
 from poly_matrix.poly_matrix import PolyMatrix
@@ -419,4 +417,5 @@ if __name__ == "__main__":
     lifter = RangeOnlySLAM1Lifter(
         n_positions=3, n_landmarks=4, d=2, resample_landmarks=True
     )
+    lifter.run(n_dual=1, noise=0.1, plot=True)
     lifter.run(n_dual=1, noise=0.1, plot=True)

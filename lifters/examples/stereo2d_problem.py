@@ -1,4 +1,4 @@
-""" 
+"""
 Temporary copy of Ben's code, to get the local solver
 """
 

@@ -1,12 +1,11 @@
 import numpy as np
-
 from auto_template.learner import Learner
 from auto_template.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from lifters.mono_lifter import MonoLifter
+from lifters.examples import MonoLifter
 from utils.plotting_tools import add_lines, savefig
 
 RESULTS_DIR = "_results_server_v3"

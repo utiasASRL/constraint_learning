@@ -1,7 +1,6 @@
 from abc import ABC
 
 import autograd.numpy as np
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (

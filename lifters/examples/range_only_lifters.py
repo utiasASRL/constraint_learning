@@ -1,10 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from scipy.optimize import minimize
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+from scipy.optimize import minimize
 
 plt.ion()
 

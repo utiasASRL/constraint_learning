@@ -3,7 +3,6 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
-
 from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
 from auto_template.real_experiments import (
     Experiment,

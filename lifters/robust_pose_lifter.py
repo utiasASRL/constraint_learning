@@ -2,12 +2,9 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 
 import autograd.numpy as np
-import matplotlib
-import matplotlib.pylab as plt
-from scipy.spatial.transform import Rotation as R
-
 from lifters.state_lifter import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+from scipy.spatial.transform import Rotation as R
 from utils.geometry import get_C_r_from_theta, get_noisy_pose, get_theta_from_C_r
 
 N_TRYS = 10
@@ -492,6 +489,14 @@ class RobustPoseLifter(StateLifter, ABC):
 
     @abstractmethod
     def get_Q_from_y(self, y):
+        return
+
+    @abstractmethod
+    def __repr__(self):
+        return
+
+    @abstractmethod
+    def __repr__(self):
         return
 
     @abstractmethod
