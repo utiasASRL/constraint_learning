@@ -1,5 +1,6 @@
 import numpy as np
-from lifters.state_lifter import StateLifter
+
+from auto_tight.lifters import StateLifter
 
 
 class Stereo1DLifter(StateLifter):

@@ -3,12 +3,9 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
-from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
-from auto_template.real_experiments import (
-    Experiment,
-    create_rmse_table,
-    run_experiments,
-)
+
+from auto_tight.auto_template import Learner
+from auto_tight.real_experiments import Experiment, create_rmse_table, run_experiments
 from utils.plotting_real import (
     plot_ground_truth,
     plot_local_vs_global,
@@ -102,14 +99,14 @@ def run_all(recompute=RECOMPUTE, n_successful=100, results_dir=RESULTS_DIR):
         df,
         ylabel="SVR",
         fname_root=fname_root,
-        thresh=TOL_RANK_ONE,
+        thresh=Learner.TOL_RANK_ONE,
         datasets=datasets,
     )
     plot_results(
         df,
         ylabel="RDG",
         fname_root=fname_root,
-        thresh=TOL_REL_GAP,
+        thresh=Learner.TOL_REL_GAP,
         datasets=datasets,
     )
 

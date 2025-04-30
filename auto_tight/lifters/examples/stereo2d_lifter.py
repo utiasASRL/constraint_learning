@@ -1,5 +1,6 @@
 import autograd.numpy as np
-from lifters.stereo_lifter import NORMALIZE, StereoLifter
+
+from auto_tight.lifters import StereoLifter
 from utils.geometry import convert_phi_to_theta, convert_theta_to_phi
 
 from .stereo2d_problem import _cost, local_solver
@@ -40,7 +41,7 @@ class Stereo2DLifter(StereoLifter):
         phi = convert_theta_to_phi(t)
         p_w, y, phi = change_dimensions(a, y, phi)
         cost = _cost(phi, p_w, y, W, self.M_matrix)
-        if NORMALIZE:
+        if StereoLifter.NORMALIZE:
             return cost / (self.n_landmarks * self.d)
         else:
             return cost
@@ -56,7 +57,7 @@ class Stereo2DLifter(StereoLifter):
         success, phi_hat, cost = local_solver(
             p_w=p_w, y=y, W=W, init_phi=init_phi, log=verbose, gtol=GTOL
         )
-        if NORMALIZE:
+        if StereoLifter.NORMALIZE:
             cost /= self.n_landmarks * self.d
         # cost /= self.n_landmarks * self.d
         theta_hat = convert_phi_to_theta(phi_hat)

@@ -10,8 +10,8 @@ from cert_tools.sdp_solvers import solve_feasibility_sdp
 from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 from cert_tools.sdp_solvers import solve_sdp_cvxpy
 
-from lifters.state_lifter import StateLifter
-from poly_matrix.poly_matrix import PolyMatrix
+from auto_tight.lifters import StateLifter
+from poly_matrix import PolyMatrix
 from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
 from utils.constraint import Constraint
@@ -35,9 +35,6 @@ PRIMAL = False  # use primal or dual formulation of SDP. Recommended is False, b
 
 FACTOR = 1.2  # oversampling factor.
 
-TOL_REL_GAP = 1e-3
-TOL_RANK_ONE = 1e7
-
 PLOT_MAX_MATRICES = 10  # set to np.inf to plot all individual matrices.
 
 USE_KNOWN = True
@@ -54,6 +51,9 @@ class Learner(object):
     """
     Class to incrementally learn and augment constraint templates until we reach tightness.
     """
+
+    TOL_RANK_ONE = 1e7
+    TOL_REL_GAP = 1e-3
 
     def __init__(
         self,
@@ -139,7 +139,7 @@ class Learner(object):
         if primal_cost is None:
             print("warning can't check violation, no primal cost.")
             return False
-        return (dual_cost - primal_cost) / abs(dual_cost) > TOL_REL_GAP
+        return (dual_cost - primal_cost) / abs(dual_cost) > self.TOL_REL_GAP
 
     def duality_gap_is_zero(self, dual_cost, verbose=False, data_dict={}):
         primal_cost = self.solver_vars["qcqp_cost"]
@@ -148,7 +148,7 @@ class Learner(object):
             print(
                 f"Warning: dual is significantly larger than primal: d={dual_cost:.5f} > p={primal_cost:.5f}, diff={dual_cost-primal_cost:.5f}"
             )
-        res = RDG < TOL_REL_GAP
+        res = RDG < self.TOL_REL_GAP
         data_dict["RDG"] = RDG
         if not verbose:
             return res
@@ -163,7 +163,7 @@ class Learner(object):
     def is_rank_one(self, eigs, verbose=False, data_dict={}):
         SVR = eigs[0] / eigs[1]
         data_dict["SVR"] = SVR
-        res = SVR > TOL_RANK_ONE
+        res = SVR > self.TOL_RANK_ONE
         if not verbose:
             return res
         if res:

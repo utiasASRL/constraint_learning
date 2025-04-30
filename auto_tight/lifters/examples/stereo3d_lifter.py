@@ -1,7 +1,8 @@
 import pickle
 
 import autograd.numpy as np
-from lifters.stereo_lifter import NORMALIZE, StereoLifter
+
+from auto_tight.lifters import StereoLifter
 from utils.geometry import get_T, get_theta_from_T
 
 from .stereo3d_problem import _cost, local_solver
@@ -89,7 +90,7 @@ class Stereo3DLifter(StereoLifter):
         T = get_T(theta=t, d=3)
 
         cost = _cost(p_w=p_w, y=y, T=T, M=self.M_matrix, W=W)
-        if NORMALIZE:
+        if StereoLifter.NORMALIZE:
             return cost / (self.n_landmarks * self.d)
         else:
             return cost
@@ -120,7 +121,8 @@ class Stereo3DLifter(StereoLifter):
         if verbose:
             print("Stereo3D local solver:", info["msg"])
 
-        if NORMALIZE:
+        if StereoLifter.NORMALIZE:
+
             cost /= self.n_landmarks * self.d
 
         x_hat = get_theta_from_T(T_hat)

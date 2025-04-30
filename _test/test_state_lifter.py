@@ -1,6 +1,10 @@
 import numpy as np
 import pytest
-from lifters.state_lifter import ravel_multi_index_triu, unravel_multi_index_triu
+
+from auto_tight import AutoTight
+from auto_tight.lifters import StereoLifter
+from auto_tight.lifters._base_class import BaseClass
+from auto_tight.lifters.examples import Stereo2DLifter, Stereo3DLifter
 from utils.test_tools import all_lifters
 
 
@@ -16,8 +20,8 @@ def test_ravel():
     # test diagonal elements
     for i in range(shape[0]):
         idx = np.array([i])
-        flat_idx = ravel_multi_index_triu([idx, idx], shape=shape)
-        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
+        flat_idx = BaseClass.ravel_multi_index_triu([idx, idx], shape=shape)
+        i_test, j_test = BaseClass.unravel_multi_index_triu(flat_idx, shape=shape)
 
         assert idx == i_test[0]
         assert idx == j_test[0]
@@ -28,8 +32,8 @@ def test_ravel():
         i = np.random.randint(low=0, high=shape[0] - 1, size=1)
         j = np.random.randint(low=i, high=shape[0] - 1, size=1)
 
-        flat_idx = ravel_multi_index_triu([i, j], shape=shape)
-        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
+        flat_idx = BaseClass.ravel_multi_index_triu([i, j], shape=shape)
+        i_test, j_test = BaseClass.unravel_multi_index_triu(flat_idx, shape=shape)
 
         assert i == i_test[0]
         assert j == j_test[0]
@@ -68,7 +72,9 @@ def test_learned_constraints():
         for method in methods:
             np.random.seed(0)
             if pytest.A_learned[str(lifter)] is None:
-                pytest.A_learned[str(lifter)] = lifter.get_A_learned(method=method)
+                pytest.A_learned[str(lifter)] = AutoTight.get_A_learned(
+                    lifter=lifter, method=method
+                )
             A_learned = pytest.A_learned[str(lifter)]
             _test_with_tol(lifter, A_learned, tol=1e-4)
 
@@ -106,6 +112,17 @@ def test_vec_mat():
             a_poly = lifter.convert_a_to_polyrow(a)
             a_test = lifter.convert_polyrow_to_a(a_poly)
             np.testing.assert_allclose(a, a_test)
+
+
+def test_levels():
+    for level in StereoLifter.LEVELS:
+        lifter_2d = Stereo2DLifter(n_landmarks=3, level=level)
+
+        # inside below function we tests that dimensions are consistent.
+        lifter_2d.get_x()
+
+        lifter_3d = Stereo3DLifter(n_landmarks=3, level=level)
+        lifter_3d.get_x()
 
 
 pytest_configure()

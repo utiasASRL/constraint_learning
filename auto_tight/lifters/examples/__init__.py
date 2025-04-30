@@ -1,3 +1,4 @@
+from .example_lifter import ExampleLifter
 from .mono_lifter import MonoLifter
 from .poly4_lifter import Poly4Lifter
 from .poly6_lifter import Poly6Lifter

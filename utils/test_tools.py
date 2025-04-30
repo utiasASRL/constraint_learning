@@ -1,6 +1,6 @@
 import numpy as np
-from lifters import StateLifter
-from lifters.examples import (
+
+from auto_tight.lifters.examples import (
     MonoLifter,
     Poly4Lifter,
     Poly6Lifter,
@@ -39,7 +39,7 @@ Lifters = [
 
 
 # Below, we always reset seeds to make sure tests are reproducible.
-def all_lifters() -> StateLifter:
+def all_lifters():
     for Lifter, kwargs in Lifters:
         np.random.seed(1)
         yield Lifter(**kwargs)

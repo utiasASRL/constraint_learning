@@ -1,13 +1,14 @@
 import matplotlib.pylab as plt
 import numpy as np
-from auto_template.learner import Learner
-from auto_template.sim_experiments import (
+
+from auto_tight.auto_template import Learner
+from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
+from auto_tight.sim_experiments import (
     apply_autotemplate_base,
     apply_autotemplate_plot,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
 from utils.plotting_tools import add_lines, plot_matrix, savefig
 
 RESULTS_DIR = "_results_v4"

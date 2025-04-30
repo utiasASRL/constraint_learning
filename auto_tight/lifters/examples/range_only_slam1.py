@@ -1,8 +1,9 @@
 import itertools
 
 import numpy as np
-from lifters.range_only_slam_lifters import RangeOnlyLifter
 from poly_matrix.least_squares_problem import LeastSquaresProblem
+
+from auto_tight.lifters import RangeOnlyLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 

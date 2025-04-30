@@ -1,6 +1,8 @@
 import matplotlib.pylab as plt
 import numpy as np
-from lifters.examples import Stereo1DLifter, Stereo2DLifter
+
+from auto_tight import AutoTight
+from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter
 from poly_matrix import PolyMatrix
 
 
@@ -49,7 +51,7 @@ def test_learned_constraints(d=2, param_level="ppT"):
     else:
         raise ValueError(d)
 
-    A_learned = lifter.get_A_learned()
+    A_learned = AutoTight.get_A_learned(lifter)
 
     np.random.seed(0)
     lifter.test_constraints(A_learned, errors="raise")
@@ -61,8 +63,8 @@ def test_b_to_a():
     lifter = Stereo2DLifter(n_landmarks=n_landmarks, param_level="p", level="no")
 
     for var_subset in [("h", "x"), ("h", "x", "z_0")]:
-        Y = lifter.generate_Y(var_subset=var_subset)
-        basis_new, S = lifter.get_basis(Y)
+        Y = AutoTight.generate_Y(lifter, var_subset=var_subset)
+        basis_new, S = AutoTight.get_basis(lifter, Y)
         for i, bi_sub in enumerate(basis_new[:10, :]):
             var_dict = {k: v for k, v in lifter.var_dict.items() if k in var_subset}
             bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
@@ -93,8 +95,8 @@ def test_zero_padding():
     for var_subset in [("h", "x"), ("h", "x", "z_0")]:
         var_dict = lifter.get_var_dict(var_subset)
         # get new patterns for this subset.
-        Y = lifter.generate_Y(var_subset=var_subset)
-        basis_new, S = lifter.get_basis(Y)
+        Y = AutoTight.generate_Y(lifter, var_subset=var_subset)
+        basis_new, S = AutoTight.get_basis(lifter, Y)
         for i, bi_sub in enumerate(basis_new[:10, :]):
             ai_sub = lifter.get_reduced_a(bi_sub, var_subset)
             bi_poly = lifter.convert_b_to_polyrow(bi_sub, var_subset)

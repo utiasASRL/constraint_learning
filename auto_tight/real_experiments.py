@@ -7,10 +7,11 @@ from pathlib import Path
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
-from auto_template.learner import Learner
-from lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
 from pylgmath.so3.operations import hat
 from starloc.reader import read_calib, read_data, read_landmarks
+
+from auto_tight.auto_template import Learner
+from auto_tight.lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
 from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
 

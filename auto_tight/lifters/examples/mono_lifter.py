@@ -1,9 +1,8 @@
 from copy import deepcopy
 
 import autograd.numpy as np
-import matplotlib
-import matplotlib.pylab as plt
-from lifters.robust_pose_lifter import RobustPoseLifter
+
+from auto_tight.lifters import RobustPoseLifter
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 

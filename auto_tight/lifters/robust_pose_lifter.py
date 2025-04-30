@@ -2,10 +2,12 @@ from abc import ABC, abstractmethod
 from copy import deepcopy
 
 import autograd.numpy as np
-from lifters.state_lifter import StateLifter
-from poly_matrix.poly_matrix import PolyMatrix
 from scipy.spatial.transform import Rotation as R
+
+from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta, get_noisy_pose, get_theta_from_C_r
+
+from .state_lifter import StateLifter
 
 N_TRYS = 10
 

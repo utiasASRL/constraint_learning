@@ -1,9 +1,9 @@
 import numpy as np
 
+from auto_tight.lifters import PolyLifter, RobustPoseLifter
+
 # from lifters.matweight_lifter import MatWeightLifter
-from lifters.examples import MonoLifter
-from lifters.poly_lifters import PolyLifter
-from lifters.robust_pose_lifter import RobustPoseLifter
+from auto_tight.lifters.examples import MonoLifter
 from utils.test_tools import all_lifters
 
 NOISE = 1e-2

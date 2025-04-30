@@ -1,5 +1,6 @@
 import numpy as np
-from lifters.poly_lifters import PolyLifter
+
+from auto_tight.lifters import PolyLifter
 
 
 class Poly6Lifter(PolyLifter):

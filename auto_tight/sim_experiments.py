@@ -5,8 +5,9 @@ from copy import deepcopy
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
-from auto_template.learner import Learner
-from lifters.examples import (
+
+from auto_tight.auto_template import Learner
+from auto_tight.lifters.examples import (
     MonoLifter,
     RangeOnlyLocLifter,
     Stereo2DLifter,

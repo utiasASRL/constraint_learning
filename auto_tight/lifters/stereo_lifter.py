@@ -1,7 +1,7 @@
 from abc import ABC
 
 import autograd.numpy as np
-from lifters.state_lifter import StateLifter
+
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (
     get_C_r_from_theta,
@@ -11,9 +11,10 @@ from utils.geometry import (
     get_theta_from_C_r,
 )
 
+from .state_lifter import StateLifter
+
 NOISE = 1.0  #
 
-NORMALIZE = True
 
 SOLVER_KWARGS = dict(
     min_gradient_norm=1e-6, max_iterations=10000, min_step_size=1e-10, verbosity=1
@@ -22,6 +23,8 @@ SOLVER_KWARGS = dict(
 
 class StereoLifter(StateLifter, ABC):
     """General lifter for stereo localization problem."""
+
+    NORMALIZE = True
 
     LEVELS = [
         "no",
@@ -50,6 +53,7 @@ class StereoLifter(StateLifter, ABC):
     ):
         self.y_ = None
         self.n_landmarks = n_landmarks
+        self.n_parameters = n_landmarks
         assert self.M_matrix is not None, "Inheriting class must initialize M_matrix."
         super().__init__(
             d=d, level=level, param_level=param_level, variable_list=variable_list
@@ -333,7 +337,7 @@ class StereoLifter(StateLifter, ABC):
             Q = ls_problem.get_Q()
         else:
             Q = ls_problem.get_Q().get_matrix(self.var_dict)
-        if NORMALIZE:
+        if self.NORMALIZE:
             Q /= self.n_landmarks * self.d
 
         # sanity check
@@ -344,7 +348,7 @@ class StereoLifter(StateLifter, ABC):
         B = ls_problem.get_B_matrix(self.var_dict)
         errors = B @ x
         cost_test = errors.T @ errors
-        if NORMALIZE:
+        if self.NORMALIZE:
             cost_test /= self.n_landmarks * self.d
 
         if output_poly:
@@ -415,7 +419,7 @@ class StereoLifter(StateLifter, ABC):
                 y_gt = self.M_matrix @ (pi_cam / pi_cam[self.d - 1])
                 residual = y[i] - y_gt
                 cost += residual.T @ W @ residual
-            if NORMALIZE:
+            if self.NORMALIZE:
                 return cost / (self.n_landmarks * self.d)
             return cost
 

@@ -1,5 +1,6 @@
 import autograd.numpy as np
-from lifters.robust_pose_lifter import RobustPoseLifter
+
+from auto_tight.lifters import RobustPoseLifter
 from utils.geometry import get_C_r_from_theta
 
 N_TRYS = 10

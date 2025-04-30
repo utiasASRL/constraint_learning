@@ -1,7 +1,8 @@
 from abc import abstractmethod
 
 import numpy as np
-from lifters.state_lifter import StateLifter
+
+from .state_lifter import StateLifter
 
 
 class PolyLifter(StateLifter):

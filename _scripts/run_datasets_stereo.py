@@ -7,8 +7,8 @@ try:
 except ImportError:
     pass
 
-from auto_template.learner import TOL_RANK_ONE, TOL_REL_GAP
-from auto_template.real_experiments import (
+from auto_tight.auto_template import Learner
+from auto_tight.real_experiments import (
     create_rmse_table,
     load_experiment,
     run_experiments,
@@ -93,14 +93,14 @@ def run_all(recompute=RECOMPUTE, n_successful=10, results_dir=RESULTS_DIR):
         df,
         ylabel="RDG",
         fname_root=fname_root,
-        thresh=TOL_REL_GAP,
+        thresh=Learner.TOL_REL_GAP,
         datasets=datasets,
     )
     plot_results(
         df,
         ylabel="SVR",
         fname_root=fname_root,
-        thresh=TOL_RANK_ONE,
+        thresh=Learner.TOL_RANK_ONE,
         datasets=datasets,
     )
     create_rmse_table(df, fname_root=fname_root)
