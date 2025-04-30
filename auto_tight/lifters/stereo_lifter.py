@@ -1,7 +1,7 @@
 from abc import ABC
 
-import autograd.numpy as np
-
+# import autograd.numpy as np
+import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (
     get_C_r_from_theta,

@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.sparse as sp
-
-from lifters.state_lifter import StateLifter
+from auto_tight.lifters import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
 
 
@@ -73,6 +72,8 @@ class Constraint(object):
         a = lifter.get_reduced_a(b, mat_var_dict, sparse=True)
         A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
         a_full = lifter.get_vec(A_sparse, sparse=True)
+        if a_full is None:
+            return None
         # a_full = lifter.augment_using_zero_padding(a, mat_var_dict)
         if convert_to_polyrow:
             # A_poly = lifter.convert_b_to_Apoly(b, mat_var_dict)

@@ -1,9 +1,8 @@
 import cvxpy as cp
 import matplotlib.pylab as plt
 import numpy as np
-
-from lifters.range_only_lifters import RangeOnlyLocLifter
-from lifters.state_lifter import StateLifter
+from auto_tight.lifters import StateLifter
+from auto_tight.lifters.examples import RangeOnlyLocLifter
 
 
 def find_local_minimum(

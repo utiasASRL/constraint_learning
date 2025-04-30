@@ -1,5 +1,5 @@
-import autograd.numpy as np
-
+# import autograd.numpy as np
+import numpy as np
 from auto_tight.lifters import StereoLifter
 from utils.geometry import convert_phi_to_theta, convert_theta_to_phi
 

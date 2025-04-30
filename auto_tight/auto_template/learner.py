@@ -5,11 +5,7 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from cert_tools.linalg_tools import find_dependent_columns, rank_project
-from cert_tools.sdp_solvers import solve_feasibility_sdp
-from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
-from cert_tools.sdp_solvers import solve_sdp_cvxpy
-
+from auto_tight import AutoTight
 from auto_tight.lifters import StateLifter
 from poly_matrix import PolyMatrix
 from solvers.common import find_local_minimum
@@ -22,6 +18,11 @@ from utils.plotting_tools import (
     plot_singular_values,
     savefig,
 )
+
+from cert_tools.linalg_tools import find_dependent_columns, rank_project
+from cert_tools.sdp_solvers import solve_feasibility_sdp
+from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
+from cert_tools.sdp_solvers import solve_sdp_cvxpy
 
 plt = import_plt()
 
@@ -67,10 +68,12 @@ class Learner(object):
     ):
         if variable_list is None:
             variable_list = lifter.variable_list
+
         self.lifter = lifter
+        self.lifter.set_noise(noise)
+
         self.variable_iter = iter(variable_list)
         self.apply_templates_to_others = apply_templates
-        self.noise = noise
 
         self.use_known = use_known
         self.use_incremental = use_incremental
@@ -247,9 +250,12 @@ class Learner(object):
             wi = X[0, x_dim::x_dim]
             print("should be plus or minus ones:", wi.round(4))
 
-        cost_tight = self.duality_gap_is_zero(
-            info["cost"], verbose=tightness == "cost", data_dict=data_dict
-        )
+        if self.solver_vars["qcqp_cost"] is not None:
+            cost_tight = self.duality_gap_is_zero(
+                info["cost"], verbose=tightness == "cost", data_dict=data_dict
+            )
+        else:
+            cost_tight = False
         rank_tight = self.is_rank_one(
             eigs, verbose=tightness == "rank", data_dict=data_dict
         )
@@ -417,7 +423,7 @@ class Learner(object):
 
     def find_local_solution(self, verbose=False, plot=False):
         np.random.seed(NOISE_SEED)
-        Q, y = self.lifter.get_Q(noise=self.noise)
+        Q, y = self.lifter.get_Q()
         qcqp_that, qcqp_cost, info = find_local_minimum(
             self.lifter, y=y, verbose=verbose, n_inits=self.n_inits, plot=plot
         )
@@ -553,7 +559,7 @@ class Learner(object):
         templates = []
 
         t1 = time.time()
-        Y = self.lifter.generate_Y(var_subset=self.mat_vars, factor=FACTOR)
+        Y = AutoTight.generate_Y(self.lifter, var_subset=self.mat_vars, factor=FACTOR)
         a_vectors = []
         if self.use_incremental:
             for c in self.templates:
@@ -571,43 +577,49 @@ class Learner(object):
             fig, ax = plt.subplots()
 
         print(f"data matrix Y has shape {Y.shape} ")
-        for i in range(self.lifter.N_CLEANING_STEPS + 1):
-            print(f"cleaning step {i+1}/{self.lifter.N_CLEANING_STEPS+1}...", end="")
-            basis_new, S = self.lifter.get_basis(Y, method=METHOD_NULL)
-            print("...done")
+        for i in range(AutoTight.N_CLEANING_STEPS + 1):
+            if i == 0:
+                print(f"getting basis...", end="")
+            else:
+                print(f"cleaning step {i}/{AutoTight.N_CLEANING_STEPS+1}...", end="")
+            basis_new, S = AutoTight.get_basis(self.lifter, Y, method=METHOD_NULL)
+            print("...done, analyzing...", end="")
             corank = basis_new.shape[0]
             if corank > 0:
-                self.lifter.test_S_cutoff(S, corank)
+                AutoTight.test_S_cutoff(S, corank)
 
-            bad_idx = self.lifter.clean_Y(basis_new, Y, S, plot=False)
+            bad_idx = AutoTight.clean_Y(basis_new, Y, S, plot=False)
 
             if plot:
                 if len(bad_idx):
                     plot_singular_values(
-                        S, eps=self.lifter.EPS_SVD, label=f"run {i}", ax=ax
+                        S, eps=AutoTight.EPS_SVD, label=f"run {i}", ax=ax
                     )
                 else:
-                    plot_singular_values(S, eps=self.lifter.EPS_SVD, ax=ax, label=None)
+                    plot_singular_values(S, eps=AutoTight.EPS_SVD, ax=ax, label=None)
 
             if len(bad_idx) > 0:
-                print(f"there are {len(bad_idx)} bad indices")
+                print(f"there are {len(bad_idx)} bad basis vectors (with high error).")
                 Y = np.delete(Y, bad_idx, axis=0)
             else:
+                print(f"no bad basis vectors found.")
                 break
 
         if basis_new.shape[0]:
-            templates += [
-                Constraint.init_from_b(
-                    index=self.constraint_index + i,
+            for i, b in enumerate(basis_new):
+                constraint = Constraint.init_from_b(
+                    index=self.constraint_index,
                     mat_var_dict=self.mat_var_dict,
                     b=b,
                     lifter=self.lifter,
                     convert_to_polyrow=self.apply_templates_to_others,
                     known=False,
                 )
-                for i, b in enumerate(basis_new)
-            ]
-            self.constraint_index += basis_new.shape[0]
+                if constraint is None:
+                    print("Warning: found an all-zero constraint; not adding it.")
+                    continue
+                templates.append(constraint)
+                self.constraint_index += 1
 
             # we assume that all known constraints are linearly independent, and also
             # that all known+previously found constraints are linearly independent.

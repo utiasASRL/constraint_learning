@@ -1,10 +1,11 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 # from lifters import StateLifter
 from utils.plotting_tools import plot_singular_values
+
+from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 
 class AutoTight(object):
@@ -31,16 +32,9 @@ class AutoTight(object):
 
     # maximum number of iterations of local solver
     LOCAL_MAXITER = 100
-    TIGHTNESS = "cost"
 
+    # find and remove linearly dependent constraints
     REDUCE_DEPENDENT = False
-
-    # properties of template scaling
-    ALL_PAIRS = True
-    # Below only have effect if ALL_PAIRS is False.
-    # Then, they determine the clique size hierarchy.
-    CLIQUE_SIZE = 5
-    STEP_SIZE = 1
 
     def __init__(self):
         pass
@@ -167,6 +161,7 @@ class AutoTight(object):
 
             # generates [1*x, a1*x, ..., aK*x]
             p = lifter.get_p(parameters=parameters, var_subset=var_subset)
+            assert p[0] == 1
             Y[seed, :] = np.kron(p, lifter.get_vec(X))
         return Y
 

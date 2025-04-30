@@ -1,7 +1,6 @@
 import itertools
 
 import numpy as np
-
 from poly_matrix import PolyMatrix
 
 from ._base_class import BaseClass
@@ -17,8 +16,17 @@ class StateLifter(BaseClass):
     EPS_ERROR = 1e-8
 
     LEVELS = ["no"]
-    PARAM_LEVELS = ["no"]
+    PARAM_LEVELS = ["no", "p", "ppT"]
     VARIABLE_LIST = ["h"]
+
+    # properties of template scaling
+    ALL_PAIRS = True
+    # Below only have effect if ALL_PAIRS is False.
+    # Then, they determine the clique size hierarchy.
+    CLIQUE_SIZE = 5
+    STEP_SIZE = 1
+
+    TIGHTNESS = "cost"
 
     def __init__(
         self,
@@ -44,19 +52,18 @@ class StateLifter(BaseClass):
             self.variable_list = self.VARIABLE_LIST
 
         # variables that get overwritten upon initialization
-        self.parameters = [1.0]
+        self.parameters_ = None
         self.theta_ = None
         self.var_dict_ = None
         self.y_ = None
 
         self.d = d
-
         self.generate_random_setup()
         super().__init__()
 
     def apply_template(self, bi_poly, n_parameters=None, verbose=False):
         if n_parameters is None:
-            n_parameters = self.n_landmarks
+            n_parameters = len(self.parameters)
 
         new_poly_rows = []
         # find the number of variables that this constraint touches.
@@ -76,6 +83,9 @@ class StateLifter(BaseClass):
         elif len(unique_idx) > 2:
             raise ValueError("unexpected triple dependencies!")
 
+        raise ValueError(
+            "this is where the mistake happens! should return all but is only returning [0]"
+        )
         variable_indices = self.get_variable_indices(self.var_dict)
         # if z_0 is in this constraint, repeat the constraint for each landmark.
         for idx in itertools.combinations(variable_indices, len(unique_idx)):
@@ -185,36 +195,6 @@ class StateLifter(BaseClass):
                         raise ValueError(errors)
         return max_violation, j_bad
 
-    def get_param_idx_dict(self, var_subset=None):
-        """
-        Give the current subset of variables, extract the parameter dictionary to use.
-        Example: var_subset = ['l', 'z_0']
-        - if param_level == 'no': {'l': 0}
-        - if param_level == 'p': {'l': 0, 'p_0:0': 1, ..., 'p_0:d-1': d}
-        - if param_level == 'ppT': {'l': 0, 'p_0:0.p_0:0': 1, ..., 'p_0:d-1:.p_0:d-1': 1}
-        """
-        if self.param_level == "no":
-            return {self.HOM: 0}
-
-        if var_subset is None:
-            var_subset = self.var_dict
-        variables = self.get_variable_indices(var_subset)
-        param_keys = [self.HOM] + [
-            f"p_{i}:{d}" for i in variables for d in range(self.d)
-        ]
-        if self.param_level == "p":
-            param_dict = {p: i for i, p in enumerate(param_keys)}
-        elif self.param_level == "ppT":
-            i = 0
-            param_dict = {}
-            for pi, pj in itertools.combinations_with_replacement(param_keys, 2):
-                if pi == pj == self.HOM:
-                    param_dict[self.HOM] = i
-                else:
-                    param_dict[f"{pi}.{pj}"] = i
-                i += 1
-        return param_dict
-
     def get_A0(self, var_subset=None):
         if var_subset is not None:
             var_dict = {k: self.var_dict[k] for k in var_subset}
@@ -227,25 +207,22 @@ class StateLifter(BaseClass):
     def get_A_b_list(self, A_list, var_subset=None):
         return [(self.get_A0(var_subset), 1.0)] + [(A, 0.0) for A in A_list]
 
-    def get_A_known(self, var_dict=None) -> list:
+    def get_A_known(self, var_dict=None, output_poly: bool = False) -> list:
         return []
 
-    def get_B_known(self):
+    def get_B_known(self) -> list:
         return []
 
-    def get_Q(self, noise=1e-3, output_poly=False):
-        Warning("get_Q not implemented yet")
-        return None, None
+    def sample_parameters(self, theta=None) -> np.ndarray:
+        if self.param_level == "no":
+            return np.ndarray([1.0])
+
+    def sample_theta(self) -> np.ndarray:
+        raise NotImplementedError("need to implement sample_theta")
 
     def generate_random_setup(self):
-        return
-
-    def get_A_known(self) -> list:
-        return []
-
-    def sample_parameters(self, t=None) -> list:
-        if self.param_level == "no":
-            return [1.0]
+        self.theta = self.sample_theta()
+        self.parameters = self.sample_parameters()
 
     def get_parameters(self, var_subset=None) -> list:
         if var_subset is not None:
@@ -270,6 +247,20 @@ class StateLifter(BaseClass):
             self.level == "no"
         ), "Need to overwrite get_level_dims to use level different than 'no'"
         return {"no": 0}
+
+    def get_Q(self, output_poly=False):
+        raise NotImplementedError(
+            "Need to impelement get_Q in inheriting class if you want to use it."
+        )
+        return None, None
+
+    def local_solver(self, t0, y=None, verbose=False):
+        raise NotImplementedError(
+            "Need to implement local_solver in inheriting class if you want to use it."
+        )
+
+    def set_noise(self, noise):
+        self.noise = noise
 
     @property
     def base_var_dict(self):

@@ -1,5 +1,5 @@
-from .example_lifter import ExampleLifter
 from .mono_lifter import MonoLifter
+from .motion_planning_lifter import MotionPlanningLifter
 from .poly4_lifter import Poly4Lifter
 from .poly6_lifter import Poly6Lifter
 from .range_only_lifters import RangeOnlyLocLifter

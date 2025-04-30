@@ -1,6 +1,4 @@
 import numpy as np
-from pylgmath.se3.operations import vec2tran
-from pylgmath.so3.operations import hat
 
 f_u = 484.5
 f_v = 484.5
@@ -52,6 +50,8 @@ def _odot_exp(e: np.array):
     Returns:
         np.array: (N, 4, 6)
     """
+    from pylgmath.so3.operations import hat
+
     assert len(e.shape) == 3
     eta = e[:, -1]  # (N, 1)
     n = e.shape[0]
@@ -157,6 +157,8 @@ def local_solver(
         max_iters (int, optional): Maximum iterations before returning. Defaults to 1000.
         min_update_norm (float, optional): . Defaults to 1e-10.
     """
+    from pylgmath.se3.operations import vec2tran
+
     assert max_iters > 0, "Maximum iterations must be positive"
 
     info = {}

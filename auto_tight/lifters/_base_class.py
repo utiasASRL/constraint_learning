@@ -11,7 +11,6 @@ import itertools
 
 import numpy as np
 import scipy.sparse as sp
-
 from poly_matrix import PolyMatrix, unroll
 from utils.common import upper_triangular
 
@@ -103,6 +102,7 @@ class BaseClass(object):
                     (np.r_[diag_i, triu_i, triu_j], np.r_[diag_i, triu_j, triu_i]),
                 ),
                 (dim_x, dim_x),
+                dtype=float,
             )
         else:
             Ai = np.zeros((dim_x, dim_x))
@@ -131,12 +131,24 @@ class BaseClass(object):
     @property
     def theta(self):
         if self.theta_ is None:
-            self.theta_ = self.generate_random_theta()
+            self.theta_ = self.sample_theta()
         return self.theta_
 
     @theta.setter
     def theta(self, t):
+        assert self.theta_ is None
         self.theta_ = t
+
+    @property
+    def parameters(self):
+        if self.parameters_ is None:
+            self.parameters_ = self.sample_parameters()
+        return self.parameters_
+
+    @parameters.setter
+    def parameters(self, p):
+        assert self.parameters_ is None
+        self.parameters_ = p
 
     def get_var_dict(self, var_subset=None):
         if var_subset is not None:
@@ -179,6 +191,36 @@ class BaseClass(object):
                 else:
                     sub_A_known.append(Ai)
         return sub_A_known
+
+    def get_param_idx_dict(self, var_subset=None):
+        """
+        Give the current subset of variables, extract the parameter dictionary to use.
+        Example: var_subset = ['l', 'z_0']
+        - if param_level == 'no': {'l': 0}
+        - if param_level == 'p': {'l': 0, 'p_0:0': 1, ..., 'p_0:d-1': d}
+        - if param_level == 'ppT': {'l': 0, 'p_0:0.p_0:0': 1, ..., 'p_0:d-1:.p_0:d-1': 1}
+        """
+        if self.param_level == "no":
+            return {self.HOM: 0}
+
+        if var_subset is None:
+            var_subset = self.var_dict
+        variables = self.get_variable_indices(var_subset)
+        param_keys = [self.HOM] + [
+            f"p_{i}:{d}" for i in variables for d in range(self.d)
+        ]
+        if self.param_level == "p":
+            param_dict = {p: i for i, p in enumerate(param_keys)}
+        elif self.param_level == "ppT":
+            i = 0
+            param_dict = {}
+            for pi, pj in itertools.combinations_with_replacement(param_keys, 2):
+                if pi == pj == self.HOM:
+                    param_dict[self.HOM] = i
+                else:
+                    param_dict[f"{pi}.{pj}"] = i
+                i += 1
+        return param_dict
 
     def get_p(self, parameters=None, var_subset=None):
         """
@@ -227,9 +269,11 @@ class BaseClass(object):
             # flat_indices = np.ravel_multi_index([i_upper, j_upper], mat.shape)
             ii, jj = mat.nonzero()
             if len(ii) == 0:
-                raise ValueError("got empty matrix")
+                # got an empty matrix -- this can happen depending on the parameter values.
+                return None
             triu_mask = jj >= ii
-            flat_indices = ravel_multi_index_triu(
+
+            flat_indices = BaseClass.ravel_multi_index_triu(
                 [ii[triu_mask], jj[triu_mask]], mat.shape
             )
             data = np.array(mat[ii[triu_mask], jj[triu_mask]]).flatten()
@@ -263,7 +307,6 @@ class BaseClass(object):
         # if var_dict is not None, then Ai corresponds to the subblock
         # defined by var_dict, of the full constraint matrix.
         Ai_poly, __ = PolyMatrix.init_from_sparse(Ai, var_dict, unfold=True)
-
         from poly_matrix.poly_matrix import augment
 
         augment_var_dict = augment(self.var_dict)

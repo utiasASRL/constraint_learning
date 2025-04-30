@@ -1,11 +1,12 @@
 import pickle
 
-import autograd.numpy as np
-
+import numpy as np
 from auto_tight.lifters import StereoLifter
 from utils.geometry import get_T, get_theta_from_T
 
 from .stereo3d_problem import _cost, local_solver
+
+# import autograd.numpy as np
 
 
 def change_dimensions(a, y):

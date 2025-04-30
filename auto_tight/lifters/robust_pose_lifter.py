@@ -1,13 +1,15 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
-import autograd.numpy as np
-from scipy.spatial.transform import Rotation as R
-
+import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
+from scipy.spatial.transform import Rotation as R
 from utils.geometry import get_C_r_from_theta, get_noisy_pose, get_theta_from_C_r
 
 from .state_lifter import StateLifter
+
+# import autograd.numpy as np
+
 
 N_TRYS = 10
 
@@ -238,6 +240,8 @@ class RobustPoseLifter(StateLifter, ABC):
             return theta_noisy
 
     def get_cost(self, theta, y):
+        import autograd.numpy as anp
+
         if self.robust:
             x = theta[: -self.n_landmarks]
             w = theta[-self.n_landmarks :]

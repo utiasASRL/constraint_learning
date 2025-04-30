@@ -1,5 +1,5 @@
-import autograd.numpy as np
-
+# import autograd.numpy as np
+import numpy as np
 from auto_tight.lifters import RobustPoseLifter
 from utils.geometry import get_C_r_from_theta
 
