@@ -1,8 +1,5 @@
 import numpy as np
 from auto_tight.lifters.state_lifter import StateLifter
-from utils.common import upper_triangular
-
-from mp_certs.setups import Setup
 
 
 class ExampleLifter(StateLifter):

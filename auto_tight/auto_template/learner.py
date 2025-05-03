@@ -10,6 +10,7 @@ from auto_tight.lifters import StateLifter
 from poly_matrix import PolyMatrix
 from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
+from utils.common import get_vec
 from utils.constraint import Constraint, generate_poly_matrix, plot_poly_matrix
 from utils.plotting_tools import (add_colorbar, add_rectangles, import_plt,
                                   initialize_discrete_cbar,
@@ -115,16 +116,6 @@ class Learner(object):
 
     def reset_tightness_dict(self):
         self.tightness_dict = {"rank": None, "cost": None}
-
-    @property
-    def mat_var_dict(self):
-        raise ValueError("do not use this function anymore.")
-        return {k: self.lifter.var_dict[k] for k in self.mat_vars}
-
-    @property
-    def row_var_dict(self):
-        raise ValueError("do not use this function anymore.")
-        return self.lifter.var_dict_row(self.mat_vars)
 
     @property
     def templates_poly(self):
@@ -564,12 +555,12 @@ class Learner(object):
         a_vectors = []
         if self.use_incremental:
             for c in self.templates:
-                ai = self.lifter.get_vec(c.A_poly_.get_matrix(mat_var_dict))
+                ai = get_vec(c.A_poly_.get_matrix(mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai)
                 a_vectors.append(bi)
         if self.use_known:
             for c in self.templates_known_sub:
-                ai = self.lifter.get_vec(c.A_poly_.get_matrix(mat_var_dict))
+                ai = get_vec(c.A_poly_.get_matrix(mat_var_dict))
                 bi = self.lifter.augment_using_zero_padding(ai)
                 a_vectors.append(bi)
         Y = np.vstack([Y] + a_vectors)
@@ -712,11 +703,7 @@ class Learner(object):
         if not use_known:
             return templates_known
 
-        if unroll:
-            target_dict = self.lifter.get_var_dict_unroll()
-        else:
-            target_dict = self.lifter.var_dict
-
+        target_dict = self.lifter.get_var_dict(unroll_keys=unroll)
         for i, Ai in enumerate(self.lifter.get_A_known(target_dict, output_poly=True)):
             template = Constraint.init_from_A_poly(
                 lifter=self.lifter,
@@ -1084,7 +1071,7 @@ class Learner(object):
 
         Q = self.solver_vars["Q"].toarray()
 
-        sorted_i = self.lifter.var_dict_unroll
+        sorted_i = self.lifter.get_var_dict(unroll=True)
         A_matrices_sparse = [
             A_poly.get_matrix(variables=sorted_i) for A_poly in A_matrices
         ]

@@ -3,6 +3,7 @@ import pytest
 from auto_tight.lifters import StereoLifter
 from auto_tight.lifters._base_class import BaseClass
 from auto_tight.lifters.examples import Stereo2DLifter, Stereo3DLifter
+from utils.common import get_vec, ravel_multi_index_triu, unravel_multi_index_triu
 from utils.test_tools import _test_with_tol, all_lifters
 
 
@@ -18,8 +19,8 @@ def test_ravel():
     # test diagonal elements
     for i in range(shape[0]):
         idx = np.array([i])
-        flat_idx = BaseClass.ravel_multi_index_triu([idx, idx], shape=shape)
-        i_test, j_test = BaseClass.unravel_multi_index_triu(flat_idx, shape=shape)
+        flat_idx = ravel_multi_index_triu([idx, idx], shape=shape)
+        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
 
         assert idx == i_test[0]
         assert idx == j_test[0]
@@ -30,8 +31,8 @@ def test_ravel():
         i = np.random.randint(low=0, high=shape[0] - 1, size=1)
         j = np.random.randint(low=i, high=shape[0] - 1, size=1)
 
-        flat_idx = BaseClass.ravel_multi_index_triu([i, j], shape=shape)
-        i_test, j_test = BaseClass.unravel_multi_index_triu(flat_idx, shape=shape)
+        flat_idx = ravel_multi_index_triu([i, j], shape=shape)
+        i_test, j_test = unravel_multi_index_triu(flat_idx, shape=shape)
 
         assert i == i_test[0]
         assert j == j_test[0]
@@ -58,12 +59,12 @@ def test_vec_mat():
             A_known = []
 
         for A in A_known:
-            a_dense = lifter.get_vec(A.toarray())
-            a_sparse = lifter.get_vec(A)
+            a_dense = get_vec(A.toarray())
+            a_sparse = get_vec(A)
             np.testing.assert_allclose(a_dense, a_sparse)
 
             # get_vec multiplies off-diagonal elements by sqrt(2)
-            a = lifter.get_vec(A)
+            a = get_vec(A)
 
             A_test = lifter.get_mat(a, sparse=False)
             np.testing.assert_allclose(A.toarray(), A_test)

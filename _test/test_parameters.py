@@ -1,8 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
 from auto_tight import AutoTight
-from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter
+from auto_tight.lifters.examples import Stereo2DLifter
 from poly_matrix import PolyMatrix
+from utils.common import get_vec
 
 
 def test_canonical_operations():
@@ -26,7 +27,7 @@ def test_canonical_operations():
     Ai = Ai_poly.get_matrix(lifter.var_dict)
 
     # fmt: on
-    ai = lifter.get_vec(Ai_sub)
+    ai = get_vec(Ai_sub)
     # zero-pad to emulate an augmented basis vector
     bi = lifter.augment_using_zero_padding(ai)
     ai_test = lifter.get_reduced_a(bi, var_subset=var_subset)
@@ -46,12 +47,11 @@ def test_b_to_a():
         Y = AutoTight.generate_Y(lifter, var_subset=var_subset)
         basis_new, S = AutoTight.get_basis(lifter, Y)
         for i, bi_sub in enumerate(basis_new[:10, :]):
-            var_dict = {k: v for k, v in lifter.var_dict.items() if k in var_subset}
             bi_sub[np.abs(bi_sub) < 1e-10] = 0.0
 
             # generate variable vector of this subset.
             x = lifter.get_x(var_subset=var_subset)
-            x_sub = lifter.get_vec(np.outer(x, x))
+            x_sub = get_vec(np.outer(x, x))
 
             # test that bi_sub @ x_aug holds (including parameters in x_aug)
             x_sub_aug = lifter.augment_using_parameters(x_sub)

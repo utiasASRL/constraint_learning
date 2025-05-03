@@ -1,8 +1,7 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-
-# from lifters import StateLifter
+from utils.common import get_vec
 from utils.plotting_tools import plot_singular_values
 
 from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
@@ -128,7 +127,7 @@ class AutoTight(object):
         t1 = time.time()
         if len(A_known):
             basis_known = np.vstack(
-                [lifter.get_vec(Ai.get_matrix(var_dict)) for Ai in A_known]
+                [get_vec(Ai.get_matrix(var_dict)) for Ai in A_known]
             ).T
         else:
             basis_known = None
@@ -155,7 +154,7 @@ class AutoTight(object):
             theta = lifter.sample_theta()
             x = lifter.get_x(theta=theta, parameters=None, var_subset=var_subset)
             X = np.outer(x, x)
-            Y[seed, :] = lifter.get_vec(X)
+            Y[seed, :] = get_vec(X)
         return Y
 
     @staticmethod
@@ -186,7 +185,7 @@ class AutoTight(object):
 
             # generates [1*x, a1*x, ..., aK*x]
             p = lifter.get_p(parameters=parameters, param_subset=param_subset)
-            Y[seed, :] = np.kron(p, lifter.get_vec(X))
+            Y[seed, :] = np.kron(p, get_vec(X))
         return Y
 
     @staticmethod
@@ -212,7 +211,7 @@ class AutoTight(object):
             # generates [1*x, a1*x, ..., aK*x]
             p = lifter.get_p(parameters=parameters)
             assert p[0] == 1
-            Y[seed, :] = np.kron(p, lifter.get_vec(X))
+            Y[seed, :] = np.kron(p, get_vec(X))
         return Y
 
     @staticmethod
@@ -240,7 +239,7 @@ class AutoTight(object):
             Y = np.vstack([Y, basis_known.T])
         elif len(A_known):
             A = np.vstack(
-                [lifter.augment_using_zero_padding(lifter.get_vec(a)) for a in A_known]
+                [lifter.augment_using_zero_padding(get_vec(a)) for a in A_known]
             )
             Y = np.vstack([Y, A])
 
@@ -268,6 +267,10 @@ class AutoTight(object):
 
         if isinstance(var_dict, list):
             var_dict = lifter.get_var_dict(var_dict)
+
+        from auto_tight.lifters import StateLifter
+
+        assert isinstance(lifter, StateLifter)
 
         A_list = []
         for i in range(n_basis):

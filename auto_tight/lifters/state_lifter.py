@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 import numpy as np
 from poly_matrix import PolyMatrix
+from utils.common import get_vec
 
 from ._base_class import BaseClass
 
@@ -219,7 +220,7 @@ class StateLifter(BaseClass):
 
         for j, A in enumerate(A_list):
             if isinstance(A, PolyMatrix):
-                A = A.get_matrix(self.var_dict_unroll)
+                A = A.get_matrix(self.get_var_dict(unroll_keys=True))
 
             for i in range(n_seeds):
                 if i == 0:
@@ -285,9 +286,7 @@ class StateLifter(BaseClass):
                 parameters[f"p_{i}"] = np.hstack(
                     [
                         landmarks[i],
-                        self.get_vec(
-                            np.outer(landmarks[i], landmarks[i]), correct=False
-                        ),
+                        get_vec(np.outer(landmarks[i], landmarks[i]), correct=False),
                     ]
                 )
         return parameters

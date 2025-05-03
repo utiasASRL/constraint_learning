@@ -3,6 +3,7 @@ import numpy as np
 import scipy.sparse as sp
 from auto_tight.lifters import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+from utils.common import get_vec
 
 
 def remove_dependent_constraints(constraints, verbose=False):
@@ -184,7 +185,7 @@ class Constraint(object):
         if lifter is not None:
             a = lifter.get_reduced_a(b, var_subset=mat_var_dict, sparse=True)
             A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
-            a_full = lifter.get_vec(A_sparse, sparse=True)
+            a_full = get_vec(A_sparse, sparse=True)
             if a_full is None:
                 return None
         if convert_to_polyrow:
@@ -220,7 +221,7 @@ class Constraint(object):
         compute_polyrow_b=False,
     ):
         Ai_sparse_small = A_poly.get_matrix(variables=mat_var_dict)
-        ai = lifter.get_vec(Ai_sparse_small, correct=True)
+        ai = get_vec(Ai_sparse_small, correct=True)
         bi = lifter.augment_using_zero_padding(ai)
         if compute_polyrow_b:
             polyrow_b = lifter.convert_b_to_polyrow(bi, mat_var_dict)
@@ -255,7 +256,7 @@ class Constraint(object):
         A_poly = lifter.convert_polyrow_to_Apoly(polyrow_b)
         dict_unroll = lifter.get_var_dict(mat_var_dict, unroll_keys=True)
         A_sparse = A_poly.get_matrix(dict_unroll)
-        a_full = lifter.get_vec(A_sparse, sparse=True)
+        a_full = get_vec(A_sparse, sparse=True)
         return Constraint(
             index=index,
             A_poly=A_poly,
@@ -271,11 +272,11 @@ class Constraint(object):
         if self.known:
             # known matrices are stored in origin variables, not unrolled form
             self.A_sparse_ = self.A_poly_.get_matrix(lifter.var_dict)
-            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+            self.a_full_ = get_vec(self.A_sparse_, sparse=True)
 
         else:
             # known matrices are stored in origin variables, not unrolled form
-            target_dict_unroll = lifter.var_dict_unroll
+            target_dict_unroll = lifter.get_var_dict(unroll_keys=True)
             self.A_sparse_ = self.A_poly_.get_matrix(target_dict_unroll)
-            self.a_full_ = lifter.get_vec(self.A_sparse_, sparse=True)
+            self.a_full_ = get_vec(self.A_sparse_, sparse=True)
         return self

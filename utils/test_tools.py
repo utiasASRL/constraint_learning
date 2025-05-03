@@ -1,5 +1,4 @@
 import numpy as np
-
 from auto_tight.lifters.examples import (
     MonoLifter,
     Poly4Lifter,
@@ -12,6 +11,7 @@ from auto_tight.lifters.examples import (
     Stereo3DLifter,
     WahbaLifter,
 )
+from utils.common import get_vec
 
 d = 2
 n_landmarks = 3
@@ -54,12 +54,12 @@ def _test_with_tol(lifter, A_list, tol):
         err = abs((x.T @ Ai @ x)[0, 0])
         assert err < tol, err
 
-        ai = lifter.get_vec(Ai.toarray())
-        xvec = lifter.get_vec(np.outer(x, x))
+        ai = get_vec(Ai.toarray())
+        xvec = get_vec(np.outer(x, x))
         np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
-        ai = lifter.get_vec(Ai)
-        xvec = lifter.get_vec(np.outer(x, x))
+        ai = get_vec(Ai)
+        xvec = get_vec(np.outer(x, x))
         np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
 
@@ -68,6 +68,7 @@ def all_lifters(seed=1):
     for Lifter, kwargs in Lifters:
         np.random.seed(seed)
         yield Lifter(**kwargs)
+
 
 def example_lifters(seed=1, param_level="no"):
     for Lifter, kwargs in ExampleLifters:
