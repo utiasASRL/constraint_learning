@@ -1,5 +1,4 @@
 import numpy as np
-
 from auto_tight.lifters import StateLifter
 
 

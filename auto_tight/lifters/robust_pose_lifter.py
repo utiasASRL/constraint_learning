@@ -119,6 +119,10 @@ class RobustPoseLifter(StateLifter, ABC):
             var_dict.update({"z_0": n**2})
         return var_dict
 
+    @property
+    def param_dict(self):
+        return self.param_dict_landmarks
+
     def get_all_variables(self):
         all_variables = ["h", "t", "c"]
         if self.robust:
@@ -132,16 +136,36 @@ class RobustPoseLifter(StateLifter, ABC):
         return variable_list
 
     def sample_theta(self):
-        """Sample a new feasible theta."""
-        theta = self.generate_random_theta()
+        """Generate a random new feasible point."""
+
+        # make sure random pose is looking at world centre (where landmarks are)
+        success = False
+        i = 0
+        while not success:
+            pc_cw = self.get_random_position()
+            success = np.all(np.array(self.h_list(pc_cw)) <= 0)
+            if success:
+                break
+            i += 1
+            if i >= N_TRYS:
+                raise ValueError("didn't find valid initialization")
+
+        if self.d == 2:
+            angle = np.random.uniform(0, 2 * np.pi)
+            C = R.from_euler("z", angle).as_matrix()[:2, :2]
+        else:
+            C = R.random().as_matrix()
+        theta_x = get_theta_from_C_r(C, pc_cw)
+
         if self.robust:
             outlier_index = np.random.choice(
                 self.n_landmarks, replace=False, size=self.n_outliers
             )
             w = np.ones(self.n_landmarks)
             w[outlier_index] = -1
-            theta[-len(w) :] = w
-        return theta
+            return np.hstack([theta_x, w])
+        else:
+            return theta_x
 
     def sample_parameters(self, theta=None):
         landmarks = np.random.normal(loc=0, scale=1.0, size=(self.n_landmarks, self.d))
@@ -194,35 +218,6 @@ class RobustPoseLifter(StateLifter, ABC):
             return np.where(self.theta[-self.n_landmarks :] == -1)[0]
         else:
             return []
-
-    def generate_random_theta(self):
-        """Generate a random new feasible point, this is the ground truth."""
-
-        # generate a random pose that is looking at world centre (where landmarks are)
-        success = False
-        i = 0
-
-        while not success:
-            pc_cw = self.get_random_position()
-            success = np.all(np.array(self.h_list(pc_cw)) <= 0)
-            if success:
-                break
-            i += 1
-            if i >= N_TRYS:
-                raise ValueError("didn't find valid initialization")
-
-        if self.d == 2:
-            angle = np.random.uniform(0, 2 * np.pi)
-            C = R.from_euler("z", angle).as_matrix()[:2, :2]
-        else:
-            C = R.random().as_matrix()
-        theta_x = get_theta_from_C_r(C, pc_cw)
-        if self.robust:
-            # we always assume the first elements correspond to outliers
-            # and the last elements to inliers.
-            w = [-1] * self.n_outliers + [1.0] * (self.n_landmarks - self.n_outliers)
-            return np.r_[theta_x, w]
-        return theta_x
 
     def get_error(self, theta_hat):
         from utils.geometry import get_pose_errors_from_theta
@@ -492,16 +487,4 @@ class RobustPoseLifter(StateLifter, ABC):
 
     @abstractmethod
     def residual_sq(self, R, t, pi, ui):
-        return
-
-    @abstractmethod
-    def get_Q(self, noise: float = None):
-        return
-
-    @abstractmethod
-    def get_Q_from_y(self, y):
-        return
-
-    @abstractmethod
-    def __repr__(self):
         return
