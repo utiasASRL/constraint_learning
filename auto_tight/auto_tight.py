@@ -63,6 +63,29 @@ class AutoTight(object):
                 print(S[-corank], AutoTight.EPS_SVD, S[-corank - 1])
 
     @staticmethod
+    def get_basis_sparse(lifter, var_list, param_list, A_known=[]):
+        from utils.constraint import Constraint
+
+        Y = AutoTight.generate_Y_sparse(
+            lifter, var_subset=var_list, param_subset=param_list, factor=1.0
+        )
+        basis, S = AutoTight.get_basis(lifter, Y, A_known=A_known, var_subset=var_list)
+        AutoTight.test_S_cutoff(S, corank=basis.shape[0])
+        constraints = []
+        for i, b in enumerate(basis):
+            constraints.append(
+                Constraint.init_from_b(
+                    i,
+                    b,
+                    mat_var_dict=var_list,
+                    mat_param_dict=param_list,
+                    convert_to_polyrow=False,
+                    known=False,
+                )
+            )
+        return constraints
+
+    @staticmethod
     def get_A_learned(
         lifter,  #:StateLifter,
         A_known=[],
@@ -133,6 +156,37 @@ class AutoTight(object):
             x = lifter.get_x(theta=theta, parameters=None, var_subset=var_subset)
             X = np.outer(x, x)
             Y[seed, :] = lifter.get_vec(X)
+        return Y
+
+    @staticmethod
+    def generate_Y_sparse(
+        lifter, factor=FACTOR, ax=None, var_subset=None, param_subset=None
+    ):
+        assert (
+            lifter.HOM in param_subset
+        ), f"{lifter.HOM} must be included in param_subset."
+        # need at least dim_Y different random setups
+        dim_Y = lifter.get_dim_Y(var_subset, param_subset)
+        n_seeds = int(dim_Y * factor)
+        Y = np.empty((n_seeds, dim_Y))
+        for seed in range(n_seeds):
+            np.random.seed(seed)
+
+            theta = lifter.sample_theta()
+            parameters = lifter.sample_parameters(theta)
+
+            if seed < 10 and ax is not None:
+                if np.ndim(lifter.theta) == 1:
+                    ax.scatter(np.arange(len(theta)), theta)
+                else:
+                    ax.scatter(*theta[:, :2].T)
+
+            x = lifter.get_x(theta=theta, parameters=parameters, var_subset=var_subset)
+            X = np.outer(x, x)
+
+            # generates [1*x, a1*x, ..., aK*x]
+            p = lifter.get_p(parameters=parameters, param_subset=param_subset)
+            Y[seed, :] = np.kron(p, lifter.get_vec(X))
         return Y
 
     @staticmethod

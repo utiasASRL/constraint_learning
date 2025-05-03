@@ -59,6 +59,58 @@ class StateLifter(BaseClass):
         self.generate_random_setup()
         super().__init__()
 
+    def compute_Ai(self, templates, var_dict, param_dict):
+        """
+        Take all elements from the list of templates and apply them
+        to the given pair of var_list and param_list.
+        """
+        from utils.constraint import Constraint
+
+        A_list = []
+        for template in templates:
+            assert isinstance(template, Constraint)
+            # First, we find the current parameters, so that we can factor
+            # them into b and compute a from it.
+            p_here = self.get_p(param_subset=param_dict)
+
+            # We need to partition the vector b into its subblocks
+            # so that we can compute a from it.
+            X_dim = self.get_dim_X(template.mat_var_dict)
+            assert self.get_dim_X(var_dict) == X_dim
+            p_dim = self.get_dim_p(template.mat_param_dict)
+            assert self.get_dim_p(param_dict) == p_dim
+            n_blocks = len(template.b_) / X_dim
+            assert n_blocks == p_dim
+
+            a = p_here[0] * template.b_[:X_dim]
+            for i in range(int(n_blocks) - 1):
+                a += p_here[i + 1] * template.b_[(i + 1) * X_dim : (i + 2) * X_dim]
+
+            a_test = self.get_reduced_a(
+                template.b_,
+                var_subset=template.mat_var_dict,
+                parameters=p_here,
+                sparse=False,
+            )
+            np.testing.assert_allclose(a, a_test)
+
+            # Get a symmetric matrix where the upper and lower parts have been filled with a,
+            # and applying the correction to the diagonal.
+            # Note that we do not set var_dict because otherwise A would already
+            # be the zero-padded large matrix.
+            A = self.get_mat(a, sparse=True, correct=True)
+
+            # Get the corresponding PolyMatrix.
+            A_poly, __ = PolyMatrix.init_from_sparse(
+                A,
+                var_dict=self.get_var_dict(var_dict),
+                symmetric=True,
+                unfold=False,
+            )
+            A_list.append(A_poly)
+
+        return A_list
+
     def apply_template(self, bi_poly, n_parameters=None, verbose=False):
         if n_parameters is None:
             n_parameters = len(self.parameters)
