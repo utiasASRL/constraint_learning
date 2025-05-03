@@ -1,4 +1,4 @@
-""" Tools related to geometry.
+"""Tools related to geometry.
 
 Naming conventions:
 - C and r are rotation matrix and translation. T is the transformation matrix.
@@ -46,7 +46,8 @@ def generate_random_pose(d=2, size=1, use_euler=False):
 
 def get_C_r_from_theta(theta, d):
     r = theta[:d]
-    C = theta[d:].reshape((d, d))
+    C = theta[d : d + d**2].reshape((d, d))
+    np.testing.assert_allclose(C.T @ C, np.eye(d), atol=1e-10)
     return C, r
 
 

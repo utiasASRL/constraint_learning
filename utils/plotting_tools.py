@@ -1,7 +1,6 @@
 import os
 
 import numpy as np
-
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
@@ -111,36 +110,36 @@ def plot_frame(
     scale=1.0,
     ls="--",
     alpha=0.5,
+    d=3,
     **kwargs,
 ):
     try:
-        C_cw, r_wc_c = get_C_r_from_theta(theta, d=3)
-        p_gt = -C_cw.T @ r_wc_c
+        C_cw, r_wc_c = get_C_r_from_theta(theta, d=d)
+        r_wc_w = -C_cw.T @ r_wc_c  # r_wc_w
     except:
         C_cw = None
-        p_gt = theta
+        r_wc_w = theta
 
     if C_cw is not None:
-        for i, col in enumerate(["r", "g", "b"]):
-            z_gt = C_cw[i, :]
-            length = scale / np.linalg.norm(z_gt)
+        for col, dir_gt in zip(["r", "g", "b"], C_cw):
+            length = scale / np.linalg.norm(dir_gt)
             ax.plot(
-                [p_gt[0], p_gt[0] + length * z_gt[0]],
-                [p_gt[1], p_gt[1] + length * z_gt[1]],
+                [r_wc_w[0], r_wc_w[0] + length * dir_gt[0]],
+                [r_wc_w[1], r_wc_w[1] + length * dir_gt[1]],
                 color=col,
                 ls=ls,
                 alpha=alpha,
                 zorder=-1,
             )
     ax.scatter(
-        *p_gt[:2].T,
+        *r_wc_w[:2].T,
         color=color,
         marker=marker,
         label=label,
         zorder=1,
         **kwargs,
     )
-    return
+    return r_wc_w, C_cw
 
 
 def add_rectangles(ax, dict_sizes, color="red"):
