@@ -24,6 +24,18 @@ class MotionPlanningLifter(StateLifter):
         )
         return var_dict
 
+    @property
+    def param_dict(self):
+        param_dict = {self.HOM: 1}
+        if self.param_level == "p":
+            param_dict["x_s"] = 4
+            param_dict["x_t"] = 4
+        elif self.param_level == "ppT":
+            # add all second-order terms: 4 * 5 / 2
+            param_dict["x_s"] = 10
+            param_dict["x_t"] = 10
+        return param_dict
+
     def get_x(self, theta=None, parameters=None, var_subset=None) -> np.ndarray:
         if theta is None:
             theta = self.theta
@@ -51,33 +63,26 @@ class MotionPlanningLifter(StateLifter):
         assert len(x_data) == self.get_dim_x(var_subset)
         return np.array(x_data)
 
-    def get_p(self, parameters=None, var_subset=None):
+    def get_p(self, parameters: dict = None, param_subset: dict | list = None):
         if parameters is None:
             parameters = self.parameters
-        if var_subset is None:
-            var_subset = self.var_dict
+        if param_subset is None:
+            param_subset = self.param_dict
+        assert isinstance(parameters, dict)
 
-        if self.param_level == "no":
-            return np.array([1.0])
-
-        parameters_here = parameters.reshape((2, -1))
-        indices = self.get_variable_indices(var_subset)
-        if len(indices) == 0:
-            return np.array([1.0])
-        else:  # either start or end position
-            assert len(indices) == 1
-            idx = indices[0]
-
-        sub_p = np.hstack([1.0, parameters_here[idx]])
-        if self.param_level == "p":
-            return sub_p
-        elif self.param_level == "ppT":
-            return upper_triangular(sub_p)
-        else:
-            raise ValueError("unnown parameters")
+        p_data = [1.0]
+        for key in param_subset:
+            if key == self.HOM:
+                continue
+            if np.ndim(parameters[key]) > 0:
+                p_data += list(parameters[key])
+            else:
+                p_data.append(parameters[key])
+        assert len(p_data) == self.get_dim_p(param_subset)
+        return np.array(p_data)
 
     def sample_parameters(self, theta: np.ndarray = None) -> dict | np.ndarray:
-        return np.concatenate([self.current_source, self.current_target])
+        return {self.HOM: 1.0, "x_s": self.current_source, "x_t": self.current_target}
 
     def sample_theta(self) -> dict | np.ndarray:
         assert isinstance(self.setup, Setup)
