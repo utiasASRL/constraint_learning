@@ -1,5 +1,6 @@
 import matplotlib.pylab as plt
 import numpy as np
+
 from auto_tight.auto_template import Learner
 from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
 from auto_tight.sim_experiments import (
@@ -151,10 +152,10 @@ def run_all(
 
 
 def run_stereo_1d():
-    from auto_tight import AutoTight
-
     from cert_tools.linalg_tools import rank_project
     from cert_tools.sdp_solvers import solve_sdp_cvxpy
+
+    from auto_tight import AutoTight
 
     np.random.seed(0)
     lifter = Stereo1DLifter(n_landmarks=2)
@@ -251,7 +252,5 @@ def run_stereo_1d():
 
 
 if __name__ == "__main__":
-    print("========== Stereo3D autotemplate ===========")
-
-    run_stereo_1d()
+    # run_stereo_1d()
     run_all(n_seeds=1, autotight=False, autotemplate=True, recompute=True)

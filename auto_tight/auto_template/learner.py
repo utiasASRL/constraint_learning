@@ -5,21 +5,26 @@ import matplotlib
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
-from auto_tight import AutoTight
-from auto_tight.lifters import StateLifter
-from poly_matrix import PolyMatrix
-from solvers.common import find_local_minimum
-from solvers.sparse import bisection, brute_force
-from utils.common import get_vec
-from utils.constraint import Constraint, generate_poly_matrix, plot_poly_matrix
-from utils.plotting_tools import (add_colorbar, add_rectangles, import_plt,
-                                  initialize_discrete_cbar,
-                                  plot_singular_values, savefig)
-
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from cert_tools.sdp_solvers import solve_feasibility_sdp
 from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 from cert_tools.sdp_solvers import solve_sdp_cvxpy
+from poly_matrix import PolyMatrix
+
+from auto_tight import AutoTight
+from auto_tight.lifters import StateLifter
+from solvers.common import find_local_minimum
+from solvers.sparse import bisection, brute_force
+from utils.common import get_vec
+from utils.constraint import Constraint, generate_poly_matrix, plot_poly_matrix
+from utils.plotting_tools import (
+    add_colorbar,
+    add_rectangles,
+    import_plt,
+    initialize_discrete_cbar,
+    plot_singular_values,
+    savefig,
+)
 
 plt = import_plt()
 
@@ -780,7 +785,10 @@ class Learner(object):
                 )
 
             data_dict = {"variables": self.mat_vars}
-            data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
+            param_dict = self.lifter.get_involved_param_dict(self.mat_vars)
+            data_dict["n dims"] = self.lifter.get_dim_Y(
+                var_subset=self.mat_vars, param_subset=param_dict
+            )
 
             print("-------- templates learning --------")
             # learn new templates, orthogonal to the ones found so far.

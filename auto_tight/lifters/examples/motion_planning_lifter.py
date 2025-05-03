@@ -1,4 +1,5 @@
 import numpy as np
+
 from auto_tight.lifters.state_lifter import StateLifter
 from utils.common import upper_triangular
 
@@ -85,6 +86,8 @@ class MotionPlanningLifter(StateLifter):
         return {self.HOM: 1.0, "x_s": self.current_source, "x_t": self.current_target}
 
     def sample_theta(self) -> dict | np.ndarray:
+        from mp_certs.setups import Setup
+
         assert isinstance(self.setup, Setup)
         trajectory = self.setup.generate_random_trajectory()
         self.current_source = trajectory[0, :]
@@ -110,8 +113,12 @@ class MotionPlanningLifter(StateLifter):
         return [A.get_matrix(var_dict) for A in A_known_poly]
 
     def get_variable_indices(self, var_subset):
+        return super().get_variable_indices(var_subset, variable="x")
+
+    def get_involved_param_dict(self, var_subset):
         if "x_1" in var_subset:
-            return [0]
+            return ["x_s"]
         elif f"x_{self.setup.N - 1}" in var_subset:
-            return [1]
-        return []
+            return ["x_t"]
+        else:
+            return []

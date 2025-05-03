@@ -393,9 +393,13 @@ def apply_autotemplate_base(
     fname_root = f"{results_folder}/autotemplate_{learner.lifter}"
 
     fname_autotemplate = f"{fname_root}.pkl"
-    with open(fname_autotemplate, "rb") as f:
-        learner = pickle.load(f)
-        order_dict = pickle.load(f)
+    try:
+        with open(fname_autotemplate, "rb") as f:
+            learner = pickle.load(f)
+            order_dict = pickle.load(f)
+    except FileNotFoundError as e:
+        print("Need to run run_autotemplate.py first!")
+        raise e
 
     save_autotight_order(
         learner, fname_root, use_bisection=learner.lifter.TIGHTNESS == "cost"

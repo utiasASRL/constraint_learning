@@ -189,9 +189,9 @@ class AutoTight(object):
         return Y
 
     @staticmethod
-    def generate_Y(lifter, factor=FACTOR, ax=None, var_subset=None):
+    def generate_Y(lifter, factor=FACTOR, ax=None, var_subset=None, param_subset=None):
         # need at least dim_Y different random setups
-        dim_Y = lifter.get_dim_Y(var_subset)
+        dim_Y = lifter.get_dim_Y(var_subset, param_subset)
         n_seeds = int(dim_Y * factor)
         Y = np.empty((n_seeds, dim_Y))
         for seed in range(n_seeds):

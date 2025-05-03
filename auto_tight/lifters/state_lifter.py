@@ -60,6 +60,17 @@ class StateLifter(BaseClass):
         self.generate_random_setup()
         super().__init__()
 
+    def get_involved_param_dict(self, var_subset):
+        keys = [self.HOM]
+        for v in var_subset:
+            index = v.split("_")
+            if len(index) > 1:
+                index = int(index[-1])
+                key = f"p_{index}"
+                if key not in keys:
+                    keys.append(key)
+        return [k for k in keys if k in self.param_dict]
+
     def compute_Ai(self, templates, var_dict, param_dict):
         """
         Take all elements from the list of templates and apply them
@@ -131,7 +142,7 @@ class StateLifter(BaseClass):
 
         if len(unique_idx) == 0:
             return [bi_poly]
-        elif len(unique_idx) > 2:
+        elif len(unique_idx) > 3:
             raise ValueError("unexpected triple dependencies!")
 
         variable_indices = self.get_variable_indices(self.var_dict)

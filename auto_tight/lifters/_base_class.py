@@ -12,6 +12,7 @@ import itertools
 import numpy as np
 import scipy.sparse as sp
 from poly_matrix import PolyMatrix, unroll
+
 from utils.common import create_symmetric, get_labels, get_vec
 
 
@@ -24,6 +25,7 @@ class BaseClass(object):
         return np.unique(
             [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
         )
+
 
     ### Functionalities related to var_dict
     def get_var_dict(self, var_subset=None, unroll_keys=False):

@@ -25,9 +25,9 @@ LIFTERS_NO = [
 ]
 
 LIFTERS = [
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
-    (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
-    (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="no")),
+    # (RangeOnlyLocLifter, dict(n_positions=3, n_landmarks=10, d=3, level="quad")),
+    # (Stereo2DLifter, dict(n_landmarks=3, param_level="ppT", level="urT")),
     (Stereo3DLifter, dict(n_landmarks=4, param_level="ppT", level="urT")),
     (WahbaLifter, dict(n_landmarks=4, d=3, robust=False, level="no", n_outliers=0)),
     (MonoLifter, dict(n_landmarks=5, d=3, robust=False, level="no", n_outliers=0)),
@@ -48,7 +48,7 @@ def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=debug)
         fname = f"{fname_root}.pkl"
 
         print(f"\n\n ======================== {lifter} ==========================")
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
 
