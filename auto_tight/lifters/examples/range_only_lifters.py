@@ -52,7 +52,14 @@ class RangeOnlyLocLifter(StateLifter):
             return pos.flatten()
 
     def __init__(
-        self, n_positions, n_landmarks, d, W=None, level="no", variable_list=None
+        self,
+        n_positions,
+        n_landmarks,
+        d,
+        W=None,
+        level="no",
+        variable_list=None,
+        param_level="no",
     ):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
@@ -68,7 +75,9 @@ class RangeOnlyLocLifter(StateLifter):
 
         if variable_list == "all":
             variable_list = self.get_all_variables()
-        super().__init__(level=level, d=d, variable_list=variable_list)
+        super().__init__(
+            level=level, d=d, variable_list=variable_list, param_level=param_level
+        )
 
     @property
     def VARIABLE_LIST(self):
@@ -436,17 +445,18 @@ class RangeOnlyLocLifter(StateLifter):
     def var_dict(self):
         var_dict = {"h": 1}
         var_dict.update({f"x_{n}": self.d for n in range(self.n_positions)})
-        if self.level == "no":
-            var_dict.update({f"z_{n}": 1 for n in range(self.n_positions)})
-        elif self.level == "quad":
-            var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
+        var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
         return var_dict
+
+    @property
+    def param_dict(self):
+        return self.param_dict_landmarks
 
     @property
     def size_z(self):
         if self.level == "no":
-            return self.d
-        else:
+            return 1
+        elif self.level == "quad":
             return int(self.d * (self.d + 1) / 2)
 
     @property
@@ -455,10 +465,7 @@ class RangeOnlyLocLifter(StateLifter):
 
     @property
     def M(self):
-        if self.level == "no":
-            return self.n_positions
-        elif self.level == "quad":
-            return int(self.n_positions * self.d * (self.d + 1) / 2)
+        return self.n_positions * self.size_z
 
     def __repr__(self):
         return f"rangeonlyloc{self.d}d_{self.level}"

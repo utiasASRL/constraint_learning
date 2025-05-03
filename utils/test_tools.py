@@ -1,4 +1,5 @@
 import numpy as np
+
 from auto_tight.lifters.examples import (
     MonoLifter,
     Poly4Lifter,
@@ -36,6 +37,15 @@ Lifters = [
     (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
 
+ExampleLifters = [
+    (WahbaLifter, dict(n_landmarks=5, d=2, robust=False, level="no", n_outliers=1)),
+    (
+        RangeOnlyLocLifter,
+        dict(n_positions=n_poses, n_landmarks=n_landmarks, d=d, level="quad"),
+    ),
+    (Stereo1DLifter, dict(n_landmarks=n_landmarks)),
+    (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
+]
 
 
 def _test_with_tol(lifter, A_list, tol):
@@ -54,7 +64,13 @@ def _test_with_tol(lifter, A_list, tol):
 
 
 # Below, we always reset seeds to make sure tests are reproducible.
-def all_lifters():
+def all_lifters(seed=1):
     for Lifter, kwargs in Lifters:
-        np.random.seed(1)
+        np.random.seed(seed)
+        yield Lifter(**kwargs)
+
+def example_lifters(seed=1, param_level="no"):
+    for Lifter, kwargs in ExampleLifters:
+        np.random.seed(seed)
+        kwargs["param_level"] = param_level
         yield Lifter(**kwargs)

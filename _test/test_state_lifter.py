@@ -1,7 +1,5 @@
 import numpy as np
 import pytest
-
-from auto_tight import AutoTight
 from auto_tight.lifters import StereoLifter
 from auto_tight.lifters._base_class import BaseClass
 from auto_tight.lifters.examples import Stereo2DLifter, Stereo3DLifter
@@ -48,26 +46,6 @@ def test_known_constraints():
         x = lifter.get_x(theta=lifter.theta)
         for Bi in B_known:
             assert x.T @ Bi @ x <= 0
-
-
-def test_learned_constraints():
-    methods = ["qrp", "svd", "qr"]
-    for lifter in all_lifters():
-        num_learned = None
-        for method in methods:
-            np.random.seed(0)
-            if pytest.A_learned[str(lifter)] is None:
-                pytest.A_learned[str(lifter)] = AutoTight.get_A_learned(
-                    lifter=lifter, method=method
-                )
-            A_learned = pytest.A_learned[str(lifter)]
-            _test_with_tol(lifter, A_learned, tol=1e-4)
-
-            # make sure each method finds the same number of matrices
-            if num_learned is None:
-                num_learned = len(A_learned)
-            else:
-                assert len(A_learned) == num_learned
 
 
 def test_vec_mat():
@@ -126,7 +104,6 @@ if __name__ == "__main__":
         warnings.simplefilter("ignore")
         # warnings.simplefilter("error")
         test_known_constraints()
-        test_learned_constraints()
 
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")

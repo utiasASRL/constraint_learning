@@ -1,6 +1,5 @@
 import matplotlib.pylab as plt
 import numpy as np
-
 from auto_tight.auto_template import Learner
 from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
 from auto_tight.sim_experiments import (
@@ -152,6 +151,8 @@ def run_all(
 
 
 def run_stereo_1d():
+    from auto_tight import AutoTight
+
     from cert_tools.linalg_tools import rank_project
     from cert_tools.sdp_solvers import solve_sdp_cvxpy
 
@@ -168,12 +169,12 @@ def run_stereo_1d():
     A_known = lifter.get_A_known()
     # shortcut: A_learned = lifter.get_A_learned_simple(A_known=A_known)
 
-    Y = lifter.generate_Y(factor=1.0)
+    Y = AutoTight.generate_Y(lifter, factor=1.0)
 
     # with A_known
-    basis, S = lifter.get_basis(Y, A_known=A_known)
+    basis, S = AutoTight.get_basis(lifter, Y, A_known=A_known)
     print("with known:", S)
-    A_red = lifter.generate_matrices_simple(basis=basis)
+    A_red = AutoTight.generate_matrices_simple(lifter, basis=basis)
     fig, axs = plt.subplots(1, len(A_red) + len(A_known), sharey=True)
     for i, Ai in enumerate(A_known):
         title = f"$A_{{k,{i}}}$"
@@ -187,9 +188,9 @@ def run_stereo_1d():
         print(f"learned {j}", Ai.toarray())
 
     # without A_known:
-    basis, S = lifter.get_basis(Y, A_known=[])
+    basis, S = AutoTight.get_basis(lifter, Y, A_known=[])
     print("without known:", S)
-    A_all = lifter.generate_matrices_simple(basis=basis)
+    A_all = AutoTight.generate_matrices_simple(lifter, basis=basis)
     fig_raw, axs_raw = plt.subplots(1, len(A_all), sharey=True)
     for i, Ai in enumerate(A_all):
         title = f"$A_{{\ell,{i}}}$"

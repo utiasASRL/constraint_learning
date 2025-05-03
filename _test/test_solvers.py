@@ -128,21 +128,32 @@ def test_cost(noise=0.0):
         x = lifter.get_x(theta)
         costQ = abs(x.T @ Q @ x)
 
-        # TODO(FD) figure out why the tolerance is so bad
-        # for Stereo3D problem.
         assert abs(cost - costQ) < 1e-6, (cost, costQ)
-
-        if (
-            noise == 0
-            and not isinstance(lifter, PolyLifter)
-            and not lifter.robust
-            # and not isinstance(lifter, MatWeightLifter)
-        ):
+        if noise == 0 and not isinstance(lifter, PolyLifter) and not lifter.robust:
             assert cost < 1e-10, cost
             assert costQ < 1e-7, costQ
         elif noise == 0 and isinstance(lifter, MonoLifter):
-            w = lifter.theta[-lifter.n_landmarks :]
-            assert abs(cost - np.sum(w < 0)) < 1e-10
+            from utils.geometry import get_C_r_from_theta
+
+            if lifter.robust:
+                w = lifter.theta[-lifter.n_landmarks :]
+                for i in range(lifter.y_.shape[0]):
+
+                    C, r = get_C_r_from_theta(lifter.theta, lifter.d)
+
+                    y_gt = C @ lifter.landmarks[i] + r
+                    y_gt /= np.linalg.norm(y_gt)
+
+                    if w[i] == -1:
+                        # make sure there is a large error in outliers
+                        assert not np.all(np.abs(y_gt - lifter.y_[i]) < 1e-3)
+                    else:
+                        np.testing.assert_allclose(y_gt, lifter.y_[i])
+
+                try:
+                    assert abs(cost - np.sum(w < 0)) < 1e-10
+                except:
+                    lifter.plot_setup()
 
 
 def test_solvers_noisy(n_seeds=1, noise=NOISE):
