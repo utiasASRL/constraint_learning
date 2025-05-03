@@ -9,9 +9,8 @@ dependencies:
     - python=3.10
     - pip=22.3
     - flake8
-
     - numpy>=1.23.5
-    - scipy>=1.9.3
+    - scipy>=1.15
     - seaborn>=0.12.2
     - cvxpy>=1.3.2
     - cvxopt>=1.3.0
@@ -24,6 +23,5 @@ dependencies:
     - autograd>=1.6.2
     - pandas==1.5.3
     - spatialmath-python=1.1.11
-
     - pip:
-      -r requirements.txt
+      - -r requirements.txt
