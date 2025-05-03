@@ -49,12 +49,20 @@ class RangeOnlyLifter(StateLifter):
     """
 
     def __init__(
-        self, n_positions, n_landmarks, d, edges=None, remove_gauge=REMOVE_GAUGE
+        self,
+        n_positions,
+        n_landmarks,
+        d,
+        edges=None,
+        remove_gauge=REMOVE_GAUGE,
+        param_level="no",
     ):
         self.remove_gauge = remove_gauge
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
+        self.landmarks = None
         self.d = d
+
         # TODO(FD) replace edges with W
         if edges is None:
             self.edges = list(
@@ -63,43 +71,31 @@ class RangeOnlyLifter(StateLifter):
         else:
             # TODO(FD) add tests
             self.edges = edges
-        super().__init__()
+        super().__init__(param_level=param_level)
 
     @property
-    def theta(self):
-        if self.theta_ is None:
-            self.theta_ = self.get_theta(self.landmarks, self.positions)
-        return self.theta_
+    def var_dict(self):
+        level_dim = self.get_level_dims()[self.level]
+        if self.var_dict_ is None:
+            self.var_dict_ = {self.HOM: 1}
+            self.var_dict.update({"x": self.d**2 + self.d})
+            self.var_dict.update(
+                {f"z_{k}": self.d + level_dim for k in range(self.n_parameters)}
+            )
+        return self.var_dict_
 
-    def sample_random_positions(self):
-        return np.random.rand(self.n_positions, self.d)
-
-    def generate_random_setup(self):
-        self.generate_random_theta()
-        self.landmarks = self.sample_random_landmarks()
-        self.parameters = np.r_[1.0, self.landmarks.flatten()]
-
-    def generate_random_theta(self):
-        self.positions = self.sample_random_positions()
-
-    def get_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        landmarks = self.get_variable_indices(var_subset)
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            parameters = self.landmarks[landmarks, :].flatten()
-            return np.r_[1.0, parameters]
+    @property
+    def param_dict(self):
+        return self.param_dict_landmarks
 
     def sample_parameters(self):
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            parameters = np.random.rand(self.n_landmarks, self.d).flatten()
-            return np.r_[1.0, parameters]
+        landmarks = np.random.normal(loc=0, scale=1, size=(self.n_landmarks, self.d))
+        return self.sample_parameters_landmarks(landmarks)
+
+
+    def sample_theta(self):
+        self.positions = np.random.rand(self.n_positions, self.d)
+        return self.positions
 
     def get_theta(self, landmarks=None, positions=None):
         if landmarks is None:

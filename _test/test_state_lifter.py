@@ -5,7 +5,7 @@ from auto_tight import AutoTight
 from auto_tight.lifters import StereoLifter
 from auto_tight.lifters._base_class import BaseClass
 from auto_tight.lifters.examples import Stereo2DLifter, Stereo3DLifter
-from utils.test_tools import all_lifters
+from utils.test_tools import _test_with_tol, all_lifters
 
 
 def pytest_configure():
@@ -37,21 +37,6 @@ def test_ravel():
 
         assert i == i_test[0]
         assert j == j_test[0]
-
-
-def _test_with_tol(lifter, A_list, tol):
-    x = lifter.get_x().astype(float).reshape((-1, 1))
-    for Ai in A_list:
-        err = abs((x.T @ Ai @ x)[0, 0])
-        assert err < tol, err
-
-        ai = lifter.get_vec(Ai.toarray())
-        xvec = lifter.get_vec(np.outer(x, x))
-        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
-
-        ai = lifter.get_vec(Ai)
-        xvec = lifter.get_vec(np.outer(x, x))
-        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
 
 def test_known_constraints():

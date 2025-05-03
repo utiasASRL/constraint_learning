@@ -4,8 +4,6 @@ from auto_tight.lifters import RobustPoseLifter
 from utils.geometry import get_C_r_from_theta
 
 N_TRYS = 10
-NOISE = 1e-2  # inlier noise
-NOISE_OUT = 1.0  # outlier noise
 
 # TODO(FD) for some reason this is not required as opposed to what is stated in Heng's paper
 # and it currently breaks tightness (might be a bug in my implementation though)
@@ -15,6 +13,9 @@ NORMALIZE = False
 
 
 class WahbaLifter(RobustPoseLifter):
+    NOISE = 1e-2  # inlier noise
+    NOISE_OUT = 1.0  # outlier noise
+
     def h_list(self, t):
         """
         We want to inforce that
@@ -23,15 +24,6 @@ class WahbaLifter(RobustPoseLifter):
         """
         default = super().h_list(t)
         return default
-
-    def generate_random_setup(self):
-        """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        self.theta  # makes sure to generate theta
-        self.landmarks = np.random.normal(
-            loc=0, scale=1.0, size=(self.n_landmarks, self.d)
-        )
-        self.parameters = np.r_[1.0, self.landmarks.flatten()]
-        return
 
     def get_random_position(self):
         return np.random.uniform(
@@ -59,34 +51,79 @@ class WahbaLifter(RobustPoseLifter):
             return res_sq / (self.n_landmarks * self.d) ** 2
         return res_sq
 
-    def sample_y(self, i, R, t, noise=NOISE):
-        if noise is None:
-            noise = NOISE
-        pi = self.landmarks[i]
-        # ui = deepcopy(pi) #R @ pi + t
-        ui = R @ pi + t
-        if i < self.n_outliers:
-            ui += np.random.normal(scale=NOISE_OUT, loc=0, size=self.d)
-        else:
-            ui += np.random.normal(scale=noise, loc=0, size=self.d)
-        return ui
+    def plot_setup(self):
+        if self.d != 2:
+            print("Plotting currently only supported for d=2")
+            return
+        import matplotlib.pylab as plt
+        from utils.plotting_tools import plot_frame
+
+        fig, ax = plt.subplots()
+
+        # R, t = get_C_r_from_theta(self.theta, self.d)
+        # ax.scatter(*t, color="k", label="pose")
+
+        ax.axis("equal")
+        t_wc_w, C_cw = plot_frame(ax, self.theta, label="pose", color="gray", d=2)
+
+        if self.y_ is not None:
+            for i in range(self.y_.shape[0]):
+                ax.scatter(*self.landmarks[i], color=f"C{i}", label="landmarks")
+
+                # this vector is in camera coordinates
+                t_cpi_c = self.y_[i]
+                # t_cpi_w: vector from camera to pi in world coordinates
+                t_cpi_w = C_cw.T @ t_cpi_c
+
+                ax.plot(
+                    [t_wc_w[0], self.landmarks[i][0]],
+                    [t_wc_w[1], self.landmarks[i][1]],
+                    color=f"C{i}",
+                    ls=":",
+                )
+                ax.plot(
+                    [t_wc_w[0], t_wc_w[0] + t_cpi_w[0]],
+                    [t_wc_w[1], t_wc_w[1] + t_cpi_w[1]],
+                    color=f"r" if i < self.n_outliers else "g",
+                )
 
     def get_Q(
         self, noise: float = None, output_poly: bool = False, use_cliques: list = []
     ):
+        if noise is None:
+            noise = self.NOISE
+
         if self.y_ is None:
             theta = self.theta[: self.d + self.d**2]
+            outlier_index = self.get_outlier_index()
+
             self.y_ = np.empty((self.n_landmarks, self.d))
             R, t = get_C_r_from_theta(theta, self.d)
             for i in range(self.n_landmarks):
                 valid_measurement = False
-                while not valid_measurement:
-                    y_i = self.sample_y(i, R, t, noise=noise)
-                    residual = self.residual_sq(R, t, self.landmarks[i], y_i)
-                    if i < self.n_outliers:
-                        valid_measurement = residual > self.beta
+                for _ in range(N_TRYS):
+                    outlier = i in outlier_index
+                    y_i = R @ self.landmarks[i] + t
+                    if outlier:
+                        y_i += np.random.normal(
+                            scale=self.NOISE_OUT, loc=0, size=self.d
+                        )
                     else:
-                        valid_measurement = residual < self.beta
+                        y_i += np.random.normal(scale=noise, loc=0, size=self.d)
+
+                    residual = self.residual_sq(R, t, self.landmarks[i], y_i)
+                    if not self.robust:
+                        valid_measurement = True
+                    else:
+                        if outlier:
+                            valid_measurement = residual > self.beta
+                        else:
+                            valid_measurement = residual < self.beta
+                    if valid_measurement:
+                        break
+                if not valid_measurement and self.robust:
+                    self.plot_setup()
+                    raise ValueError("did not find a valid measurement.")
                 self.y_[i] = y_i
         Q = self.get_Q_from_y(self.y_, output_poly=output_poly, use_cliques=use_cliques)
         return Q, self.y_

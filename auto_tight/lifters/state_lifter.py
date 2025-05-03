@@ -1,4 +1,5 @@
 import itertools
+from abc import abstractmethod
 
 import numpy as np
 from poly_matrix import PolyMatrix
@@ -8,9 +9,6 @@ from ._base_class import BaseClass
 
 class StateLifter(BaseClass):
     HOM = "h"
-
-    # set elements below this threshold to zero.
-    EPS_SPARSE = 1e-9
 
     # tolerance for feasibility error of learned constraints
     EPS_ERROR = 1e-8
@@ -83,9 +81,6 @@ class StateLifter(BaseClass):
         elif len(unique_idx) > 2:
             raise ValueError("unexpected triple dependencies!")
 
-        raise ValueError(
-            "this is where the mistake happens! should return all but is only returning [0]"
-        )
         variable_indices = self.get_variable_indices(self.var_dict)
         # if z_0 is in this constraint, repeat the constraint for each landmark.
         for idx in itertools.combinations(variable_indices, len(unique_idx)):
@@ -175,10 +170,13 @@ class StateLifter(BaseClass):
                 A = A.get_matrix(self.var_dict_unroll)
 
             for i in range(n_seeds):
-                np.random.seed(i)
-                t = self.sample_theta()
-                p = self.get_parameters()
-                x = self.get_x(theta=t, parameters=p)
+                if i == 0:
+                    x = self.get_x()
+                else:
+                    np.random.seed(i)
+                    t = self.sample_theta()
+                    p = self.sample_parameters()
+                    x = self.get_x(theta=t, parameters=p)
 
                 constraint_violation = abs(x.T @ A @ x)
                 max_violation = max(max_violation, constraint_violation)
@@ -214,21 +212,37 @@ class StateLifter(BaseClass):
         return []
 
     def sample_parameters(self, theta=None) -> np.ndarray:
-        if self.param_level == "no":
-            return np.ndarray([1.0])
+        assert (
+            self.param_level == "no"
+        ), "Need to overwrite sample_parameters to use level different than 'no'"
+        return {self.HOM: 1.0}
 
+    def sample_parameters_landmarks(self, landmarks):
+        """Used by RobustPoseLifter, RangeOnlyLocLifter: the default way of adding landmarks to parameters."""
+        if self.landmarks is None:
+            self.landmarks = landmarks
+        parameters = {self.HOM: 1.0}
+
+        if self.param_level == "no":
+            return parameters
+
+        for i in range(self.n_landmarks):
+            if self.param_level == "p":
+                parameters[f"p_{i}"] = landmarks[i]
+            elif self.param_level == "ppT":
+                parameters[f"p_{i}"] = np.hstack(
+                    [
+                        landmarks[i],
+                        self.get_vec(
+                            np.outer(landmarks[i], landmarks[i]), correct=False
+                        ),
+                    ]
+                )
+        return parameters
+
+    @abstractmethod
     def sample_theta(self) -> np.ndarray:
         raise NotImplementedError("need to implement sample_theta")
-
-    def generate_random_setup(self):
-        self.theta = self.sample_theta()
-        self.parameters = self.sample_parameters()
-
-    def get_parameters(self, var_subset=None) -> list:
-        if var_subset is not None:
-            raise ValueError("var_subset not supported for default get_parameters.")
-        if self.param_level == "no":
-            return [1.0]
 
     def get_grad(self, t, y) -> np.ndarray:
         raise NotImplementedError("get_grad not implement yet")
@@ -262,21 +276,74 @@ class StateLifter(BaseClass):
     def set_noise(self, noise):
         self.noise = noise
 
-    @property
-    def base_var_dict(self):
-        var_dict = {"x": self.d**2 + self.d}
-        return var_dict
-
-    @property
-    def sub_var_dict(self):
-        level_dim = self.get_level_dims()[self.level]
-        var_dict = {f"z_{k}": self.d + level_dim for k in range(self.n_parameters)}
-        return var_dict
+    def generate_random_setup(self):
+        if self.parameters is None:
+            self.parameters = self.sample_parameters()
+        if self.theta is None:
+            self.theta = self.sample_theta()
 
     @property
     def var_dict(self):
-        if self.var_dict_ is None:
-            self.var_dict_ = {self.HOM: 1}
-            self.var_dict_.update(self.base_var_dict)
-            self.var_dict_.update(self.sub_var_dict)
-        return self.var_dict_
+        raise ValueError("Inheriting class must implement this!")
+
+    @property
+    def param_dict(self):
+        assert (
+            self.param_level == "no"
+        ), "Need to overwrite param_dict to use level different than 'no'"
+        return {self.HOM: 1}
+
+    @property
+    def param_dict_landmarks(self):
+        param_dict = {self.HOM: 1}
+        if self.param_level == "no":
+            return param_dict
+        if self.param_level == "p":
+            param_dict.update({f"p_{i}": self.d for i in range(self.n_landmarks)})
+        if self.param_level == "ppT":
+            # Note that ppT is actually
+            # [p; vech(ppT)] (linear and quadratic terms)
+            param_dict.update(
+                {
+                    f"p_{i}": self.d + int(self.d * (self.d + 1) / 2)
+                    for i in range(self.n_landmarks)
+                }
+            )
+        return param_dict
+
+    def get_x(self, theta=None, parameters=None, var_subset=None) -> np.ndarray:
+        if theta is None:
+            theta = self.theta
+        if parameters is None:
+            parameters = self.parameters
+        if var_subset is None:
+            var_subset = self.var_dict
+
+        x_data = []
+        for key in var_subset:
+            if key == self.HOM:
+                x_data.append(1.0)
+            else:
+                print(
+                    "Warning: just using theta in x because there is no specific implementation."
+                )
+                x_data += list(theta)
+        return np.array(x_data)
+
+    def get_p(self, parameters: dict = None, param_subset: dict | list = None):
+        if parameters is None:
+            parameters = self.parameters
+        if param_subset is None:
+            param_subset = self.param_dict
+
+        p_data = []
+        for key in param_subset:
+            if key == self.HOM:
+                p_data.append(1.0)
+            else:
+                param = parameters[key]
+                if np.ndim(param) == 0:
+                    p_data.append(param)
+                else:
+                    p_data += list(param)
+        return np.array(p_data)

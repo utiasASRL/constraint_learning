@@ -4,53 +4,30 @@ from auto_tight.lifters import StateLifter
 
 
 class Stereo1DLifter(StateLifter):
-    PARAM_LEVELS = ["no", "p"]
+    PARAM_LEVELS = ["no", "p", "ppT"]
     NOISE = 0.1
 
     def __init__(self, n_landmarks, param_level="no"):
         self.n_landmarks = n_landmarks
+        self.landmarks = None
         self.d = 1
         self.W = 1.0
-        super().__init__(param_level=param_level)
+        super().__init__(param_level=param_level, d=self.d)
 
-    @property
-    def theta(self):
-        if self.theta_ is None:
-            self.theta_ = self.sample_theta()
-        return self.theta_
+    def sample_parameters(self, theta=None):
 
-    def generate_random_setup(self):
-        self.landmarks = np.random.rand(self.n_landmarks)
-        self.parameters = self.get_parameters()
-
-    def generate_random_theta(self):
-        self.theta = self.sample_theta()
+        landmarks = np.random.rand(self.n_landmarks)[:, None]
+        return self.sample_parameters_landmarks(landmarks)
 
     def sample_theta(self):
         x_try = np.random.rand(1)
         counter = 0
-        while np.min(np.abs(x_try - self.landmarks)) <= 1e-3:
+        while np.min(np.abs(x_try - self.landmarks)) <= 1e-2:
             x_try = np.random.rand(1)
             if counter >= 1000:
                 print("Warning: couldn't find valid setup")
                 return
         return x_try
-
-    def sample_parameters(self, theta=None):
-        if self.param_level == "p":
-            parameters_ = np.r_[1.0, np.random.rand(self.n_landmarks)]
-        elif self.param_level == "no":
-            parameters_ = [1.0]
-        return parameters_
-
-    def get_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-        indices = self.get_variable_indices(var_subset)
-        if self.param_level == "p":
-            return np.r_[1.0, self.landmarks[indices]]
-        elif self.param_level == "no":
-            return np.array([1.0])
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -64,6 +41,16 @@ class Stereo1DLifter(StateLifter):
         if var_subset is None:
             var_subset = self.var_dict.keys()
 
+        if self.param_level == "no":
+            landmarks = {
+                f"p_{i}": self.landmarks[i] for i in range(self.landmarks.shape[0])
+            }
+        else:
+            landmarks = {
+                f"p_{i}": parameters[f"p_{i}"][: self.d]
+                for i in range(self.landmarks.shape[0])
+            }
+
         x_data = []
         for key in var_subset:
             if key == "h":
@@ -72,53 +59,19 @@ class Stereo1DLifter(StateLifter):
                 x_data.append(float(theta[0]))
             elif "z" in key:
                 idx = int(key.split("_")[-1])
-                if self.param_level == "p":
-                    x_data.append(float(1 / (theta[0] - parameters[idx + 1])))
-                elif self.param_level == "no":
-                    x_data.append(float(1 / (theta[0] - self.landmarks[idx])))
+                x_data.append(float(1 / (theta[0] - landmarks[f"p_{idx}"])))
             else:
                 raise ValueError("unknown key in get_x", key)
         return np.array(x_data)
-
-    def get_p(self, parameters=None, var_subset=None):
-        """
-        :param parameters: list of all parameters
-        :param var_subset: subset of variables tat we care about (will extract corresponding parameters)
-        """
-        if parameters is None:
-            parameters = self.parameters
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        if self.param_level == "no":
-            return np.array([1.0])
-
-        landmarks = self.get_variable_indices(var_subset)
-        if len(landmarks):
-            sub_p = np.r_[1.0, parameters[1:][landmarks]]
-            if self.param_level == "p":
-                return sub_p
-            else:
-                raise ValueError(self.param_level)
-        else:
-            return np.array([1.0])
 
     @property
     def var_dict(self):
         vars = ["h", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
-    def get_param_idx_dict(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-        param_dict_ = {"h": 0}
-        if self.param_level == "no":
-            return param_dict_
-
-        indices = self.get_variable_indices(var_subset)
-        for n in indices:
-            param_dict_[f"p_{n}"] = n + 1
-        return param_dict_
+    @property
+    def param_dict(self):
+        return self.param_dict_landmarks
 
     def get_Q(self, noise: float = None) -> tuple:
         from poly_matrix.least_squares_problem import LeastSquaresProblem
@@ -126,7 +79,7 @@ class Stereo1DLifter(StateLifter):
         if noise is None:
             noise = self.NOISE
 
-        y = 1 / (self.theta - self.landmarks) + np.random.normal(
+        y = 1 / (self.theta - self.landmarks.flatten()) + np.random.normal(
             scale=noise, loc=0, size=self.n_landmarks
         )
 
@@ -166,14 +119,13 @@ class Stereo1DLifter(StateLifter):
         return A_known
 
     def get_cost(self, t, y):
-        W = self.W
-        return np.sum((y - (1 / (t - self.landmarks))) ** 2)
+        return np.sum((y - (1 / (t - self.landmarks.flatten()))) ** 2)
 
     def local_solver(
         self, t_init, y, num_iters=100, eps=1e-5, W=None, verbose=False, **kwargs
     ):
         info = {}
-        a = self.landmarks
+        a = self.landmarks.flatten()
         x_op = t_init
         for i in range(num_iters):
             u = y - (1 / (x_op - a))

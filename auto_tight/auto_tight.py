@@ -12,9 +12,6 @@ class AutoTight(object):
     # consider singular value zero below this
     EPS_SVD = 1e-5
 
-    # set elements below this threshold to zero.
-    EPS_SPARSE = 1e-9
-
     # basis pursuit method, can be
     # - qr: qr decomposition
     # - qrp: qr decomposition with permutations (sparser), recommended
@@ -149,7 +146,6 @@ class AutoTight(object):
 
             theta = lifter.sample_theta()
             parameters = lifter.sample_parameters(theta)
-
             if seed < 10 and ax is not None:
                 if np.ndim(lifter.theta) == 1:
                     ax.scatter(np.arange(len(theta)), theta)
@@ -160,7 +156,7 @@ class AutoTight(object):
             X = np.outer(x, x)
 
             # generates [1*x, a1*x, ..., aK*x]
-            p = lifter.get_p(parameters=parameters, var_subset=var_subset)
+            p = lifter.get_p(parameters=parameters)
             assert p[0] == 1
             Y[seed, :] = np.kron(p, lifter.get_vec(X))
         return Y
@@ -190,17 +186,9 @@ class AutoTight(object):
             Y = np.vstack([Y, basis_known.T])
         elif len(A_known):
             A = np.vstack(
-                [
-                    lifter.augment_using_zero_padding(
-                        lifter.get_vec(a), var_subset=var_subset
-                    )
-                    for a in A_known
-                ]
+                [lifter.augment_using_zero_padding(lifter.get_vec(a)) for a in A_known]
             )
             Y = np.vstack([Y, A])
-
-        if method != "qrp":
-            print("using a method other than qrp is not recommended.")
 
         basis, info = get_nullspace(Y, method=method, tolerance=AutoTight.EPS_SVD)
 
@@ -209,7 +197,7 @@ class AutoTight(object):
 
     @staticmethod
     def generate_matrices_simple(
-        lifter,  #:StateLifter,
+        lifter,
         basis,
         normalize=NORMALIZE,
         sparse=True,
@@ -248,7 +236,7 @@ class AutoTight(object):
 
     @staticmethod
     def generate_matrices(
-        lifter,  #:StateLifter,
+        lifter,
         basis,
         normalize=NORMALIZE,
         sparse=True,
@@ -258,6 +246,9 @@ class AutoTight(object):
         """
         Generate constraint matrices from the rows of the nullspace basis matrix.
         """
+        from auto_tight.lifters import StateLifter
+
+        assert isinstance(lifter, StateLifter)
         try:
             n_basis = len(basis)
         except Exception:
@@ -269,7 +260,7 @@ class AutoTight(object):
         A_list = []
         basis_reduced = []
         for i in range(n_basis):
-            ai = lifter.get_reduced_a(basis[i], var_dict, sparse=True)
+            ai = lifter.get_reduced_a(bi=basis[i], var_subset=var_dict, sparse=True)
             basis_reduced.append(ai)
         basis_reduced = sp.vstack(basis_reduced)
 
@@ -300,7 +291,7 @@ class AutoTight(object):
 
     @staticmethod
     def get_basis_list(
-        lifter,  #:StateLifter,
+        lifter,
         var_subset,
         A_known: list = [],
         plot: bool = False,

@@ -4,6 +4,7 @@ from abc import ABC
 import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import (
+    generate_random_pose,
     get_C_r_from_theta,
     get_noisy_pose,
     get_pose_errors_from_theta,
@@ -53,6 +54,8 @@ class StereoLifter(StateLifter, ABC):
     ):
         self.y_ = None
         self.n_landmarks = n_landmarks
+        self.landmarks = None
+
         self.n_parameters = n_landmarks
         assert self.M_matrix is not None, "Inheriting class must initialize M_matrix."
         super().__init__(
@@ -101,17 +104,27 @@ class StereoLifter(StateLifter, ABC):
         else:
             return np.random.rand(self.n_landmarks, self.d)
 
-    def generate_random_setup(self):
-        self.landmarks = self.generate_random_landmarks(theta=self.theta)
-        self.parameters = np.r_[1.0, self.landmarks.flatten()]
-
-    def generate_random_theta(self):
-        from utils.geometry import generate_random_pose
-
-        return generate_random_pose(d=self.d)
+    def sample_parameters(self, theta=None):
+        landmarks = self.generate_random_landmarks(theta=self.theta)
+        return self.sample_parameters_landmarks(landmarks)
 
     def get_parameters(self, var_subset=None):
-        return self.extract_parameters(var_subset, self.landmarks)
+        return self.get_p(param_subset=var_subset)
+
+    @property
+    def param_dict(self):
+        return self.param_dict_landmarks
+
+    @property
+    def var_dict(self):
+        level_dim = self.get_level_dims()[self.level]
+        if self.var_dict_ is None:
+            self.var_dict_ = {self.HOM: 1}
+            self.var_dict.update({"x": self.d**2 + self.d})
+            self.var_dict.update(
+                {f"z_{k}": self.d + level_dim for k in range(self.n_parameters)}
+            )
+        return self.var_dict_
 
     def get_x(self, theta=None, parameters=None, var_subset=None):
         """
@@ -128,9 +141,11 @@ class StereoLifter(StateLifter, ABC):
         # theta is either (x, y, alpha) or (x, y, z, a1, a2, a3)
         C, r = get_C_r_from_theta(theta, self.d)
         if (self.param_level != "no") and (len(parameters) > 1):
-            landmarks = np.array(parameters[1:]).reshape((self.n_landmarks, self.d))
+            landmarks = parameters
         else:
-            landmarks = self.landmarks
+            landmarks = {
+                f"p_{i}": self.landmarks[i, :] for i in range(self.landmarks.shape[0])
+            }
 
         x_data = []
         for key in var_subset:
@@ -141,7 +156,7 @@ class StereoLifter(StateLifter, ABC):
             elif "z" in key:
                 j = int(key.split("_")[-1])
 
-                pj = landmarks[j, :]
+                pj = landmarks[f"p_{j}"][: self.d]  #
 
                 zj = C[self.d - 1, :] @ pj + r[self.d - 1]
                 u = 1 / zj * np.r_[C[: self.d - 1, :] @ pj + r[: self.d - 1], 1]
@@ -268,14 +283,7 @@ class StereoLifter(StateLifter, ABC):
         return A_known
 
     def sample_theta(self):
-        return self.generate_random_theta().flatten()
-
-    def sample_parameters(self, theta=None):
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            parameters = self.generate_random_landmarks(theta=theta).flatten()
-            return np.r_[1.0, parameters]
+        return generate_random_pose(d=self.d).flatten()
 
     def simulate_y(self, noise: float = None):
         if noise is None:

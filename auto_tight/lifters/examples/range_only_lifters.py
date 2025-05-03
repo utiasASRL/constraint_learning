@@ -57,6 +57,8 @@ class RangeOnlyLocLifter(StateLifter):
         # there is no Gauge freedom in range-only localization!
         self.n_positions = n_positions
         self.n_landmarks = n_landmarks
+        self.landmarks = None
+
         if W is not None:
             assert W.shape == (n_landmarks, n_positions)
             self.W = W
@@ -83,34 +85,12 @@ class RangeOnlyLocLifter(StateLifter):
         vars += [f"z_{i}" for i in range(self.n_positions)]
         return [vars]
 
-    def generate_random_setup(self):
-        self.landmarks = np.random.rand(self.n_landmarks, self.d)
-        self.parameters = np.r_[1.0, self.landmarks.flatten()]
-
-    def generate_random_theta(self):
-        return np.random.rand(self.n_positions, self.d).flatten()
-
-    def get_parameters(self, var_subset=None):
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        landmarks = self.get_variable_indices(var_subset)
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            parameters = self.landmarks[landmarks, :].flatten()
-            return np.r_[1.0, parameters]
-
-    def sample_parameters(self, *args, **kwargs):
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            parameters = np.random.rand(self.n_landmarks, self.d).flatten()
-            return np.r_[1.0, parameters]
+    def sample_parameters(self, theta=None):
+        landmarks = np.random.rand(self.n_landmarks, self.d)
+        return self.sample_parameters_landmarks(landmarks)
 
     def sample_theta(self):
-        return self.generate_random_theta()
+        return np.random.rand(self.n_positions, self.d).flatten()
 
     def get_A_known(self, var_dict=None, output_poly=False):
         from poly_matrix.poly_matrix import PolyMatrix

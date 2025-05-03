@@ -1,5 +1,4 @@
 import numpy as np
-
 from auto_tight.lifters import PolyLifter, RobustPoseLifter
 
 # from lifters.matweight_lifter import MatWeightLifter
@@ -60,13 +59,10 @@ def test_hess_finite_diff():
 
 def test_grad_finite_diff():
     for lifter in all_lifters():
-        lifter.generate_random_setup()
-        lifter.sample_theta()
-
         errors = []
         eps_list = np.logspace(-10, -1, 11)
         for eps in eps_list:
-            Q, y = lifter.get_Q(noise=1)
+            Q, y = lifter.get_Q()
 
             theta = lifter.get_vec_around_gt(delta=0)
             cost = lifter.get_cost(theta, y)

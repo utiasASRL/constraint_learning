@@ -2,8 +2,6 @@ import numpy as np
 from auto_tight.lifters.state_lifter import StateLifter
 from utils.common import upper_triangular
 
-from mp_certs.setups import Setup
-
 
 class MotionPlanningLifter(StateLifter):
     """Lifter for simple motion planning problem."""
@@ -11,7 +9,10 @@ class MotionPlanningLifter(StateLifter):
     HOM = "l"
     LEVELS = ["no"]
 
-    def __init__(self, setup: Setup):
+    def __init__(self, setup):
+        from mp_certs.setups import Setup
+
+        assert isinstance(setup, Setup)
         self.setup = setup
         super().__init__(param_level="p")
 

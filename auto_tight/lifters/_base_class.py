@@ -140,6 +140,10 @@ class BaseClass(object):
             return unroll(self.var_dict)
         return self.var_dict
 
+    def get_param_dict(self, param_subset=None):
+        if param_subset is not None:
+            return {k: v for k, v in self.param_dict.items() if k in param_subset}
+        return self.param_dict
 
     ### Functionalities related to random setups
     @property
@@ -159,6 +163,7 @@ class BaseClass(object):
     def parameters(self):
         if self.parameters_ is None:
             self.parameters_ = self.sample_parameters()
+            assert isinstance(self.parameters_, dict)
         return self.parameters_
 
     @parameters.setter
@@ -166,19 +171,8 @@ class BaseClass(object):
         assert (
             self.parameters_ is None
         ), "The property self.parameters is only meant to be set once!"
+        assert isinstance(p, dict)
         self.parameters_ = p
-
-    def extract_parameters(self, var_subset, parameters):
-        if var_subset is None:
-            var_subset = self.var_dict
-
-        parameters_idx = self.get_variable_indices(var_subset)
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            # row-wise flatten: l_0x, l_0y, l_1x, l_1y, ...
-            parameters = parameters[parameters_idx, :].flatten()
-            return np.r_[1.0, parameters]
 
     def extract_A_known(self, A_known, var_subset, output_type="csc"):
         """
@@ -212,38 +206,25 @@ class BaseClass(object):
     def get_param_idx_dict(self, var_subset=None):
         """
         Give the current subset of variables, extract the parameter dictionary to use.
-        Example: var_subset = ['l', 'z_0']
+        Example:
+            var_subset = ['z_0', 'x_1']
+            -> Parameters to include:  self.HOM (always), p_0, p_1
         - if param_level == 'no': {'l': 0}
         - if param_level == 'p': {'l': 0, 'p_0:0': 1, ..., 'p_0:d-1': d}
         - if param_level == 'ppT': {'l': 0, 'p_0:0.p_0:0': 1, ..., 'p_0:d-1:.p_0:d-1': 1}
         """
-        if self.param_level == "no":
-            return {self.HOM: 0}
-
-        if var_subset is None:
-            var_subset = self.var_dict
-        variables = self.get_variable_indices(var_subset)
-        param_keys = [self.HOM] + [
-            f"p_{i}:{d}" for i in variables for d in range(self.d)
+        # TODO(FD) change to use  param_subset instead.
+        param_subset = [self.HOM] + [
+            f"p_{i}" for i in self.get_variable_indices(var_subset)
         ]
-        if self.param_level == "p":
-            param_dict = {p: i for i, p in enumerate(param_keys)}
-        elif self.param_level == "ppT":
-            i = 0
-            param_dict = {}
-            for pi, pj in itertools.combinations_with_replacement(param_keys, 2):
-                if pi == pj == self.HOM:
-                    param_dict[self.HOM] = i
-                else:
-                    param_dict[f"{pi}.{pj}"] = i
-                i += 1
-        return param_dict
+        return unroll(self.get_param_dict(param_subset))
 
     def get_p(self, parameters=None, var_subset=None):
         """
         :param parameters: list of all parameters
         :param var_subset: subset of variables tat we care about (will extract corresponding parameters)
         """
+        raise ValueError("deprecated, need to implement get_p from now on.")
         if parameters is None:
             parameters = self.parameters
         if var_subset is None:
@@ -356,7 +337,7 @@ class BaseClass(object):
         if force_parameters_off:
             param_dict = {self.HOM: 0}
         else:
-            param_dict = self.get_param_idx_dict(var_subset)
+            param_dict = unroll(self.param_dict)  # self.get_param_idx_dict(var_subset)
         for idx, key in enumerate(param_dict.keys()):
             for i in range(len(var_subset)):
                 zi = var_subset[i]
@@ -458,18 +439,16 @@ class BaseClass(object):
         and the m-n-th element of xj times xk.
         """
         parameters = self.get_p()
-        param_dict = self.get_param_idx_dict()
+        param_dict = dict(zip(unroll(self.param_dict), parameters))
 
         poly_mat = PolyMatrix(symmetric=True)
         for key in poly_row.variable_dict_j:
             param, var_keys = key.split("-")
+            param_val = param_dict[param]
+
             keyi_m, keyj_n = var_keys.split(".")
             m = keyi_m.split(":")[-1]
             n = keyj_n.split(":")[-1]
-            if param in [self.HOM, f"{self.HOM}.{self.HOM}"]:
-                param_val = 1.0
-            else:
-                param_val = parameters[param_dict[param]]
 
             # divide off-diagonal elements by sqrt(2)
             newval = poly_row[self.HOM, key] * param_val
@@ -537,19 +516,25 @@ class BaseClass(object):
                         poly_row[self.HOM, label] = v
         return poly_row
 
-    def convert_b_to_polyrow(self, b, var_subset, tol=1e-10) -> PolyMatrix:
+    def convert_b_to_polyrow(
+        self, b, var_subset, param_subset=None, tol=1e-10
+    ) -> PolyMatrix:
         """Convert (augmented) b array to poly-row."""
         if isinstance(b, PolyMatrix):
             raise NotImplementedError(
                 "can't call convert_b_to_polyrow with PolyMatrix yet."
             )
 
-        assert len(b) == self.get_dim_Y(var_subset)
+        assert len(b) == self.get_dim_Y(var_subset, param_subset)
         poly_row = PolyMatrix(symmetric=False)
         mask = np.abs(b) > tol
-        var_list = [v for i, v in enumerate(self.var_list_row(var_subset)) if mask[i]]
-        for key, val in zip(var_list, b[mask]):
-            poly_row[self.HOM, key] = val
+
+        # get the variable names such as p_0:0-x:0.x:4 whch corresponds to p_0[0]*x[0]*x[4]
+        var_list_row = self.var_list_row(var_subset)
+        assert len(b) == len(var_list_row)
+
+        for idx in np.where(mask == True)[0]:
+            poly_row[self.HOM, var_list_row[idx]] = b[idx]
         return poly_row
 
     def zero_pad_subvector(self, b, var_subset, target_subset=None):
@@ -604,22 +589,29 @@ class BaseClass(object):
         var_dict = self.get_var_dict(var_subset)
         return sum([val for val in var_dict.values()])
 
-    def get_dim_Y(self, var_subset=None):
+    def get_dim_p(self, param_subset=None):
+        param_dict = self.get_param_dict(param_subset)
+        return sum([val for val in param_dict.values()])
+
+    def get_dim_Y(self, var_subset=None, param_subset=None):
         dim_X = self.get_dim_X(var_subset=var_subset)
-        dim_P = self.get_dim_P(var_subset=var_subset)
+        dim_P = self.get_dim_P(param_subset=param_subset)
         return int(dim_X * dim_P)
 
     def get_dim_X(self, var_subset=None):
         dim_x = self.get_dim_x(var_subset)
         return int(dim_x * (dim_x + 1) / 2)
 
-    def get_dim_P(self, var_subset=None):
-        return len(self.get_p(var_subset=var_subset))
+    def get_dim_P(self, param_subset=None):
+        return len(self.get_p(param_subset=param_subset))
 
-    def get_reduced_a(self, bi, var_subset=None, sparse=False):
+    def get_reduced_a(self, bi, param_here=None, var_subset=None, sparse=False):
         """
         Extract first block of bi by summing over other blocks times the parameters.
         """
+        if param_here is None:
+            param_here = self.get_p()
+
         if isinstance(bi, np.ndarray):
             len_b = len(bi)
         elif isinstance(bi, PolyMatrix):
@@ -629,16 +621,15 @@ class BaseClass(object):
             # bi can be a scipy sparse matrix,
             len_b = bi.shape[1]
 
-        n_params = self.get_dim_P(var_subset)
+        n_params = self.get_dim_P()
         dim_X = self.get_dim_X(var_subset)
         n_parts = len_b / dim_X
         assert (
             n_parts == n_params
         ), f"{len_b} does not not split in dim_P={n_params} parts of size dim_X={dim_X}"
 
-        parameters = self.get_p(var_subset=var_subset)
         ai = np.zeros(dim_X)
-        for i, p in enumerate(parameters):
+        for i, p in enumerate(param_here):
             if isinstance(bi, np.ndarray):
                 ai += p * bi[i * dim_X : (i + 1) * dim_X]
             else:
@@ -650,11 +641,10 @@ class BaseClass(object):
         else:
             return ai
 
-    def augment_using_zero_padding(self, ai, var_subset=None):
-        n_parameters = self.get_dim_P(var_subset=var_subset)
+    def augment_using_zero_padding(self, ai):
+        n_parameters = self.get_dim_P()
         return np.hstack([ai, np.zeros((n_parameters - 1) * len(ai))])
 
-    def augment_using_parameters(self, x, var_subset=None):
-        parameters = self.get_parameters()
-        p = self.get_p(parameters, var_subset=var_subset)
+    def augment_using_parameters(self, x):
+        p = self.get_p()
         return np.kron(p, x)

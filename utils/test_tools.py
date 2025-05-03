@@ -1,5 +1,4 @@
 import numpy as np
-
 from auto_tight.lifters.examples import (
     MonoLifter,
     Poly4Lifter,
@@ -36,6 +35,22 @@ Lifters = [
     (Stereo2DLifter, dict(n_landmarks=n_landmarks)),
     (Stereo3DLifter, dict(n_landmarks=n_landmarks)),
 ]
+
+
+
+def _test_with_tol(lifter, A_list, tol):
+    x = lifter.get_x().astype(float).reshape((-1, 1))
+    for Ai in A_list:
+        err = abs((x.T @ Ai @ x)[0, 0])
+        assert err < tol, err
+
+        ai = lifter.get_vec(Ai.toarray())
+        xvec = lifter.get_vec(np.outer(x, x))
+        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
+
+        ai = lifter.get_vec(Ai)
+        xvec = lifter.get_vec(np.outer(x, x))
+        np.testing.assert_allclose(ai @ xvec, 0.0, atol=tol)
 
 
 # Below, we always reset seeds to make sure tests are reproducible.

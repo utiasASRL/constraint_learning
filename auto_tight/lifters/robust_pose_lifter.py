@@ -29,7 +29,7 @@ BETA = 0.1
 
 class RobustPoseLifter(StateLifter, ABC):
     LEVELS = ["no", "xwT", "xxT"]
-    PARAM_LEVELS = ["no"]
+    PARAM_LEVELS = ["no", "p", "ppT"]
     LEVEL_NAMES = {"no": "no", "xwT": "x kron w", "xxT": "x kron x"}
     MAX_DIST = 10.0  # maximum of norm of t.
 
@@ -69,6 +69,7 @@ class RobustPoseLifter(StateLifter, ABC):
         """
         self.beta = beta
         self.n_landmarks = n_landmarks
+        self.landmarks = None
 
         self.robust = robust
         self.level = level
@@ -89,15 +90,17 @@ class RobustPoseLifter(StateLifter, ABC):
         )
 
     def penalty(self, t, rho=PENALTY_RHO, u=PENALTY_U):
+        import autograd.numpy as anp
+
         try:
-            return np.sum(
-                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
+            return anp.sum(
+                [rho * u * anp.log10(1 + anp.exp(hi / u)) for hi in self.h_list(t)]
             )
         except RuntimeWarning:
             PENALTY_U *= 0.1
             u = PENALTY_U
-            return np.sum(
-                [rho * u * np.log10(1 + np.exp(hi / u)) for hi in self.h_list(t)]
+            return anp.sum(
+                [rho * u * anp.log10(1 + anp.exp(hi / u)) for hi in self.h_list(t)]
             )
 
     @property
@@ -132,16 +135,17 @@ class RobustPoseLifter(StateLifter, ABC):
         """Sample a new feasible theta."""
         theta = self.generate_random_theta()
         if self.robust:
-            w = np.random.choice([-1, 1], size=self.n_landmarks)
+            outlier_index = np.random.choice(
+                self.n_landmarks, replace=False, size=self.n_outliers
+            )
+            w = np.ones(self.n_landmarks)
+            w[outlier_index] = -1
             theta[-len(w) :] = w
         return theta
 
-    def sample_parameters(self, x=None):
-        """Sample new parameters, given x."""
-        if self.param_level == "no":
-            return [1.0]
-        else:
-            raise NotImplementedError("no parameters implement yet for mono.")
+    def sample_parameters(self, theta=None):
+        landmarks = np.random.normal(loc=0, scale=1.0, size=(self.n_landmarks, self.d))
+        return self.sample_parameters_landmarks(landmarks)
 
     def get_x(self, theta=None, parameters=None, var_subset=None) -> np.ndarray:
         """Get the lifted vector x given theta and parameters."""
@@ -157,6 +161,7 @@ class RobustPoseLifter(StateLifter, ABC):
         else:
             theta_here = theta
 
+        # RT below is R_cw. (c=camera, w=world)
         RT, t = get_C_r_from_theta(theta_here, self.d)
         R = RT.T
 
@@ -184,9 +189,11 @@ class RobustPoseLifter(StateLifter, ABC):
         assert len(x_data) == dim_x
         return np.array(x_data)
 
-    def get_parameters(self, var_subset=None) -> list:
-        """Get the current paratmers given the (fixed) setup."""
-        return self.extract_parameters(var_subset, self.landmarks)
+    def get_outlier_index(self):
+        if self.robust:
+            return np.where(self.theta[-self.n_landmarks :] == -1)[0]
+        else:
+            return []
 
     def generate_random_theta(self):
         """Generate a random new feasible point, this is the ground truth."""
@@ -333,9 +340,10 @@ class RobustPoseLifter(StateLifter, ABC):
         if verbose:
             print("local solver sanity check:")
             print("final penalty:", self.penalty(t))
+        w = self.theta[-self.n_landmarks :]
         for i in range(self.n_landmarks):
             residual = self.residual_sq(R, t, self.landmarks[i], y[i])
-            if i < self.n_outliers:
+            if w[i] == -1:
                 if verbose:
                     print(f"outlier residual: {residual:.4e}")
                 assert (
@@ -469,17 +477,14 @@ class RobustPoseLifter(StateLifter, ABC):
 
         By default, we always add |t| <= MAX_DIST
         """
-        return [np.sqrt(np.sum(t[: self.d] ** 2)) - self.MAX_DIST]
+        import autograd.numpy as anp
+
+        return [anp.sqrt(anp.sum(t[: self.d] ** 2)) - self.MAX_DIST]
 
     @abstractmethod
     def get_random_position(self):
         """Generate a new random position. Orientation angles will be drawn uniformly from [0, pi]."""
         return None
-
-    @abstractmethod
-    def generate_random_setup(self):
-        """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        return
 
     @abstractmethod
     def term_in_norm(self, R, t, pi, ui):
@@ -495,14 +500,6 @@ class RobustPoseLifter(StateLifter, ABC):
 
     @abstractmethod
     def get_Q_from_y(self, y):
-        return
-
-    @abstractmethod
-    def __repr__(self):
-        return
-
-    @abstractmethod
-    def __repr__(self):
         return
 
     @abstractmethod

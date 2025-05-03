@@ -6,13 +6,9 @@ from .state_lifter import StateLifter
 
 
 class PolyLifter(StateLifter):
-    def __init__(self, degree):
+    def __init__(self, degree, param_level="no"):
         self.degree = degree
-        super().__init__(d=1)
-        self.parameters = [1.0]
-
-        # TODO (FD): remove requirement for this variable
-        self.n_landmarks = 0
+        super().__init__(d=1, param_level=param_level)
 
     @property
     def var_dict(self):
@@ -27,12 +23,6 @@ class PolyLifter(StateLifter):
 
     def sample_theta(self):
         return np.random.rand(1)
-
-    @property
-    def theta(self):
-        if self.theta_ is None:
-            self.theta_ = self.sample_theta()
-        return self.theta_
 
     @abstractmethod
     def get_Q_mat(self):

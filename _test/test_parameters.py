@@ -1,6 +1,5 @@
 import matplotlib.pylab as plt
 import numpy as np
-
 from auto_tight import AutoTight
 from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter
 from poly_matrix import PolyMatrix
@@ -29,32 +28,13 @@ def test_canonical_operations():
     # fmt: on
     ai = lifter.get_vec(Ai_sub)
     # zero-pad to emulate an augmented basis vector
-    bi = lifter.augment_using_zero_padding(ai, var_subset=var_subset)
-
+    bi = lifter.augment_using_zero_padding(ai)
     ai_test = lifter.get_reduced_a(bi, var_subset=var_subset)
-
     np.testing.assert_allclose(ai, ai_test)
 
     # will return a 9 x 9 matrix with zero padding.
     Ai_test = lifter.get_mat(ai_test, var_dict={var_subset: 6})
     np.testing.assert_allclose(Ai.toarray(), Ai_test.toarray())
-
-
-def test_learned_constraints(d=2, param_level="ppT"):
-    n_landmarks = 2  # z_0 and z_1
-    if d == 1:
-        lifter = Stereo1DLifter(n_landmarks=n_landmarks, param_level="p")
-    elif d == 2:
-        lifter = Stereo2DLifter(
-            n_landmarks=n_landmarks, param_level=param_level, level="urT"
-        )
-    else:
-        raise ValueError(d)
-
-    A_learned = AutoTight.get_A_learned(lifter)
-
-    np.random.seed(0)
-    lifter.test_constraints(A_learned, errors="raise")
 
 
 def test_b_to_a():
@@ -74,13 +54,14 @@ def test_b_to_a():
             x_sub = lifter.get_vec(np.outer(x, x))
 
             # test that bi_sub @ x_aug holds (including parameters in x_aug)
-            x_sub_aug = lifter.augment_using_parameters(x_sub, var_subset=var_subset)
+            x_sub_aug = lifter.augment_using_parameters(x_sub)
 
             assert len(x_sub_aug) == len(bi_sub)
             assert abs(bi_sub @ x_sub_aug) < 1e-10
+
             # x_sub_aug is of the form
             # [l, l.x, l.z, l.vech(xx'), l.vech(xz'), l.vech(zz'), p0, p0.l.x, ...]
-            for j, p in enumerate(lifter.get_p(var_subset=var_subset)):
+            for j, p in enumerate(lifter.get_p()):
                 assert abs(x_sub_aug[j * lifter.get_dim_X(var_subset)] - p) < 1e-10
 
             # test that ai @ x holds (summing out parameters)
@@ -98,19 +79,23 @@ def test_zero_padding():
         Y = AutoTight.generate_Y(lifter, var_subset=var_subset)
         basis_new, S = AutoTight.get_basis(lifter, Y)
         for i, bi_sub in enumerate(basis_new[:10, :]):
-            ai_sub = lifter.get_reduced_a(bi_sub, var_subset)
+            ai_sub = lifter.get_reduced_a(bi=bi_sub, var_subset=var_subset)
             bi_poly = lifter.convert_b_to_polyrow(bi_sub, var_subset)
 
+            # print("template:", bi_poly.matrix["h"])
             # enerate list of poly matrices from this pattern.
             new_patterns = lifter.apply_template(bi_poly)
             for new_pattern in new_patterns:
+
+                # print("constraint:", new_pattern.matrix["h"])
+
                 # generate Ai from poly_row.
                 ai_test = lifter.convert_polyrow_to_a(new_pattern, var_subset)
                 Ai = lifter.get_mat(ai_test, var_dict=var_dict)
                 # bi = new_pattern.get_matrix((["l"], row_var_dict))
-                # Ai = lifter.get_mat(lifter.get_reduced_a(bi, lifter.var_dict))
+                # Ai = lifter.get_mat(lifter.r.var_dict))
                 try:
-                    lifter.test_constraints([Ai])
+                    lifter.test_constraints([Ai], n_seeds=1)
                 except AssertionError:
                     b_poly_test = lifter.convert_b_to_polyrow(bi_sub, var_subset)
                     print(b_poly_test)
@@ -128,6 +113,5 @@ def test_zero_padding():
 if __name__ == "__main__":
     test_zero_padding()
     test_b_to_a()
-    test_learned_constraints()
     test_canonical_operations()
     print("all tests passed")

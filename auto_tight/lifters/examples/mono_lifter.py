@@ -31,19 +31,13 @@ class MonoLifter(RobustPoseLifter):
         - tan(a/2)*t3 >= sqrt(t1**2 + t2**2)
         as constraints h_j(t)<=0
         """
+        import autograd.numpy as anp
+
         default = super().h_list(t)
         return default + [
-            np.sum(t[:-1] ** 2) - np.tan(FOV / 2) ** 2 * t[-1] ** 2,
+            anp.sum(t[:-1] ** 2) - anp.tan(FOV / 2) ** 2 * t[-1] ** 2,
             -t[-1],
         ]
-
-    def generate_random_setup(self):
-        """Generate a new random setup. This is called once and defines the toy problem to be tightened."""
-        self.landmarks = np.random.normal(
-            loc=0, scale=1, size=(self.n_landmarks, self.d)
-        )
-        self.parameters = np.r_[1.0, self.landmarks.flatten()]
-        return
 
     def get_random_position(self):
         pc_cw = np.random.rand(self.d) * 0.1
@@ -90,6 +84,43 @@ class MonoLifter(RobustPoseLifter):
         else:
             return term.T @ W @ term
 
+    def plot_setup(self):
+        if self.d != 2:
+            print("Plotting currently only supported for d=2")
+            return
+        import matplotlib.pylab as plt
+        from utils.plotting_tools import plot_frame
+
+        fig, ax = plt.subplots()
+
+        # R, t = get_C_r_from_theta(self.theta, self.d)
+        # ax.scatter(*t, color="k", label="pose")
+
+        ax.axis("equal")
+        t_wc_w, C_cw = plot_frame(ax, self.theta, label="pose", color="gray", d=2)
+
+        if self.y_ is not None:
+            for i in range(self.y_.shape[0]):
+                ax.scatter(*self.landmarks[i], color=f"C{i}", label="landmarks")
+
+                # this vector is in camera coordinates
+                ui_c = self.y_[i]
+                assert abs(np.linalg.norm(ui_c) - 1.0) < 1e-10
+
+                ui_w = C_cw.T @ ui_c
+
+                ax.plot(
+                    [t_wc_w[0], self.landmarks[i][0]],
+                    [t_wc_w[1], self.landmarks[i][1]],
+                    color=f"C{i}",
+                    ls=":",
+                )
+                ax.plot(
+                    [t_wc_w[0], t_wc_w[0] + ui_w[0]],
+                    [t_wc_w[1], t_wc_w[1] + ui_w[1]],
+                    color=f"r" if i < self.n_outliers else "g",
+                )
+
     def get_Q(
         self, noise: float = None, output_poly: bool = False, use_cliques: list = []
     ):
@@ -99,6 +130,8 @@ class MonoLifter(RobustPoseLifter):
         if self.y_ is None:
             self.y_ = np.zeros((self.n_landmarks, self.d))
             theta = self.theta[: self.d + self.d**2]
+            outlier_index = self.get_outlier_index()
+
             R, t = get_C_r_from_theta(theta, self.d)
             for i in range(self.n_landmarks):
                 pi = self.landmarks[i]
@@ -106,25 +139,21 @@ class MonoLifter(RobustPoseLifter):
                 ui = R @ pi + t
                 ui /= ui[self.d - 1]
 
-                if i < self.n_outliers:
-                    # generate random unit vector inside the FOV cone
-                    # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+                # random unit vector inside the FOV cone
+                # tan(a/2)*t3 >= sqrt(t1**2 + t2**2) or t3 >= 1
+                if np.tan(FOV / 2) * ui[self.d - 1] < np.sqrt(
+                    np.sum(ui[: self.d - 1] ** 2)
+                ):
+                    print("warning: inlier not in FOV!!")
 
+                if i in outlier_index:
                     # randomly sample a vector
-                    if np.tan(FOV / 2) * ui[self.d - 1] < np.sqrt(
-                        np.sum(ui[: self.d - 1] ** 2)
-                    ):
-                        print("warning: inlier not in FOV!!")
-
                     success = False
                     for _ in range(N_TRYS):
                         ui_test = deepcopy(ui)
                         ui_test[: self.d - 1] += np.random.normal(
                             scale=NOISE_OUT, loc=0, size=self.d - 1
                         )
-                        # ui_test[: self.d - 1] += np.random.uniform(
-                        #    low=-NOISE_OUT, high=NOISE_OUT, size=self.d - 1
-                        # )
                         if np.tan(FOV / 2) * ui_test[self.d - 1] >= np.sqrt(
                             np.sum(ui_test[: self.d - 1] ** 2)
                         ):
