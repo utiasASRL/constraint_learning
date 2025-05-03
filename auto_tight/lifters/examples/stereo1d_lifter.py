@@ -52,7 +52,7 @@ class Stereo1DLifter(StateLifter):
 
         x_data = []
         for key in var_subset:
-            if key == "h":
+            if key == self.HOM:
                 x_data.append(1.0)
             elif key == "x":
                 x_data.append(float(theta[0]))
@@ -65,7 +65,7 @@ class Stereo1DLifter(StateLifter):
 
     @property
     def var_dict(self):
-        vars = ["h", "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
+        vars = [self.HOM, "x"] + [f"z_{j}" for j in range(self.n_landmarks)]
         return {v: 1 for v in vars}
 
     @property
@@ -84,7 +84,7 @@ class Stereo1DLifter(StateLifter):
 
         ls_problem = LeastSquaresProblem()
         for j in range(len(y)):
-            ls_problem.add_residual({"h": -y[j], f"z_{j}": 1})
+            ls_problem.add_residual({self.HOM: -y[j], f"z_{j}": 1})
         return ls_problem.get_Q().get_matrix(self.var_dict), y
 
     def get_A_known(self, add_known_redundant=False):
@@ -98,9 +98,9 @@ class Stereo1DLifter(StateLifter):
         # enforce that z_j = 1/(x - a_j) <=> 1 - z_j*x + a_j*z_j = 0
         for j in range(self.n_landmarks):
             A = PolyMatrix()
-            A["h", f"z_{j}"] = 0.5 * self.landmarks[j]
+            A[self.HOM, f"z_{j}"] = 0.5 * self.landmarks[j]
             A["x", f"z_{j}"] = -0.5
-            A["h", "h"] = 1.0
+            A[self.HOM, self.HOM] = 1.0
             A_known.append(A.get_matrix(variables=self.var_dict))
 
         if not add_known_redundant:
@@ -111,8 +111,8 @@ class Stereo1DLifter(StateLifter):
         for i in range(self.n_landmarks):
             for j in range(i + 1, self.n_landmarks):
                 A = PolyMatrix()
-                A["h", f"z_{j}"] = 1
-                A["h", f"z_{i}"] = -1
+                A[self.HOM, f"z_{j}"] = 1
+                A[self.HOM, f"z_{i}"] = -1
                 A[f"z_{i}", f"z_{j}"] = self.landmarks[i] - self.landmarks[j]
                 A_known.append(A.get_matrix(variables=self.var_dict))
         return A_known

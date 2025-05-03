@@ -3,7 +3,9 @@ from auto_tight.lifters import PolyLifter
 
 
 class Poly4Lifter(PolyLifter):
-    VARIABLE_LIST = [["h", "t", "z0"]]
+    @property
+    def VARIABLE_LIST(self):
+        return [[self.HOM, "t", "z0"]]
 
     def __init__(self):
         # actual minimum
@@ -18,7 +20,7 @@ class Poly4Lifter(PolyLifter):
 
         # z_0 = t^2
         A_1 = PolyMatrix(symmetric=True)
-        A_1["h", "z0"] = -1
+        A_1[self.HOM, "z0"] = -1
         A_1["t", "t"] = 2
         if output_poly:
             return [A_1]

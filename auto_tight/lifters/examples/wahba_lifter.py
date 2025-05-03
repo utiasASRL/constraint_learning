@@ -177,19 +177,19 @@ class WahbaLifter(RobustPoseLifter):
                 Q["t", "c"] += Qi[: self.d, self.d :]
                 Q["c", "c"] += Qi[self.d :, self.d :]
 
-                # Q["x", "h"] += Pi_xl
-                Q["t", "h"] += Pi_xl[: self.d, :]
-                Q["c", "h"] += Pi_xl[self.d :, :]
-                Q["h", "h"] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
-                Q["h", f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
+                # Q["x", self.HOM] += Pi_xl
+                Q["t", self.HOM] += Pi_xl[: self.d, :]
+                Q["c", self.HOM] += Pi_xl[self.d :, :]
+                Q[self.HOM, self.HOM] += 1 + Pi_ll  # 1 from (1 - wi), Pi_ll from first term.
+                Q[self.HOM, f"w_{i}"] += -0.5  # from (1 - wi), 0.5 cause on off-diagonal
                 if self.level == "xwT":
                     # Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, : self.d]
                     Q[f"z_{i}", "c"] += 0.5 * Qi[:, self.d :]
 
-                    Q["h", f"w_{i}"] += 0.5 * Pi_ll  # from first term
+                    Q[self.HOM, f"w_{i}"] += 0.5 * Pi_ll  # from first term
 
-                    Q[f"z_{i}", "h"] += Pi_xl
+                    Q[f"z_{i}", self.HOM] += Pi_xl
                 elif self.level == "xxT":
                     Q["z_0", f"w_{i}"] += 0.5 * Qi.flatten()[:, None]
 
@@ -197,17 +197,17 @@ class WahbaLifter(RobustPoseLifter):
                     Q["t", f"w_{i}"] += Pi_xl[: self.d, :]
                     Q["c", f"w_{i}"] += Pi_xl[self.d :, :]
 
-                    Q["h", f"w_{i}"] += 0.5 * Pi_ll
+                    Q[self.HOM, f"w_{i}"] += 0.5 * Pi_ll
             else:
                 # Q["x", "x"] += Qi
                 Q["t", "t"] += Qi[: self.d, : self.d]
                 Q["t", "c"] += Qi[: self.d, self.d :]
                 Q["c", "c"] += Qi[self.d :, self.d :]
 
-                # Q["x", "h"] += Pi_xl
-                Q["t", "h"] += Pi_xl[: self.d, :]
-                Q["c", "h"] += Pi_xl[self.d :, :]
-                Q["h", "h"] += Pi_ll  # on diagonal
+                # Q["x", self.HOM] += Pi_xl
+                Q["t", self.HOM] += Pi_xl[: self.d, :]
+                Q["c", self.HOM] += Pi_xl[self.d :, :]
+                Q[self.HOM, self.HOM] += Pi_ll  # on diagonal
         if output_poly:
             return 0.5 * Q
         Q_sparse = 0.5 * Q.get_matrix(variables=self.var_dict)

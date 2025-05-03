@@ -1,10 +1,11 @@
 import numpy as np
-
 from auto_tight.lifters import PolyLifter
 
 
 class Poly6Lifter(PolyLifter):
-    VARIABLE_LIST = [["h", "t", "z0", "z1"]]
+    @property
+    def VARIABLE_LIST(self):
+        return [[self.HOM, "t", "z0", "z1"]]
 
     def __init__(self, poly_type="A"):
         assert poly_type in ["A", "B"]
@@ -36,12 +37,12 @@ class Poly6Lifter(PolyLifter):
 
         # z_0 = t^2
         A_1 = PolyMatrix(symmetric=True)
-        A_1["h", "z0"] = -1
+        A_1[self.HOM, "z0"] = -1
         A_1["t", "t"] = 2
 
         # z_1 = t^3 = t z_0
         A_2 = PolyMatrix(symmetric=True)
-        A_2["h", "z1"] = -1
+        A_2[self.HOM, "z1"] = -1
         A_2["t", "z0"] = 1
 
         # t^4 = z_1 t = z_0 z_0

@@ -114,7 +114,7 @@ class StateLifter(BaseClass):
                             )
                 except ValueError as e:
                     pass
-                new_poly_row[self.HOM, key_ij] = bi_poly["h", key]
+                new_poly_row[self.HOM, key_ij] = bi_poly[self.HOM, key]
             new_poly_rows.append(new_poly_row)
         return new_poly_rows
 

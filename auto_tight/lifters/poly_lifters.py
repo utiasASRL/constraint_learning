@@ -13,7 +13,7 @@ class PolyLifter(StateLifter):
     @property
     def var_dict(self):
         if self.var_dict_ is None:
-            self.var_dict_ = {"h": 1, "t": 1}
+            self.var_dict_ = {self.HOM: 1, "t": 1}
             self.var_dict_.update({f"z{i}": 1 for i in range(self.M)})
         return self.var_dict_
 

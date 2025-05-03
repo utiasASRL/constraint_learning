@@ -7,8 +7,6 @@ from poly_matrix.poly_matrix import PolyMatrix
 from utils.geometry import get_C_r_from_theta
 
 FOV = np.pi / 2  # camera field of view
-NOISE = 1e-3  # inlier noise
-NOISE_OUT = 0.1  # outlier noise
 
 N_TRYS = 10
 
@@ -20,6 +18,9 @@ NORMALIZE = False
 
 
 class MonoLifter(RobustPoseLifter):
+    NOISE = 1e-3  # inlier noise
+    NOISE_OUT = 0.1  # outlier noise
+
     @property
     def TIGHTNESS(self):
         return "cost" if self.robust else "rank"
@@ -67,7 +68,7 @@ class MonoLifter(RobustPoseLifter):
         constraint = np.zeros(self.d)
         constraint[self.d - 1] = -1
         B2 = PolyMatrix(symmetric=True)
-        B2["h", "t"] = constraint[None, :]
+        B2[self.HOM, "t"] = constraint[None, :]
         return default + [
             B2.get_matrix(self.var_dict),
             B3.get_matrix(self.var_dict),
@@ -125,7 +126,7 @@ class MonoLifter(RobustPoseLifter):
         self, noise: float = None, output_poly: bool = False, use_cliques: list = []
     ):
         if noise is None:
-            noise = NOISE
+            noise = self.NOISE
 
         if self.y_ is None:
             self.y_ = np.zeros((self.n_landmarks, self.d))
@@ -152,7 +153,7 @@ class MonoLifter(RobustPoseLifter):
                     for _ in range(N_TRYS):
                         ui_test = deepcopy(ui)
                         ui_test[: self.d - 1] += np.random.normal(
-                            scale=NOISE_OUT, loc=0, size=self.d - 1
+                            scale=self.NOISE_OUT, loc=0, size=self.d - 1
                         )
                         if np.tan(FOV / 2) * ui_test[self.d - 1] >= np.sqrt(
                             np.sum(ui_test[: self.d - 1] ** 2)
@@ -203,8 +204,8 @@ class MonoLifter(RobustPoseLifter):
             if self.robust:
                 Qi /= self.beta**2
                 # last two terms, should not be affected by norm
-                Q["h", "h"] += 1
-                Q["h", f"w_{i}"] += -0.5
+                Q[self.HOM, self.HOM] += 1
+                Q[self.HOM, f"w_{i}"] += -0.5
                 if self.level == "xwT":
                     # Q[f"z_{i}", "x"] += 0.5 * Qi
                     Q[f"z_{i}", "t"] += 0.5 * Qi[:, : self.d]

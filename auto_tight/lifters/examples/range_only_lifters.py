@@ -82,14 +82,14 @@ class RangeOnlyLocLifter(StateLifter):
     @property
     def VARIABLE_LIST(self):
         return [
-            ["h", "x_0"],
-            ["h", "x_0", "z_0"],
-            ["h", "x_0", "z_0", "z_1"],
-            ["h", "x_0", "x_1", "z_0", "z_1"],
+            [self.HOM, "x_0"],
+            [self.HOM, "x_0", "z_0"],
+            [self.HOM, "x_0", "z_0", "z_1"],
+            [self.HOM, "x_0", "x_1", "z_0", "z_1"],
         ]
 
     def get_all_variables(self):
-        vars = ["h"]
+        vars = [self.HOM]
         vars += [f"x_{i}" for i in range(self.n_positions)]
         vars += [f"z_{i}" for i in range(self.n_positions)]
         return [vars]
@@ -118,7 +118,7 @@ class RangeOnlyLocLifter(StateLifter):
             if self.level == "no":
                 A = PolyMatrix(symmetric=True)
                 A[f"x_{n}", f"x_{n}"] = np.eye(self.d)
-                A["h", f"z_{n}"] = -0.5
+                A[self.HOM, f"z_{n}"] = -0.5
                 if output_poly:
                     A_list.append(A)
                 else:
@@ -138,7 +138,7 @@ class RangeOnlyLocLifter(StateLifter):
                             mat_x[j, i] = 0.5
                         mat_z[0, count] = -0.5
                         A[f"x_{n}", f"x_{n}"] = mat_x
-                        A["h", f"z_{n}"] = mat_z
+                        A[self.HOM, f"z_{n}"] = mat_z
                         count += 1
                         if output_poly:
                             A_list.append(A)
@@ -160,7 +160,7 @@ class RangeOnlyLocLifter(StateLifter):
 
         x_data = []
         for key in var_subset:
-            if key == "h":
+            if key == self.HOM:
                 x_data.append(1.0)
             elif "x" in key:
                 n = int(key.split("_")[-1])
@@ -320,7 +320,7 @@ class RangeOnlyLocLifter(StateLifter):
                 if self.level == "no":
                     self.ls_problem.add_residual(
                         {
-                            "h": y[n, k] - np.linalg.norm(ak) ** 2,
+                            self.HOM: y[n, k] - np.linalg.norm(ak) ** 2,
                             f"x_{n}": 2 * ak.reshape((1, -1)),
                             f"z_{n}": -1,
                         }
@@ -329,7 +329,7 @@ class RangeOnlyLocLifter(StateLifter):
                     mat = np.zeros((1, self.size_z))
                     mat[0, diag_idx] = -1
                     res_dict = {
-                        "h": y[n, k] - np.linalg.norm(ak) ** 2,
+                        self.HOM: y[n, k] - np.linalg.norm(ak) ** 2,
                         f"x_{n}": 2 * ak.reshape((1, -1)),
                         f"z_{n}": mat,
                     }
@@ -443,7 +443,7 @@ class RangeOnlyLocLifter(StateLifter):
 
     @property
     def var_dict(self):
-        var_dict = {"h": 1}
+        var_dict = {self.HOM: 1}
         var_dict.update({f"x_{n}": self.d for n in range(self.n_positions)})
         var_dict.update({f"z_{n}": self.size_z for n in range(self.n_positions)})
         return var_dict

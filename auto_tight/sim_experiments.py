@@ -429,8 +429,6 @@ def apply_autotemplate_base(
 
                     np.random.seed(seed)
                     new_lifter = create_newinstance(learner.lifter, n_params)
-                    # doesn't matter because we don't use the usual pipeline.
-                    # variable_list = [["h", "x"] + [f"z_{i}" for i in range(n_landmarks)]]
                     new_learner = Learner(
                         lifter=new_lifter,
                         variable_list=new_lifter.variable_list,

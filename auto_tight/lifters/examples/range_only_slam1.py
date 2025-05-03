@@ -80,7 +80,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
 
     @property
     def var_dict(self):
-        var_dict = {"h": 1}
+        var_dict = {self.HOM: 1}
         var_dict.update(self.base_var_dict)
         var_dict.update(self.sub_var_dict)
         return var_dict
@@ -120,14 +120,14 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                 # d_nk**2 - ||t_n||**2 + 2t_n@a_k - ||a_k||**2
                 #   l         tau_n        e_nk        alpha_k
                 self.ls_problem.add_residual(
-                    {"h": y[n, k], f"tau{n}": -1, f"alpha{k}": -1, f"e{n}{k}": 2}
+                    {self.HOM: y[n, k], f"tau{n}": -1, f"alpha{k}": -1, f"e{n}{k}": 2}
                 )
             elif self.level == "outer":
                 # d_nk**2 - ||t_n||**2 + 2t_n@a_k - ||a_k||**2
                 #   l       -I @ tau_n  +2I @ e_nk  -I @ alpha_k
                 self.ls_problem.add_residual(
                     {
-                        "h": y[n, k],
+                        self.HOM: y[n, k],
                         f"tau{n}": -I,
                         f"alpha{k}": -I,
                         f"e{n}{k}": 2 * I,
@@ -146,7 +146,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
             if self.level == "inner":
                 A = PolyMatrix()
                 A[f"x{n}", f"x{n}"] = np.eye(self.d)
-                A["h", f"tau{n}"] = -0.5
+                A[self.HOM, f"tau{n}"] = -0.5
                 A_list.append(A.get_matrix(self.var_dict))
             else:
                 for j, k in itertools.product(range(self.d), range(self.d)):
@@ -157,7 +157,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                     X[k, j] += 1.0
                     x[j * self.d + k] += -1.0
                     A[f"x{n}", f"x{n}"] += X
-                    A["h", f"tau{n}"] += x.reshape((1, -1))
+                    A[self.HOM, f"tau{n}"] += x.reshape((1, -1))
                     A_list.append(A.get_matrix(self.var_dict))
 
         if self.level == "outer":
@@ -171,7 +171,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                     A[f"a{k}", f"a{k}"] = np.eye(self.var_dict[f"a{k}"])
             else:
                 A[f"a{k}", f"a{k}"] = np.eye(self.d)
-            A["h", f"alpha{k}"] = -0.5
+            A[self.HOM, f"alpha{k}"] = -0.5
             A_list.append(A.get_matrix(self.var_dict))
         for n, k in self.edges:
             A = PolyMatrix()
@@ -180,7 +180,7 @@ class RangeOnlySLAM1Lifter(RangeOnlyLifter):
                     A[f"x{n}", f"a{k}"] = np.eye(self.d)[:, : self.var_dict[f"a{k}"]]
             else:
                 A[f"x{n}", f"a{k}"] = np.eye(self.d)
-            A["h", f"e{n}{k}"] = -1
+            A[self.HOM, f"e{n}{k}"] = -1
             A_list.append(A.get_matrix(self.var_dict))
         return A_list
 

@@ -42,12 +42,6 @@ class StereoLifter(StateLifter, ABC):
         "urT": "$\\boldsymbol{u}\\boldsymbol{t}^\\top_n$",
         "uxT": "$\\boldsymbol{u}\\boldsymbol{x}^\\top_n$",
     }
-    VARIABLE_LIST = [
-        ["h", "x"],
-        ["h", "z_0"],
-        ["h", "x", "z_0"],
-        ["h", "z_0", "z_1"],  # should achieve tightness here
-    ]
 
     def __init__(
         self, n_landmarks, d, level="no", param_level="no", variable_list=None
@@ -63,7 +57,7 @@ class StereoLifter(StateLifter, ABC):
         )
 
     def get_all_variables(self):
-        return [["h", "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
+        return [[self.HOM, "x"] + [f"z_{i}" for i in range(self.n_landmarks)]]
 
     def get_level_dims(self, n=1):
         """
@@ -112,6 +106,15 @@ class StereoLifter(StateLifter, ABC):
         return self.get_p(param_subset=var_subset)
 
     @property
+    def VARIABLE_LIST(self):
+        return [
+            [self.HOM, "x"],
+            [self.HOM, "z_0"],
+            [self.HOM, "x", "z_0"],
+            [self.HOM, "z_0", "z_1"],  # should achieve tightness here
+        ]
+
+    @property
     def param_dict(self):
         return self.param_dict_landmarks
 
@@ -149,7 +152,7 @@ class StereoLifter(StateLifter, ABC):
 
         x_data = []
         for key in var_subset:
-            if key == "h":
+            if key == self.HOM:
                 x_data.append(1.0)
             elif key == "x":
                 x_data += list(r) + list(C.flatten("C"))  # row-wise flatten
@@ -242,7 +245,7 @@ class StereoLifter(StateLifter, ABC):
         A_known = []
         z_dim = self.get_level_dims()[self.level]
 
-        if "x" not in var_dict or "h" not in var_dict:
+        if "x" not in var_dict or self.HOM not in var_dict:
             return A_known
         landmarks = [j for j in range(self.n_landmarks) if f"z_{j}" in var_dict]
         for j in landmarks:
@@ -272,9 +275,9 @@ class StereoLifter(StateLifter, ABC):
 
                     # chooses ti of x
                     fill_mat[i, 0] = -1
-                    A["x", "h"] = fill_mat
+                    A["x", self.HOM] = fill_mat
                 elif i == self.d - 1:  # z
-                    A["h", "h"] = -0  # 2.0
+                    A[self.HOM, self.HOM] = -0  # 2.0
                 if output_poly:
                     A_known.append(A)
                 else:
@@ -339,7 +342,7 @@ class StereoLifter(StateLifter, ABC):
 
         ls_problem = LeastSquaresProblem()
         for j in js:
-            ls_problem.add_residual({"h": (y[j] - m), f"z_{j}": -M_tilde})
+            ls_problem.add_residual({self.HOM: (y[j] - m), f"z_{j}": -M_tilde})
 
         if output_poly:
             Q = ls_problem.get_Q()

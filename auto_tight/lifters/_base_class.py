@@ -575,14 +575,6 @@ class BaseClass(object):
             bi_all[pt * dim_X_target : (pt + 1) * dim_X_target] = mat_target[
                 np.triu_indices(mat_target.shape[0])
             ]
-
-        # below doesn't pass. this would make for a cleaner implementation, consider fixing.
-        # poly_row = self.convert_b_to_polyrow(b, var_subset)
-        # row_target_dict = self.var_dict_all(target_subset)
-        # bi_all_test = poly_row.get_matrix(
-        #    (["h"], row_target_dict), output_type="dense"
-        # ).flatten()
-        # np.testing.assert_allclose(bi_all, bi_all_test)
         return bi_all
 
     def get_dim_x(self, var_subset=None):
