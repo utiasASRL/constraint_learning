@@ -16,6 +16,9 @@ from utils.common import upper_triangular
 
 
 class BaseClass(object):
+    # set elements below this threshold to zero.
+    EPS_SPARSE = 1e-9
+
     @staticmethod
     def ravel_multi_index_triu(index_tuple, shape):
         """Equivalent of np.multi_index_triu, but using only the upper-triangular part of matrix."""
@@ -58,7 +61,7 @@ class BaseClass(object):
         )
 
     @staticmethod
-    def create_symmetric(vec, eps_sparse, correct=False, sparse=False):
+    def create_symmetric(vec, correct=False, sparse=False):
         def get_dim_x(len_vec):
             return int(0.5 * (-1 + np.sqrt(1 + 8 * len_vec)))
 
@@ -67,7 +70,7 @@ class BaseClass(object):
             len_vec = len(vec)
             dim_x = get_dim_x(len_vec)
             triu = np.triu_indices(n=dim_x)
-            mask = np.abs(vec) > eps_sparse
+            mask = np.abs(vec) > BaseClass.EPS_SPARSE
             triu_i_nnz = triu[0][mask]
             triu_j_nnz = triu[1][mask]
             vec_nnz = vec[mask]
@@ -75,7 +78,7 @@ class BaseClass(object):
             # vec is sparse
             len_vec = vec.shape[1]
             dim_x = get_dim_x(len_vec)
-            vec.data[np.abs(vec.data) < eps_sparse] = 0
+            vec.data[np.abs(vec.data) < BaseClass.EPS_SPARSE] = 0
             vec.eliminate_zeros()
             ii, jj = vec.nonzero()  # vec is 1 x jj
             triu_i_nnz, triu_j_nnz = BaseClass.unravel_multi_index_triu(
@@ -118,16 +121,27 @@ class BaseClass(object):
                 Ai[triu_j_nnz, triu_i_nnz] = vec_nnz
         return Ai
 
-    def get_var_dict_unroll(self, var_subset=None):
-        if var_subset is not None:
-            var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
-            return unroll(var_dict)
-        return self.var_dict_unroll
-
+    ### Functionalities related to var_dict
     @property
     def var_dict_unroll(self):
-        return unroll(self.var_dict)
+        raise ValueError("use self.get_var_dict(unroll_keys=True)")
 
+    def get_var_dict_unroll(self, var_subset=None):
+        raise ValueError("use self.get_var_dict(unroll_keys=True)")
+
+    def get_var_dict(self, var_subset=None, unroll_keys=False):
+        if var_subset is not None:
+            var_dict = {k: v for k, v in self.var_dict.items() if k in var_subset}
+            if unroll_keys:
+                return unroll(var_dict)
+            else:
+                return var_dict
+        if unroll_keys:
+            return unroll(self.var_dict)
+        return self.var_dict
+
+
+    ### Functionalities related to random setups
     @property
     def theta(self):
         if self.theta_ is None:
@@ -136,7 +150,9 @@ class BaseClass(object):
 
     @theta.setter
     def theta(self, t):
-        assert self.theta_ is None
+        assert (
+            self.theta_ is None
+        ), "The property self.theta is only meant to be set once!"
         self.theta_ = t
 
     @property
@@ -147,13 +163,10 @@ class BaseClass(object):
 
     @parameters.setter
     def parameters(self, p):
-        assert self.parameters_ is None
+        assert (
+            self.parameters_ is None
+        ), "The property self.parameters is only meant to be set once!"
         self.parameters_ = p
-
-    def get_var_dict(self, var_subset=None):
-        if var_subset is not None:
-            return {k: v for k, v in self.var_dict.items() if k in var_subset}
-        return self.var_dict
 
     def extract_parameters(self, var_subset, parameters):
         if var_subset is None:
@@ -168,6 +181,10 @@ class BaseClass(object):
             return np.r_[1.0, parameters]
 
     def extract_A_known(self, A_known, var_subset, output_type="csc"):
+        """
+        Extract from the list of constraint matrices only the ones that
+        touch only a subset of var_subset.
+        """
         if output_type == "dense":
             sub_A_known = np.empty((0, self.get_dim_Y(var_subset)))
         else:
@@ -257,7 +274,7 @@ class BaseClass(object):
 
         mat = deepcopy(mat)
         if correct:
-            if isinstance(mat, sp.spmatrix):
+            if isinstance(mat, sp.spmatrix) or isinstance(mat, sp.sparray):
                 ii, jj = mat.nonzero()
                 mat[ii, jj] *= np.sqrt(2.0)
                 diag = ii == jj
@@ -295,12 +312,11 @@ class BaseClass(object):
         # len(vec) = k = n(n+1)/2 -> dim_x = n =
         if var_dict is None:
             pass
+
         elif not isinstance(var_dict, dict):
             var_dict = {k: v for k, v in self.var_dict.items() if k in var_dict}
 
-        Ai = self.create_symmetric(
-            vec, correct=correct, eps_sparse=self.EPS_SPARSE, sparse=sparse
-        )
+        Ai = BaseClass.create_symmetric(vec, correct=correct, sparse=sparse)
         if var_dict is None:
             return Ai
 
@@ -313,10 +329,11 @@ class BaseClass(object):
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
 
-    def get_labels(self, p, zi, zj):
+    @staticmethod
+    def get_labels(p, zi, zj, var_dict):
         labels = []
-        size_i = self.var_dict[zi]
-        size_j = self.var_dict[zj]
+        size_i = var_dict[zi]
+        size_j = var_dict[zj]
         if zi == zj:
             # only upper diagonal for i == j
             key_pairs = itertools.combinations_with_replacement(range(size_i), 2)
@@ -419,9 +436,7 @@ class BaseClass(object):
                             self.var_dict[vari], self.var_dict[varj]
                         )
                     else:
-                        mat = self.create_symmetric(
-                            val, eps_sparse=self.EPS_SPARSE, correct=False
-                        )
+                        mat = self.create_symmetric(val, correct=False)
                         sub_mat[vari, varj] = mat
                 elif val != 0:
                     sub_mat[vari, varj] = val
@@ -504,13 +519,13 @@ class BaseClass(object):
             dim_a = a.shape[1]
         assert dim_a == dim_X
 
-        mat = self.create_symmetric(a, eps_sparse=self.EPS_SPARSE, sparse=True)
+        mat = self.create_symmetric(a, sparse=True)
         poly_mat, __ = PolyMatrix.init_from_sparse(mat, var_dict)
         poly_row = PolyMatrix(symmetric=False)
         for keyi, keyj in itertools.combinations_with_replacement(var_dict, 2):
             if keyi in poly_mat.matrix and keyj in poly_mat.matrix[keyi]:
                 val = poly_mat.matrix[keyi][keyj]
-                labels = self.get_labels(self.HOM, keyi, keyj)
+                labels = self.get_labels(self.HOM, keyi, keyj, self.var_dict)
                 if keyi != keyj:
                     vals = val.flatten()
                 else:
@@ -567,7 +582,7 @@ class BaseClass(object):
         bi_all = np.zeros(self.get_dim_Y(target_subset))
         for p, key in enumerate(param_dict.keys()):
             block = b[p * dim_X : (p + 1) * (dim_X)]
-            mat_small = self.create_symmetric(block, eps_sparse=self.EPS_SPARSE)
+            mat_small = self.create_symmetric(block)
             poly_mat, __ = PolyMatrix.init_from_sparse(mat_small, var_dict)
             mat_target = poly_mat.get_matrix(target_subset).toarray()
 
