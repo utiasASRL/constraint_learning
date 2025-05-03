@@ -10,14 +10,10 @@ from auto_tight.lifters import StateLifter
 from poly_matrix import PolyMatrix
 from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
-from utils.constraint import Constraint
-from utils.plotting_tools import (
-    add_colorbar,
-    add_rectangles,
-    import_plt,
-    plot_singular_values,
-    savefig,
-)
+from utils.constraint import Constraint, generate_poly_matrix, plot_poly_matrix
+from utils.plotting_tools import (add_colorbar, add_rectangles, import_plt,
+                                  initialize_discrete_cbar,
+                                  plot_singular_values, savefig)
 
 from cert_tools.linalg_tools import find_dependent_columns, rank_project
 from cert_tools.sdp_solvers import solve_feasibility_sdp
@@ -56,13 +52,17 @@ class Learner(object):
     TOL_RANK_ONE = 1e7
     TOL_REL_GAP = 1e-3
 
+    # number of random inits to find the global solution
+    # we always try from ground truth, so for low-enough noise
+    # that should be good enough.
+    N_INITS = 1
+
     def __init__(
         self,
         lifter: StateLifter,
         variable_list: list = None,
         apply_templates: bool = True,
         noise: float = None,
-        n_inits: int = 10,
         use_known: bool = USE_KNOWN,
         use_incremental: bool = USE_INCREMENTAL,
     ):
@@ -103,7 +103,6 @@ class Learner(object):
         self.df_tight = None
         self.ranks = []
         self.dual_costs = []
-        self.n_inits = n_inits
 
         # tightness dict makes sure we don't compute tightness twice.
         self.reset_tightness_dict()
@@ -119,10 +118,12 @@ class Learner(object):
 
     @property
     def mat_var_dict(self):
+        raise ValueError("do not use this function anymore.")
         return {k: self.lifter.var_dict[k] for k in self.mat_vars}
 
     @property
     def row_var_dict(self):
+        raise ValueError("do not use this function anymore.")
         return self.lifter.var_dict_row(self.mat_vars)
 
     @property
@@ -425,7 +426,7 @@ class Learner(object):
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q()
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=self.n_inits, plot=plot
+            self.lifter, y=y, verbose=verbose, n_inits=self.N_INITS, plot=plot
         )
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
         self.solver_vars.update(info)
@@ -544,7 +545,7 @@ class Learner(object):
         templates_known_sub = []
         for c in self.templates_known:
             var_subset = set(c.A_poly_.get_variables())
-            if var_subset.issubset(self.mat_var_dict):
+            if var_subset.issubset(self.mat_vars):
                 templates_known_sub.append(c)
 
         new_index_set = set([t.index for t in templates_known_sub])
@@ -554,22 +555,22 @@ class Learner(object):
         self.templates_known_sub = templates_known_sub
         return len(diff_index_set)
 
-    # @profile
     def learn_templates(self, plot=False, data_dict=None):
         templates = []
+        mat_var_dict = self.lifter.get_var_dict(self.mat_vars)
 
         t1 = time.time()
         Y = AutoTight.generate_Y(self.lifter, var_subset=self.mat_vars, factor=FACTOR)
         a_vectors = []
         if self.use_incremental:
             for c in self.templates:
-                ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
-                bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
+                ai = self.lifter.get_vec(c.A_poly_.get_matrix(mat_var_dict))
+                bi = self.lifter.augment_using_zero_padding(ai)
                 a_vectors.append(bi)
         if self.use_known:
             for c in self.templates_known_sub:
-                ai = self.lifter.get_vec(c.A_poly_.get_matrix(self.mat_var_dict))
-                bi = self.lifter.augment_using_zero_padding(ai, self.mat_var_dict)
+                ai = self.lifter.get_vec(c.A_poly_.get_matrix(mat_var_dict))
+                bi = self.lifter.augment_using_zero_padding(ai)
                 a_vectors.append(bi)
         Y = np.vstack([Y] + a_vectors)
 
@@ -609,7 +610,8 @@ class Learner(object):
             for i, b in enumerate(basis_new):
                 constraint = Constraint.init_from_b(
                     index=self.constraint_index,
-                    mat_var_dict=self.mat_var_dict,
+                    mat_var_dict=mat_var_dict,
+                    mat_param_dict=self.lifter.param_dict,
                     b=b,
                     lifter=self.lifter,
                     convert_to_polyrow=self.apply_templates_to_others,
@@ -621,13 +623,16 @@ class Learner(object):
                 templates.append(constraint)
                 self.constraint_index += 1
 
-            # we assume that all known constraints are linearly independent, and also
-            # that all known+previously found constraints are linearly independent.
-            indep_templates = self.clean_constraints(
-                constraints=templates + self.templates,
-                remove_dependent=True,
-                remove_imprecise=False,
-            )
+            if len(templates + self.templates):
+                # we assume that all known constraints are linearly independent, and also
+                # that all known+previously found constraints are linearly independent.
+                indep_templates = self.clean_constraints(
+                    constraints=templates + self.templates,
+                    remove_dependent=True,
+                    remove_imprecise=False,
+                )
+            else:
+                indep_templates = []
 
         if data_dict is not None:
             ttot = time.time() - t1
@@ -702,7 +707,7 @@ class Learner(object):
         return constraints
 
     def get_known_templates(self, unroll=False, use_known=USE_KNOWN):
-        # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay
+        # TODO(FD) we should not always recompute from scratch, but it's not very expensive so it's okay for now.
         templates_known = []
         if not use_known:
             return templates_known
@@ -770,7 +775,7 @@ class Learner(object):
         if self.use_known:
             self.templates_known = self.get_known_templates()
             n_known = len(self.templates_known)
-            print(f"using {n_known} known constraints")
+            print(f"there are total {n_known} known constraints")
 
         while 1:
             # add one more variable to the list of variables to vary
@@ -783,7 +788,9 @@ class Learner(object):
             if self.use_known:
                 n_known_here = self.extract_known_templates()
                 n_new += n_known_here
-                print(f"using {n_known_here}/{n_known} known constraints")
+                print(
+                    f"using {n_known_here}/{n_known} known constraints (only the ones that contain the current variables)"
+                )
 
             data_dict = {"variables": self.mat_vars}
             data_dict["n dims"] = self.lifter.get_dim_Y(self.mat_vars)
@@ -802,6 +809,18 @@ class Learner(object):
                 print("new variables didn't have any effect")
                 data.append(data_dict)
                 continue
+
+            if plot:
+
+                # turn the current list of templates into a poly matrix.
+                templates = self.templates_known + self.templates
+                poly_matrix = generate_poly_matrix(templates)
+                fig, ax = plt.subplots()
+                poly_matrix.matshow(ax=ax)
+
+                fig, ax = plot_poly_matrix(poly_matrix, simplify=False, hom="l")
+                w, h = fig.get_size_inches()
+                fig.set_size_inches(10, 10 * h / w)
 
             # apply the pattern to all landmarks
             if self.apply_templates_to_others:
@@ -876,15 +895,19 @@ class Learner(object):
         )
         df.dropna(axis=1, how="all", inplace=True)
 
-        df_sorted = df.sort_values(
-            key=sort_fun_sparsity,
-            by=list(df.columns),
-            axis=0,
-            na_position="last",
-            inplace=False,
-        )
-        df_sorted["order_sparsity"] = range(len(df_sorted))
-        return df_sorted
+        try:
+            df_sorted = df.sort_values(
+                key=sort_fun_sparsity,
+                by=list(df.columns),
+                axis=0,
+                na_position="last",
+                inplace=False,
+            )
+            df_sorted["order_sparsity"] = range(len(df_sorted))
+            return df_sorted
+        except Exception as e:
+            print("failed to sort:", e)
+            return df
 
     def generate_templates_poly(self, constraints=None, factor_out_parameters=False):
         if constraints is None:
@@ -903,11 +926,11 @@ class Learner(object):
                 else:
                     if constraint.a_ is not None:
                         polyrow_a = self.lifter.convert_a_to_polyrow(
-                            constraint.a_, constraint.mat_var_dict
+                            constraint.a_, mat_vars
                         )
                     elif constraint.a_full_ is not None:
                         polyrow_a = self.lifter.convert_a_to_polyrow(
-                            constraint.a_full_, constraint.mat_var_dict
+                            constraint.a_full_, mat_vars
                         )
                     plot_rows.append(polyrow_a)
             else:
@@ -1054,19 +1077,19 @@ class Learner(object):
         return
 
     def save_matrices_sparsity(self, A_matrices=None, fname_root="", title=""):
+        from utils.common import get_aggregate_sparsity
+
         if A_matrices is None:
             A_matrices = self.A_matrices
 
         Q = self.solver_vars["Q"].toarray()
+
         sorted_i = self.lifter.var_dict_unroll
-        agg_ii = []
-        agg_jj = []
-        for i, A_poly in enumerate(A_matrices):
-            A_sparse = A_poly.get_matrix(variables=sorted_i)
-            ii, jj = A_sparse.nonzero()
-            agg_ii += list(ii)
-            agg_jj += list(jj)
-        A_agg = sp.csr_matrix(([1.0] * len(agg_ii), (agg_ii, agg_jj)), A_sparse.shape)
+        A_matrices_sparse = [
+            A_poly.get_matrix(variables=sorted_i) for A_poly in A_matrices
+        ]
+
+        A_agg = get_aggregate_sparsity(A_matrices_sparse)
 
         fig, axs = plt.subplots(1, 2)
         fig.set_size_inches(6, 3)
@@ -1081,8 +1104,6 @@ class Learner(object):
 
         for ax in axs:
             add_rectangles(ax, self.lifter.var_dict)
-
-        from utils.plotting_tools import add_colorbar
 
         add_colorbar(fig, axs[1], im1, nticks=3)
         # only for dimensions
@@ -1113,8 +1134,7 @@ class Learner(object):
             if reduced_mode:
                 sorted_i = sorted(A_poly.variable_dict_i.keys())
             else:
-                sorted_i = self.lifter.var_dict_unroll
-            from utils.plotting_tools import initialize_discrete_cbar
+                sorted_i = self.lifter.get_var_dict(unroll_keys=True)
 
             plot_axs = []
             if i < n_matrices:
@@ -1125,7 +1145,10 @@ class Learner(object):
                 figi.set_size_inches(3, 3)
                 plot_axs.append(axi)
 
-            A_sparse = A_poly.get_matrix(sorted_i)
+            if isinstance(A_poly, PolyMatrix):
+                A_sparse = A_poly.get_matrix(sorted_i)
+            else:
+                A_sparse = A_poly
             cmap, norm, colorbar_yticks = initialize_discrete_cbar(A_sparse.data)
 
             for ax in plot_axs:
