@@ -1,6 +1,3 @@
-[submodule "certifiable-tools"]
-	path = certifiable-tools
-	url = git@github.com:utiasASRL/certifiable-tools
 [submodule "starrynight"]
 	path = starrynight
 	url = git@github.com:utiasASRL/aer1513

@@ -1,4 +1,4 @@
-name: constraint_learning 
+name: constraint_learning
 channels:
     - defaults
     - conda-forge
@@ -6,6 +6,7 @@ channels:
     - mosek
 
 dependencies:
+    - autograd>=1.6.2
     - python=3.10
     - pip=22.3
     - flake8
