@@ -11,7 +11,6 @@ from cert_tools.sdp_solvers import solve_lambda_cvxpy as solve_lambda
 from cert_tools.sdp_solvers import solve_sdp_cvxpy
 from poly_matrix import PolyMatrix
 
-from auto_tight import AutoTight
 from auto_tight.lifters import StateLifter
 from solvers.common import find_local_minimum
 from solvers.sparse import bisection, brute_force
@@ -50,7 +49,7 @@ METHOD_NULL = "qrp"  # use svd or qp for comparison only, otherwise leave it at 
 EPSILON = 1e-4  # fixed epsilon for sparsity-promoting SDP
 
 
-class Learner(object):
+class AutoTemplate(object):
     """
     Class to incrementally learn and augment constraint templates until we reach tightness.
     """
@@ -554,6 +553,8 @@ class Learner(object):
         return len(diff_index_set)
 
     def learn_templates(self, plot=False, data_dict=None):
+        from auto_tight import AutoTight
+
         templates = []
         mat_var_dict = self.lifter.get_var_dict(self.mat_vars)
         param_dict = self.lifter.get_involved_param_dict(self.mat_vars)

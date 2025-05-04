@@ -6,7 +6,7 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 
-from auto_tight.auto_template import Learner
+from auto_tight import AutoTemplate
 from auto_tight.lifters.examples import (
     MonoLifter,
     RangeOnlyLocLifter,
@@ -202,7 +202,7 @@ def plot_autotemplate(df, log=True, start="t "):
 
 
 def save_autotight_order(
-    learner: Learner, fname_root="", use_bisection=False, figsize=FIGSIZE
+    learner: AutoTemplate, fname_root="", use_bisection=False, figsize=FIGSIZE
 ):
     from matplotlib.ticker import MaxNLocator
 
@@ -325,7 +325,7 @@ def save_autotight_order(
     return
 
 
-def tightness_study(learner: Learner, use_bisection=True):
+def tightness_study(learner: AutoTemplate, use_bisection=True):
     """investigate tightness before and after reordering"""
     print("reordering...")
     idx_subset_reorder = learner.generate_minimal_subset(
@@ -342,7 +342,7 @@ def tightness_study(learner: Learner, use_bisection=True):
     return idx_subset_original, idx_subset_reorder
 
 
-def apply_autotemplate_plot(learner: Learner, recompute=False, fname_root=""):
+def apply_autotemplate_plot(learner: AutoTemplate, recompute=False, fname_root=""):
     fname = fname_root + "_plot.pkl"
     try:
         assert not recompute, "forcing to recompute"
@@ -382,7 +382,7 @@ def apply_autotemplate_plot(learner: Learner, recompute=False, fname_root=""):
 
 
 def apply_autotemplate_base(
-    learner: Learner,
+    learner: AutoTemplate,
     param_list: list,
     results_folder: str,
     n_seeds: int = 1,
@@ -433,7 +433,7 @@ def apply_autotemplate_base(
 
                     np.random.seed(seed)
                     new_lifter = create_newinstance(learner.lifter, n_params)
-                    new_learner = Learner(
+                    new_learner = AutoTemplate(
                         lifter=new_lifter,
                         variable_list=new_lifter.variable_list,
                     )
@@ -514,7 +514,7 @@ def apply_autotemplate_base(
                 new_lifter.param_level = "no"
 
                 variable_list = new_lifter.get_all_variables()
-                new_learner = Learner(
+                new_learner = AutoTemplate(
                     lifter=new_lifter,
                     variable_list=variable_list,
                     apply_templates=False,
@@ -549,7 +549,7 @@ def apply_autotemplate_base(
 
 
 def apply_autotight_base(
-    learner: Learner,
+    learner: AutoTemplate,
     fname_root,
     plots,
 ):

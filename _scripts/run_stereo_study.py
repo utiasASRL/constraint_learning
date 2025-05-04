@@ -1,15 +1,15 @@
 import matplotlib.pylab as plt
 import numpy as np
 
-from auto_tight.auto_template import Learner
+from auto_tight import AutoTemplate
 from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
-from auto_tight.sim_experiments import (
+from utils.plotting_tools import add_lines, plot_matrix, savefig
+from utils.sim_experiments import (
     apply_autotemplate_base,
     apply_autotemplate_plot,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from utils.plotting_tools import add_lines, plot_matrix, savefig
 
 RESULTS_DIR = "_results_v4"
 debug = False
@@ -39,7 +39,7 @@ def apply_autotight(d=2, n_landmarks=None, results_dir=RESULTS_DIR):
             variable_list=variable_list,
         )
 
-        learner = Learner(
+        learner = AutoTemplate(
             lifter=lifter, variable_list=lifter.variable_list, apply_templates=False
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
@@ -88,11 +88,11 @@ def apply_autotemplate(n_seeds, recompute, d=2, results_dir=RESULTS_DIR, debug=d
         #     lifter.to_file(fname)
         #     lifter = Stereo3DLifter.from_file(fname)
 
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+    learner = AutoTemplate(lifter=lifter, variable_list=lifter.variable_list)
 
     if lifter.d == 2 and not debug:
         fname_root = f"{results_dir}/autotemplate_{learner.lifter}"
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = AutoTemplate(lifter=lifter, variable_list=lifter.variable_list)
         apply_autotemplate_plot(learner, recompute=recompute, fname_root=fname_root)
         return
 

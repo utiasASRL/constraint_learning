@@ -4,7 +4,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from auto_tight.auto_template import Learner
+from auto_tight import AutoTemplate
 from auto_tight.lifters.examples import (
     MonoLifter,
     RangeOnlyLocLifter,
@@ -12,7 +12,7 @@ from auto_tight.lifters.examples import (
     Stereo3DLifter,
     WahbaLifter,
 )
-from auto_tight.sim_experiments import save_autotight_order
+from utils.sim_experiments import save_autotight_order
 
 RECOMPUTE = True
 
@@ -48,7 +48,7 @@ def generate_results(lifters_list, seed=0, results_dir=RESULTS_DIR, debug=debug)
         fname = f"{fname_root}.pkl"
 
         print(f"\n\n ======================== {lifter} ==========================")
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = AutoTemplate(lifter=lifter, variable_list=lifter.variable_list)
         t1 = time.time()
         dict_list, success = learner.run(verbose=False, plot=False)
 

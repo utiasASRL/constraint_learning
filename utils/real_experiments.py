@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from pylgmath.so3.operations import hat
 
-from auto_tight.auto_template import Learner
+from auto_tight.auto_template import AutoTemplate
 from auto_tight.lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
 from starloc.reader import read_calib, read_data, read_landmarks
 from utils.geometry import get_theta_from_C_r
@@ -414,7 +414,9 @@ def run_real_experiment(
             return
         order_dict = {k: v for k, v in order_dict.items() if k in use_orders}
     else:
-        learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
+        learner = AutoTemplate(
+            lifter=new_lifter, variable_list=new_lifter.variable_list
+        )
         learner.run()
         order_dict = {}
         if "basic" in use_orders:
@@ -437,7 +439,9 @@ def run_real_experiment(
         data_dict["type"] = name
 
         # apply the templates to all new landmarks
-        new_learner = Learner(lifter=new_lifter, variable_list=new_lifter.variable_list)
+        new_learner = AutoTemplate(
+            lifter=new_lifter, variable_list=new_lifter.variable_list
+        )
         if from_scratch:
             new_learner.run()
 
@@ -488,7 +492,7 @@ def run_real_experiment(
         all_var_list = new_lifter.get_all_variables()
         new_lifter.param_level = "no"
         new_lifter.EPS_SVD = 1e-5
-        new_learner = Learner(
+        new_learner = AutoTemplate(
             lifter=new_lifter, variable_list=all_var_list, apply_templates=False
         )
         data_new, success = new_learner.run(verbose=True)

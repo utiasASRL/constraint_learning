@@ -1,13 +1,13 @@
 import numpy as np
 
-from auto_tight.auto_template import Learner
+from auto_tight import AutoTemplate
 from auto_tight.lifters.examples import RangeOnlyLocLifter
-from auto_tight.sim_experiments import (
+from utils.plotting_tools import add_lines, savefig
+from utils.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from utils.plotting_tools import add_lines, savefig
 
 n_positions = 3
 n_landmarks = 10
@@ -39,7 +39,7 @@ def apply_autotight(results_dir=RESULTS_DIR):
             level=level,
             variable_list="all",
         )
-        learner = Learner(
+        learner = AutoTemplate(
             lifter=lifter,
             variable_list=lifter.variable_list,
             apply_templates=False,
@@ -67,7 +67,7 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR, debug=debug)
             level=level,
             variable_list=variable_list,
         )
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+        learner = AutoTemplate(lifter=lifter, variable_list=lifter.variable_list)
         df = apply_autotemplate_base(
             learner,
             param_list=n_positions_list,

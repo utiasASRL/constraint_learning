@@ -1,13 +1,13 @@
 import numpy as np
 
-from auto_tight.auto_template import Learner
+from auto_tight import AutoTemplate
 from auto_tight.lifters.examples import MonoLifter, WahbaLifter
-from auto_tight.sim_experiments import (
+from utils.plotting_tools import add_lines, savefig
+from utils.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
     plot_autotemplate_time,
 )
-from utils.plotting_tools import add_lines, savefig
 
 RESULTS_DIR = "_results_server_v3"
 
@@ -42,7 +42,7 @@ def apply_autotight(
         robust=robust,
         n_outliers=n_outliers if robust else 0,
     )
-    learner = Learner(
+    learner = AutoTemplate(
         lifter=lifter,
         variable_list=lifter.variable_list,
         apply_templates=False,
@@ -85,7 +85,7 @@ def apply_autotemplate(
         robust=robust,
         n_outliers=n_outliers,
     )
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
+    learner = AutoTemplate(lifter=lifter, variable_list=lifter.variable_list)
 
     df = apply_autotemplate_base(
         learner,
