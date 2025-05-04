@@ -445,7 +445,7 @@ def run_real_experiment(
         new_learner.templates_known = new_learner.get_known_templates()
         new_learner.apply_templates()
 
-        new_learner.find_local_solution(plot=plot)
+        new_learner.find_local_solution(plot=plot, n_inits=10)
 
         t1 = time.time()
         new_learner.is_tight(verbose=False, data_dict=data_dict)

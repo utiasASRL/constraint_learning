@@ -418,11 +418,13 @@ class Learner(object):
             minimal_indices = list(sorted_idx[:min_num])
         return minimal_indices
 
-    def find_local_solution(self, verbose=False, plot=False):
+    def find_local_solution(self, n_inits=None, verbose=False, plot=False):
+        if n_inits is None:
+            n_inits = self.N_INITS
         np.random.seed(NOISE_SEED)
         Q, y = self.lifter.get_Q()
         qcqp_that, qcqp_cost, info = find_local_minimum(
-            self.lifter, y=y, verbose=verbose, n_inits=self.N_INITS, plot=plot
+            self.lifter, y=y, verbose=verbose, n_inits=n_inits, plot=plot
         )
         self.solver_vars = dict(Q=Q, y=y, qcqp_cost=qcqp_cost, xhat=None)
         self.solver_vars.update(info)

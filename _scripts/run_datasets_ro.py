@@ -3,6 +3,7 @@ from pathlib import Path
 import matplotlib
 import matplotlib.pylab as plt
 import pandas as pd
+
 from auto_tight.auto_template import Learner
 from auto_tight.real_experiments import Experiment, create_rmse_table, run_experiments
 from utils.plotting_real import (
@@ -113,5 +114,5 @@ def run_all(recompute=RECOMPUTE, n_successful=100, results_dir=RESULTS_DIR):
 
 
 if __name__ == "__main__":
-    # run many and plot distributions
+    # run many examples and plot distributions
     run_all(n_successful=100, recompute=False)
