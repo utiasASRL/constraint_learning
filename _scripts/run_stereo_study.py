@@ -1,9 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
+from popr import AutoTemplate
+from popr.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
+from popr.utils.plotting_tools import add_lines, plot_matrix, savefig
 
-from auto_tight import AutoTemplate
-from auto_tight.lifters.examples import Stereo1DLifter, Stereo2DLifter, Stereo3DLifter
-from utils.plotting_tools import add_lines, plot_matrix, savefig
 from utils.sim_experiments import (
     apply_autotemplate_base,
     apply_autotemplate_plot,
@@ -152,10 +152,9 @@ def run_all(
 
 
 def run_stereo_1d():
+    from auto_tight import AutoTight
     from cert_tools.linalg_tools import rank_project
     from cert_tools.sdp_solvers import solve_sdp_cvxpy
-
-    from auto_tight import AutoTight
 
     np.random.seed(0)
     lifter = Stereo1DLifter(n_landmarks=2)

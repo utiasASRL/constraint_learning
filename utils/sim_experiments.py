@@ -5,16 +5,15 @@ from copy import deepcopy
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
-
-from auto_tight import AutoTemplate
-from auto_tight.lifters.examples import (
+from popr import AutoTemplate
+from popr.examples import (
     MonoLifter,
     RangeOnlyLocLifter,
     Stereo2DLifter,
     Stereo3DLifter,
     WahbaLifter,
 )
-from utils.plotting_tools import FIGSIZE, savefig
+from popr.utils.plotting_tools import FIGSIZE, savefig
 
 COMPUTE_ONESHOT = True
 PLOT_DICT = {

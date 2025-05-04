@@ -3,8 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 import pandas as pd
-
-from utils.plotting_tools import import_plt, savefig
+from popr.utils.plotting_tools import import_plt, savefig
 
 plt = import_plt()
 

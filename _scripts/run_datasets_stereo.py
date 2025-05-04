@@ -7,7 +7,8 @@ try:
 except ImportError:
     pass
 
-from auto_tight import AutoTemplate
+from popr import AutoTemplate
+
 from utils.plotting_real import (
     plot_ground_truth,
     plot_local_vs_global,

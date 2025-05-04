@@ -7,13 +7,13 @@ from pathlib import Path
 import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
+from popr import AutoTemplate
+from popr.examples import RangeOnlyLocLifter, Stereo3DLifter
+from popr.utils.geometry import get_theta_from_C_r
+from popr.utils.plotting_tools import plot_frame, savefig
 from pylgmath.so3.operations import hat
 
-from auto_tight.auto_template import AutoTemplate
-from auto_tight.lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
 from starloc.reader import read_calib, read_data, read_landmarks
-from utils.geometry import get_theta_from_C_r
-from utils.plotting_tools import plot_frame, savefig
 
 REJECT_OUTLIERS = False
 OUTLIER_THRESHOLD = 0.5

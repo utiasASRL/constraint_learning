@@ -3,15 +3,15 @@ import time
 
 import numpy as np
 import pandas as pd
-
-from auto_tight import AutoTemplate
-from auto_tight.lifters.examples import (
+from popr import AutoTemplate
+from popr.examples import (
     MonoLifter,
     RangeOnlyLocLifter,
     Stereo2DLifter,
     Stereo3DLifter,
     WahbaLifter,
 )
+
 from utils.sim_experiments import save_autotight_order
 
 RECOMPUTE = True

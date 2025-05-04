@@ -5,9 +5,9 @@ import numpy as np
 import seaborn as sns
 import spatialmath as sm
 from cert_tools.linalg_tools import project_so3
+from popr.utils.geometry import get_T
+from popr.utils.plotting_tools import add_scalebar, plot_frame, savefig
 
-from utils.geometry import get_T
-from utils.plotting_tools import add_scalebar, plot_frame, savefig
 from utils.real_experiments import DEGENERATE_DICT, Experiment, load_experiment
 
 DATASET_ROOT = str(Path(__file__).parent.parent)

@@ -1,8 +1,8 @@
 import numpy as np
+from popr import AutoTemplate
+from popr.examples import MonoLifter, WahbaLifter
+from popr.utils.plotting_tools import add_lines, savefig
 
-from auto_tight import AutoTemplate
-from auto_tight.lifters.examples import MonoLifter, WahbaLifter
-from utils.plotting_tools import add_lines, savefig
 from utils.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
