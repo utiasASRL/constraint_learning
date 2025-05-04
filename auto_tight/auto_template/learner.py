@@ -144,9 +144,9 @@ class Learner(object):
     def duality_gap_is_zero(self, dual_cost, verbose=False, data_dict={}):
         primal_cost = self.solver_vars["qcqp_cost"]
         RDG = (primal_cost - dual_cost) / abs(dual_cost)
-        if RDG < -1e-4:
+        if RDG < -1e-2:
             print(
-                f"Warning: dual is significantly larger than primal: d={dual_cost:.5f} > p={primal_cost:.5f}, diff={dual_cost-primal_cost:.5f}"
+                f"Warning: dual is significantly larger than primal: d={dual_cost:.3e} > p={primal_cost:.3e}, diff={dual_cost-primal_cost:.3e}"
             )
         res = RDG < self.TOL_REL_GAP
         data_dict["RDG"] = RDG
@@ -554,19 +554,25 @@ class Learner(object):
     def learn_templates(self, plot=False, data_dict=None):
         templates = []
         mat_var_dict = self.lifter.get_var_dict(self.mat_vars)
+        param_dict = self.lifter.get_involved_param_dict(self.mat_vars)
 
         t1 = time.time()
-        Y = AutoTight.generate_Y(self.lifter, var_subset=self.mat_vars, factor=FACTOR)
+        Y = AutoTight.generate_Y(
+            self.lifter,
+            var_subset=self.mat_vars,
+            param_subset=param_dict,
+            factor=FACTOR,
+        )
         a_vectors = []
         if self.use_incremental:
             for c in self.templates:
                 ai = get_vec(c.A_poly_.get_matrix(mat_var_dict))
-                bi = self.lifter.augment_using_zero_padding(ai)
+                bi = self.lifter.augment_using_zero_padding(ai, param_dict)
                 a_vectors.append(bi)
         if self.use_known:
             for c in self.templates_known_sub:
                 ai = get_vec(c.A_poly_.get_matrix(mat_var_dict))
-                bi = self.lifter.augment_using_zero_padding(ai)
+                bi = self.lifter.augment_using_zero_padding(ai, param_dict)
                 a_vectors.append(bi)
         Y = np.vstack([Y] + a_vectors)
 
@@ -607,7 +613,7 @@ class Learner(object):
                 constraint = Constraint.init_from_b(
                     index=self.constraint_index,
                     mat_var_dict=mat_var_dict,
-                    mat_param_dict=self.lifter.param_dict,
+                    mat_param_dict=param_dict,
                     b=b,
                     lifter=self.lifter,
                     convert_to_polyrow=self.apply_templates_to_others,
@@ -809,7 +815,7 @@ class Learner(object):
 
                 # turn the current list of templates into a poly matrix.
                 templates = self.templates_known + self.templates
-                poly_matrix = generate_poly_matrix(templates)
+                poly_matrix = generate_poly_matrix(templates, lifter=self.lifter)
                 fig, ax = plt.subplots()
                 poly_matrix.matshow(ax=ax)
 
@@ -1079,7 +1085,7 @@ class Learner(object):
 
         Q = self.solver_vars["Q"].toarray()
 
-        sorted_i = self.lifter.get_var_dict(unroll=True)
+        sorted_i = self.lifter.get_var_dict(unroll_keys=True)
         A_matrices_sparse = [
             A_poly.get_matrix(variables=sorted_i) for A_poly in A_matrices
         ]

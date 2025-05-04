@@ -1,8 +1,9 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
-from auto_tight.lifters import StateLifter
 from poly_matrix.poly_matrix import PolyMatrix
+
+from auto_tight.lifters import StateLifter
 from utils.common import get_vec
 
 
@@ -71,7 +72,7 @@ def generate_poly_matrix(constraints, factor_out_parameters=False, lifter=None):
             plot_row_labels.append(f"{j}:b{i}")
 
     templates_poly = PolyMatrix.init_from_row_list(
-        plot_rows, row_labels=plot_row_labels, hom="l"
+        plot_rows, row_labels=plot_row_labels
     )
     return templates_poly
 
@@ -183,7 +184,9 @@ class Constraint(object):
         A_sparse = None
         a_full = None
         if lifter is not None:
-            a = lifter.get_reduced_a(b, var_subset=mat_var_dict, sparse=True)
+            a = lifter.get_reduced_a(
+                b, var_subset=mat_var_dict, param_subset=mat_param_dict, sparse=True
+            )
             A_sparse = lifter.get_mat(a, var_dict=mat_var_dict, sparse=True)
             a_full = get_vec(A_sparse, sparse=True)
             if a_full is None:
@@ -192,7 +195,9 @@ class Constraint(object):
             A_poly, __ = PolyMatrix.init_from_sparse(
                 A_sparse, var_dict=lifter.var_dict, unfold=True
             )
-            polyrow_b = lifter.convert_b_to_polyrow(b, mat_var_dict)
+            polyrow_b = lifter.convert_b_to_polyrow(
+                b, mat_var_dict, param_subset=mat_param_dict
+            )
         else:
             A_poly = None
             polyrow_b = None

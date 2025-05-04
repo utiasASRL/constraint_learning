@@ -3,6 +3,7 @@ from abc import abstractmethod
 
 import numpy as np
 from poly_matrix import PolyMatrix
+
 from utils.common import get_vec
 
 from ._base_class import BaseClass

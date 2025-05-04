@@ -7,7 +7,7 @@ from utils.common import upper_triangular
 class MotionPlanningLifter(StateLifter):
     """Lifter for simple motion planning problem."""
 
-    HOM = "l"
+    HOM = "h"
     LEVELS = ["no"]
 
     def __init__(self, setup):

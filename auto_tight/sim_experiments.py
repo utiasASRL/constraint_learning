@@ -436,7 +436,6 @@ def apply_autotemplate_base(
                     new_learner = Learner(
                         lifter=new_lifter,
                         variable_list=new_lifter.variable_list,
-                        n_inits=1,
                     )
                     success = new_learner.find_local_solution()
                     if not success:
@@ -519,7 +518,6 @@ def apply_autotemplate_base(
                     lifter=new_lifter,
                     variable_list=variable_list,
                     apply_templates=False,
-                    n_inits=1,
                 )
 
                 success = new_learner.find_local_solution()

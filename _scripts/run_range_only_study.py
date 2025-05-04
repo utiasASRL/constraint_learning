@@ -43,7 +43,6 @@ def apply_autotight(results_dir=RESULTS_DIR):
             lifter=lifter,
             variable_list=lifter.variable_list,
             apply_templates=False,
-            n_inits=1,
             use_known=False,
         )
         fname_root = f"{results_dir}/{lifter}_seed{seed}"
@@ -68,7 +67,7 @@ def apply_autotemplate(n_seeds, recompute, results_dir=RESULTS_DIR, debug=debug)
             level=level,
             variable_list=variable_list,
         )
-        learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+        learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
         df = apply_autotemplate_base(
             learner,
             param_list=n_positions_list,

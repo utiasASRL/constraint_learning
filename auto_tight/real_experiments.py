@@ -8,10 +8,10 @@ import matplotlib.pylab as plt
 import numpy as np
 import pandas as pd
 from pylgmath.so3.operations import hat
-from starloc.reader import read_calib, read_data, read_landmarks
 
 from auto_tight.auto_template import Learner
 from auto_tight.lifters.examples import RangeOnlyLocLifter, Stereo3DLifter
+from starloc.reader import read_calib, read_data, read_landmarks
 from utils.geometry import get_theta_from_C_r
 from utils.plotting_tools import plot_frame, savefig
 
@@ -271,7 +271,7 @@ class Experiment(object):
             self.landmarks = self.all_landmarks[valid_idx, :]
             self.landmark_ids = []  # unused
             self.y_ = y[valid_idx, :]
-            self.theta = get_theta_from_C_r(C_c0, r_0c_c)  # corresponds to T_c0
+            self.theta_ = get_theta_from_C_r(C_c0, r_0c_c)  # corresponds to T_c0
 
         else:
             # for reproducibility
@@ -346,9 +346,9 @@ class Experiment(object):
                 new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
             else:
                 new_lifter.all_landmarks = self.all_landmarks
-            new_lifter.theta = self.theta
+            new_lifter.theta_ = self.theta
             new_lifter.landmarks = self.landmarks
-            new_lifter.parameters = np.r_[1, self.landmarks.flatten()]
+            new_lifter.sample_parameters_landmarks(new_lifter.landmarks)
             new_lifter.M_matrix = self.M_matrix
             if self.params["use_gt"]:
                 new_lifter.y_ = new_lifter.simulate_y(noise=self.params["sim_noise"])
@@ -376,13 +376,13 @@ class Experiment(object):
             )
             new_lifter.chosen_idx = chosen_idx
 
-            new_lifter.theta = self.positions.flatten()
+            new_lifter.theta_ = self.positions.flatten()
             if isinstance(self.all_landmarks, pd.DataFrame):
                 new_lifter.all_landmarks = self.all_landmarks[["x", "y", "z"]].values
             else:
                 new_lifter.all_landmarks = self.all_landmarks
             new_lifter.landmarks = self.landmarks
-            new_lifter.parameters = np.r_[1.0, new_lifter.landmarks.flatten()]
+            new_lifter.parameters_ = np.r_[1.0, new_lifter.landmarks.flatten()]
             new_lifter.W = self.W_
             if self.params["use_gt"]:
                 new_lifter.y_ = new_lifter.simulate_y(noise=self.params["sim_noise"])

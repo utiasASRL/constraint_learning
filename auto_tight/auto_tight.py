@@ -1,10 +1,10 @@
 import matplotlib.pylab as plt
 import numpy as np
 import scipy.sparse as sp
+from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
+
 from utils.common import get_vec
 from utils.plotting_tools import plot_singular_values
-
-from cert_tools.linalg_tools import find_dependent_columns, get_nullspace
 
 
 class AutoTight(object):
@@ -209,7 +209,7 @@ class AutoTight(object):
             X = np.outer(x, x)
 
             # generates [1*x, a1*x, ..., aK*x]
-            p = lifter.get_p(parameters=parameters)
+            p = lifter.get_p(parameters=parameters, param_subset=param_subset)
             assert p[0] == 1
             Y[seed, :] = np.kron(p, get_vec(X))
         return Y

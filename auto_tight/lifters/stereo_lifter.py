@@ -3,6 +3,7 @@ from abc import ABC
 # import autograd.numpy as np
 import numpy as np
 from poly_matrix.poly_matrix import PolyMatrix
+
 from utils.geometry import (
     generate_random_pose,
     get_C_r_from_theta,
@@ -207,6 +208,9 @@ class StereoLifter(StateLifter, ABC):
         a3) cz @ pj * u_zj + tz*u_zj  - h*h = 0
            ------1z-------   --2z---
         """
+        print("not using known stereo templates because they depend on the landmarks.")
+        return []
+
         # x contains: [c1, c2, c3, t]
         # z contains: [u_xj, u_yj, u_zj, H.O.T.]
         if self.d == 2:
@@ -238,9 +242,6 @@ class StereoLifter(StateLifter, ABC):
 
         if var_dict is None:
             var_dict = self.var_dict
-
-        print("Not using known stereo templates because they depend on the landmarks.")
-        return []
 
         A_known = []
         z_dim = self.get_level_dims()[self.level]

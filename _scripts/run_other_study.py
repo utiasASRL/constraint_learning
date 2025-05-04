@@ -1,7 +1,7 @@
 import numpy as np
 
 from auto_tight.auto_template import Learner
-from auto_tight.lifters.examples import MonoLifter
+from auto_tight.lifters.examples import MonoLifter, WahbaLifter
 from auto_tight.sim_experiments import (
     apply_autotemplate_base,
     apply_autotight_base,
@@ -46,7 +46,6 @@ def apply_autotight(
         lifter=lifter,
         variable_list=lifter.variable_list,
         apply_templates=False,
-        n_inits=1,
     )
     fname_root = f"{results_dir}/{lifter}_seed{seed}"
     apply_autotight_base(
@@ -86,7 +85,7 @@ def apply_autotemplate(
         robust=robust,
         n_outliers=n_outliers,
     )
-    learner = Learner(lifter=lifter, variable_list=lifter.variable_list, n_inits=1)
+    learner = Learner(lifter=lifter, variable_list=lifter.variable_list)
 
     df = apply_autotemplate_base(
         learner,
@@ -119,8 +118,6 @@ def run_wahba(
     results_dir=RESULTS_DIR,
     debug=debug,
 ):
-    from lifters.wahba_lifter import WahbaLifter
-
     d = 3
     n_outliers = 1
 
@@ -164,8 +161,6 @@ def run_mono(
     results_dir=RESULTS_DIR,
     debug=debug,
 ):
-    from lifters.mono_lifter import MonoLifter
-
     d = 3
     n_outliers = 1
 

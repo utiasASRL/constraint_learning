@@ -26,7 +26,6 @@ class BaseClass(object):
             [int(v.split("_")[-1]) for v in var_subset if v.startswith(f"{variable}_")]
         )
 
-
     ### Functionalities related to var_dict
     def get_var_dict(self, var_subset=None, unroll_keys=False):
         if var_subset is not None:
@@ -148,17 +147,25 @@ class BaseClass(object):
         all_var_dict = {key[2]: 1 for key in augment_var_dict.values()}
         return Ai_poly.get_matrix(all_var_dict)
 
-    def var_list_row(self, var_subset=None, force_parameters_off=False):
+    def var_list_row(
+        self, var_subset=None, param_subset=None, force_parameters_off=False
+    ):
         if var_subset is None:
             var_subset = list(self.var_dict.keys())
         elif isinstance(var_subset, dict):
             var_subset = list(var_subset.keys())
 
+        if param_subset is None:
+            param_subset = self.param_dict
+
         label_list = []
         if force_parameters_off:
             param_dict = {self.HOM: 0}
         else:
-            param_dict = unroll(self.param_dict)  # self.get_param_idx_dict(var_subset)
+            param_dict = unroll(
+                self.get_param_dict(param_subset)
+            )  # self.get_param_idx_dict(var_subset)
+
         for idx, key in enumerate(param_dict.keys()):
             for i in range(len(var_subset)):
                 zi = var_subset[i]
@@ -320,7 +327,7 @@ class BaseClass(object):
         mask = np.abs(b) > tol
 
         # get the variable names such as p_0:0-x:0.x:4 whch corresponds to p_0[0]*x[0]*x[4]
-        var_list_row = self.var_list_row(var_subset)
+        var_list_row = self.var_list_row(var_subset, param_subset)
         assert len(b) == len(var_list_row)
 
         for idx in np.where(mask == True)[0]:
@@ -347,12 +354,14 @@ class BaseClass(object):
     def get_dim_P(self, param_subset=None):
         return len(self.get_p(param_subset=param_subset))
 
-    def get_reduced_a(self, bi, param_here=None, var_subset=None, sparse=False):
+    def get_reduced_a(
+        self, bi, param_here=None, var_subset=None, param_subset=None, sparse=False
+    ):
         """
         Extract first block of bi by summing over other blocks times the parameters.
         """
         if param_here is None:
-            param_here = self.get_p()
+            param_here = self.get_p(param_subset=param_subset)
 
         if isinstance(bi, np.ndarray):
             len_b = len(bi)
@@ -363,7 +372,7 @@ class BaseClass(object):
             # bi can be a scipy sparse matrix,
             len_b = bi.shape[1]
 
-        n_params = self.get_dim_P()
+        n_params = self.get_dim_P(param_subset=param_subset)
         dim_X = self.get_dim_X(var_subset)
         n_parts = len_b / dim_X
         assert (
@@ -383,10 +392,10 @@ class BaseClass(object):
         else:
             return ai
 
-    def augment_using_zero_padding(self, ai):
-        n_parameters = self.get_dim_P()
+    def augment_using_zero_padding(self, ai, param_subset=None):
+        n_parameters = self.get_dim_P(param_subset)
         return np.hstack([ai, np.zeros((n_parameters - 1) * len(ai))])
 
-    def augment_using_parameters(self, x):
-        p = self.get_p()
+    def augment_using_parameters(self, x, param_subset=None):
+        p = self.get_p(param_subset)
         return np.kron(p, x)
