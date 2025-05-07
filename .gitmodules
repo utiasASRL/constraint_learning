@@ -4,3 +4,6 @@
 [submodule "starloc"]
 	path = starloc
 	url = git@github.com:utiasASRL/starloc
+[submodule "popr"]
+	path = popr
+	url = /home/fdumbgen/Documents/Inria/popr
