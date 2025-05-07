@@ -1,6 +1,0 @@
-sphinx
-sphinx-autodocgen
-sphinx-rtd-theme
-myst-parser
-easydev
--r ../requirements.txt
